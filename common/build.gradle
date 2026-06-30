@@ -11,7 +11,19 @@ dependencies {
     // which get remapped to the correct annotations on each platform.
     // Do NOT use other classes from Fabric Loader.
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    // Use fileTree so the glob is expanded properly; files('libs/*') treats '*' as a
-    // literal path char and crashes on Windows (InvalidPathException). Empty dir is fine.
-    modImplementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    // Almanac is a COMPILE dependency (we import com.frikinjay.almanac.*). It is fetched
+    // automatically from the Modrinth Maven repo (declared in the root build.gradle), so
+    // there is no need to drop a jar into common/libs/ any more.
+    //   QM6nx1Sa = Almanac 1.0.2 (Fabric 1.20.1)
+    modImplementation "maven.modrinth:almanac:QM6nx1Sa"
+
+    // Let Me Despawn is RUNTIME-only (the server installs it separately). Pulling it in as
+    // a dev runtime dependency lets `runClient`/`runServer` work without a manual install.
+    //   rOkgwJ12 = Let Me Despawn 1.5.0 (Fabric 1.20.1)
+    modRuntimeOnly "maven.modrinth:lmd:rOkgwJ12"
+
+    // Fallback for offline builds: drop the Almanac jar into common/libs/ and uncomment.
+    // (Empty dir is fine; files('libs/*') would crash on Windows, so use fileTree.)
+    // modImplementation fileTree(dir: 'libs', include: ['*.jar'])
 }

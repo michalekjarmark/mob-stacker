@@ -38,6 +38,8 @@ public class MobStackerCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(literal(MOD_ID)
                 .requires(source -> source.hasPermission(2))
+                .executes(MobStackerCommands::showOverview)
+                .then(literal("help").executes(MobStackerCommands::showOverview))
                 .then(literal("stackerConfig")
                         .then(literal("killWholeStackOnDeath")
                                 .then(argument("value", BoolArgumentType.bool())
@@ -133,6 +135,35 @@ public class MobStackerCommands {
                                         .executes(MobStackerCommands::removeRegion)))
                         .then(literal("list")
                                 .executes(MobStackerCommands::listRegions))));
+    }
+
+    private static int showOverview(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("=== MobStacker ===").withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("Stack mode: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(MobStacker.config.getStackMode())).withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal("Max stack size: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(MobStacker.config.getMaxMobStackSize())).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal("   Radius: ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(String.valueOf(MobStacker.config.getStackRadius())).withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal("killWholeStackOnDeath: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getKillWholeStackOnDeath()))
+                .append(Component.literal("   stackHealth: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getStackHealth())), false);
+        source.sendSuccess(() -> Component.literal("damageOverflow: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getDamageOverflow()))
+                .append(Component.literal("   sweepingEdgeOverflow: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getSweepingEdgeOverflow())), false);
+        source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("stackerConfig, mobCapConfig, region, ignore, unignore, setStackSize")
+                        .withStyle(ChatFormatting.YELLOW)), false);
+        return 1;
+    }
+
+    private static Component formatBool(boolean value) {
+        return Component.literal(String.valueOf(value)).withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED);
     }
 
     private static CompletableFuture<Suggestions> suggestEntities(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
