@@ -53,6 +53,9 @@ public class MobStackerCommands {
                         .then(literal("sweepingEdgeOverflow")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setSweepingEdgeOverflow)))
+                        .then(literal("stackEquippedMobs")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setStackEquippedMobs)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -154,6 +157,8 @@ public class MobStackerCommands {
                 .append(formatBool(MobStacker.config.getDamageOverflow()))
                 .append(Component.literal("   sweepingEdgeOverflow: ").withStyle(ChatFormatting.GRAY))
                 .append(formatBool(MobStacker.config.getSweepingEdgeOverflow())), false);
+        source.sendSuccess(() -> Component.literal("stackEquippedMobs: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getStackEquippedMobs())), false);
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
@@ -256,6 +261,17 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setSweepingEdgeOverflow(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Sweeping Edge overflow has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setStackEquippedMobs(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getStackEquippedMobs() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack equipped mobs is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setStackEquippedMobs(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Stack equipped mobs has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

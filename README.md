@@ -57,6 +57,7 @@ While actual performance gains vary based on server specifications, player count
 | `stackHealth` | Combines health of stacked mobs when enabled | `false` |
 | `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
 | `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
+| `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -85,6 +86,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle Sweeping Edge bonus damage against stacks
 /mobstacker stackerConfig sweepingEdgeOverflow [true|false]
+
+# Toggle whether mobs holding/wearing items are allowed to stack
+/mobstacker stackerConfig stackEquippedMobs [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]

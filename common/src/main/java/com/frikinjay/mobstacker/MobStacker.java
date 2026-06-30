@@ -86,6 +86,13 @@ public final class MobStacker {
             return false;
         }
 
+        // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
+        // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
+        // explicitly allowed.
+        if (!config.getStackEquippedMobs() && hasEquipment(entity)) {
+            return false;
+        }
+
         if (!isStackingAllowedAt(entity)) {
             return false;
         }
@@ -133,6 +140,18 @@ public final class MobStacker {
 
         // StackMode.REGIONS: only stack when inside at least one ALLOW region.
         return insideAllowRegion;
+    }
+
+    /**
+     * @return true if the mob holds an item or wears any armor (any non-empty equipment slot).
+     */
+    public static boolean hasEquipment(Mob entity) {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (!entity.getItemBySlot(slot).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean canMerge(Mob self, Mob nearby) {
@@ -494,6 +513,8 @@ public final class MobStacker {
     public static boolean getDamageOverflow() {return config.getDamageOverflow();}
 
     public static boolean getSweepingEdgeOverflow() {return config.getSweepingEdgeOverflow();}
+
+    public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 

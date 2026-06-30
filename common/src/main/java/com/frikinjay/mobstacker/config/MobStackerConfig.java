@@ -18,6 +18,7 @@ public class MobStackerConfig {
     private boolean stackHealth = false;
     private boolean enableDamageOverflow = true;
     private boolean sweepingEdgeOverflow = true;
+    private boolean stackEquippedMobs = false;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private boolean enableSeparator = false;
@@ -55,6 +56,7 @@ public class MobStackerConfig {
     public boolean getStackHealth() { return stackHealth; }
     public boolean getDamageOverflow() { return enableDamageOverflow; }
     public boolean getSweepingEdgeOverflow() { return sweepingEdgeOverflow; }
+    public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
 
@@ -90,6 +92,11 @@ public class MobStackerConfig {
 
     public void setSweepingEdgeOverflow(boolean sweepingEdgeOverflow) {
         this.sweepingEdgeOverflow = sweepingEdgeOverflow;
+        save();
+    }
+
+    public void setStackEquippedMobs(boolean stackEquippedMobs) {
+        this.stackEquippedMobs = stackEquippedMobs;
         save();
     }
 
