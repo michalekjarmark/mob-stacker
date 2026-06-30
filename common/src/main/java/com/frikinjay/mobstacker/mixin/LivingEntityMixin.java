@@ -1,9 +1,13 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
+import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
@@ -83,9 +87,27 @@ public abstract class LivingEntityMixin extends Entity {
                 MobStacker.spawnNewEntity(serverLevel, mobstacker$self, survivors, mobstacker$overflowSurvivorHealth);
             }
 
+            // Action bar feedback to the killer when a stacked mob is killed.
+            if (stackSize > 1 && MobStacker.shouldSpawnNewEntity(mobstacker$self, reason)) {
+                mobstacker$sendStackKillFeedback(mobstacker$self, killed, Math.max(survivors, 0));
+            }
+
             mobstacker$overflowKills = 0;
             mobstacker$overflowSurvivorHealth = -1.0F;
         }
+    }
+
+    @Unique
+    private void mobstacker$sendStackKillFeedback(Mob mob, int killed, int remaining) {
+        if (!(mob.getKillCredit() instanceof ServerPlayer player)) {
+            return;
+        }
+        String name = Almanac.getLocalizedEntityName(mob.getType()).getString();
+        Component message = Component.literal("Killed ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(killed + "× " + name).withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal("  •  ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.literal(remaining + " left").withStyle(ChatFormatting.GREEN));
+        player.displayClientMessage(message, true);
     }
 
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))

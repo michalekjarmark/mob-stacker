@@ -206,6 +206,9 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
 > whole stack, so overflow does not apply.
 
+When a player kills mobs from a stack, an **action bar** message shows how many were
+killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
+
 ### Mob Cap Management
 
 ```bash
