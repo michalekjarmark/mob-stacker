@@ -79,6 +79,13 @@ public final class MobStacker {
             return false;
         }
 
+        // A mob that is dead or playing its death animation (health <= 0) must not take part
+        // in stacking. Merging into a dying mob restores its health mid-animation, which makes
+        // the death animation loop. Excluding it lets the death finish cleanly.
+        if (entity.isDeadOrDying() || entity.isRemoved()) {
+            return false;
+        }
+
         if (!isStackingAllowedAt(entity)) {
             return false;
         }
@@ -130,6 +137,12 @@ public final class MobStacker {
 
     public static boolean canMerge(Mob self, Mob nearby) {
         if (self.getClass() != nearby.getClass() || !getCanStack(nearby)) {
+            return false;
+        }
+
+        // Never merge into / from a dying or removed mob (see canStack) — guards the
+        // destructive mergeEntities call against the death-animation loop.
+        if (self.isDeadOrDying() || nearby.isDeadOrDying() || self.isRemoved() || nearby.isRemoved()) {
             return false;
         }
 
