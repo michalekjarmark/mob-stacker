@@ -11,5 +11,7 @@ dependencies {
     // which get remapped to the correct annotations on each platform.
     // Do NOT use other classes from Fabric Loader.
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
-    modImplementation files('libs/*')
+    // Use fileTree so the glob is expanded properly; files('libs/*') treats '*' as a
+    // literal path char and crashes on Windows (InvalidPathException). Empty dir is fine.
+    modImplementation fileTree(dir: 'libs', include: ['*.jar'])
 }
