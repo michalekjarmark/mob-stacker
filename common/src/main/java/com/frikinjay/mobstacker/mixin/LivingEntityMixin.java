@@ -10,12 +10,16 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
@@ -28,6 +32,10 @@ public abstract class LivingEntityMixin extends Entity {
     private LivingEntity mobstacker$thisEntity;
     @Unique
     private Mob mobstacker$self;
+    @Unique
+    private int mobstacker$overflowKills = 0;
+    @Unique
+    private float mobstacker$overflowSurvivorHealth = -1.0F;
 
     public LivingEntityMixin(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -65,10 +73,18 @@ public abstract class LivingEntityMixin extends Entity {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
 
-            if (MobStacker.shouldSpawnNewEntity(mobstacker$self, reason) && stackSize > 1 && mobstacker$self.level() instanceof ServerLevel serverLevel) {
+            // With damage overflow a single hit can kill several mobs at once; otherwise exactly one.
+            int killed = (MobStacker.getDamageOverflow() && mobstacker$overflowKills > 0)
+                    ? mobstacker$overflowKills : 1;
+            int survivors = stackSize - killed;
+
+            if (MobStacker.shouldSpawnNewEntity(mobstacker$self, reason) && survivors >= 1 && mobstacker$self.level() instanceof ServerLevel serverLevel) {
                 MobStackerAPI.executeCustomDeathHandlers(mobstacker$self, mobstacker$self.getLastDamageSource());
-                MobStacker.spawnNewEntity(serverLevel, mobstacker$self, stackSize);
+                MobStacker.spawnNewEntity(serverLevel, mobstacker$self, survivors, mobstacker$overflowSurvivorHealth);
             }
+
+            mobstacker$overflowKills = 0;
+            mobstacker$overflowSurvivorHealth = -1.0F;
         }
     }
 
@@ -111,6 +127,99 @@ public abstract class LivingEntityMixin extends Entity {
             for (int i = 1; i < stackSize; i++) {
                 mobstacker$self.createWitherRose(livingEntity);
             }
+        }
+    }
+
+    /**
+     * Sweeping Edge normally deals bonus damage to mobs <i>around</i> the target. Because a stack is
+     * a single entity there is nothing around it, so the enchantment would otherwise do nothing here.
+     * We fold the vanilla sweep damage back into the hit on the stack, where it feeds the damage
+     * overflow below (so a sweeping sword chews through more mobs per swing, like it should).
+     */
+    @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
+    private float mobstacker$applySweepingEdgeToStack(float amount, DamageSource damageSource) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self.level().isClientSide() || !(self instanceof Mob mob)) {
+            return amount;
+        }
+        if (!MobStacker.getDamageOverflow() || !MobStacker.getSweepingEdgeOverflow()) {
+            return amount;
+        }
+        if (MobStacker.getStackSize(mob) <= 1 || !damageSource.is(DamageTypes.PLAYER_ATTACK)) {
+            return amount;
+        }
+        if (!(damageSource.getEntity() instanceof LivingEntity attacker)) {
+            return amount;
+        }
+        int level = EnchantmentHelper.getEnchantmentLevel(Enchantments.SWEEPING_EDGE, attacker);
+        if (level <= 0) {
+            return amount;
+        }
+        // Vanilla: sweepDamage = 1.0 + (level / (level + 1)) * attackDamage.
+        float ratio = (float) level / (level + 1);
+        float sweepBonus = 1.0F + ratio * amount;
+        return amount + sweepBonus;
+    }
+
+    /**
+     * Damage overflow. When a hit would reduce the top mob of a stack below 0 HP, the leftover damage
+     * is carried onto the mobs underneath it. We compute how many mobs the hit actually kills (and how
+     * wounded the next survivor is left) here, then {@link #mobstacker$overflowDeathLoot} drops the
+     * extra loot and {@link #mobstacker$onRemoveHead} spawns the wounded remainder.
+     */
+    @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
+    private void mobstacker$overflowDamage(LivingEntity instance, float newHealth) {
+        if (instance.level().isClientSide() || !(instance instanceof Mob mob)
+                || MobStacker.getKillWholeStackOnDeath() || !MobStacker.getDamageOverflow()) {
+            instance.setHealth(newHealth);
+            return;
+        }
+
+        int stackSize = MobStacker.getStackSize(mob);
+        if (newHealth > 0.0F || stackSize <= 1) {
+            instance.setHealth(newHealth);
+            return;
+        }
+
+        float maxHealth = instance.getMaxHealth();
+        float overflow = -newHealth; // damage left over once the top mob's remaining health is gone
+        int extraKills = maxHealth > 0.0F ? (int) Math.floor(overflow / maxHealth) : 0;
+        int totalKilled = Math.min(1 + extraKills, stackSize);
+
+        mobstacker$overflowKills = totalKilled;
+        if (totalKilled < stackSize) {
+            float leftover = overflow - (totalKilled - 1) * maxHealth; // 0 .. maxHealth, hurts the next mob
+            leftover = Math.max(0.0F, Math.min(leftover, maxHealth));
+            mobstacker$overflowSurvivorHealth = maxHealth - leftover;
+        } else {
+            mobstacker$overflowSurvivorHealth = -1.0F;
+        }
+
+        instance.setHealth(newHealth); // let the top mob die normally
+    }
+
+    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    private void mobstacker$overflowDeathLoot(DamageSource damageSource, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self.level().isClientSide() || !(self instanceof Mob mob)) {
+            return;
+        }
+        // killWholeStackOnDeath has its own multi-drop logic; /kill must not duplicate loot.
+        if (MobStacker.getKillWholeStackOnDeath() || !MobStacker.getDamageOverflow()
+                || damageSource.is(DamageTypes.GENERIC_KILL)) {
+            return;
+        }
+        int extraKilled = mobstacker$overflowKills - 1; // the top mob already dropped its loot
+        if (extraKilled <= 0) {
+            return;
+        }
+        LivingEntity killCredit = mob.getKillCredit();
+        for (int i = 0; i < extraKilled; i++) {
+            dropAllDeathLoot(damageSource);
+            if (mob.deathScore >= 0 && killCredit != null) {
+                killCredit.awardKillScore(mob, mob.deathScore, damageSource);
+            }
+            mob.createWitherRose(killCredit);
         }
     }
 

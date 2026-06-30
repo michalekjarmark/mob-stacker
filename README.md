@@ -45,6 +45,9 @@ While actual performance gains vary based on server specifications, player count
 | ❤️ Flexible Health Management | Configurable options for stack health and death mechanics |
 | 🚫 Selective Stacking | Ability to exclude specific entities or entire mods |
 | 🔪 Stack Splitting | Implemented separator item functionality for dividing stacks |
+| 🗺️ Region-Based Stacking | Limit stacking to chosen world regions (allow/deny cuboids) |
+| 💥 Damage Overflow | A single big hit kills multiple mobs in a stack and drops loot for each |
+| ⚔️ Sweeping Edge Support | Sweeping Edge adds bonus damage against stacks instead of doing nothing |
 
 ## Configuration
 
@@ -52,13 +55,17 @@ While actual performance gains vary based on server specifications, player count
 |--------|-------------|---------|
 | `killWholeStackOnDeath` | Determines if entire stack dies when one mob is killed | `false` |
 | `stackHealth` | Combines health of stacked mobs when enabled | `false` |
+| `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
+| `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
 | `consumeSeparator` | Determines if separator item is consumed on use | `true` |
 | `separatorItem` | Specifies the item used as a separator | `"minecraft:diamond"` |
-| `ignoredEntities` | List of entities excluded from stacking | `["minecraft:ender_dragon"]` |
+| `ignoredEntities` | List of entities excluded from stacking | `["minecraft:ender_dragon", "minecraft:vex"]` |
 | `ignoredMods` | List of mod IDs whose entities are excluded from stacking | `["corpse"]` |
+| `stackMode` | Where new stacks may form: `REGIONS`, `EVERYWHERE` or `OFF` | `REGIONS` |
+| `regions` | Allow/deny cuboids that gate stacking (see Region & Mode Management) | `[]` |
 
 ## Commands
 
@@ -72,6 +79,12 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle health stacking
 /mobstacker stackerConfig stackHealth [true|false]
+
+# Toggle damage overflow (one hit can kill several mobs in a stack)
+/mobstacker stackerConfig damageOverflow [true|false]
+
+# Toggle Sweeping Edge bonus damage against stacks
+/mobstacker stackerConfig sweepingEdgeOverflow [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -151,6 +164,43 @@ several cuboids.
 > 💡 With the default `regions` mode and no regions defined, **no mobs stack at all**.
 > Add at least one `allow` region (e.g. around a laggy farm) to enable stacking there
 > while the rest of the world behaves like vanilla.
+
+### Combat: Damage Overflow & Enchantments
+
+By default a stack behaves like a single mob in combat: one hit removes the top mob,
+and a fresh, full-health mob takes its place. **Damage overflow** changes that so a
+hard-hitting blow is not wasted on the stack.
+
+- When a hit deals more damage than the top mob's remaining health, the leftover
+  damage is carried onto the mobs below it.
+- A hit that would kill **N** mobs drops loot, experience and kill-score for **all N**
+  mobs — not just one.
+- If the overflow does not fully kill the next mob, that mob is left wounded (it does
+  **not** get healed back to full).
+- This works for **any** damage source — melee, Instant Damage / Harming potions,
+  magic, lava, etc. — because it acts on the final post-armor damage. Minecraft's own
+  resistance, armor and protection calculations are applied first, so they are
+  respected automatically.
+
+Because the related enchantments already increase a hit's damage in vanilla,
+**Sharpness, Smite, Bane of Arthropods and Fire Aspect already feed overflow for
+free** (a bigger hit simply kills more mobs). **Looting** is applied per mob killed.
+
+**Sweeping Edge** is special: it normally damages mobs *around* the target, but a
+stack is a single entity, so vanilla Sweeping Edge would do nothing here. Instead the
+mod folds the vanilla sweep damage (`1.0 + level / (level + 1) × attack damage`) back
+into the hit, so Sweeping Edge meaningfully clears stacks:
+
+| Sweeping Edge | Bonus damage to the stack |
+|---------------|---------------------------|
+| I | `1.0 + 0.50 × attack damage` |
+| II | `1.0 + 0.67 × attack damage` |
+| III | `1.0 + 0.75 × attack damage` |
+
+> 💡 Both behaviours are independent toggles — disable `damageOverflow` to return to
+> one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
+> `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
+> whole stack, so overflow does not apply.
 
 ### Mob Cap Management
 

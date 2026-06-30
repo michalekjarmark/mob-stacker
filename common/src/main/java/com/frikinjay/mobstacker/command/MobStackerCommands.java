@@ -45,6 +45,12 @@ public class MobStackerCommands {
                         .then(literal("stackHealth")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setStackHealth)))
+                        .then(literal("damageOverflow")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setDamageOverflow)))
+                        .then(literal("sweepingEdgeOverflow")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setSweepingEdgeOverflow)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -197,6 +203,28 @@ public class MobStackerCommands {
                 MobStacker.config.setKillWholeStackOnDeath(true);
             }
             context.getSource().sendSuccess(() -> Component.literal("Stack health has been set to " + newValue + (newValue ? " (Kill whole stack on death set to true)" : "")).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setDamageOverflow(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getDamageOverflow() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Damage overflow is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setDamageOverflow(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Damage overflow has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setSweepingEdgeOverflow(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getSweepingEdgeOverflow() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Sweeping Edge overflow is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setSweepingEdgeOverflow(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Sweeping Edge overflow has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

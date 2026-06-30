@@ -158,12 +158,30 @@ public final class MobStacker {
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {
+        // Backwards-compatible overload: spawn the remainder of the stack at full health.
+        spawnNewEntity(serverLevel, self, stackSize - 1, -1.0F);
+    }
+
+    /**
+     * Spawns the surviving remainder of a stack after some mobs were killed.
+     *
+     * @param newStackSize   the stack size the spawned mob should carry (number of survivors)
+     * @param survivorHealth health to apply to the spawned mob, or a non-positive value to keep it
+     *                       at full health. Used by damage overflow so a partially-damaging hit
+     *                       leaves the next mob wounded instead of fully healed.
+     */
+    public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int newStackSize, float survivorHealth) {
+        if (newStackSize < 1) return;
+
         EntityType<?> entityType = self.getType();
         Mob newEntity = (Mob) entityType.create(serverLevel);
         if (newEntity == null) return;
 
         copyEntityData(self, newEntity, serverLevel);
-        MobStacker.setStackSize(newEntity, stackSize - 1);
+        MobStacker.setStackSize(newEntity, newStackSize);
+        if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
+            newEntity.setHealth(survivorHealth);
+        }
         serverLevel.addFreshEntity(newEntity);
     }
 
@@ -459,6 +477,10 @@ public final class MobStacker {
     public static boolean getKillWholeStackOnDeath() {return config.getKillWholeStackOnDeath();}
 
     public static boolean getStackHealth() {return config.getStackHealth();}
+
+    public static boolean getDamageOverflow() {return config.getDamageOverflow();}
+
+    public static boolean getSweepingEdgeOverflow() {return config.getSweepingEdgeOverflow();}
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 
