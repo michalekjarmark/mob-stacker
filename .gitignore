@@ -1,1 +1,16 @@
-/.gradle
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local dependency jars (Almanac etc. — download separately)
+**/libs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store

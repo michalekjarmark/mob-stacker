@@ -30,6 +30,9 @@ public class MobStackerConfig {
             "corpse"
     ));
 
+    private StackMode stackMode = StackMode.REGIONS;
+    private List<StackRegion> regions = new ArrayList<>();
+
     private final MobCaps mobCaps = new MobCaps();
 
     public static MobStackerConfig load() {
@@ -121,6 +124,43 @@ public class MobStackerConfig {
 
     private boolean removeFromList(String item, List<String> list) {
         if (list.remove(item)) {
+            save();
+            return true;
+        }
+        return false;
+    }
+
+    public StackMode getStackMode() {
+        return stackMode != null ? stackMode : StackMode.REGIONS;
+    }
+
+    public void setStackMode(StackMode stackMode) {
+        this.stackMode = stackMode;
+        save();
+    }
+
+    public List<StackRegion> getRegions() {
+        return Collections.unmodifiableList(regions);
+    }
+
+    public StackRegion getRegion(String name) {
+        return regions.stream()
+                .filter(region -> region.getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public boolean addRegion(StackRegion region) {
+        if (getRegion(region.getName()) != null) {
+            return false;
+        }
+        regions.add(region);
+        save();
+        return true;
+    }
+
+    public boolean removeRegion(String name) {
+        if (regions.removeIf(region -> region.getName().equalsIgnoreCase(name))) {
             save();
             return true;
         }

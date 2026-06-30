@@ -12,6 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,6 +20,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
+
+    @Shadow
+    protected abstract void dropAllDeathLoot(DamageSource damageSource);
 
     @Unique
     private LivingEntity mobstacker$thisEntity;
@@ -83,7 +87,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
     private void mobstacker$onDieAllDropLoot(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath()) {
@@ -91,13 +95,13 @@ public abstract class LivingEntityMixin extends Entity {
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             for (int i = 1; i < stackSize; i++) {
                 if(!mobstacker$self.level().isClientSide()) {
-                    mobstacker$self.dropAllDeathLoot((ServerLevel) mobstacker$self.level(), damageSource);
+                    dropAllDeathLoot(damageSource);
                 }
             }
         }
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
     private void mobstacker$onDieAllCreateWRose(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath()) {
