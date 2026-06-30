@@ -215,6 +215,9 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 
 ## Additional Notes
 
+- 🗂️ Config is stored **per world/server** in `<world>/serverconfig/mobstacker.json`,
+  loaded when the server starts — so settings no longer leak between worlds. (Upgrading
+  from an older version? Copy your old `config/mobstacker.json` there to keep your setup.)
 - 🔄 Automatic stacking occurs when compatible mobs move to a new block.
 - 👑 Boss entities receive special handling to preserve custom names and health bars.
 - 🔌 API available for custom merging conditions, death handlers, and entity data modifiers.

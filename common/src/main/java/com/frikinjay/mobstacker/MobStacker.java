@@ -9,6 +9,8 @@ import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -31,6 +33,8 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.BiPredicate;
@@ -44,7 +48,9 @@ public final class MobStacker {
     public static final String STACK_SIZE_KEY = "StackSize";
     public static final String CAN_STACK_KEY = "CanStack";
     public static MobStackerConfig config;
-    public static final File CONFIG_FILE = new File("config/mobstacker.json");
+    // Resolved to the running world's save folder on server start (see loadWorldConfig).
+    // The global path is only a pre-server fallback so the field is never null.
+    public static File configFile = new File("config/mobstacker.json");
 
     private static final WeakHashMap<Class<?>, Boolean> bossEntityCache = new WeakHashMap<>();
     private static final WeakHashMap<Class<?>, Field> bossFieldCache = new WeakHashMap<>();
@@ -65,13 +71,35 @@ public final class MobStacker {
     );
 
     public static void init() {
+        // Load a default config up front so MobStacker.config is never null. The real,
+        // per-world config is loaded from the world's save folder when a server starts
+        // (see loadWorldConfig / MinecraftServerMixin), so each world/server keeps its
+        // own settings instead of sharing one global file. We intentionally do not save
+        // here, to avoid leaving a stray global file that would never actually be used.
         config = MobStackerConfig.load();
-        Almanac.addConfigChangeListener(CONFIG_FILE, newConfig -> {
+        Almanac.addCommandRegistration(MobStackerCommands::register);
+    }
+
+    /**
+     * Points the config at the running world's save folder and (re)loads it, so every
+     * world/server has a single config file of its own, loaded on start. Called from
+     * {@code MinecraftServerMixin} when the server is created.
+     */
+    public static void loadWorldConfig(MinecraftServer server) {
+        try {
+            Path dir = server.getWorldPath(LevelResource.ROOT).resolve("serverconfig");
+            Files.createDirectories(dir);
+            configFile = dir.resolve("mobstacker.json").toFile();
+        } catch (Exception e) {
+            logger.error("MobStacker: could not resolve the per-world config path, using the global file", e);
+            configFile = new File("config/mobstacker.json");
+        }
+        config = MobStackerConfig.load();
+        config.save();
+        Almanac.addConfigChangeListener(configFile, newConfig -> {
             config = (MobStackerConfig) newConfig;
             logger.info("MobStacker config reloaded");
         });
-        config.save();
-        Almanac.addCommandRegistration(MobStackerCommands::register);
     }
 
     public static boolean canStack(Mob entity) {
