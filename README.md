@@ -108,6 +108,50 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 /mobstacker setStackSize [entity] [size]
 ```
 **NOTE**: An entity can be given the tag `{StackData: {CanStack:0b}}` to prevent it from stacking.
+
+### Region & Mode Management
+
+The global stacking mode controls *where* new stacks are allowed to form. It does
+not affect mobs that are already stacked (they keep splitting/separating correctly
+everywhere).
+
+| Mode | Behaviour |
+|------|-----------|
+| `regions` *(default)* | Stacking only forms inside an `allow` region, and never inside a `deny` region. |
+| `everywhere` | Stacking forms everywhere, except inside a `deny` region. |
+| `off` | No new stacks ever form. |
+
+```bash
+# Set the global stacking mode
+/mobstacker stackerConfig stackMode [regions|everywhere|off]
+```
+
+Regions are axis-aligned cuboids tied to the dimension you run the command in.
+Corners accept absolute coordinates or `~` relative coordinates (relative to you).
+`deny` regions always win over `allow` regions. Approximate custom shapes by adding
+several cuboids.
+
+```bash
+# Add an ALLOW region (stacking enabled here)
+/mobstacker region add <name> allow <x1> <y1> <z1> <x2> <y2> <z2>
+
+# Add a DENY region (stacking forbidden here, overrides everything)
+/mobstacker region add <name> deny <x1> <y1> <z1> <x2> <y2> <z2>
+
+# Example: a cow-farm region around where you stand
+/mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15
+
+# Remove a region
+/mobstacker region remove <name>
+
+# List all regions and the current mode
+/mobstacker region list
+```
+
+> 💡 With the default `regions` mode and no regions defined, **no mobs stack at all**.
+> Add at least one `allow` region (e.g. around a laggy farm) to enable stacking there
+> while the rest of the world behaves like vanilla.
+
 ### Mob Cap Management
 
 ```bash

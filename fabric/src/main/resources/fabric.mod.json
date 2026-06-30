@@ -26,9 +26,9 @@
     "mobstacker-fabric.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.7",
-    "minecraft": "~1.21",
-    "java": ">=21",
+    "fabricloader": ">=0.15.11",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
     "almanac": ">=1.0.2",
     "letmedespawn": ">=1.4.4"
   },

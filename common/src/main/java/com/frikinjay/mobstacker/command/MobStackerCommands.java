@@ -1,18 +1,23 @@
 package com.frikinjay.mobstacker.command;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.config.StackMode;
+import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -21,6 +26,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -45,6 +51,10 @@ public class MobStackerCommands {
                         .then(literal("stackRadius")
                                 .then(argument("value", DoubleArgumentType.doubleArg(0.1, 42000))
                                         .executes(MobStackerCommands::setStackRadius)))
+                        .then(literal("stackMode")
+                                .then(literal("regions").executes(ctx -> setStackMode(ctx, StackMode.REGIONS)))
+                                .then(literal("everywhere").executes(ctx -> setStackMode(ctx, StackMode.EVERYWHERE)))
+                                .then(literal("off").executes(ctx -> setStackMode(ctx, StackMode.OFF))))
                         .then(literal("separator")
                                 .then(literal("enableSeparator")
                                         .then(argument("value", BoolArgumentType.bool())
@@ -99,7 +109,24 @@ public class MobStackerCommands {
                 .then(literal("setStackSize")
                         .then(argument("entity", EntityArgument.entity())
                                 .then(argument("size", IntegerArgumentType.integer(1))
-                                        .executes(MobStackerCommands::setStackSize)))));
+                                        .executes(MobStackerCommands::setStackSize))))
+                .then(literal("region")
+                        .then(literal("add")
+                                .then(argument("name", StringArgumentType.word())
+                                        .then(literal("allow")
+                                                .then(argument("corner1", BlockPosArgument.blockPos())
+                                                        .then(argument("corner2", BlockPosArgument.blockPos())
+                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.ALLOW)))))
+                                        .then(literal("deny")
+                                                .then(argument("corner1", BlockPosArgument.blockPos())
+                                                        .then(argument("corner2", BlockPosArgument.blockPos())
+                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.DENY)))))))
+                        .then(literal("remove")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(MobStackerCommands::removeRegion)))
+                        .then(literal("list")
+                                .executes(MobStackerCommands::listRegions))));
     }
 
     private static CompletableFuture<Suggestions> suggestEntities(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
@@ -393,5 +420,77 @@ public class MobStackerCommands {
             context.getSource().sendSuccess(() -> Component.literal("Water ambient mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
+    }
+
+    // Stacking mode & regions
+
+    private static int setStackMode(CommandContext<CommandSourceStack> context, StackMode mode) {
+        if (MobStacker.config.getStackMode() == mode) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack mode is already set to " + mode).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setStackMode(mode);
+            context.getSource().sendSuccess(() -> Component.literal("Stack mode has been set to " + mode).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int addRegion(CommandContext<CommandSourceStack> context, StackRegion.Type type) throws CommandSyntaxException {
+        String name = StringArgumentType.getString(context, "name");
+        if (MobStacker.config.getRegion(name) != null) {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' already exists. Remove it first.").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+
+        BlockPos corner1 = BlockPosArgument.getBlockPos(context, "corner1");
+        BlockPos corner2 = BlockPosArgument.getBlockPos(context, "corner2");
+        String dimension = context.getSource().getLevel().dimension().location().toString();
+
+        StackRegion region = new StackRegion(name, dimension, type,
+                corner1.getX(), corner1.getY(), corner1.getZ(),
+                corner2.getX(), corner2.getY(), corner2.getZ());
+        MobStacker.config.addRegion(region);
+
+        context.getSource().sendSuccess(() -> Component.literal(
+                "Added " + type + " region '" + name + "' in " + dimension + " " + region.describeBounds()
+        ).withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    private static int removeRegion(CommandContext<CommandSourceStack> context) {
+        String name = StringArgumentType.getString(context, "name");
+        if (MobStacker.config.removeRegion(name)) {
+            context.getSource().sendSuccess(() -> Component.literal("Removed region '" + name + "'").withStyle(ChatFormatting.GOLD), true);
+        } else {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist").withStyle(ChatFormatting.RED));
+        }
+        return 1;
+    }
+
+    private static int listRegions(CommandContext<CommandSourceStack> context) {
+        List<StackRegion> regions = MobStacker.config.getRegions();
+        StackMode mode = MobStacker.config.getStackMode();
+
+        if (regions.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+
+        context.getSource().sendSuccess(() -> Component.literal("Stacking regions (mode: " + mode + "):").withStyle(ChatFormatting.AQUA), false);
+        for (StackRegion region : regions) {
+            ChatFormatting color = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
+            context.getSource().sendSuccess(() -> Component.literal(
+                    " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " " + region.describeBounds()
+            ).withStyle(color), false);
+        }
+        return 1;
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        MobStacker.config.getRegions().stream()
+                .map(StackRegion::getName)
+                .filter(regionName -> regionName.toLowerCase().startsWith(remaining))
+                .forEach(builder::suggest);
+        return builder.buildFuture();
     }
 }

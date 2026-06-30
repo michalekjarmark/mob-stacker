@@ -4,7 +4,10 @@ import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.command.MobStackerCommands;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
+import com.frikinjay.mobstacker.config.StackMode;
+import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.logging.LogUtils;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -76,6 +79,10 @@ public final class MobStacker {
             return false;
         }
 
+        if (!isStackingAllowedAt(entity)) {
+            return false;
+        }
+
         ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (config.getIgnoredEntities().contains(entityId.toString()) ||
                 config.getIgnoredMods().contains(entityId.getNamespace())) {
@@ -83,6 +90,42 @@ public final class MobStacker {
         }
 
         return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize();
+    }
+
+    /**
+     * Decides whether a mob is allowed to form stacks at its current location,
+     * based on the global {@link StackMode} and the configured regions.
+     * Note: this only gates the formation of new stacks. Mobs that are already
+     * stacked keep behaving correctly anywhere (death splitting, separation, ...).
+     */
+    public static boolean isStackingAllowedAt(Mob entity) {
+        StackMode mode = config.getStackMode();
+        if (mode == StackMode.OFF) {
+            return false;
+        }
+
+        String dimension = entity.level().dimension().location().toString();
+        BlockPos pos = entity.blockPosition();
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+
+        boolean insideAllowRegion = false;
+        for (StackRegion region : config.getRegions()) {
+            if (region.contains(dimension, x, y, z)) {
+                if (region.isDeny()) {
+                    return false; // DENY overrides everything, in every mode.
+                }
+                insideAllowRegion = true;
+            }
+        }
+
+        if (mode == StackMode.EVERYWHERE) {
+            return true;
+        }
+
+        // StackMode.REGIONS: only stack when inside at least one ALLOW region.
+        return insideAllowRegion;
     }
 
     public static boolean canMerge(Mob self, Mob nearby) {
@@ -126,7 +169,7 @@ public final class MobStacker {
 
     private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
         target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null);
+                MobSpawnType.NATURAL, null, null);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
@@ -190,7 +233,7 @@ public final class MobStacker {
 
     private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel) {
         target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null);
+                MobSpawnType.NATURAL, null, null);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
