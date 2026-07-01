@@ -24,6 +24,8 @@
 > Fabric Loader and Minecraft. (Earlier versions required the *Almanac* library; that
 > functionality is now built in.) *Let Me Despawn* is an optional companion, not a requirement.
 
+> 📝 **Changelog:** see [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
 **MobStacker** is a performance Minecraft mod to optimize entity handling, addressing a common cause of performance issues in vanilla and modded environments. By intelligently "stacking" similar mobs in close proximity, MobStacker significantly reduces server load and enhances client-side performance without compromising gameplay mechanics.
 
 > 💡 **Note**: MobStacker preserves all loot and mob properties within stacked entities. Named mobs (via name tags) are exempt from stacking to maintain uniqueness.
