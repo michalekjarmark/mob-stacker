@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -20,6 +19,9 @@ import org.lwjgl.glfw.GLFW;
  */
 public final class MobStackerClient implements ClientModInitializer {
     private static KeyMapping openConfigKey;
+    // Set by the client command; the screen is opened on the next tick so the chat screen (which
+    // closes right after a command runs) doesn't immediately override it.
+    private static boolean openRequested;
 
     @Override
     public void onInitializeClient() {
@@ -33,13 +35,16 @@ public final class MobStackerClient implements ClientModInitializer {
             while (openConfigKey.consumeClick()) {
                 client.setScreen(new MobStackerConfigScreen(client.screen));
             }
+            if (openRequested) {
+                openRequested = false;
+                client.setScreen(new MobStackerConfigScreen(null));
+            }
         });
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
                 dispatcher.register(ClientCommandManager.literal("mobstackerconfig").executes(context -> {
-                    Minecraft client = Minecraft.getInstance();
-                    // Defer to the main thread so the chat screen has closed before we open ours.
-                    client.execute(() -> client.setScreen(new MobStackerConfigScreen(null)));
+                    // Open on the next tick (see openRequested), after the chat screen has closed.
+                    openRequested = true;
                     return 1;
                 })));
     }

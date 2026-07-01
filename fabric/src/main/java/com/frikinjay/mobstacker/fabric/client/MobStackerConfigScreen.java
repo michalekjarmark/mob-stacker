@@ -202,11 +202,14 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     private Row rowAt(int mouseX, int mouseY) {
-        if (mouseX > this.width / 2 + 20) {
-            return null; // only the label area shows the description tooltip
-        }
+        // Only trigger the description tooltip over the actual label text, not the empty space
+        // around it: bound the hit-box to the label's rendered width and line height.
+        int labelX = this.width / 2 - 170;
         for (Row row : rows) {
-            if (mouseY >= row.y && mouseY <= row.y + 20) {
+            int labelWidth = this.font.width(row.option.id());
+            int labelTop = row.y + 6;
+            if (mouseX >= labelX && mouseX <= labelX + labelWidth
+                    && mouseY >= labelTop && mouseY <= labelTop + this.font.lineHeight) {
                 return row;
             }
         }
