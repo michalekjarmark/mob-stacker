@@ -68,8 +68,6 @@ public final class MobStacker {
     private static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
     // Vanilla breeding cooldown is 5 minutes (6000 ticks).
     private static final int BREED_COOLDOWN_TICKS = 6000;
-    // Loose babies only merge when their ages are within this band (60s), so they don't grow up early.
-    private static final int BABY_AGE_BAND_TICKS = 1200;
     public static MobStackerConfig config;
     // Resolved to the running world's save folder on server start (see loadWorldConfig).
     // The global path is only a pre-server fallback so the field is never null.
@@ -242,13 +240,8 @@ public final class MobStacker {
         }
 
         // Never mix a baby with an adult (they carry different growth state). Two babies may
-        // merge, but only when their ages are close enough that neither grows up noticeably
-        // early. Non-ageable babies (e.g. zombies never grow up) skip the age check.
+        // merge freely; mergeEntities keeps the youngest age so none grows up early.
         if (self.isBaby() != nearby.isBaby()) {
-            return false;
-        }
-        if (self.isBaby() && self instanceof AgeableMob selfAge && nearby instanceof AgeableMob nearbyAge
-                && Math.abs(selfAge.getAge() - nearbyAge.getAge()) > BABY_AGE_BAND_TICKS) {
             return false;
         }
 
@@ -294,6 +287,7 @@ public final class MobStacker {
 
         copyEntityData(self, newEntity, serverLevel);
         MobStacker.setStackSize(newEntity, newStackSize);
+        copyBreedData(self, newEntity, newStackSize);
         if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
             newEntity.setHealth(survivorHealth);
         }
@@ -386,6 +380,14 @@ public final class MobStacker {
     public static void mergeEntities(Mob target, Mob source) {
         int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize());
 
+        // When two babies merge, keep the youngest (most negative) age so no member ever grows up
+        // early — this replaces a strict age-band gate and lets baby-stacks freely consolidate.
+        Integer mergedBabyAge = null;
+        if (target.isBaby() && source.isBaby()
+                && target instanceof AgeableMob targetAge && source instanceof AgeableMob sourceAge) {
+            mergedBabyAge = Math.min(targetAge.getAge(), sourceAge.getAge());
+        }
+
         CompoundTag targetNbt = new CompoundTag();
         target.saveWithoutId(targetNbt);
 
@@ -399,6 +401,10 @@ public final class MobStacker {
         target.load(targetNbt);
 
         updateHealth(target, source);
+
+        if (mergedBabyAge != null && target instanceof AgeableMob mergedAge) {
+            mergedAge.setAge(mergedBabyAge);
+        }
 
         source.discard();
 
@@ -415,8 +421,13 @@ public final class MobStacker {
     }
 
     private static boolean isExcludedNbtKey(String key) {
+        // The merge target is the surviving stack, so its own stack data (StackSize, CanStack and
+        // the breeding cooldown) and attributes (e.g. the accumulated max health under stackHealth)
+        // must be kept, not overwritten by the discarded source. Stack size and health are then
+        // recomputed explicitly (updateStackDataInNbt / updateHealth).
         return key.equals("Pos") || key.equals("UUID") ||
-                key.equals("Motion") || key.equals("Health");
+                key.equals("Motion") || key.equals("Health") ||
+                key.equals("Attributes") || key.equals(STACK_DATA_KEY);
     }
 
     private static void updateStackDataInNbt(CompoundTag nbt, int stackSize) {
@@ -654,6 +665,25 @@ public final class MobStacker {
         level.sendParticles(ParticleTypes.HAPPY_VILLAGER, self.getX(), self.getY() + self.getBbHeight() * 0.5, self.getZ(),
                 Math.max(1, toFeed), self.getBbWidth(), 0.4, self.getBbWidth(), 0.0);
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Carries the breeding love/cooldown state from a stack onto a freshly-spawned remainder, so
+     * killing part of a stack doesn't wipe the cooldown of the survivors (which had already bred).
+     * Counts are clamped to the survivor count; the cooldown expiry is copied as-is.
+     */
+    private static void copyBreedData(Mob source, Mob target, int targetStackSize) {
+        if (!(source instanceof ICustomDataHolder sourceHolder) || !(target instanceof ICustomDataHolder targetHolder)) {
+            return;
+        }
+        CompoundTag src = sourceHolder.mobstacker$getCustomData();
+        if (!src.contains(BREED_COOLDOWN_END_KEY)) {
+            return;
+        }
+        CompoundTag dst = targetHolder.mobstacker$getCustomData();
+        dst.putInt(BREED_LOVE_KEY, Math.min(src.getInt(BREED_LOVE_KEY), targetStackSize));
+        dst.putInt(BREED_COOLDOWN_COUNT_KEY, Math.min(src.getInt(BREED_COOLDOWN_COUNT_KEY), targetStackSize));
+        dst.putLong(BREED_COOLDOWN_END_KEY, src.getLong(BREED_COOLDOWN_END_KEY));
     }
 
     /**
