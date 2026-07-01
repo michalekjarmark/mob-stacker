@@ -1,16 +1,14 @@
 <center>
 <img src="[https://i.ibb.co/hf7t4tz/req-al-mr-335x130.png](https://media.forgecdn.net/attachments/988/553/mobstacker-1.png)" alt="An entity stacked to almost maximum integer limit">
-<a href="https://modrinth.com/mod/almanac-lib">
-<img src="https://i.ibb.co/hf7t4tz/req-al-mr-335x130.png" alt="Requires Almanac">
-</a>
-<a href="https://modrinth.com/mod/lmd">
-<img src="https://i.ibb.co/HVg2LR9/req-lmd-mr-335x130.png" alt="Requires Let Me Despawn">
-</a>
 <a href="https://discord.gg/aPPEPJWG39">
 <img src="https://i.ibb.co/GFT3JFP/req-discord-130x130.png" alt="Discord Server Invite Link">
 </a>
 </center>
 <br>
+
+> ✅ **Standalone:** this fork has **no required library dependencies** — it needs only the
+> Fabric Loader and Minecraft. (Earlier versions required the *Almanac* library; that
+> functionality is now built in.) *Let Me Despawn* is an optional companion, not a requirement.
 
 **MobStacker** is a performance Minecraft mod to optimize entity handling, addressing a common cause of performance issues in vanilla and modded environments. By intelligently "stacking" similar mobs in close proximity, MobStacker significantly reduces server load and enhances client-side performance without compromising gameplay mechanics.
 
@@ -33,7 +31,7 @@ While actual performance gains vary based on server specifications, player count
 - Large, active player bases
 
 > 🔗 **Recommended Companion Mods**:
-> - [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn) (Required for despawn handling)
+> - [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn) (optional — recommended for vanilla-style despawn handling)
 > - [Spawncap Control Utility](https://www.curseforge.com/minecraft/mc-mods/spawncapcontrolutility) or [In Control!](https://www.curseforge.com/minecraft/mc-mods/in-control) (Enhanced mob control)
 
 ## Features
@@ -135,6 +133,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Set stack size for specific entity
 /mobstacker setStackSize [entity] [size]
+
+# Reload the config from disk (after editing the JSON file by hand)
+/mobstacker reload
 ```
 **NOTE**: An entity can be given the tag `{StackData: {CanStack:0b}}` to prevent it from stacking.
 

@@ -1,8 +1,12 @@
 package com.frikinjay.mobstacker.config;
 
-import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.MobStacker;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,6 +15,7 @@ import java.util.List;
 public class MobStackerConfig {
     private static final int MAX_CAP_VALUE = 128;
     private static final double MAX_RADIUS = 42000.0;
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private boolean killWholeStackOnDeath = false;
     private boolean stackHealth = false;
@@ -40,14 +45,29 @@ public class MobStackerConfig {
     private final MobCaps mobCaps = new MobCaps();
 
     public static MobStackerConfig load() {
-        return Almanac.loadConfig(MobStacker.configFile, MobStackerConfig.class);
+        File file = MobStacker.configFile;
+        if (file.exists()) {
+            try (FileReader reader = new FileReader(file)) {
+                MobStackerConfig loaded = GSON.fromJson(reader, MobStackerConfig.class);
+                if (loaded != null) {
+                    return loaded;
+                }
+            } catch (Exception e) {
+                MobStacker.logger.error("Failed to load config", e);
+            }
+        }
+        return new MobStackerConfig();
     }
 
     public void save() {
         if (stackHealth && !killWholeStackOnDeath) {
             killWholeStackOnDeath = true;
         }
-        Almanac.saveConfig(MobStacker.configFile, this);
+        try (FileWriter writer = new FileWriter(MobStacker.configFile)) {
+            GSON.toJson(this, writer);
+        } catch (Exception e) {
+            MobStacker.logger.error("Failed to save config", e);
+        }
     }
 
     public String getSeparatorItem() { return separatorItem; }

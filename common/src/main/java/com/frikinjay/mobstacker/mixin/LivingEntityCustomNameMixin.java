@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
-import com.frikinjay.almanac.Almanac;
+import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,7 +18,7 @@ public class LivingEntityCustomNameMixin {
             require = 0
     )
     private boolean mobstacker$replaceHasCustomName(LivingEntity instance) {
-        return !Almanac.hasNonCustomName(instance);
+        return !MobStacker.hasNonCustomName(instance);
     }
 
 }

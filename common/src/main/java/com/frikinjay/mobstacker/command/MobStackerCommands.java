@@ -40,6 +40,7 @@ public class MobStackerCommands {
                 .requires(source -> source.hasPermission(2))
                 .executes(MobStackerCommands::showOverview)
                 .then(literal("help").executes(MobStackerCommands::showOverview))
+                .then(literal("reload").executes(MobStackerCommands::reloadConfig))
                 .then(literal("stackerConfig")
                         .then(literal("killWholeStackOnDeath")
                                 .then(argument("value", BoolArgumentType.bool())
@@ -149,6 +150,12 @@ public class MobStackerCommands {
                                 .executes(MobStackerCommands::listRegions))));
     }
 
+    private static int reloadConfig(CommandContext<CommandSourceStack> context) {
+        MobStacker.reloadConfig();
+        context.getSource().sendSuccess(() -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
     private static int showOverview(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         source.sendSuccess(() -> Component.literal("=== MobStacker ===").withStyle(ChatFormatting.GOLD), false);
@@ -177,7 +184,7 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal("stackerConfig, mobCapConfig, region, ignore, unignore, setStackSize")
+                .append(Component.literal("stackerConfig, mobCapConfig, region, ignore, unignore, setStackSize, reload")
                         .withStyle(ChatFormatting.YELLOW)), false);
         return 1;
     }

@@ -30,8 +30,8 @@ subprojects {
         // See https://docs.gradle.org/current/userguide/declaring_repositories.html
         // for more information about repositories.
 
-        // Modrinth Maven: lets Gradle fetch our mod dependencies (Almanac, Let Me Despawn)
-        // automatically, so contributors don't have to drop jars into */libs/ by hand.
+        // Modrinth Maven: only used to fetch the optional Let Me Despawn dev runtime dependency
+        // automatically (the mod itself no longer requires any external library).
         maven {
             name = "Modrinth"
             url = "https://api.modrinth.com/maven"

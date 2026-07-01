@@ -1,8 +1,6 @@
 package com.frikinjay.mobstacker;
 
-import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
-import com.frikinjay.mobstacker.command.MobStackerCommands;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
@@ -31,6 +29,8 @@ import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import org.slf4j.Logger;
 
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -91,7 +91,7 @@ public final class MobStacker {
         // own settings instead of sharing one global file. We intentionally do not save
         // here, to avoid leaving a stray global file that would never actually be used.
         config = MobStackerConfig.load();
-        Almanac.addCommandRegistration(MobStackerCommands::register);
+        // Commands are registered by CommandsMixin when the server's Commands are built.
     }
 
     /**
@@ -110,10 +110,12 @@ public final class MobStacker {
         }
         config = MobStackerConfig.load();
         config.save();
-        Almanac.addConfigChangeListener(configFile, newConfig -> {
-            config = (MobStackerConfig) newConfig;
-            logger.info("MobStacker config reloaded");
-        });
+    }
+
+    /** Re-reads the config from disk (used by {@code /mobstacker reload} after a manual edit). */
+    public static void reloadConfig() {
+        config = MobStackerConfig.load();
+        logger.info("MobStacker config reloaded");
     }
 
     public static boolean canStack(Mob entity) {
@@ -330,7 +332,7 @@ public final class MobStacker {
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
 
-        Component newName = Component.literal("Lone " + Almanac.getLocalizedEntityName(source.getType()).getString());
+        Component newName = Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString());
         target.setCustomName(newName);
 
         copyVariantData(source, target);
@@ -348,8 +350,8 @@ public final class MobStacker {
         CompoundTag targetNbt = new CompoundTag();
         target.saveWithoutId(targetNbt);
 
-        Almanac.dropEquipmentOnDiscard(source);
-        Almanac.dropEquipmentOnDiscard(target);
+        dropPickedEquipment(source);
+        dropPickedEquipment(target);
 
         copyRelevantNbtData(source, targetNbt);
 
@@ -394,14 +396,14 @@ public final class MobStacker {
     }
 
     private static Component generateNewDisplayName(Mob entity, int stackSize) {
-        if (entity.hasCustomName() && !Almanac.matchesStackedName(entity.getCustomName().getString(), entity)) {
+        if (entity.hasCustomName() && !matchesStackedName(entity.getCustomName().getString(), entity)) {
             String baseName = STACKED_NAME_PATTERN.matcher(entity.getCustomName().getString())
                     .replaceFirst("");
             return Component.literal(baseName + (stackSize > 1 ? " x" + stackSize : ""))
                     .withStyle(entity.getCustomName().getStyle());
         }
         return stackSize > 1 ?
-                Component.literal(Almanac.getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize) :
+                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize) :
                 null;
     }
 
@@ -420,7 +422,7 @@ public final class MobStacker {
             entity.setCustomName(null);
         }
 
-        if (!isBoss && Almanac.hasNonCustomName(entity)) {
+        if (!isBoss && hasNonCustomName(entity)) {
             entity.setCustomNameVisible(false);
         }
     }
@@ -479,8 +481,49 @@ public final class MobStacker {
     }
 
     public static boolean matchesStackedName(String customName, Entity entity) {
-        return Pattern.compile(Pattern.quote(Almanac.getLocalizedEntityName(entity.getType()).getString())
+        return Pattern.compile(Pattern.quote(getLocalizedEntityName(entity.getType()).getString())
                 + " x\\d+").matcher(customName).find();
+    }
+
+    // --- Helpers formerly provided by the Almanac library, now in-house so the mod has no
+    // --- external mod dependency. Behaviour is identical to Almanac 1.0.2.
+
+    /** The mob's localized type name, e.g. "Cow" / "Zombie" (translatable, resolved server-side). */
+    public static Component getLocalizedEntityName(EntityType<?> type) {
+        return Component.translatable(type.getDescriptionId());
+    }
+
+    /**
+     * True when the mob has no player-assigned name — i.e. it is either nameless or only shows our
+     * injected "Name xN" stack label (as opposed to a real name tag). Used to keep name-tagged mobs
+     * out of stacking and to hide the auto stack label.
+     */
+    public static boolean hasNonCustomName(LivingEntity entity) {
+        return !entity.hasCustomName() || matchesStackedName(entity.getCustomName().getString(), entity);
+    }
+
+    /**
+     * Drops any items the mob picked up during its life (tagged {@code picked} in NBT, minus
+     * binding-cursed ones) and clears those slots, so picked-up loot isn't lost when the mob is
+     * discarded on a merge. Naturally-equipped gear (no {@code picked} tag) is left untouched.
+     */
+    public static void dropPickedEquipment(LivingEntity entity) {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = entity.getItemBySlot(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            CompoundTag tag = stack.getTag();
+            if (tag == null || !tag.contains("picked") || EnchantmentHelper.hasBindingCurse(stack)) {
+                continue;
+            }
+            tag.remove("picked");
+            if (tag.isEmpty()) {
+                stack.setTag(null);
+            }
+            entity.spawnAtLocation(stack);
+            entity.setItemSlot(slot, ItemStack.EMPTY);
+        }
     }
 
     public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason) {

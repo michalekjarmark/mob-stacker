@@ -1,6 +1,5 @@
 package com.frikinjay.mobstacker.mixin;
 
-import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import net.minecraft.ChatFormatting;
@@ -113,7 +112,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (!(mob.getKillCredit() instanceof ServerPlayer player)) {
             return;
         }
-        String name = Almanac.getLocalizedEntityName(mob.getType()).getString();
+        String name = MobStacker.getLocalizedEntityName(mob.getType()).getString();
         Component message = Component.literal("Killed ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(killed + "× " + name).withStyle(ChatFormatting.YELLOW))
                 .append(Component.literal("  •  ").withStyle(ChatFormatting.DARK_GRAY))
