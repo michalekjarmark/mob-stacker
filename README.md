@@ -1,11 +1,17 @@
 # MobStacker: Restacked
 
 <center>
-<img src="[https://i.ibb.co/hf7t4tz/req-al-mr-335x130.png](https://media.forgecdn.net/attachments/988/553/mobstacker-1.png)" alt="An entity stacked to almost maximum integer limit">
-<a href="https://discord.gg/aPPEPJWG39">
-<img src="https://i.ibb.co/GFT3JFP/req-discord-130x130.png" alt="Discord Server Invite Link">
-</a>
+<img src="https://media.forgecdn.net/attachments/988/553/mobstacker-1.png" alt="A skeleton stacked to almost the maximum integer limit">
 </center>
+
+<p align="center">
+<img src="https://img.shields.io/badge/Minecraft-1.20.1-brightgreen" alt="Minecraft 1.20.1">
+<img src="https://img.shields.io/badge/Loader-Fabric-1976d2" alt="Fabric">
+<img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17">
+<img src="https://img.shields.io/github/license/michalekjarmark/mob-stacker" alt="License: LGPL v3">
+<img src="https://img.shields.io/badge/dependencies-none-success" alt="No required dependencies">
+<img src="https://img.shields.io/github/last-commit/michalekjarmark/mob-stacker" alt="Last commit">
+</p>
 <br>
 
 > 🍴 **About this fork:** *MobStacker: Restacked* is an **actively-developed, independent fork**
