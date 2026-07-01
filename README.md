@@ -36,6 +36,7 @@ Everything below is on top of the original MobStacker — see the linked section
 - 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
 - ⚔️ **Sweeping Edge support** — folds vanilla sweep damage back into the hit so it clears stacks.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop, and a floating `-N` hologram (each toggleable).
+- 🐣 **Stack breeding & baby stacks** — feed a stacked animal to breed its members in pairs into a single baby-stack, and let loose babies (farm animals *and* hostile mobs like baby zombies) stack too.
 - 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
 - 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
 - 🪶 **Zero dependencies** — Almanac's functionality is built in; nothing but Fabric Loader + Minecraft required.
@@ -73,6 +74,8 @@ While actual performance gains vary based on server specifications, player count
 | 🗺️ Region-Based Stacking | Limit stacking to chosen world regions (allow/deny cuboids) |
 | 💥 Damage Overflow | A single big hit kills multiple mobs in a stack and drops loot for each |
 | ⚔️ Sweeping Edge Support | Sweeping Edge adds bonus damage against stacks instead of doing nothing |
+| 🐣 Stack Breeding | Feed a stacked animal to breed its members in pairs into one baby-stack (fair one-food-per-mob cost) |
+| 🍼 Baby Stacking | Loose babies stack too — farm animals (with age matching) and hostile mobs like baby zombies |
 
 ## Configuration
 
@@ -86,6 +89,9 @@ While actual performance gains vary based on server specifications, player count
 | `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
 | `stackKillHologram` | Show a short-lived floating `-N` hologram above the mob indicating how many that hit killed | `true` |
+| `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs into a baby-stack (feeding a baby-stack speeds its growth) | `true` |
+| `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
+| `enableHostileBabyStacking` | Allow loose hostile/other babies (e.g. baby zombies) to stack | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -126,6 +132,15 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle the floating "-N" hologram shown above the mob on a stack kill
 /mobstacker stackerConfig stackKillHologram [true|false]
+
+# Toggle breeding stacked animals (feed a stacked animal to breed it in pairs)
+/mobstacker stackerConfig enableStackBreeding [true|false]
+
+# Toggle stacking of loose farm-animal babies (matched by age)
+/mobstacker stackerConfig enableAnimalBabyStacking [true|false]
+
+# Toggle stacking of loose hostile/other babies (e.g. baby zombies)
+/mobstacker stackerConfig enableHostileBabyStacking [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -256,6 +271,30 @@ independent toggle:
 - **Floating hologram** (`stackKillHologram`, default on): a short-lived `-N` text that
   drifts up above the mob showing how many that hit killed. This is the only feedback
   channel that spawns an entity — an invisible marker armor stand removed after ~1 second.
+
+### Breeding & Baby Stacking
+
+Stacked animals can be bred without unstacking them, and babies stack too.
+
+- **Feed a stacked adult** its breeding food and it breeds its members in pairs. The cost is
+  fair — **one food item per member** (a stack of 16 cows fed 16 wheat produces 8 babies), and
+  every partial feed is remembered so nothing is wasted. Bred members go on the usual ~5-minute
+  breeding cooldown, while the rest of the stack can still be bred right away.
+- **Babies arrive as a single baby-stack** (e.g. a young `Cow x8`) instead of a swarm of loose
+  babies — better for performance and consistent with the rest of the mod. Repeated breeding
+  tops up the existing, slightly older baby-stack nearby before spawning a new one.
+- **The baby-stack grows up as one unit** (it shares a single age) and then merges into the adult
+  stack automatically once grown.
+- **Feeding a baby-stack** speeds up its growth, scaled fairly to the stack size (one food item
+  per baby rather than one for the whole stack).
+- **Loose babies stack too.** Farm-animal babies only stack with others of a **similar age** (so
+  they don't grow up early); non-ageable babies such as baby zombies (which never grow up in
+  vanilla) simply stack together. Each category has its own toggle
+  (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
+
+> 💡 Breeding targets the common farm animals (cow, pig, sheep, chicken, mooshroom, rabbit,
+> goat, …). Tameable mobs with their own special right-click behaviour (wolf, cat, horse) may
+> fall back to vanilla breeding for now.
 
 ### Mob Cap Management
 

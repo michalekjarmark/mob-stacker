@@ -66,6 +66,15 @@ public class MobStackerCommands {
                         .then(literal("stackKillHologram")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setStackKillHologram)))
+                        .then(literal("enableStackBreeding")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setEnableStackBreeding)))
+                        .then(literal("enableAnimalBabyStacking")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setEnableAnimalBabyStacking)))
+                        .then(literal("enableHostileBabyStacking")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setEnableHostileBabyStacking)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -175,6 +184,12 @@ public class MobStackerCommands {
                 .append(formatBool(MobStacker.config.getSweepingEdgeOverflow())), false);
         source.sendSuccess(() -> Component.literal("stackEquippedMobs: ").withStyle(ChatFormatting.GRAY)
                 .append(formatBool(MobStacker.config.getStackEquippedMobs())), false);
+        source.sendSuccess(() -> Component.literal("enableStackBreeding: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getEnableStackBreeding()))
+                .append(Component.literal("   animalBabyStacking: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getEnableAnimalBabyStacking()))
+                .append(Component.literal("   hostileBabyStacking: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getEnableHostileBabyStacking())), false);
         source.sendSuccess(() -> Component.literal("stackKillActionBar: ").withStyle(ChatFormatting.GRAY)
                 .append(formatBool(MobStacker.config.getStackKillActionBar()))
                 .append(Component.literal("   stackKillParticles: ").withStyle(ChatFormatting.GRAY))
@@ -327,6 +342,39 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setStackKillHologram(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Stack kill hologram has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setEnableStackBreeding(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getEnableStackBreeding() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack breeding is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setEnableStackBreeding(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Stack breeding has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setEnableAnimalBabyStacking(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getEnableAnimalBabyStacking() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Animal baby stacking is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setEnableAnimalBabyStacking(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Animal baby stacking has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setEnableHostileBabyStacking(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getEnableHostileBabyStacking() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Hostile baby stacking is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setEnableHostileBabyStacking(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Hostile baby stacking has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

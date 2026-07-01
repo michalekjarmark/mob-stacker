@@ -8,6 +8,7 @@ import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -16,8 +17,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.Cat;
 import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.MushroomCow;
@@ -29,6 +33,7 @@ import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import org.slf4j.Logger;
@@ -54,6 +59,17 @@ public final class MobStacker {
     public static final String STACK_DATA_KEY = "StackData";
     public static final String STACK_SIZE_KEY = "StackSize";
     public static final String CAN_STACK_KEY = "CanStack";
+
+    // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
+    // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
+    private static final String BREED_LOVE_KEY = "BreedLove";
+    // How many members recently bred and are on breeding cooldown, and until when (game time).
+    private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
+    private static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
+    // Vanilla breeding cooldown is 5 minutes (6000 ticks).
+    private static final int BREED_COOLDOWN_TICKS = 6000;
+    // Loose babies only merge when their ages are within this band (60s), so they don't grow up early.
+    private static final int BABY_AGE_BAND_TICKS = 1200;
     public static MobStackerConfig config;
     // Resolved to the running world's save folder on server start (see loadWorldConfig).
     // The global path is only a pre-server fallback so the field is never null.
@@ -119,8 +135,20 @@ public final class MobStacker {
     }
 
     public static boolean canStack(Mob entity) {
-        if (!(entity instanceof Mob) || entity.isBaby()) {
+        if (!(entity instanceof Mob)) {
             return false;
+        }
+
+        // Babies stack only when their category's flag allows it. Farm animals (Animal) and
+        // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
+        // mixing is prevented separately in canMerge.
+        if (entity.isBaby()) {
+            boolean allowed = (entity instanceof Animal)
+                    ? config.getEnableAnimalBabyStacking()
+                    : config.getEnableHostileBabyStacking();
+            if (!allowed) {
+                return false;
+            }
         }
 
         // A mob that is dead or playing its death animation (health <= 0) must not take part
@@ -210,6 +238,17 @@ public final class MobStacker {
         }
 
         if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize()) {
+            return false;
+        }
+
+        // Never mix a baby with an adult (they carry different growth state). Two babies may
+        // merge, but only when their ages are close enough that neither grows up noticeably
+        // early. Non-ageable babies (e.g. zombies never grow up) skip the age check.
+        if (self.isBaby() != nearby.isBaby()) {
+            return false;
+        }
+        if (self.isBaby() && self instanceof AgeableMob selfAge && nearby instanceof AgeableMob nearbyAge
+                && Math.abs(selfAge.getAge() - nearbyAge.getAge()) > BABY_AGE_BAND_TICKS) {
             return false;
         }
 
@@ -526,6 +565,139 @@ public final class MobStacker {
         }
     }
 
+    // --- Stack breeding -------------------------------------------------------------------
+
+    /**
+     * Feeds a stacked ADULT animal its breeding food. Each fed member enters love; every pair of
+     * in-love members produces one child, gathered into a baby-stack. Feeding costs one food item
+     * per member (same as breeding them individually) and puts the bred members on a breeding
+     * cooldown, while the rest of the stack can still be bred right away.
+     *
+     * @return the interaction result to hand back from {@code mobInteract}, or {@code null} to let
+     *         vanilla handle it.
+     */
+    public static InteractionResult handleStackBreeding(Animal self, Player player, InteractionHand hand, ItemStack food) {
+        if (!(self.level() instanceof ServerLevel level) || !(self instanceof ICustomDataHolder holder)) {
+            return null;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        long now = level.getGameTime();
+        int stackSize = getStackSize(self);
+
+        int love = data.getInt(BREED_LOVE_KEY);
+        int cooldownCount = data.getInt(BREED_COOLDOWN_COUNT_KEY);
+        long cooldownEnd = data.getLong(BREED_COOLDOWN_END_KEY);
+        if (now >= cooldownEnd) {
+            cooldownCount = 0; // cooldown expired: every member is free to breed again
+        }
+
+        int free = stackSize - love - cooldownCount;
+        if (free <= 0) {
+            // Whole stack is either in love or still on cooldown; consume nothing and do nothing.
+            return InteractionResult.PASS;
+        }
+
+        boolean creative = player.getAbilities().instabuild;
+        int toFeed = creative ? free : Math.min(free, food.getCount());
+        if (toFeed <= 0) {
+            return InteractionResult.PASS;
+        }
+        if (!creative) {
+            food.shrink(toFeed);
+        }
+
+        love += toFeed;
+        int pairs = love / 2;
+        love %= 2;
+
+        if (pairs > 0) {
+            spawnOrMergeBabyStack(level, self, pairs);
+            cooldownCount = Math.min(stackSize, cooldownCount + pairs * 2);
+            cooldownEnd = now + BREED_COOLDOWN_TICKS;
+            for (int i = 0; i < pairs; i++) {
+                level.addFreshEntity(new ExperienceOrb(level, self.getX(), self.getY() + 0.5, self.getZ(),
+                        self.getRandom().nextInt(7) + 1));
+            }
+        }
+
+        data.putInt(BREED_LOVE_KEY, love);
+        data.putInt(BREED_COOLDOWN_COUNT_KEY, cooldownCount);
+        data.putLong(BREED_COOLDOWN_END_KEY, cooldownEnd);
+
+        level.sendParticles(ParticleTypes.HEART, self.getX(), self.getY() + self.getBbHeight(), self.getZ(),
+                Math.max(1, toFeed), self.getBbWidth(), 0.5, self.getBbWidth(), 0.1);
+        return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Feeds a stacked BABY its food to speed up growth, scaled fairly to the stack size (one food
+     * item per baby rather than one item for the whole stack). Since a baby-stack is a single
+     * entity with one shared age, the age is advanced once per fed member.
+     */
+    public static InteractionResult handleBabyStackFeeding(Animal self, Player player, InteractionHand hand, ItemStack food) {
+        if (!(self.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        int stackSize = getStackSize(self);
+        boolean creative = player.getAbilities().instabuild;
+        int toFeed = creative ? stackSize : Math.min(stackSize, food.getCount());
+        if (toFeed <= 0) {
+            return InteractionResult.PASS;
+        }
+        if (!creative) {
+            food.shrink(toFeed);
+        }
+        // Mirror vanilla's feeding speed-up (10% of the remaining time), applied once per member.
+        for (int i = 0; i < toFeed && self.getAge() < 0; i++) {
+            self.ageUp((int) ((float) (-self.getAge()) / 20.0F * 0.1F));
+        }
+        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, self.getX(), self.getY() + self.getBbHeight() * 0.5, self.getZ(),
+                Math.max(1, toFeed), self.getBbWidth(), 0.4, self.getBbWidth(), 0.0);
+        return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Adds {@code count} freshly-bred babies to the world, first topping up any nearby baby-stack
+     * of the same kind (so repeated breeding consolidates into the existing, slightly older stack),
+     * then spawning the overflow as new baby-stack entities capped at the max stack size.
+     */
+    private static void spawnOrMergeBabyStack(ServerLevel level, Animal parent, int count) {
+        int max = getMaxMobStackSize();
+        int remaining = count;
+
+        BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(parent.getClass());
+        for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius()),
+                e -> e != parent && e.getClass() == parent.getClass() && ((Mob) e).isBaby())) {
+            if (remaining <= 0) {
+                break;
+            }
+            Mob existing = (Mob) nearby;
+            if (variantChecker != null && !variantChecker.test(parent, existing)) {
+                continue;
+            }
+            int room = max - getStackSize(existing);
+            if (room <= 0) {
+                continue;
+            }
+            int add = Math.min(room, remaining);
+            setStackSize(existing, getStackSize(existing) + add);
+            remaining -= add;
+        }
+
+        while (remaining > 0) {
+            AgeableMob child = parent.getBreedOffspring(level, parent);
+            if (child == null) {
+                return;
+            }
+            int size = Math.min(max, remaining);
+            child.setBaby(true);
+            child.moveTo(parent.getX(), parent.getY(), parent.getZ(), parent.getYRot(), parent.getXRot());
+            setStackSize(child, size);
+            level.addFreshEntity(child);
+            remaining -= size;
+        }
+    }
+
     public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason) {
         return (entity instanceof Creeper creeper && creeper.isIgnited()) ||
                 reason == Entity.RemovalReason.KILLED;
@@ -606,6 +778,12 @@ public final class MobStacker {
     public static boolean getStackKillParticles() {return config.getStackKillParticles();}
 
     public static boolean getStackKillHologram() {return config.getStackKillHologram();}
+
+    public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
+
+    public static boolean getEnableAnimalBabyStacking() {return config.getEnableAnimalBabyStacking();}
+
+    public static boolean getEnableHostileBabyStacking() {return config.getEnableHostileBabyStacking();}
 
     /**
      * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.

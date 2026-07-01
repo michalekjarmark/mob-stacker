@@ -25,6 +25,9 @@ public class MobStackerConfig {
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
+    private boolean enableStackBreeding = true;
+    private boolean enableAnimalBabyStacking = true;
+    private boolean enableHostileBabyStacking = true;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private boolean enableSeparator = false;
@@ -81,6 +84,9 @@ public class MobStackerConfig {
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
     public boolean getStackKillHologram() { return stackKillHologram; }
+    public boolean getEnableStackBreeding() { return enableStackBreeding; }
+    public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
+    public boolean getEnableHostileBabyStacking() { return enableHostileBabyStacking; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
 
@@ -136,6 +142,21 @@ public class MobStackerConfig {
 
     public void setStackKillHologram(boolean stackKillHologram) {
         this.stackKillHologram = stackKillHologram;
+        save();
+    }
+
+    public void setEnableStackBreeding(boolean enableStackBreeding) {
+        this.enableStackBreeding = enableStackBreeding;
+        save();
+    }
+
+    public void setEnableAnimalBabyStacking(boolean enableAnimalBabyStacking) {
+        this.enableAnimalBabyStacking = enableAnimalBabyStacking;
+        save();
+    }
+
+    public void setEnableHostileBabyStacking(boolean enableHostileBabyStacking) {
+        this.enableHostileBabyStacking = enableHostileBabyStacking;
         save();
     }
 
