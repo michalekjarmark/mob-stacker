@@ -27,6 +27,7 @@ import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.MushroomCow;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.monster.Creeper;
@@ -841,6 +842,8 @@ public final class MobStacker {
 
     public static boolean getCompactDrops() {return config.getCompactDrops();}
 
+    public static boolean getCompactExperience() {return config.getCompactExperience();}
+
     /**
      * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.
      * It is an invisible marker armor stand (no hitbox, no gravity) that drifts up and is removed
@@ -887,18 +890,27 @@ public final class MobStacker {
     }
 
     // --- Drop compaction ---------------------------------------------------------------------
-    // While a stacked mob is dying we capture the item stacks it drops and re-emit them merged
-    // into as few item entities as possible, so a big farm kill leaves a handful of full stacks
-    // instead of dozens of scattered ones. This never creates or destroys items — it only
-    // re-containers what was actually dropped, so it can't duplicate loot on any kill path.
+    // While a stacked mob is dying we capture the item stacks (and experience) it drops and
+    // re-emit them merged: a handful of full item stacks and a single experience orb, instead of
+    // dozens of scattered items and orbs. This never creates or destroys anything — it only
+    // re-containers what was actually dropped, so it can't duplicate loot/XP on any kill path.
     // Death drops run synchronously on the server thread, so a single capture context suffices.
     private static Mob dropCaptureMob;
+    private static boolean captureItems;
+    private static boolean captureXp;
     private static final List<ItemStack> dropCaptureBuffer = new ArrayList<>();
+    private static int xpCaptureTotal;
 
-    /** Starts buffering the item drops emitted by {@code mob} during its death. */
+    /**
+     * Starts buffering {@code mob}'s death drops. Items and experience are captured independently,
+     * each gated by its own config flag, so either can be compacted without the other.
+     */
     public static void beginDropCapture(Mob mob) {
         dropCaptureMob = mob;
+        captureItems = config.getCompactDrops();
+        captureXp = config.getCompactExperience();
         dropCaptureBuffer.clear();
+        xpCaptureTotal = 0;
     }
 
     /**
@@ -907,7 +919,7 @@ public final class MobStacker {
      * the drop was captured.
      */
     public static boolean tryCaptureDrop(Entity entity, ItemStack stack) {
-        if (dropCaptureMob == null || entity != dropCaptureMob || stack == null || stack.isEmpty()) {
+        if (dropCaptureMob == null || !captureItems || entity != dropCaptureMob || stack == null || stack.isEmpty()) {
             return false;
         }
         dropCaptureBuffer.add(stack.copy());
@@ -915,29 +927,53 @@ public final class MobStacker {
     }
 
     /**
-     * Re-emits the captured drops for {@code mob}, merged into as few item entities as possible
-     * (identical items combined up to their max stack size), all at the mob's centre with no
-     * motion so they stay clustered. Clears the capture context afterwards. Safe to call for any
-     * dying mob — it no-ops unless {@code mob} is the one currently being captured.
+     * Called from the {@code ExperienceOrb.award} hook. While a stacked mob is dying its whole
+     * experience (vanilla plus every extra mob killed via overflow / killWholeStackOnDeath) is
+     * summed here instead of spawning many small orbs. Returns true when it was captured.
+     */
+    public static boolean tryCaptureExperience(int amount) {
+        if (dropCaptureMob == null || !captureXp || amount <= 0) {
+            return false;
+        }
+        xpCaptureTotal += amount;
+        return true;
+    }
+
+    /**
+     * Re-emits the captured drops for {@code mob}: items merged into as few item entities as
+     * possible (identical stacks combined up to their max size) and the whole experience as a
+     * single orb, all at the mob's centre so they stay clustered. Clears the capture context
+     * afterwards. Safe to call for any dying mob — it no-ops unless {@code mob} is the one
+     * currently being captured.
      */
     public static void finishDropCaptureAndCompact(Mob mob) {
         if (dropCaptureMob != mob) {
             return;
         }
         List<ItemStack> buffer = new ArrayList<>(dropCaptureBuffer);
+        int xp = xpCaptureTotal;
         dropCaptureMob = null;
+        captureItems = false;
+        captureXp = false;
         dropCaptureBuffer.clear();
+        xpCaptureTotal = 0;
 
-        if (buffer.isEmpty() || !(mob.level() instanceof ServerLevel level)) {
+        if (!(mob.level() instanceof ServerLevel level)) {
             return;
         }
 
-        List<ItemStack> merged = new ArrayList<>();
-        for (ItemStack stack : buffer) {
-            mergeIntoStacks(merged, stack);
+        if (!buffer.isEmpty()) {
+            List<ItemStack> merged = new ArrayList<>();
+            for (ItemStack stack : buffer) {
+                mergeIntoStacks(merged, stack);
+            }
+            for (ItemStack stack : merged) {
+                spawnCompactItem(level, mob, stack);
+            }
         }
-        for (ItemStack stack : merged) {
-            spawnCompactItem(level, mob, stack);
+
+        if (xp > 0) {
+            level.addFreshEntity(new ExperienceOrb(level, mob.getX(), mob.getY() + 0.5, mob.getZ(), xp));
         }
     }
 

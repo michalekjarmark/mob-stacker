@@ -39,7 +39,7 @@ Everything below is on top of the original MobStacker — see the linked section
 - ⚔️ **Sweeping Edge support** — folds vanilla sweep damage back into the hit so it clears stacks.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop, and a floating `-N` hologram (each toggleable).
 - 🐣 **Stack breeding & baby stacks** — feed a stacked animal to breed its members in pairs into a single baby-stack, and let loose babies (farm animals *and* hostile mobs like baby zombies) stack too.
-- 📦 **Drop compaction** — a stacked mob's death drops are merged into a few full item stacks instead of dozens of scattered ones, cutting item-entity lag on big farms.
+- 📦 **Drop & XP compaction** — a stacked mob's death drops are merged into a few full item stacks (and its experience into a single orb) instead of dozens of scattered entities, cutting entity lag on big farms.
 - 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
 - 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
 - 🪶 **Zero dependencies** — Almanac's functionality is built in; nothing but Fabric Loader + Minecraft required.
@@ -97,6 +97,7 @@ While actual performance gains vary based on server specifications, player count
 | `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Allow loose hostile/other babies (e.g. baby zombies) to stack | `true` |
 | `compactDrops` | Merge a stacked mob's death drops into as few full item stacks as possible (fewer item entities = less farm lag) | `true` |
+| `compactExperience` | Merge a stacked mob's death experience into a single orb instead of many small ones | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -152,6 +153,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle compacting a stacked mob's death drops into full item stacks
 /mobstacker stackerConfig compactDrops [true|false]
+
+# Toggle compacting a stacked mob's death experience into a single orb
+/mobstacker stackerConfig compactExperience [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -310,21 +314,25 @@ Stacked animals can be bred without unstacking them, and babies stack too.
 > goat, …). Tameable mobs with their own special right-click behaviour (wolf, cat, horse) may
 > fall back to vanilla breeding for now.
 
-### Drop Compaction
+### Drop & Experience Compaction
 
 Killing a big stack normally spawns a separate item entity for **every** drop of **every** mob
-(a 40-cow stack can litter the ground with dozens of leather and beef entities), which is a real
-source of lag on large farms. With `compactDrops` on (default), a stacked mob's death drops are
-captured and re-emitted **merged into as few full item stacks as possible**, dropped together at
-the mob's position.
+(a 40-cow stack can litter the ground with dozens of leather and beef entities) and a swarm of
+tiny experience orbs, which is a real source of lag on large farms. With `compactDrops` on
+(default), a stacked mob's death drops are captured and re-emitted **merged into as few full item
+stacks as possible**, dropped together at the mob's position. With `compactExperience` on
+(default), all of that death's experience is combined into a **single orb**.
 
-- Only **stacked** mobs are affected — a normal single mob keeps the vanilla drop behaviour.
-- It **never creates or destroys items**: the exact same loot is dropped, just packed into fewer
-  entities. Different items, and items with different enchantments/NBT, are kept apart correctly.
-- Works with every kill path (normal kills, `killWholeStackOnDeath`, and damage overflow).
+- Only **stacked** mobs are affected — a normal single mob keeps the vanilla behaviour.
+- It **never creates or destroys anything**: the exact same loot and total XP is dropped, just
+  packed into fewer entities. Different items, and items with different enchantments/NBT, are kept
+  apart correctly.
+- Works with every kill path (normal kills, `killWholeStackOnDeath`, and damage overflow), and the
+  two toggles are independent.
 
 ```bash
 /mobstacker stackerConfig compactDrops [true|false]
+/mobstacker stackerConfig compactExperience [true|false]
 ```
 
 ### Mob Cap Management

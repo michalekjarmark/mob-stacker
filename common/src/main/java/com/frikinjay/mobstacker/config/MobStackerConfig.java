@@ -30,6 +30,7 @@ public class MobStackerConfig {
     private boolean enableAnimalBabyStacking = true;
     private boolean enableHostileBabyStacking = true;
     private boolean compactDrops = true;
+    private boolean compactExperience = true;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private boolean enableSeparator = false;
@@ -91,6 +92,7 @@ public class MobStackerConfig {
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
     public boolean getEnableHostileBabyStacking() { return enableHostileBabyStacking; }
     public boolean getCompactDrops() { return compactDrops; }
+    public boolean getCompactExperience() { return compactExperience; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
 
@@ -171,6 +173,11 @@ public class MobStackerConfig {
 
     public void setCompactDrops(boolean compactDrops) {
         this.compactDrops = compactDrops;
+        save();
+    }
+
+    public void setCompactExperience(boolean compactExperience) {
+        this.compactExperience = compactExperience;
         save();
     }
 

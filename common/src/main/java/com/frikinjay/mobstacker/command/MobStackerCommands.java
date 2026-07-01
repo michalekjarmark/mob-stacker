@@ -81,6 +81,9 @@ public class MobStackerCommands {
                         .then(literal("compactDrops")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setCompactDrops)))
+                        .then(literal("compactExperience")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setCompactExperience)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -205,7 +208,9 @@ public class MobStackerCommands {
                 .append(Component.literal("   stackKillHologram: ").withStyle(ChatFormatting.GRAY))
                 .append(formatBool(MobStacker.config.getStackKillHologram())), false);
         source.sendSuccess(() -> Component.literal("compactDrops: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getCompactDrops())), false);
+                .append(formatBool(MobStacker.config.getCompactDrops()))
+                .append(Component.literal("   compactExperience: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getCompactExperience())), false);
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
@@ -407,6 +412,17 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setCompactDrops(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Compact drops has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setCompactExperience(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getCompactExperience() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Compact experience is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setCompactExperience(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Compact experience has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

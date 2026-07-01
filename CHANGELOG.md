@@ -15,6 +15,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   packed into fewer entities, keeping different items and different enchantments/NBT apart. Works
   with every kill path (normal, `killWholeStackOnDeath`, and damage overflow). New
   `/mobstacker stackerConfig compactDrops <true|false>` command + settings-overview line.
+- **Experience compaction** (`compactExperience`, default `true`): a stacked mob's whole death
+  experience (including every extra mob killed via overflow / `killWholeStackOnDeath`) is now
+  combined into a **single orb** instead of a swarm of tiny ones. Same total XP, far fewer orb
+  entities. Independent toggle: `/mobstacker stackerConfig compactExperience <true|false>`.
 
 ## [1.2.3] - 2026-07-01
 ### Fixed
