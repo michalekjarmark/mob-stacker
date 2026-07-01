@@ -69,6 +69,9 @@ public class MobStackerCommands {
                         .then(literal("enableStackBreeding")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setEnableStackBreeding)))
+                        .then(literal("breedOnePerClick")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setBreedOnePerClick)))
                         .then(literal("enableAnimalBabyStacking")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setEnableAnimalBabyStacking)))
@@ -186,6 +189,8 @@ public class MobStackerCommands {
                 .append(formatBool(MobStacker.config.getStackEquippedMobs())), false);
         source.sendSuccess(() -> Component.literal("enableStackBreeding: ").withStyle(ChatFormatting.GRAY)
                 .append(formatBool(MobStacker.config.getEnableStackBreeding()))
+                .append(Component.literal("   breedOnePerClick: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getBreedOnePerClick()))
                 .append(Component.literal("   animalBabyStacking: ").withStyle(ChatFormatting.GRAY))
                 .append(formatBool(MobStacker.config.getEnableAnimalBabyStacking()))
                 .append(Component.literal("   hostileBabyStacking: ").withStyle(ChatFormatting.GRAY))
@@ -353,6 +358,17 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setEnableStackBreeding(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Stack breeding has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setBreedOnePerClick(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getBreedOnePerClick() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Breed one-per-click is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setBreedOnePerClick(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Breed one-per-click has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

@@ -26,6 +26,7 @@ public class MobStackerConfig {
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
     private boolean enableStackBreeding = true;
+    private boolean breedOnePerClick = false;
     private boolean enableAnimalBabyStacking = true;
     private boolean enableHostileBabyStacking = true;
     private int maxMobStackSize = 16;
@@ -85,6 +86,7 @@ public class MobStackerConfig {
     public boolean getStackKillParticles() { return stackKillParticles; }
     public boolean getStackKillHologram() { return stackKillHologram; }
     public boolean getEnableStackBreeding() { return enableStackBreeding; }
+    public boolean getBreedOnePerClick() { return breedOnePerClick; }
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
     public boolean getEnableHostileBabyStacking() { return enableHostileBabyStacking; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
@@ -147,6 +149,11 @@ public class MobStackerConfig {
 
     public void setEnableStackBreeding(boolean enableStackBreeding) {
         this.enableStackBreeding = enableStackBreeding;
+        save();
+    }
+
+    public void setBreedOnePerClick(boolean breedOnePerClick) {
+        this.breedOnePerClick = breedOnePerClick;
         save();
     }
 

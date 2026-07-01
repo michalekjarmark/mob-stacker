@@ -90,6 +90,7 @@ While actual performance gains vary based on server specifications, player count
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
 | `stackKillHologram` | Show a short-lived floating `-N` hologram above the mob indicating how many that hit killed | `true` |
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs into a baby-stack (feeding a baby-stack speeds its growth) | `true` |
+| `breedOnePerClick` | If `true`, each click feeds a single member (click once per animal); if `false`, one click feeds as many members as the food in hand allows | `false` |
 | `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Allow loose hostile/other babies (e.g. baby zombies) to stack | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
@@ -135,6 +136,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle breeding stacked animals (feed a stacked animal to breed it in pairs)
 /mobstacker stackerConfig enableStackBreeding [true|false]
+
+# Toggle "one per click" feeding (click once per animal instead of the whole stack at once)
+/mobstacker stackerConfig breedOnePerClick [true|false]
 
 # Toggle stacking of loose farm-animal babies (matched by age)
 /mobstacker stackerConfig enableAnimalBabyStacking [true|false]
@@ -280,6 +284,9 @@ Stacked animals can be bred without unstacking them, and babies stack too.
   fair — **one food item per member** (a stack of 16 cows fed 16 wheat produces 8 babies), and
   every partial feed is remembered so nothing is wasted. Bred members go on the usual ~5-minute
   breeding cooldown, while the rest of the stack can still be bred right away.
+- **Feeding speed** is configurable via `breedOnePerClick`: by default one click feeds as many
+  members as the food in your hand allows; enable it to feed **one member per click** instead
+  (click once per animal, just like feeding them individually).
 - **Babies arrive as a single baby-stack** (e.g. a young `Cow x8`) instead of a swarm of loose
   babies — better for performance and consistent with the rest of the mod. Repeated breeding
   tops up the existing, slightly older baby-stack nearby before spawning a new one.

@@ -609,7 +609,10 @@ public final class MobStacker {
         }
 
         boolean creative = player.getAbilities().instabuild;
-        int toFeed = creative ? free : Math.min(free, food.getCount());
+        // "One per click" mode feeds a single member per interaction (click once per animal);
+        // otherwise a single click feeds as many members as the food in hand allows.
+        int limit = getBreedOnePerClick() ? Math.min(1, free) : free;
+        int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
         }
@@ -651,7 +654,8 @@ public final class MobStacker {
         }
         int stackSize = getStackSize(self);
         boolean creative = player.getAbilities().instabuild;
-        int toFeed = creative ? stackSize : Math.min(stackSize, food.getCount());
+        int limit = getBreedOnePerClick() ? 1 : stackSize;
+        int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
         }
@@ -810,6 +814,8 @@ public final class MobStacker {
     public static boolean getStackKillHologram() {return config.getStackKillHologram();}
 
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
+
+    public static boolean getBreedOnePerClick() {return config.getBreedOnePerClick();}
 
     public static boolean getEnableAnimalBabyStacking() {return config.getEnableAnimalBabyStacking();}
 
