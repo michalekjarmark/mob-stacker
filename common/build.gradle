@@ -12,13 +12,9 @@ dependencies {
     // Do NOT use other classes from Fabric Loader.
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
-    // MobStacker no longer depends on the Almanac library — the few helpers it used
-    // (config I/O, localized names, custom-name checks, picked-equipment drops, command
-    // registration) are now implemented in-house, so the mod is self-contained.
-
-    // Let Me Despawn is an OPTIONAL companion, pulled in only as a dev runtime dependency so
-    // `runClient`/`runServer` exercise vanilla-style despawning. It is NOT required to run the
-    // mod (listed under "suggests" in fabric.mod.json).
-    //   rOkgwJ12 = Let Me Despawn 1.5.0 (Fabric 1.20.1)
-    modRuntimeOnly "maven.modrinth:lmd:rOkgwJ12"
+    // MobStacker is fully self-contained: it no longer depends on the Almanac library
+    // (the few helpers it used — config I/O, localized names, custom-name checks,
+    // picked-equipment drops, command registration — are now implemented in-house) and no
+    // longer pulls in Let Me Despawn. LMD stays listed only under "suggests" in
+    // fabric.mod.json as an optional companion; it is neither required nor bundled.
 }
