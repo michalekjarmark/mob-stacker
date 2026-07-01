@@ -61,6 +61,28 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
+    /**
+     * Drop compaction — start buffering this stacked mob's death drops before any loot is dropped.
+     * The buffer is flushed (merged into full stacks) at {@link #mobstacker$finishDropCompaction}.
+     * Only stacks are captured, so unstacked mobs keep the vanilla drop path untouched.
+     */
+    @Inject(method = "die", at = @At("HEAD"))
+    private void mobstacker$beginDropCompaction(DamageSource damageSource, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (!self.level().isClientSide && self instanceof Mob mob
+                && MobStacker.getCompactDrops() && MobStacker.getStackSize(mob) > 1) {
+            MobStacker.beginDropCapture(mob);
+        }
+    }
+
+    @Inject(method = "die", at = @At("RETURN"))
+    private void mobstacker$finishDropCompaction(DamageSource damageSource, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (!self.level().isClientSide && self instanceof Mob mob) {
+            MobStacker.finishDropCaptureAndCompact(mob);
+        }
+    }
+
     @Inject(method = "die", at = @At("HEAD"))
     private void mobstacker$onDie(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;

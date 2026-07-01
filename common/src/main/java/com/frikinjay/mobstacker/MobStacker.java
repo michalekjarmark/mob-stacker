@@ -27,6 +27,7 @@ import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.MushroomCow;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Slime;
@@ -838,6 +839,8 @@ public final class MobStacker {
 
     public static boolean getEnableHostileBabyStacking() {return config.getEnableHostileBabyStacking();}
 
+    public static boolean getCompactDrops() {return config.getCompactDrops();}
+
     /**
      * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.
      * It is an invisible marker armor stand (no hitbox, no gravity) that drifts up and is removed
@@ -881,6 +884,97 @@ public final class MobStacker {
                 stand.setPos(stand.getX(), stand.getY() + 0.025, stand.getZ());
             }
         }
+    }
+
+    // --- Drop compaction ---------------------------------------------------------------------
+    // While a stacked mob is dying we capture the item stacks it drops and re-emit them merged
+    // into as few item entities as possible, so a big farm kill leaves a handful of full stacks
+    // instead of dozens of scattered ones. This never creates or destroys items — it only
+    // re-containers what was actually dropped, so it can't duplicate loot on any kill path.
+    // Death drops run synchronously on the server thread, so a single capture context suffices.
+    private static Mob dropCaptureMob;
+    private static final List<ItemStack> dropCaptureBuffer = new ArrayList<>();
+
+    /** Starts buffering the item drops emitted by {@code mob} during its death. */
+    public static void beginDropCapture(Mob mob) {
+        dropCaptureMob = mob;
+        dropCaptureBuffer.clear();
+    }
+
+    /**
+     * Called from the {@code Entity.spawnAtLocation} hook. If this drop belongs to the mob we are
+     * currently compacting it is buffered and the caller cancels the real spawn. Returns true when
+     * the drop was captured.
+     */
+    public static boolean tryCaptureDrop(Entity entity, ItemStack stack) {
+        if (dropCaptureMob == null || entity != dropCaptureMob || stack == null || stack.isEmpty()) {
+            return false;
+        }
+        dropCaptureBuffer.add(stack.copy());
+        return true;
+    }
+
+    /**
+     * Re-emits the captured drops for {@code mob}, merged into as few item entities as possible
+     * (identical items combined up to their max stack size), all at the mob's centre with no
+     * motion so they stay clustered. Clears the capture context afterwards. Safe to call for any
+     * dying mob — it no-ops unless {@code mob} is the one currently being captured.
+     */
+    public static void finishDropCaptureAndCompact(Mob mob) {
+        if (dropCaptureMob != mob) {
+            return;
+        }
+        List<ItemStack> buffer = new ArrayList<>(dropCaptureBuffer);
+        dropCaptureMob = null;
+        dropCaptureBuffer.clear();
+
+        if (buffer.isEmpty() || !(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+
+        List<ItemStack> merged = new ArrayList<>();
+        for (ItemStack stack : buffer) {
+            mergeIntoStacks(merged, stack);
+        }
+        for (ItemStack stack : merged) {
+            spawnCompactItem(level, mob, stack);
+        }
+    }
+
+    /** Folds {@code incoming} into {@code merged}, topping up compatible stacks before adding new ones. */
+    private static void mergeIntoStacks(List<ItemStack> merged, ItemStack incoming) {
+        int remaining = incoming.getCount();
+        for (ItemStack existing : merged) {
+            if (remaining <= 0) {
+                return;
+            }
+            if (ItemStack.isSameItemSameTags(existing, incoming)) {
+                int space = existing.getMaxStackSize() - existing.getCount();
+                if (space > 0) {
+                    int moved = Math.min(space, remaining);
+                    existing.grow(moved);
+                    remaining -= moved;
+                }
+            }
+        }
+        while (remaining > 0) {
+            ItemStack copy = incoming.copy();
+            int size = Math.min(remaining, copy.getMaxStackSize());
+            copy.setCount(size);
+            merged.add(copy);
+            remaining -= size;
+        }
+    }
+
+    /** Spawns a single item entity at the mob's centre with no motion so the drops stay together. */
+    private static void spawnCompactItem(ServerLevel level, Mob mob, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        ItemEntity item = new ItemEntity(level, mob.getX(), mob.getY() + 0.5, mob.getZ(), stack);
+        item.setDeltaMovement(0.0, 0.0, 0.0);
+        item.setDefaultPickUpDelay();
+        level.addFreshEntity(item);
     }
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}

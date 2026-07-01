@@ -29,6 +29,7 @@ public class MobStackerConfig {
     private boolean breedOnePerClick = false;
     private boolean enableAnimalBabyStacking = true;
     private boolean enableHostileBabyStacking = true;
+    private boolean compactDrops = true;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private boolean enableSeparator = false;
@@ -89,6 +90,7 @@ public class MobStackerConfig {
     public boolean getBreedOnePerClick() { return breedOnePerClick; }
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
     public boolean getEnableHostileBabyStacking() { return enableHostileBabyStacking; }
+    public boolean getCompactDrops() { return compactDrops; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
 
@@ -164,6 +166,11 @@ public class MobStackerConfig {
 
     public void setEnableHostileBabyStacking(boolean enableHostileBabyStacking) {
         this.enableHostileBabyStacking = enableHostileBabyStacking;
+        save();
+    }
+
+    public void setCompactDrops(boolean compactDrops) {
+        this.compactDrops = compactDrops;
         save();
     }
 

@@ -78,6 +78,9 @@ public class MobStackerCommands {
                         .then(literal("enableHostileBabyStacking")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setEnableHostileBabyStacking)))
+                        .then(literal("compactDrops")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setCompactDrops)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -201,6 +204,8 @@ public class MobStackerCommands {
                 .append(formatBool(MobStacker.config.getStackKillParticles()))
                 .append(Component.literal("   stackKillHologram: ").withStyle(ChatFormatting.GRAY))
                 .append(formatBool(MobStacker.config.getStackKillHologram())), false);
+        source.sendSuccess(() -> Component.literal("compactDrops: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getCompactDrops())), false);
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
@@ -391,6 +396,17 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setEnableHostileBabyStacking(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Hostile baby stacking has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setCompactDrops(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getCompactDrops() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Compact drops is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setCompactDrops(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Compact drops has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

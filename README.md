@@ -39,6 +39,7 @@ Everything below is on top of the original MobStacker — see the linked section
 - ⚔️ **Sweeping Edge support** — folds vanilla sweep damage back into the hit so it clears stacks.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop, and a floating `-N` hologram (each toggleable).
 - 🐣 **Stack breeding & baby stacks** — feed a stacked animal to breed its members in pairs into a single baby-stack, and let loose babies (farm animals *and* hostile mobs like baby zombies) stack too.
+- 📦 **Drop compaction** — a stacked mob's death drops are merged into a few full item stacks instead of dozens of scattered ones, cutting item-entity lag on big farms.
 - 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
 - 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
 - 🪶 **Zero dependencies** — Almanac's functionality is built in; nothing but Fabric Loader + Minecraft required.
@@ -95,6 +96,7 @@ While actual performance gains vary based on server specifications, player count
 | `breedOnePerClick` | If `true`, each click feeds a single member (click once per animal); if `false`, one click feeds as many members as the food in hand allows | `false` |
 | `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Allow loose hostile/other babies (e.g. baby zombies) to stack | `true` |
+| `compactDrops` | Merge a stacked mob's death drops into as few full item stacks as possible (fewer item entities = less farm lag) | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -147,6 +149,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle stacking of loose hostile/other babies (e.g. baby zombies)
 /mobstacker stackerConfig enableHostileBabyStacking [true|false]
+
+# Toggle compacting a stacked mob's death drops into full item stacks
+/mobstacker stackerConfig compactDrops [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -304,6 +309,23 @@ Stacked animals can be bred without unstacking them, and babies stack too.
 > 💡 Breeding targets the common farm animals (cow, pig, sheep, chicken, mooshroom, rabbit,
 > goat, …). Tameable mobs with their own special right-click behaviour (wolf, cat, horse) may
 > fall back to vanilla breeding for now.
+
+### Drop Compaction
+
+Killing a big stack normally spawns a separate item entity for **every** drop of **every** mob
+(a 40-cow stack can litter the ground with dozens of leather and beef entities), which is a real
+source of lag on large farms. With `compactDrops` on (default), a stacked mob's death drops are
+captured and re-emitted **merged into as few full item stacks as possible**, dropped together at
+the mob's position.
+
+- Only **stacked** mobs are affected — a normal single mob keeps the vanilla drop behaviour.
+- It **never creates or destroys items**: the exact same loot is dropped, just packed into fewer
+  entities. Different items, and items with different enchantments/NBT, are kept apart correctly.
+- Works with every kill path (normal kills, `killWholeStackOnDeath`, and damage overflow).
+
+```bash
+/mobstacker stackerConfig compactDrops [true|false]
+```
 
 ### Mob Cap Management
 

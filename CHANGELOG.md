@@ -7,6 +7,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.3.0] - 2026-07-01
+### Added
+- **Drop compaction** (`compactDrops`, default `true`): a stacked mob's death drops are now merged
+  into as few full item stacks as possible instead of dozens of scattered item entities, cutting
+  item-entity lag on large farms. It never creates or destroys loot — the same drops are re-emitted
+  packed into fewer entities, keeping different items and different enchantments/NBT apart. Works
+  with every kill path (normal, `killWholeStackOnDeath`, and damage overflow). New
+  `/mobstacker stackerConfig compactDrops <true|false>` command + settings-overview line.
+
 ## [1.2.3] - 2026-07-01
 ### Fixed
 - A stack's respawned remainder (after a kill) and separated mobs kept their **age/baby state**
