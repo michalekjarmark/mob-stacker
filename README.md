@@ -218,6 +218,9 @@ killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
 
 ## Additional Notes
 
+- 🗂️ Config is stored **per world/server** in `<world>/serverconfig/mobstacker.json`,
+  loaded when the server starts — so settings no longer leak between worlds. (Upgrading
+  from an older version? Copy your old `config/mobstacker.json` there to keep your setup.)
 - 🔄 Automatic stacking occurs when compatible mobs move to a new block.
 - 👑 Boss entities receive special handling to preserve custom names and health bars.
 - 🔌 API available for custom merging conditions, death handlers, and entity data modifiers.

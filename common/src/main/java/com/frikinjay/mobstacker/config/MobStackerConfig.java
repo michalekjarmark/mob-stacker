@@ -1,14 +1,12 @@
 package com.frikinjay.mobstacker.config;
 
 import com.frikinjay.almanac.Almanac;
+import com.frikinjay.mobstacker.MobStacker;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static com.frikinjay.mobstacker.MobStacker.CONFIG_FILE;
 
 public class MobStackerConfig {
     private static final int MAX_CAP_VALUE = 128;
@@ -39,14 +37,14 @@ public class MobStackerConfig {
     private final MobCaps mobCaps = new MobCaps();
 
     public static MobStackerConfig load() {
-        return Almanac.loadConfig(CONFIG_FILE, MobStackerConfig.class);
+        return Almanac.loadConfig(MobStacker.configFile, MobStackerConfig.class);
     }
 
     public void save() {
         if (stackHealth && !killWholeStackOnDeath) {
             killWholeStackOnDeath = true;
         }
-        Almanac.saveConfig(CONFIG_FILE, this);
+        Almanac.saveConfig(MobStacker.configFile, this);
     }
 
     public String getSeparatorItem() { return separatorItem; }
