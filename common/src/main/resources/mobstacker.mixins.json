@@ -6,6 +6,7 @@
   "client": [
   ],
   "mixins": [
+    "ArmorStandAccessor",
     "EntityDataMixin",
     "EntityMixin",
     "LivingEntityCustomNameMixin",

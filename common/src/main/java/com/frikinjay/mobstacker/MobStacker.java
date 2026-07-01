@@ -6,7 +6,9 @@ import com.frikinjay.mobstacker.command.MobStackerCommands;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
+import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.mojang.logging.LogUtils;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
@@ -31,10 +33,15 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import org.slf4j.Logger;
 
+import net.minecraft.world.entity.decoration.ArmorStand;
+
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.function.BiPredicate;
@@ -56,6 +63,13 @@ public final class MobStacker {
     private static final WeakHashMap<Class<?>, Field> bossFieldCache = new WeakHashMap<>();
 
     private static final Pattern STACKED_NAME_PATTERN = Pattern.compile(" x\\d+$");
+
+    // Short-lived floating "-N killed" holograms (invisible marker armor stands), spawned on a
+    // stack kill and cleaned up ~1s later from the server tick (see MinecraftServerMixin).
+    private static final int KILL_HOLOGRAM_LIFETIME_TICKS = 24;
+    private static final List<KillHologram> killHolograms = new ArrayList<>();
+
+    private record KillHologram(ArmorStand entity, long expireGameTime) {}
 
     private static final Map<Class<? extends Mob>, BiPredicate<Mob, Mob>> VARIANT_CHECKERS = Map.of(
             Sheep.class, (self, other) -> ((Sheep)self).getColor() == ((Sheep)other).getColor()
@@ -547,6 +561,53 @@ public final class MobStacker {
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
 
     public static boolean getStackKillParticles() {return config.getStackKillParticles();}
+
+    public static boolean getStackKillHologram() {return config.getStackKillHologram();}
+
+    /**
+     * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.
+     * It is an invisible marker armor stand (no hitbox, no gravity) that drifts up and is removed
+     * ~1 second later by {@link #tickKillHolograms()}. This is the only feedback channel that
+     * spawns an entity, so it is transient and gated behind its own config flag.
+     */
+    public static void spawnKillHologram(ServerLevel level, Mob mob, int killed) {
+        ArmorStand stand = EntityType.ARMOR_STAND.create(level);
+        if (stand == null) {
+            return;
+        }
+        double y = mob.getY() + mob.getBbHeight() + 0.55;
+        stand.moveTo(mob.getX(), y, mob.getZ(), 0.0F, 0.0F);
+        stand.setInvisible(true);
+        stand.setNoGravity(true);
+        ((ArmorStandAccessor) stand).mobstacker$setMarker(true);
+        stand.setSilent(true);
+        stand.setNoBasePlate(true);
+        stand.setInvulnerable(true);
+        stand.setCustomName(Component.literal("-" + killed).withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+        stand.setCustomNameVisible(true);
+        level.addFreshEntity(stand);
+        killHolograms.add(new KillHologram(stand, level.getGameTime() + KILL_HOLOGRAM_LIFETIME_TICKS));
+    }
+
+    /** Drifts active kill holograms upward and discards them once their lifetime is up. */
+    public static void tickKillHolograms() {
+        if (killHolograms.isEmpty()) {
+            return;
+        }
+        Iterator<KillHologram> it = killHolograms.iterator();
+        while (it.hasNext()) {
+            KillHologram hologram = it.next();
+            ArmorStand stand = hologram.entity();
+            if (stand.isRemoved() || stand.level().getGameTime() >= hologram.expireGameTime()) {
+                if (!stand.isRemoved()) {
+                    stand.discard();
+                }
+                it.remove();
+            } else {
+                stand.setPos(stand.getX(), stand.getY() + 0.025, stand.getZ());
+            }
+        }
+    }
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 

@@ -7,6 +7,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.function.BooleanSupplier;
+
 /**
  * Loads MobStacker's config from the world's save folder when the server is created, so
  * each world/server keeps its own settings instead of sharing one global config file.
@@ -17,5 +19,10 @@ public abstract class MinecraftServerMixin {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void mobstacker$loadWorldConfig(CallbackInfo ci) {
         MobStacker.loadWorldConfig((MinecraftServer) (Object) this);
+    }
+
+    @Inject(method = "tickServer", at = @At("TAIL"))
+    private void mobstacker$tickKillHolograms(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
+        MobStacker.tickKillHolograms();
     }
 }

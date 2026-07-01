@@ -60,6 +60,7 @@ While actual performance gains vary based on server specifications, player count
 | `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
 | `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
+| `stackKillHologram` | Show a short-lived floating `-N` hologram above the mob indicating how many that hit killed | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -97,6 +98,9 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle the particle "pop" shown at the mob on a stack kill
 /mobstacker stackerConfig stackKillParticles [true|false]
+
+# Toggle the floating "-N" hologram shown above the mob on a stack kill
+/mobstacker stackerConfig stackKillHologram [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -214,13 +218,16 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
 > whole stack, so overflow does not apply.
 
-When a hit kills mobs from a stack the mod can show feedback two ways, each with its own
+When a hit kills mobs from a stack the mod can show feedback three ways, each with its own
 independent toggle:
 
 - **Action bar** (`stackKillActionBar`, default on): a line above the killer's hotbar
   showing how many were killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
-- **Particle pop** (`stackKillParticles`, default on): a small burst of particles at the
-  mob, scaling with the number killed. It spawns no extra entities, so it stays cheap.
+- **Particle pop** (`stackKillParticles`, default on): a burst of particles at the mob,
+  growing in amount and height with the number killed. It spawns no extra entities.
+- **Floating hologram** (`stackKillHologram`, default on): a short-lived `-N` text that
+  drifts up above the mob showing how many that hit killed. This is the only feedback
+  channel that spawns an entity — an invisible marker armor stand removed after ~1 second.
 
 ### Mob Cap Management
 

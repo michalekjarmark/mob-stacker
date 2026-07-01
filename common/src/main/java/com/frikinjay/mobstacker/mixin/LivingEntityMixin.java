@@ -88,11 +88,15 @@ public abstract class LivingEntityMixin extends Entity {
                 MobStacker.spawnNewEntity(serverLevel, mobstacker$self, survivors, mobstacker$overflowSurvivorHealth);
             }
 
-            // Feedback when a stacked mob is killed: a particle "pop" near the mob and/or an
-            // action bar line to the killer. Each is toggled by its own config flag.
+            // Feedback when a stacked mob is killed: a particle "pop" near the mob, a floating
+            // "-N" hologram above it, and/or an action bar line to the killer. Each is toggled
+            // by its own config flag.
             if (stackSize > 1 && MobStacker.shouldSpawnNewEntity(mobstacker$self, reason)) {
                 if (MobStacker.getStackKillParticles()) {
                     mobstacker$spawnStackKillParticles(mobstacker$self, killed);
+                }
+                if (MobStacker.getStackKillHologram() && mobstacker$self.level() instanceof ServerLevel serverLevel) {
+                    MobStacker.spawnKillHologram(serverLevel, mobstacker$self, killed);
                 }
                 if (MobStacker.getStackKillActionBar()) {
                     mobstacker$sendStackKillFeedback(mobstacker$self, killed, Math.max(survivors, 0));
@@ -130,12 +134,14 @@ public abstract class LivingEntityMixin extends Entity {
         double x = mob.getX();
         double y = mob.getY() + mob.getBbHeight() * 0.6;
         double z = mob.getZ();
-        double spreadXZ = mob.getBbWidth() * 0.6;
-        double spreadY = mob.getBbHeight() * 0.4;
-        int sparks = Math.min(6 + killed * 4, 40);
-        int puffs = Math.min(2 + killed, 10);
-        serverLevel.sendParticles(ParticleTypes.CRIT, x, y, z, sparks, spreadXZ, spreadY, spreadXZ, 0.15);
-        serverLevel.sendParticles(ParticleTypes.POOF, x, y, z, puffs, spreadXZ, spreadY, spreadXZ, 0.02);
+        // Both the amount and the height of the burst grow with the number killed, so a big
+        // multi-kill visibly erupts higher and denser than a single kill (capped to stay cheap).
+        double spreadXZ = mob.getBbWidth() * 0.5;
+        double spreadY = mob.getBbHeight() * (0.4 + Math.min(killed, 20) * 0.18);
+        int sparks = Math.min(10 + killed * 10, 160);
+        int puffs = Math.min(3 + killed * 2, 48);
+        serverLevel.sendParticles(ParticleTypes.CRIT, x, y, z, sparks, spreadXZ, spreadY, spreadXZ, 0.2);
+        serverLevel.sendParticles(ParticleTypes.POOF, x, y, z, puffs, spreadXZ, spreadY * 0.6, spreadXZ, 0.03);
     }
 
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))

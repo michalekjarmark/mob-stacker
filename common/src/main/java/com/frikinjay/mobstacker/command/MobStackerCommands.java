@@ -62,6 +62,9 @@ public class MobStackerCommands {
                         .then(literal("stackKillParticles")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setStackKillParticles)))
+                        .then(literal("stackKillHologram")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setStackKillHologram)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -168,7 +171,9 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("stackKillActionBar: ").withStyle(ChatFormatting.GRAY)
                 .append(formatBool(MobStacker.config.getStackKillActionBar()))
                 .append(Component.literal("   stackKillParticles: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getStackKillParticles())), false);
+                .append(formatBool(MobStacker.config.getStackKillParticles()))
+                .append(Component.literal("   stackKillHologram: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getStackKillHologram())), false);
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
@@ -304,6 +309,17 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setStackKillParticles(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Stack kill particles has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setStackKillHologram(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getStackKillHologram() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill hologram is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setStackKillHologram(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill hologram has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

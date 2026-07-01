@@ -19,6 +19,7 @@ public class MobStackerConfig {
     private boolean stackEquippedMobs = false;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
+    private boolean stackKillHologram = true;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private boolean enableSeparator = false;
@@ -59,6 +60,7 @@ public class MobStackerConfig {
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
+    public boolean getStackKillHologram() { return stackKillHologram; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
 
@@ -109,6 +111,11 @@ public class MobStackerConfig {
 
     public void setStackKillParticles(boolean stackKillParticles) {
         this.stackKillParticles = stackKillParticles;
+        save();
+    }
+
+    public void setStackKillHologram(boolean stackKillHologram) {
+        this.stackKillHologram = stackKillHologram;
         save();
     }
 
