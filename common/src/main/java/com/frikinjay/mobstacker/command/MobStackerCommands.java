@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker.command;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
+import com.frikinjay.mobstacker.config.ConfigSelfTest;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
@@ -53,6 +54,7 @@ public class MobStackerCommands {
                                 .suggests(MobStackerCommands::suggestCategories)
                                 .executes(MobStackerCommands::showHelpCategory)))
                 .then(literal("reload").executes(MobStackerCommands::reloadConfig))
+                .then(literal("selftest").executes(MobStackerCommands::runSelfTest))
                 .then(literal("get")
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestSettings)
@@ -524,6 +526,33 @@ public class MobStackerCommands {
         MobStacker.reloadConfig();
         context.getSource().sendSuccess(() -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
         return 1;
+    }
+
+    /**
+     * Runs the automated settings self-test against a sandbox config (the live per-world config is
+     * untouched) and reports pass/fail counts, listing any failures. Handy for verifying that every
+     * setting still parses/validates/round-trips after changes to the registry.
+     */
+    private static int runSelfTest(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ConfigSelfTest.Report report = ConfigSelfTest.run();
+        if (report.passed()) {
+            source.sendSuccess(() -> Component.literal(
+                    "Self-test PASSED: " + report.checks + " checks across " + report.options + " settings").withStyle(ChatFormatting.GREEN), false);
+            return 1;
+        }
+        source.sendFailure(Component.literal(
+                "Self-test FAILED: " + report.failures + "/" + report.checks + " checks across " + report.options + " settings").withStyle(ChatFormatting.RED));
+        int shown = 0;
+        for (String message : report.messages) {
+            if (shown++ >= 20) {
+                int remaining = report.messages.size() - 20;
+                source.sendFailure(Component.literal(" ... and " + remaining + " more").withStyle(ChatFormatting.RED));
+                break;
+            }
+            source.sendFailure(Component.literal(" - " + message).withStyle(ChatFormatting.RED));
+        }
+        return 0;
     }
 
     // ============================================================ regions

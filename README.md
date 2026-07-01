@@ -139,6 +139,9 @@ descriptions.
 # Restore one setting — or every setting — to its default
 /mobstacker reset <setting>
 /mobstacker reset all
+
+# Automatically round-trip-test every setting (uses a sandbox config; your world config is untouched)
+/mobstacker selftest
 ```
 
 `<setting>` is any of the config keys from the table above (e.g. `killWholeStackOnDeath`,
