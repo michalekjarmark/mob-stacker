@@ -1,3 +1,5 @@
+# MobStacker: Restacked
+
 <center>
 <img src="[https://i.ibb.co/hf7t4tz/req-al-mr-335x130.png](https://media.forgecdn.net/attachments/988/553/mobstacker-1.png)" alt="An entity stacked to almost maximum integer limit">
 <a href="https://discord.gg/aPPEPJWG39">
@@ -6,6 +8,12 @@
 </center>
 <br>
 
+> 🍴 **About this fork:** *MobStacker: Restacked* is an **actively-developed, independent fork**
+> of [MobStacker](https://github.com/frikinjay/mob-stacker) by **frikinjay** (the original
+> author), maintained by **michalekjarmark & davidex** and distributed under **LGPL v3**. We
+> develop it independently of the original author, who no longer maintains the mod — adding new
+> features, fixing bugs, and keeping a **Fabric 1.20.1** line running for our server.
+
 > ✅ **Standalone:** this fork has **no required library dependencies** — it needs only the
 > Fabric Loader and Minecraft. (Earlier versions required the *Almanac* library; that
 > functionality is now built in.) *Let Me Despawn* is an optional companion, not a requirement.
@@ -13,6 +21,19 @@
 **MobStacker** is a performance Minecraft mod to optimize entity handling, addressing a common cause of performance issues in vanilla and modded environments. By intelligently "stacking" similar mobs in close proximity, MobStacker significantly reduces server load and enhances client-side performance without compromising gameplay mechanics.
 
 > 💡 **Note**: MobStacker preserves all loot and mob properties within stacked entities. Named mobs (via name tags) are exempt from stacking to maintain uniqueness.
+
+## ✨ What this fork adds
+
+Everything below is on top of the original MobStacker — see the linked sections for detail:
+
+- 🗺️ **Region-based stacking** — limit stacking to chosen world regions (allow/deny cuboids + a global mode).
+- 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
+- ⚔️ **Sweeping Edge support** — folds vanilla sweep damage back into the hit so it clears stacks.
+- 🎯 **Stack-kill feedback** — action bar, a scaling particle pop, and a floating `-N` hologram (each toggleable).
+- 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
+- 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
+- 🪶 **Zero dependencies** — Almanac's functionality is built in; nothing but Fabric Loader + Minecraft required.
+- 🛠️ **Quality of life** — `/mobstacker` settings overview and `/mobstacker reload` for on-the-fly config reloads.
 
 ## Key Benefits
 
@@ -248,6 +269,14 @@ independent toggle:
 - 📊 Stacked mobs display stack size in their name (e.g., "Zombie x5").
 - 🐑🐷🧟 Compatible with various entity types: animals, monsters, and NPCs.
 
+## Credits & License
+
+- **Original author:** [frikinjay](https://github.com/frikinjay) — creator of MobStacker.
+- **This fork (*MobStacker: Restacked*):** maintained by **michalekjarmark & davidex**,
+  developed independently of the original author.
+- **License:** [LGPL v3](https://www.gnu.org/licenses/lgpl-3.0.html). This fork honors the
+  original license and keeps the original author's attribution.
+
 ---
 
-*Report issues to the issue tracker on github.*
+*Report issues on the [fork's issue tracker](https://github.com/michalekjarmark/mob-stacker/issues).*

@@ -1,15 +1,17 @@
 modLoader = "javafml"
 loaderVersion = "[2,)"
-issueTrackerURL = "https://github.com/frikinjay/mob-stacker/issues"
+issueTrackerURL = "https://github.com/michalekjarmark/mob-stacker/issues"
 license = "GNU LGPL 3.0"
 
 [[mods]]
 modId = "mobstacker"
 version = "${version}"
-displayName = "MobStacker"
-authors = "frikinjay"
+displayName = "MobStacker: Restacked"
+authors = "michalekjarmark, davidex"
+credits = "Based on MobStacker by frikinjay (original author)"
 description = '''
-Greatly increases performance by stacking mobs together.
+Greatly increases performance by stacking mobs together. An actively-developed,
+dependency-free fork of frikinjay's MobStacker.
 '''
 logoFile = "mobstacker.png"
 

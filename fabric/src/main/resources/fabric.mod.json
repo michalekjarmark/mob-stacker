@@ -2,14 +2,19 @@
   "schemaVersion": 1,
   "id": "mobstacker",
   "version": "${version}",
-  "name": "MobStacker",
+  "name": "MobStacker: Restacked",
   "accessWidener": "mobstacker.accesswidener",
-  "description": "Greatly increases performance by stacking mobs together.",
+  "description": "Greatly increases performance by stacking mobs together. An actively-developed, dependency-free fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback and per-world config.",
   "authors": [
-    "frikinjay"
+    "michalekjarmark",
+    "davidex"
+  ],
+  "contributors": [
+    "frikinjay (original author)"
   ],
   "contact": {
-    "homepage": "https://github.com/frikinjay/mob-stacker"
+    "homepage": "https://github.com/michalekjarmark/mob-stacker",
+    "sources": "https://github.com/michalekjarmark/mob-stacker"
   },
   "license": "LGPL-3.0",
   "icon": "assets/mobstacker/icon.png",
