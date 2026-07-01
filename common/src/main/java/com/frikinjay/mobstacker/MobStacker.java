@@ -30,6 +30,7 @@ import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Slime;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -306,7 +307,22 @@ public final class MobStacker {
         }
 
         copyVariantData(source, target);
+        copyAgeData(source, target);
         MobStackerAPI.applyEntityDataModifiers(source, target);
+    }
+
+    /**
+     * Copies the source's growth state (age / baby flag) onto a freshly-created entity, so a
+     * stack's respawned remainder (after a kill) or a separated mob keeps being a baby with the
+     * same growth progress. Without this, {@code entityType.create()} / {@code finalizeSpawn}
+     * would make it an adult (finalizeSpawn even has a ~5% chance to roll a random baby).
+     */
+    private static void copyAgeData(Mob source, Mob target) {
+        if (source instanceof AgeableMob sourceAge && target instanceof AgeableMob targetAge) {
+            targetAge.setAge(sourceAge.getAge());
+        } else if (source instanceof Zombie sourceZombie && target instanceof Zombie targetZombie) {
+            targetZombie.setBaby(sourceZombie.isBaby());
+        }
     }
 
     private static void copyVariantData(Mob source, Mob target) {
@@ -369,6 +385,7 @@ public final class MobStacker {
         target.setCustomName(newName);
 
         copyVariantData(source, target);
+        copyAgeData(source, target);
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
