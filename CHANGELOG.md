@@ -7,6 +7,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.4.0] - 2026-07-01
+### Changed
+- **Command overhaul.** The `/mobstacker` tree is now flat and consistent, matching how vanilla
+  commands feel. Every scalar setting is changed through generic, tab-completed subcommands
+  instead of a per-setting branch:
+  - `/mobstacker set <setting> <value>` — change any setting (value validated for its type).
+  - `/mobstacker get <setting>` — show a setting's value, default and description.
+  - `/mobstacker toggle <setting>` — flip a boolean.
+  - `/mobstacker reset <setting>` / `reset all` — restore defaults.
+  - `/mobstacker help [category]` — browse settings by category (stacking, combat, feedback,
+    breeding, drops, separator, mobcaps) with values and descriptions.
+  Tab-completion suggests every setting name and then the valid values for the chosen one.
+- Clearer feedback: changes show `old -> new` in green, no-ops are yellow (not red), and errors
+  are red. The two "stack size" concepts are now clearly separated — `set maxStackSize` (the global
+  limit) vs `stacksize <target> <n>` (force a targeted mob's live count).
+- Ignore lists are now consistent: `/mobstacker ignore <entity|mod> <add|remove|list>`.
+### Removed
+- The old `stackerConfig …`, `mobCapConfig …`, `setStackSize …`, `unignore …` and nested
+  `separator …` command paths. All their functionality moved to the new `set/get/toggle/reset`
+  commands above. **The config file format is unchanged** — only the command syntax changed.
+### Internal
+- Settings are now declared once in a data-driven `ConfigOption` registry (`MobStackerSettings`)
+  that drives the commands (and will drive the upcoming config GUI), removing ~450 lines of
+  duplicated per-setting command code.
+
 ## [1.3.0] - 2026-07-01
 ### Added
 - **Drop compaction** (`compactDrops`, default `true`): a stacked mob's death drops are now merged

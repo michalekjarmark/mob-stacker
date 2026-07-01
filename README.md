@@ -114,82 +114,64 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 ### Configuration Commands
 
+Every scalar setting is changed through one small, consistent set of subcommands with full
+tab-completion — no more hunting through nested menus. Type `/mobstacker` for a grouped
+overview of the current values, `/mobstacker help` for the command list, or
+`/mobstacker help <category>` to see a category's settings with their values, defaults and
+descriptions.
+
 ```bash
-# Toggle whole stack death
-/mobstacker stackerConfig killWholeStackOnDeath [true|false]
+# Grouped overview of every current setting
+/mobstacker
 
-# Toggle health stacking
-/mobstacker stackerConfig stackHealth [true|false]
+# Command list + setting categories (stacking, combat, feedback, breeding, drops, separator, mobcaps)
+/mobstacker help [category]
 
-# Toggle damage overflow (one hit can kill several mobs in a stack)
-/mobstacker stackerConfig damageOverflow [true|false]
+# Inspect one setting (current value, default, description)
+/mobstacker get <setting>
 
-# Toggle Sweeping Edge bonus damage against stacks
-/mobstacker stackerConfig sweepingEdgeOverflow [true|false]
+# Change any setting — the value is validated for that setting's type
+/mobstacker set <setting> <value>
 
-# Toggle whether mobs holding/wearing items are allowed to stack
-/mobstacker stackerConfig stackEquippedMobs [true|false]
+# Flip a boolean setting
+/mobstacker toggle <setting>
 
-# Toggle the action-bar kill feedback (above the hotbar)
-/mobstacker stackerConfig stackKillActionBar [true|false]
+# Restore one setting — or every setting — to its default
+/mobstacker reset <setting>
+/mobstacker reset all
+```
 
-# Toggle the particle "pop" shown at the mob on a stack kill
-/mobstacker stackerConfig stackKillParticles [true|false]
+`<setting>` is any of the config keys from the table above (e.g. `killWholeStackOnDeath`,
+`damageOverflow`, `maxStackSize`, `stackRadius`, `stackMode`, `separatorItem`, the `stackKill*`
+feedback toggles, the breeding toggles, `compactDrops`/`compactExperience`, and the `*MobCap`
+values). Tab-completion suggests every setting name, and then the valid values for the one you
+picked (e.g. `true`/`false`, the `stackMode` options, or item ids for `separatorItem`).
 
-# Toggle the floating "-N" hologram shown above the mob on a stack kill
-/mobstacker stackerConfig stackKillHologram [true|false]
-
-# Toggle breeding stacked animals (feed a stacked animal to breed it in pairs)
-/mobstacker stackerConfig enableStackBreeding [true|false]
-
-# Toggle "one per click" feeding (click once per animal instead of the whole stack at once)
-/mobstacker stackerConfig breedOnePerClick [true|false]
-
-# Toggle stacking of loose farm-animal babies (matched by age)
-/mobstacker stackerConfig enableAnimalBabyStacking [true|false]
-
-# Toggle stacking of loose hostile/other babies (e.g. baby zombies)
-/mobstacker stackerConfig enableHostileBabyStacking [true|false]
-
-# Toggle compacting a stacked mob's death drops into full item stacks
-/mobstacker stackerConfig compactDrops [true|false]
-
-# Toggle compacting a stacked mob's death experience into a single orb
-/mobstacker stackerConfig compactExperience [true|false]
-
-# Set maximum stack size
-/mobstacker stackerConfig maxStackSize [value]
-
-# Set stack radius
-/mobstacker stackerConfig stackRadius [value]
-
-# Toggle separator functionality
-/mobstacker stackerConfig separator enableSeparator [true|false]
-
-# Toggle separator consumption
-/mobstacker stackerConfig separator consumeSeparator [true|false]
-
-# Set separator item
-/mobstacker stackerConfig separator separatorItem [item_id]
+```bash
+# Examples
+/mobstacker set maxStackSize 32
+/mobstacker toggle damageOverflow
+/mobstacker set stackMode everywhere
+/mobstacker set separatorItem minecraft:diamond
+/mobstacker get compactExperience
 ```
 
 ### Entity and Mod Management
 
 ```bash
-# Ignore specific entity
-/mobstacker ignore entity [entity_id]
+# Never stack a specific entity type
+/mobstacker ignore entity add <entity_id>
+/mobstacker ignore entity remove <entity_id>
+/mobstacker ignore entity list
 
-# Ignore all entities from a mod
-/mobstacker ignore mod [mod_id]
+# Never stack any entity from a given mod
+/mobstacker ignore mod add <mod_id>
+/mobstacker ignore mod remove <mod_id>
+/mobstacker ignore mod list
 
-# Remove entity from ignore list
-/mobstacker unignore entity [entity_id]
-
-# Remove mod from ignore list
-/mobstacker unignore mod [mod_id]
-
-# Set stack size for specific entity
-/mobstacker setStackSize [entity] [size]
+# Force the LIVE stack count of a targeted mob (admin/debug — needs an entity selector).
+# This is different from `set maxStackSize`, which is the global upper limit stacks may grow to.
+/mobstacker stacksize <target> <size>
 
 # Reload the config from disk (after editing the JSON file by hand)
 /mobstacker reload
@@ -210,7 +192,7 @@ everywhere).
 
 ```bash
 # Set the global stacking mode
-/mobstacker stackerConfig stackMode [regions|everywhere|off]
+/mobstacker set stackMode <regions|everywhere|off>
 ```
 
 Regions are axis-aligned cuboids tied to the dimension you run the command in.
@@ -331,15 +313,21 @@ stacks as possible**, dropped together at the mob's position. With `compactExper
   two toggles are independent.
 
 ```bash
-/mobstacker stackerConfig compactDrops [true|false]
-/mobstacker stackerConfig compactExperience [true|false]
+/mobstacker toggle compactDrops
+/mobstacker toggle compactExperience
 ```
 
 ### Mob Cap Management
 
+The vanilla per-category spawn caps are ordinary settings too (category `mobcaps`), changed
+with the same `set` command:
+
 ```bash
-# Set mob cap for mob categories
-/mobstacker mobCapConfig [options]
+# Set a category's spawn cap (0–128)
+/mobstacker set monsterMobCap <value>
+
+# List every cap with its current value and default
+/mobstacker help mobcaps
 ```
 
 ## Additional Notes

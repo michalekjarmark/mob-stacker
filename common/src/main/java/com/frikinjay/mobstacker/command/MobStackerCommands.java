@@ -1,11 +1,11 @@
 package com.frikinjay.mobstacker.command;
 
 import com.frikinjay.mobstacker.MobStacker;
-import com.frikinjay.mobstacker.config.StackMode;
+import com.frikinjay.mobstacker.config.ConfigOption;
+import com.frikinjay.mobstacker.config.ConfigOption.Category;
+import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -20,9 +20,9 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 
 import java.util.HashSet;
@@ -34,121 +34,69 @@ import static com.frikinjay.mobstacker.MobStacker.MOD_ID;
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
+/**
+ * The {@code /mobstacker} command tree.
+ * <p>
+ * Scalar settings are not hand-wired here: {@code set}/{@code get}/{@code toggle}/{@code reset}
+ * are generic and driven by the {@link MobStackerSettings} registry, so the whole config surface
+ * is exposed by a handful of handlers. Collection-shaped state (regions, ignore lists) and the
+ * per-entity live {@code stacksize} action keep dedicated subcommands.
+ */
 public class MobStackerCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(literal(MOD_ID)
                 .requires(source -> source.hasPermission(2))
                 .executes(MobStackerCommands::showOverview)
-                .then(literal("help").executes(MobStackerCommands::showOverview))
+                .then(literal("help")
+                        .executes(MobStackerCommands::showHelpRoot)
+                        .then(argument("category", StringArgumentType.word())
+                                .suggests(MobStackerCommands::suggestCategories)
+                                .executes(MobStackerCommands::showHelpCategory)))
                 .then(literal("reload").executes(MobStackerCommands::reloadConfig))
-                .then(literal("stackerConfig")
-                        .then(literal("killWholeStackOnDeath")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setKillWholeStackOnDeath)))
-                        .then(literal("stackHealth")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setStackHealth)))
-                        .then(literal("damageOverflow")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setDamageOverflow)))
-                        .then(literal("sweepingEdgeOverflow")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setSweepingEdgeOverflow)))
-                        .then(literal("stackEquippedMobs")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setStackEquippedMobs)))
-                        .then(literal("stackKillActionBar")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setStackKillActionBar)))
-                        .then(literal("stackKillParticles")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setStackKillParticles)))
-                        .then(literal("stackKillHologram")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setStackKillHologram)))
-                        .then(literal("enableStackBreeding")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setEnableStackBreeding)))
-                        .then(literal("breedOnePerClick")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setBreedOnePerClick)))
-                        .then(literal("enableAnimalBabyStacking")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setEnableAnimalBabyStacking)))
-                        .then(literal("enableHostileBabyStacking")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setEnableHostileBabyStacking)))
-                        .then(literal("compactDrops")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setCompactDrops)))
-                        .then(literal("compactExperience")
-                                .then(argument("value", BoolArgumentType.bool())
-                                        .executes(MobStackerCommands::setCompactExperience)))
-                        .then(literal("maxStackSize")
-                                .then(argument("value", IntegerArgumentType.integer(1))
-                                        .executes(MobStackerCommands::setMaxStackSize)))
-                        .then(literal("stackRadius")
-                                .then(argument("value", DoubleArgumentType.doubleArg(0.1, 42000))
-                                        .executes(MobStackerCommands::setStackRadius)))
-                        .then(literal("stackMode")
-                                .then(literal("regions").executes(ctx -> setStackMode(ctx, StackMode.REGIONS)))
-                                .then(literal("everywhere").executes(ctx -> setStackMode(ctx, StackMode.EVERYWHERE)))
-                                .then(literal("off").executes(ctx -> setStackMode(ctx, StackMode.OFF))))
-                        .then(literal("separator")
-                                .then(literal("enableSeparator")
-                                        .then(argument("value", BoolArgumentType.bool())
-                                                .executes(MobStackerCommands::setEnableSeparator)))
-                                .then(literal("consumeSeparator")
-                                        .then(argument("value", BoolArgumentType.bool())
-                                                .executes(MobStackerCommands::setConsumeSeparator)))
-                                .then(literal("separatorItem")
-                                        .then(argument("item", StringArgumentType.greedyString())
-                                                .suggests(MobStackerCommands::suggestItems)
-                                                .executes(MobStackerCommands::setSeparatorItem)))))
-                .then(literal("mobCapConfig")
-                        .then(literal("monsterMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setMonsterMobCap)))
-                        .then(literal("creatureMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setCreatureMobCap)))
-                        .then(literal("ambientMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setAmbientMobCap)))
-                        .then(literal("axolotlsMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setAxolotlsMobCap)))
-                        .then(literal("undergroundWaterCreatureMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setUndergroundWaterCreatureMobCap)))
-                        .then(literal("waterCreatureMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setWaterCreatureMobCap)))
-                        .then(literal("waterAmbientMobCap")
-                                .then(argument("value", IntegerArgumentType.integer(0,128))
-                                        .executes(MobStackerCommands::setWaterAmbientMobCap))))
+                .then(literal("get")
+                        .then(argument("setting", StringArgumentType.word())
+                                .suggests(MobStackerCommands::suggestSettings)
+                                .executes(MobStackerCommands::getValue)))
+                .then(literal("set")
+                        .then(argument("setting", StringArgumentType.word())
+                                .suggests(MobStackerCommands::suggestSettings)
+                                .then(argument("value", StringArgumentType.greedyString())
+                                        .suggests(MobStackerCommands::suggestValues)
+                                        .executes(MobStackerCommands::setValue))))
+                .then(literal("toggle")
+                        .then(argument("setting", StringArgumentType.word())
+                                .suggests(MobStackerCommands::suggestToggles)
+                                .executes(MobStackerCommands::toggleValue)))
+                .then(literal("reset")
+                        .then(literal("all").executes(MobStackerCommands::resetAll))
+                        .then(argument("setting", StringArgumentType.word())
+                                .suggests(MobStackerCommands::suggestSettings)
+                                .executes(MobStackerCommands::resetValue)))
+                .then(literal("stacksize")
+                        .then(argument("target", EntityArgument.entity())
+                                .then(argument("size", IntegerArgumentType.integer(1))
+                                        .executes(MobStackerCommands::setStackSizeLive))))
                 .then(literal("ignore")
                         .then(literal("entity")
-                                .then(argument("entityId", ResourceLocationArgument.id())
-                                        .suggests(MobStackerCommands::suggestEntities)
-                                        .executes(MobStackerCommands::ignoreEntity)))
+                                .then(literal("add")
+                                        .then(argument("entityId", ResourceLocationArgument.id())
+                                                .suggests(MobStackerCommands::suggestEntities)
+                                                .executes(MobStackerCommands::ignoreEntity)))
+                                .then(literal("remove")
+                                        .then(argument("entityId", ResourceLocationArgument.id())
+                                                .suggests(MobStackerCommands::suggestIgnoredEntities)
+                                                .executes(MobStackerCommands::unignoreEntity)))
+                                .then(literal("list").executes(MobStackerCommands::listIgnoredEntities)))
                         .then(literal("mod")
-                                .then(argument("modId", StringArgumentType.word())
-                                        .suggests(MobStackerCommands::suggestMods)
-                                        .executes(MobStackerCommands::ignoreMod))))
-                .then(literal("unignore")
-                        .then(literal("entity")
-                                .then(argument("entityId", ResourceLocationArgument.id())
-                                        .suggests(MobStackerCommands::suggestIgnoredEntities)
-                                        .executes(MobStackerCommands::unignoreEntity)))
-                        .then(literal("mod")
-                                .then(argument("modId", StringArgumentType.word())
-                                        .suggests(MobStackerCommands::suggestIgnoredMods)
-                                        .executes(MobStackerCommands::unignoreMod))))
-                .then(literal("setStackSize")
-                        .then(argument("entity", EntityArgument.entity())
-                                .then(argument("size", IntegerArgumentType.integer(1))
-                                        .executes(MobStackerCommands::setStackSize))))
+                                .then(literal("add")
+                                        .then(argument("modId", StringArgumentType.word())
+                                                .suggests(MobStackerCommands::suggestMods)
+                                                .executes(MobStackerCommands::ignoreMod)))
+                                .then(literal("remove")
+                                        .then(argument("modId", StringArgumentType.word())
+                                                .suggests(MobStackerCommands::suggestIgnoredMods)
+                                                .executes(MobStackerCommands::unignoreMod)))
+                                .then(literal("list").executes(MobStackerCommands::listIgnoredMods))))
                 .then(literal("region")
                         .then(literal("add")
                                 .then(argument("name", StringArgumentType.word())
@@ -168,59 +116,257 @@ public class MobStackerCommands {
                                 .executes(MobStackerCommands::listRegions))));
     }
 
-    private static int reloadConfig(CommandContext<CommandSourceStack> context) {
-        MobStacker.reloadConfig();
-        context.getSource().sendSuccess(() -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
+    // ============================================================ generic settings
+
+    private static int getValue(CommandContext<CommandSourceStack> context) {
+        ConfigOption option = MobStackerSettings.byId(StringArgumentType.getString(context, "setting"));
+        if (option == null) {
+            return unknownSetting(context, StringArgumentType.getString(context, "setting"));
+        }
+        context.getSource().sendSuccess(() -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
+                .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
+                .append(valueComponent(option))
+                .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
+        context.getSource().sendSuccess(() -> Component.literal(option.description()).withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
+
+    private static int setValue(CommandContext<CommandSourceStack> context) {
+        String settingId = StringArgumentType.getString(context, "setting");
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        if (option == null) {
+            return unknownSetting(context, settingId);
+        }
+        return report(context.getSource(), option, option.apply(StringArgumentType.getString(context, "value")));
+    }
+
+    private static int toggleValue(CommandContext<CommandSourceStack> context) {
+        String settingId = StringArgumentType.getString(context, "setting");
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        if (option == null) {
+            return unknownSetting(context, settingId);
+        }
+        return report(context.getSource(), option, option.toggle());
+    }
+
+    private static int resetValue(CommandContext<CommandSourceStack> context) {
+        String settingId = StringArgumentType.getString(context, "setting");
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        if (option == null) {
+            return unknownSetting(context, settingId);
+        }
+        return report(context.getSource(), option, option.reset());
+    }
+
+    private static int resetAll(CommandContext<CommandSourceStack> context) {
+        int changed = 0;
+        java.util.List<ConfigOption> retry = new java.util.ArrayList<>();
+        // First pass; some options may be blocked by a dependency (e.g. killWholeStackOnDeath while
+        // stackHealth is still on), so any errors are retried once after the rest have reset.
+        for (ConfigOption option : MobStackerSettings.all()) {
+            ConfigOption.Result result = option.reset();
+            if (result.status == ConfigOption.Result.Status.CHANGED) {
+                changed++;
+            } else if (result.status == ConfigOption.Result.Status.ERROR) {
+                retry.add(option);
+            }
+        }
+        for (ConfigOption option : retry) {
+            if (option.reset().status == ConfigOption.Result.Status.CHANGED) {
+                changed++;
+            }
+        }
+        final int count = changed;
+        context.getSource().sendSuccess(() -> Component.literal("Reset " + count + " setting(s) to their defaults").withStyle(ChatFormatting.AQUA), true);
+        return 1;
+    }
+
+    /** Turns a {@link ConfigOption.Result} into consistent, colour-coded feedback. */
+    private static int report(CommandSourceStack source, ConfigOption option, ConfigOption.Result result) {
+        switch (result.status) {
+            case CHANGED -> {
+                MutableComponent message = Component.literal("Set ").withStyle(ChatFormatting.GREEN)
+                        .append(Component.literal(option.id()).withStyle(ChatFormatting.WHITE))
+                        .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(result.oldValue).withStyle(ChatFormatting.RED))
+                        .append(Component.literal(" -> ").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(result.newValue).withStyle(ChatFormatting.GREEN));
+                if (result.message != null) {
+                    message.append(Component.literal("   (" + result.message + ")").withStyle(ChatFormatting.YELLOW));
+                }
+                source.sendSuccess(() -> message, true);
+                return 1;
+            }
+            case UNCHANGED -> {
+                source.sendSuccess(() -> Component.literal(option.id() + " is already " + result.oldValue).withStyle(ChatFormatting.YELLOW), false);
+                return 1;
+            }
+            default -> {
+                source.sendFailure(Component.literal(result.message).withStyle(ChatFormatting.RED));
+                return 0;
+            }
+        }
+    }
+
+    private static int unknownSetting(CommandContext<CommandSourceStack> context, String settingId) {
+        context.getSource().sendFailure(Component.literal("Unknown setting '" + settingId + "'. Try /mobstacker help").withStyle(ChatFormatting.RED));
+        return 0;
+    }
+
+    private static Component valueComponent(ConfigOption option) {
+        String value = option.currentValue();
+        ChatFormatting color = ChatFormatting.AQUA;
+        if (option.type() == ConfigOption.Type.BOOL) {
+            color = Boolean.parseBoolean(value) ? ChatFormatting.GREEN : ChatFormatting.RED;
+        }
+        return Component.literal(value).withStyle(color);
+    }
+
+    // ============================================================ overview & help
 
     private static int showOverview(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal("=== MobStacker ===").withStyle(ChatFormatting.GOLD), false);
-        source.sendSuccess(() -> Component.literal("Stack mode: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(String.valueOf(MobStacker.config.getStackMode())).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("Max stack size: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(String.valueOf(MobStacker.config.getMaxMobStackSize())).withStyle(ChatFormatting.AQUA))
-                .append(Component.literal("   Radius: ").withStyle(ChatFormatting.GRAY))
-                .append(Component.literal(String.valueOf(MobStacker.config.getStackRadius())).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("killWholeStackOnDeath: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getKillWholeStackOnDeath()))
-                .append(Component.literal("   stackHealth: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getStackHealth())), false);
-        source.sendSuccess(() -> Component.literal("damageOverflow: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getDamageOverflow()))
-                .append(Component.literal("   sweepingEdgeOverflow: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getSweepingEdgeOverflow())), false);
-        source.sendSuccess(() -> Component.literal("stackEquippedMobs: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getStackEquippedMobs())), false);
-        source.sendSuccess(() -> Component.literal("enableStackBreeding: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getEnableStackBreeding()))
-                .append(Component.literal("   breedOnePerClick: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getBreedOnePerClick()))
-                .append(Component.literal("   animalBabyStacking: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getEnableAnimalBabyStacking()))
-                .append(Component.literal("   hostileBabyStacking: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getEnableHostileBabyStacking())), false);
-        source.sendSuccess(() -> Component.literal("stackKillActionBar: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getStackKillActionBar()))
-                .append(Component.literal("   stackKillParticles: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getStackKillParticles()))
-                .append(Component.literal("   stackKillHologram: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getStackKillHologram())), false);
-        source.sendSuccess(() -> Component.literal("compactDrops: ").withStyle(ChatFormatting.GRAY)
-                .append(formatBool(MobStacker.config.getCompactDrops()))
-                .append(Component.literal("   compactExperience: ").withStyle(ChatFormatting.GRAY))
-                .append(formatBool(MobStacker.config.getCompactExperience())), false);
-        source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal("stackerConfig, mobCapConfig, region, ignore, unignore, setStackSize, reload")
-                        .withStyle(ChatFormatting.YELLOW)), false);
+        source.sendSuccess(() -> Component.literal("=== MobStacker: Restacked ===").withStyle(ChatFormatting.GOLD), false);
+        for (Category category : Category.values()) {
+            List<ConfigOption> options = MobStackerSettings.byCategory(category);
+            if (options.isEmpty()) {
+                continue;
+            }
+            MutableComponent line = Component.literal("[" + category.display() + "] ").withStyle(ChatFormatting.GOLD);
+            boolean first = true;
+            for (ConfigOption option : options) {
+                if (!first) {
+                    line.append(Component.literal("  ").withStyle(ChatFormatting.GRAY));
+                }
+                first = false;
+                line.append(Component.literal(option.id() + ":").withStyle(ChatFormatting.GRAY))
+                        .append(valueComponent(option));
+            }
+            source.sendSuccess(() -> line, false);
+        }
+        source.sendSuccess(() -> Component.literal("Regions: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal("   Ignored entities: ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredEntities().size())).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal("   Ignored mods: ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredMods().size())).withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal("Commands: set, get, toggle, reset, stacksize, ignore, region, reload  -  ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("/mobstacker help").withStyle(ChatFormatting.YELLOW)), false);
         return 1;
     }
 
-    private static Component formatBool(boolean value) {
-        return Component.literal(String.valueOf(value)).withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED);
+    private static int showHelpRoot(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("=== MobStacker: Restacked - help ===").withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker set <setting> <value>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  change a setting").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker get|toggle|reset <setting>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  inspect / flip / restore").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker reset all").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  restore every setting to default").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
+
+        MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal("): ").withStyle(ChatFormatting.GRAY));
+        boolean first = true;
+        for (Category category : Category.values()) {
+            int count = MobStackerSettings.byCategory(category).size();
+            if (count == 0) {
+                continue;
+            }
+            if (!first) {
+                categories.append(Component.literal(", ").withStyle(ChatFormatting.GRAY));
+            }
+            first = false;
+            categories.append(Component.literal(category.name().toLowerCase()).withStyle(ChatFormatting.AQUA))
+                    .append(Component.literal(" (" + count + ")").withStyle(ChatFormatting.DARK_GRAY));
+        }
+        source.sendSuccess(() -> categories, false);
+        return 1;
+    }
+
+    private static int showHelpCategory(CommandContext<CommandSourceStack> context) {
+        String key = StringArgumentType.getString(context, "category");
+        Category category = null;
+        for (Category candidate : Category.values()) {
+            if (candidate.name().equalsIgnoreCase(key) || candidate.display().equalsIgnoreCase(key)) {
+                category = candidate;
+                break;
+            }
+        }
+        if (category == null) {
+            context.getSource().sendFailure(Component.literal("Unknown category '" + key + "'").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        final Category resolved = category;
+        context.getSource().sendSuccess(() -> Component.literal("[" + resolved.display() + "]").withStyle(ChatFormatting.GOLD), false);
+        for (ConfigOption option : MobStackerSettings.byCategory(category)) {
+            context.getSource().sendSuccess(() -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
+                    .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
+                    .append(valueComponent(option))
+                    .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
+            context.getSource().sendSuccess(() -> Component.literal("  " + option.description()).withStyle(ChatFormatting.DARK_GRAY), false);
+        }
+        return 1;
+    }
+
+    // ============================================================ suggestions
+
+    private static CompletableFuture<Suggestions> suggestSettings(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        for (String id : MobStackerSettings.ids()) {
+            if (id.toLowerCase().startsWith(remaining)) {
+                builder.suggest(id);
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestToggles(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        for (ConfigOption option : MobStackerSettings.all()) {
+            if (option.type() == ConfigOption.Type.BOOL && option.id().toLowerCase().startsWith(remaining)) {
+                builder.suggest(option.id());
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestValues(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        ConfigOption option = MobStackerSettings.byId(StringArgumentType.getString(context, "setting"));
+        if (option == null) {
+            return builder.buildFuture();
+        }
+        String remaining = builder.getRemaining().toLowerCase();
+        if (option.type() == ConfigOption.Type.ITEM) {
+            for (ResourceLocation itemId : BuiltInRegistries.ITEM.keySet()) {
+                String value = itemId.toString();
+                if (value.toLowerCase().startsWith(remaining)) {
+                    builder.suggest(value);
+                }
+            }
+        } else {
+            for (String value : option.valueSuggestions()) {
+                if (value.toLowerCase().startsWith(remaining)) {
+                    builder.suggest(value);
+                }
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestCategories(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        for (Category category : Category.values()) {
+            if (category.name().toLowerCase().startsWith(remaining)) {
+                builder.suggest(category.name().toLowerCase());
+            }
+        }
+        return builder.buildFuture();
     }
 
     private static CompletableFuture<Suggestions> suggestEntities(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
@@ -239,18 +385,14 @@ public class MobStackerCommands {
     private static CompletableFuture<Suggestions> suggestMods(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase();
         Set<String> modsWithMobs = new HashSet<>();
-
         BuiltInRegistries.ENTITY_TYPE.forEach(entityType -> {
             if (entityType.create(context.getSource().getLevel()) instanceof Mob) {
-                String modId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType).getNamespace();
-                modsWithMobs.add(modId);
+                modsWithMobs.add(BuiltInRegistries.ENTITY_TYPE.getKey(entityType).getNamespace());
             }
         });
-
         modsWithMobs.stream()
                 .filter(modId -> modId.toLowerCase().startsWith(remaining))
                 .forEach(builder::suggest);
-
         return builder.buildFuture();
     }
 
@@ -268,195 +410,25 @@ public class MobStackerCommands {
         return builder.buildFuture();
     }
 
-    private static int setKillWholeStackOnDeath(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getKillWholeStackOnDeath() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Kill whole stack on death is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else if (!newValue && MobStacker.config.getStackHealth()) {
-            context.getSource().sendSuccess(() -> Component.literal("Cannot set killWholeStackOnDeath to false while stackHealth is true").withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setKillWholeStackOnDeath(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Kill whole stack on death has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
+    private static CompletableFuture<Suggestions> suggestRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        MobStacker.config.getRegions().stream()
+                .map(StackRegion::getName)
+                .filter(regionName -> regionName.toLowerCase().startsWith(remaining))
+                .forEach(builder::suggest);
+        return builder.buildFuture();
     }
 
-    private static int setStackHealth(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getStackHealth() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack health is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackHealth(newValue);
-            if (newValue) {
-                MobStacker.config.setKillWholeStackOnDeath(true);
-            }
-            context.getSource().sendSuccess(() -> Component.literal("Stack health has been set to " + newValue + (newValue ? " (Kill whole stack on death set to true)" : "")).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setDamageOverflow(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getDamageOverflow() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Damage overflow is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setDamageOverflow(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Damage overflow has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setSweepingEdgeOverflow(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getSweepingEdgeOverflow() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Sweeping Edge overflow is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setSweepingEdgeOverflow(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Sweeping Edge overflow has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setStackEquippedMobs(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getStackEquippedMobs() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack equipped mobs is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackEquippedMobs(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack equipped mobs has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setStackKillActionBar(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getStackKillActionBar() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill action bar is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackKillActionBar(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill action bar has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setStackKillParticles(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getStackKillParticles() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill particles is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackKillParticles(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill particles has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setStackKillHologram(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getStackKillHologram() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill hologram is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackKillHologram(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack kill hologram has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setEnableStackBreeding(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getEnableStackBreeding() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack breeding is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setEnableStackBreeding(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack breeding has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setBreedOnePerClick(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getBreedOnePerClick() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Breed one-per-click is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setBreedOnePerClick(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Breed one-per-click has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setEnableAnimalBabyStacking(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getEnableAnimalBabyStacking() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Animal baby stacking is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setEnableAnimalBabyStacking(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Animal baby stacking has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setEnableHostileBabyStacking(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getEnableHostileBabyStacking() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Hostile baby stacking is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setEnableHostileBabyStacking(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Hostile baby stacking has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setCompactDrops(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getCompactDrops() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Compact drops is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setCompactDrops(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Compact drops has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setCompactExperience(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getCompactExperience() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Compact experience is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setCompactExperience(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Compact experience has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setMaxStackSize(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getMaxMobStackSize() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Max stack size is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setMaxMobStackSize(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Max stack size has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setStackRadius(CommandContext<CommandSourceStack> context) {
-        double newValue = DoubleArgumentType.getDouble(context, "value");
-        if (MobStacker.config.getStackRadius() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack radius is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackRadius(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Stack radius has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
+    // ============================================================ ignore lists
 
     private static int ignoreEntity(CommandContext<CommandSourceStack> context) {
         ResourceLocation entityId = ResourceLocationArgument.getId(context, "entityId");
         String entityIdString = entityId.toString();
         if (MobStacker.config.getIgnoredEntities().contains(entityIdString)) {
-            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is already ignored").withStyle(ChatFormatting.RED), false);
+            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.addIgnoredEntity(entityIdString);
-            context.getSource().sendSuccess(() -> Component.literal("Added '" + entityIdString + "' to ignored entities").withStyle(ChatFormatting.AQUA), true);
+            context.getSource().sendSuccess(() -> Component.literal("Added '" + entityIdString + "' to ignored entities").withStyle(ChatFormatting.GREEN), true);
         }
         return 1;
     }
@@ -464,10 +436,10 @@ public class MobStackerCommands {
     private static int ignoreMod(CommandContext<CommandSourceStack> context) {
         String modId = StringArgumentType.getString(context, "modId");
         if (MobStacker.config.getIgnoredMods().contains(modId)) {
-            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is already ignored").withStyle(ChatFormatting.RED), false);
+            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.addIgnoredMod(modId);
-            context.getSource().sendSuccess(() -> Component.literal("Added '" + modId + "' to ignored mods").withStyle(ChatFormatting.AQUA), true);
+            context.getSource().sendSuccess(() -> Component.literal("Added '" + modId + "' to ignored mods").withStyle(ChatFormatting.GREEN), true);
         }
         return 1;
     }
@@ -476,7 +448,7 @@ public class MobStackerCommands {
         ResourceLocation entityId = ResourceLocationArgument.getId(context, "entityId");
         String entityIdString = entityId.toString();
         if (!MobStacker.config.getIgnoredEntities().contains(entityIdString)) {
-            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is not in the ignored list").withStyle(ChatFormatting.RED), false);
+            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.removeIgnoredEntity(entityIdString);
             context.getSource().sendSuccess(() -> Component.literal("Removed '" + entityIdString + "' from ignored entities").withStyle(ChatFormatting.GOLD), true);
@@ -487,7 +459,7 @@ public class MobStackerCommands {
     private static int unignoreMod(CommandContext<CommandSourceStack> context) {
         String modId = StringArgumentType.getString(context, "modId");
         if (!MobStacker.config.getIgnoredMods().contains(modId)) {
-            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is not in the ignored list").withStyle(ChatFormatting.RED), false);
+            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.removeIgnoredMod(modId);
             context.getSource().sendSuccess(() -> Component.literal("Removed '" + modId + "' from ignored mods").withStyle(ChatFormatting.GOLD), true);
@@ -495,24 +467,50 @@ public class MobStackerCommands {
         return 1;
     }
 
-    private static int setStackSize(CommandContext<CommandSourceStack> context) {
+    private static int listIgnoredEntities(CommandContext<CommandSourceStack> context) {
+        List<String> ignored = MobStacker.config.getIgnoredEntities();
+        if (ignored.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.literal("No ignored entities").withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        context.getSource().sendSuccess(() -> Component.literal("Ignored entities (" + ignored.size() + "):").withStyle(ChatFormatting.AQUA), false);
+        for (String entity : ignored) {
+            context.getSource().sendSuccess(() -> Component.literal(" - " + entity).withStyle(ChatFormatting.GRAY), false);
+        }
+        return 1;
+    }
+
+    private static int listIgnoredMods(CommandContext<CommandSourceStack> context) {
+        List<String> ignored = MobStacker.config.getIgnoredMods();
+        if (ignored.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.literal("No ignored mods").withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        context.getSource().sendSuccess(() -> Component.literal("Ignored mods (" + ignored.size() + "):").withStyle(ChatFormatting.AQUA), false);
+        for (String mod : ignored) {
+            context.getSource().sendSuccess(() -> Component.literal(" - " + mod).withStyle(ChatFormatting.GRAY), false);
+        }
+        return 1;
+    }
+
+    // ============================================================ live per-entity stack size
+
+    private static int setStackSizeLive(CommandContext<CommandSourceStack> context) {
         try {
-            Entity targetEntity = EntityArgument.getEntity(context, "entity");
+            Entity targetEntity = EntityArgument.getEntity(context, "target");
             int newSize = IntegerArgumentType.getInteger(context, "size");
 
-            if (!(targetEntity instanceof LivingEntity)) {
-                context.getSource().sendFailure(Component.literal("Target is not a living entity").withStyle(ChatFormatting.RED));
-                return 1;
+            if (!(targetEntity instanceof Mob mob)) {
+                context.getSource().sendFailure(Component.literal("Target is not a stackable mob").withStyle(ChatFormatting.RED));
+                return 0;
             }
 
-            Mob livingEntity = (Mob) targetEntity;
-            int currentSize = MobStacker.getStackSize(livingEntity);
-
+            int currentSize = MobStacker.getStackSize(mob);
             if (currentSize == newSize) {
-                context.getSource().sendSuccess(() -> Component.literal("Stack size is already set to " + newSize).withStyle(ChatFormatting.RED), false);
+                context.getSource().sendSuccess(() -> Component.literal("That mob's stack size is already " + newSize).withStyle(ChatFormatting.YELLOW), false);
             } else {
-                MobStacker.setStackSize(livingEntity, newSize);
-                context.getSource().sendSuccess(() -> Component.literal("Set stack size of entity to " + newSize).withStyle(ChatFormatting.AQUA), true);
+                MobStacker.setStackSize(mob, newSize);
+                context.getSource().sendSuccess(() -> Component.literal("Set the targeted mob's stack size to " + newSize).withStyle(ChatFormatting.GREEN), true);
             }
         } catch (Exception e) {
             context.getSource().sendFailure(Component.literal("Error setting stack size: " + e.getMessage()).withStyle(ChatFormatting.RED));
@@ -520,145 +518,15 @@ public class MobStackerCommands {
         return 1;
     }
 
-    private static int setEnableSeparator(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getEnableSeparator() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Separator is already " + (newValue ? "enabled" : "disabled")).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setEnableSeparator(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Separator has been " + (newValue ? "enabled" : "disabled")).withStyle(ChatFormatting.AQUA), true);
-        }
+    // ============================================================ reload
+
+    private static int reloadConfig(CommandContext<CommandSourceStack> context) {
+        MobStacker.reloadConfig();
+        context.getSource().sendSuccess(() -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
-    private static int setConsumeSeparator(CommandContext<CommandSourceStack> context) {
-        boolean newValue = BoolArgumentType.getBool(context, "value");
-        if (MobStacker.config.getConsumeSeparator() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Consume separator is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setConsumeSeparator(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Consume separator has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static CompletableFuture<Suggestions> suggestItems(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
-        String remaining = builder.getRemaining().toLowerCase();
-        for (ResourceLocation itemId : BuiltInRegistries.ITEM.keySet()) {
-            String itemString = itemId.toString();
-            if (itemString.toLowerCase().startsWith(remaining)) {
-                builder.suggest(itemString);
-            }
-        }
-        return builder.buildFuture();
-    }
-
-    private static int setSeparatorItem(CommandContext<CommandSourceStack> context) {
-        String itemString = StringArgumentType.getString(context, "item");
-        ResourceLocation itemId = ResourceLocation.tryParse(itemString);
-        if (itemId != null && BuiltInRegistries.ITEM.containsKey(itemId)) {
-            if (MobStacker.config.getSeparatorItem().equals(itemString)) {
-                context.getSource().sendSuccess(() -> Component.literal("Separator item is already set to " + itemString).withStyle(ChatFormatting.RED), false);
-            } else {
-                MobStacker.config.setSeparatorItem(itemString);
-                context.getSource().sendSuccess(() -> Component.literal("Separator item has been set to " + itemString).withStyle(ChatFormatting.AQUA), true);
-            }
-        } else {
-            context.getSource().sendFailure(Component.literal("Invalid item: " + itemString).withStyle(ChatFormatting.RED));
-        }
-        return 1;
-    }
-
-    // Mob Cap
-
-    private static int setMonsterMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getMonsterMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Monster mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setMonsterMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Monster mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setCreatureMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getCreatureMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Creature mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setCreatureMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Creature mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setAmbientMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getAmbientMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Ambient mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setAmbientMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Ambient mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setAxolotlsMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getAxolotlsMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Axolotls mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setAxolotlsMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Axolotls mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setUndergroundWaterCreatureMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getUndergroundWaterCreatureMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Underground water creature mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setUndergroundWaterCreatureMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Underground water creature mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setWaterCreatureMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getWaterCreatureMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Water creature mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setWaterCreatureMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Water creature mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    private static int setWaterAmbientMobCap(CommandContext<CommandSourceStack> context) {
-        int newValue = IntegerArgumentType.getInteger(context, "value");
-        if (MobStacker.config.getWaterAmbientMobCap() == newValue) {
-            context.getSource().sendSuccess(() -> Component.literal("Water ambient mob cap is already set to " + newValue).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setWaterAmbientMobCap(newValue);
-            context.getSource().sendSuccess(() -> Component.literal("Water ambient mob cap has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
-
-    // Stacking mode & regions
-
-    private static int setStackMode(CommandContext<CommandSourceStack> context, StackMode mode) {
-        if (MobStacker.config.getStackMode() == mode) {
-            context.getSource().sendSuccess(() -> Component.literal("Stack mode is already set to " + mode).withStyle(ChatFormatting.RED), false);
-        } else {
-            MobStacker.config.setStackMode(mode);
-            context.getSource().sendSuccess(() -> Component.literal("Stack mode has been set to " + mode).withStyle(ChatFormatting.AQUA), true);
-        }
-        return 1;
-    }
+    // ============================================================ regions
 
     private static int addRegion(CommandContext<CommandSourceStack> context, StackRegion.Type type) throws CommandSyntaxException {
         String name = StringArgumentType.getString(context, "name");
@@ -678,7 +546,7 @@ public class MobStackerCommands {
 
         context.getSource().sendSuccess(() -> Component.literal(
                 "Added " + type + " region '" + name + "' in " + dimension + " " + region.describeBounds()
-        ).withStyle(ChatFormatting.AQUA), true);
+        ).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
@@ -694,7 +562,7 @@ public class MobStackerCommands {
 
     private static int listRegions(CommandContext<CommandSourceStack> context) {
         List<StackRegion> regions = MobStacker.config.getRegions();
-        StackMode mode = MobStacker.config.getStackMode();
+        String mode = String.valueOf(MobStacker.config.getStackMode());
 
         if (regions.isEmpty()) {
             context.getSource().sendSuccess(() -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
@@ -709,14 +577,5 @@ public class MobStackerCommands {
             ).withStyle(color), false);
         }
         return 1;
-    }
-
-    private static CompletableFuture<Suggestions> suggestRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
-        String remaining = builder.getRemaining().toLowerCase();
-        MobStacker.config.getRegions().stream()
-                .map(StackRegion::getName)
-                .filter(regionName -> regionName.toLowerCase().startsWith(remaining))
-                .forEach(builder::suggest);
-        return builder.buildFuture();
     }
 }
