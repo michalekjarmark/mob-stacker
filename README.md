@@ -9,7 +9,7 @@
 <img src="https://img.shields.io/badge/Loader-Fabric-1976d2" alt="Fabric">
 <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17">
 <img src="https://img.shields.io/github/license/michalekjarmark/mob-stacker" alt="License: LGPL v3">
-<img src="https://img.shields.io/badge/dependencies-none-success" alt="No required dependencies">
+<img src="https://img.shields.io/badge/requires-Fabric%20API-1976d2" alt="Requires Fabric API">
 <img src="https://img.shields.io/github/last-commit/michalekjarmark/mob-stacker" alt="Last commit">
 </p>
 <br>
@@ -20,9 +20,10 @@
 > develop it independently of the original author, who no longer maintains the mod — adding new
 > features, fixing bugs, and keeping a **Fabric 1.20.1** line running for our server.
 
-> ✅ **Standalone:** this fork has **no required library dependencies** — it needs only the
-> Fabric Loader and Minecraft. (Earlier versions required the *Almanac* library; that
-> functionality is now built in.) *Let Me Despawn* is an optional companion, not a requirement.
+> 📦 **Dependencies:** the only required library is **[Fabric API](https://modrinth.com/mod/fabric-api)**,
+> used by the in-game config GUI — no other mods. (Earlier versions required the *Almanac* library;
+> that functionality is now built in.) *Let Me Despawn* is an optional companion, not a requirement.
+> Stacking itself is server-side; a client only needs the mod to use the GUI.
 
 > 📝 **Changelog:** see [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -42,8 +43,9 @@ Everything below is on top of the original MobStacker — see the linked section
 - 📦 **Drop & XP compaction** — a stacked mob's death drops are merged into a few full item stacks (and its experience into a single orb) instead of dozens of scattered entities, cutting entity lag on big farms.
 - 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
 - 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
-- 🪶 **Zero dependencies** — Almanac's functionality is built in; nothing but Fabric Loader + Minecraft required.
-- 🛠️ **Quality of life** — `/mobstacker` settings overview and `/mobstacker reload` for on-the-fly config reloads.
+- 🖥️ **In-game config GUI** — a key binding and the `/mobstackerconfig` command open a screen to change settings without typing commands (singleplayer / LAN host for now; server support is coming). Commands still work everywhere.
+- 🧭 **Streamlined commands** — a flat, vanilla-like tree: `/mobstacker set|get|toggle|reset <setting>` with tab-completion, plus `/mobstacker help`.
+- 🪶 **Only Fabric API required** — Almanac's functionality is built in; the sole library dependency is Fabric API (for the GUI). No other mods.
 
 ## Key Benefits
 
@@ -160,6 +162,20 @@ picked (e.g. `true`/`false`, the `stackMode` options, or item ids for `separator
 /mobstacker set separatorItem minecraft:diamond
 /mobstacker get compactExperience
 ```
+
+### Config GUI
+
+Prefer clicking to typing? Open the in-game config screen:
+
+- **Key binding:** bind *“Open Config GUI”* (category *MobStacker: Restacked*) in **Options → Controls**
+  (unbound by default), then press it in-game.
+- **Command:** `/mobstackerconfig` (client-side).
+
+The screen is driven by the same settings as the commands — flip booleans, cycle `stackMode`, and
+type numbers / item ids, browsing one category at a time. **For now it edits the config in
+singleplayer / on the LAN host**; on a remote server it is informational only (config-sync
+networking is a later phase), so keep using the commands there. Requires **Fabric API** on the
+client.
 
 ### Entity and Mod Management
 

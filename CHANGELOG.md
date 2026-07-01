@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.5.0] - 2026-07-02
+### Added
+- **In-game config GUI (phase 1).** A client-side screen to change settings without commands,
+  driven by the same settings registry: on/off and cycle buttons for booleans and `stackMode`, edit
+  boxes (with live validation) for numbers and item ids, browsed one category at a time. Open it via
+  a new **key binding** (“Open Config GUI”, unbound by default — set it in Options → Controls) or the
+  client command **`/mobstackerconfig`**. For now it edits the config in **singleplayer / on the LAN
+  host**; on a remote server it is informational only (config-sync networking will come in a later
+  phase), so commands remain the way to configure a dedicated server.
+### Changed
+- **Fabric API is now a required dependency**, used by the config GUI (key binding, client command,
+  and upcoming networking). The mod is otherwise still self-contained — no other mods are needed, and
+  stacking remains server-side (a client only needs the mod to use the GUI).
+
 ## [1.4.0] - 2026-07-01
 ### Added
 - `/mobstacker selftest` — a **developer** command (opt-in only: registered when the game/server is
