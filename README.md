@@ -139,10 +139,12 @@ descriptions.
 # Restore one setting — or every setting — to its default
 /mobstacker reset <setting>
 /mobstacker reset all
-
-# Automatically round-trip-test every setting (uses a sandbox config; your world config is untouched)
-/mobstacker selftest
 ```
+
+> 🧪 There is also a developer command, `/mobstacker selftest`, that automatically round-trips
+> every setting against a sandbox config (your world config is untouched). It is **not** available
+> in the normal build — it only registers when the game/server is launched with the JVM flag
+> `-Dmobstacker.selftest=true`, so it never shows up for regular users.
 
 `<setting>` is any of the config keys from the table above (e.g. `killWholeStackOnDeath`,
 `damageOverflow`, `maxStackSize`, `stackRadius`, `stackMode`, `separatorItem`, the `stackKill*`

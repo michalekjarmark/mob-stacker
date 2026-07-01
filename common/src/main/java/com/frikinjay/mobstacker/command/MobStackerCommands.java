@@ -7,6 +7,7 @@ import com.frikinjay.mobstacker.config.ConfigSelfTest;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -45,7 +46,7 @@ import static net.minecraft.commands.Commands.literal;
  */
 public class MobStackerCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(literal(MOD_ID)
+        LiteralArgumentBuilder<CommandSourceStack> root = literal(MOD_ID)
                 .requires(source -> source.hasPermission(2))
                 .executes(MobStackerCommands::showOverview)
                 .then(literal("help")
@@ -54,7 +55,6 @@ public class MobStackerCommands {
                                 .suggests(MobStackerCommands::suggestCategories)
                                 .executes(MobStackerCommands::showHelpCategory)))
                 .then(literal("reload").executes(MobStackerCommands::reloadConfig))
-                .then(literal("selftest").executes(MobStackerCommands::runSelfTest))
                 .then(literal("get")
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestSettings)
@@ -115,7 +115,14 @@ public class MobStackerCommands {
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .executes(MobStackerCommands::removeRegion)))
                         .then(literal("list")
-                                .executes(MobStackerCommands::listRegions))));
+                                .executes(MobStackerCommands::listRegions)));
+
+        // The self-test command is an opt-in developer/testing tool: it is only registered when the
+        // JVM is started with -Dmobstacker.selftest=true, so the public release never exposes it.
+        if (Boolean.getBoolean("mobstacker.selftest")) {
+            root.then(literal("selftest").executes(MobStackerCommands::runSelfTest));
+        }
+        dispatcher.register(root);
     }
 
     // ============================================================ generic settings

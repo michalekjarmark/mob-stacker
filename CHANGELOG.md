@@ -9,10 +9,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 
 ## [1.4.0] - 2026-07-01
 ### Added
-- `/mobstacker selftest` — an operator command that automatically round-trips every setting
-  (reset/set/toggle/validate, bounds and enum/item checks, plus the stackHealth dependency) and
-  reports pass/fail. It runs against a throwaway sandbox config, so the live per-world config is
-  never touched — a quick way to sanity-check the whole config surface at once.
+- `/mobstacker selftest` — a **developer** command (opt-in only: registered when the game/server is
+  launched with `-Dmobstacker.selftest=true`, so it never appears in the normal build) that
+  automatically round-trips every setting (reset/set/toggle/validate, bounds and enum/item checks,
+  plus the stackHealth dependency) and reports pass/fail. It runs against a throwaway sandbox config,
+  so the live per-world config is never touched — a quick way to sanity-check the whole config
+  surface at once.
 ### Changed
 - **Command overhaul.** The `/mobstacker` tree is now flat and consistent, matching how vanilla
   commands feel. Every scalar setting is changed through generic, tab-completed subcommands
