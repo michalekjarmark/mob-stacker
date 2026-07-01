@@ -544,6 +544,10 @@ public final class MobStacker {
 
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 
+    public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
+
+    public static boolean getStackKillParticles() {return config.getStackKillParticles();}
+
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 
     public static boolean getConsumeSeparator() {return config.getConsumeSeparator();}

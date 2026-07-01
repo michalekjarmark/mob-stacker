@@ -4,6 +4,7 @@ import com.frikinjay.almanac.Almanac;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -87,9 +88,15 @@ public abstract class LivingEntityMixin extends Entity {
                 MobStacker.spawnNewEntity(serverLevel, mobstacker$self, survivors, mobstacker$overflowSurvivorHealth);
             }
 
-            // Action bar feedback to the killer when a stacked mob is killed.
+            // Feedback when a stacked mob is killed: a particle "pop" near the mob and/or an
+            // action bar line to the killer. Each is toggled by its own config flag.
             if (stackSize > 1 && MobStacker.shouldSpawnNewEntity(mobstacker$self, reason)) {
-                mobstacker$sendStackKillFeedback(mobstacker$self, killed, Math.max(survivors, 0));
+                if (MobStacker.getStackKillParticles()) {
+                    mobstacker$spawnStackKillParticles(mobstacker$self, killed);
+                }
+                if (MobStacker.getStackKillActionBar()) {
+                    mobstacker$sendStackKillFeedback(mobstacker$self, killed, Math.max(survivors, 0));
+                }
             }
 
             mobstacker$overflowKills = 0;
@@ -108,6 +115,27 @@ public abstract class LivingEntityMixin extends Entity {
                 .append(Component.literal("  •  ").withStyle(ChatFormatting.DARK_GRAY))
                 .append(Component.literal(remaining + " left").withStyle(ChatFormatting.GREEN));
         player.displayClientMessage(message, true);
+    }
+
+    /**
+     * A small particle "pop" at the mob when a hit clears one or more mobs off a stack. It scales
+     * with how many died (capped so a huge overflow can't spam particles) and needs no extra
+     * entities, keeping it cheap in line with the rest of the mod.
+     */
+    @Unique
+    private void mobstacker$spawnStackKillParticles(Mob mob, int killed) {
+        if (!(mob.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        double x = mob.getX();
+        double y = mob.getY() + mob.getBbHeight() * 0.6;
+        double z = mob.getZ();
+        double spreadXZ = mob.getBbWidth() * 0.6;
+        double spreadY = mob.getBbHeight() * 0.4;
+        int sparks = Math.min(6 + killed * 4, 40);
+        int puffs = Math.min(2 + killed, 10);
+        serverLevel.sendParticles(ParticleTypes.CRIT, x, y, z, sparks, spreadXZ, spreadY, spreadXZ, 0.15);
+        serverLevel.sendParticles(ParticleTypes.POOF, x, y, z, puffs, spreadXZ, spreadY, spreadXZ, 0.02);
     }
 
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))

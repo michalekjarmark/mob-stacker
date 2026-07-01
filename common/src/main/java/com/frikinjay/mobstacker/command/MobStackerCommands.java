@@ -56,6 +56,12 @@ public class MobStackerCommands {
                         .then(literal("stackEquippedMobs")
                                 .then(argument("value", BoolArgumentType.bool())
                                         .executes(MobStackerCommands::setStackEquippedMobs)))
+                        .then(literal("stackKillActionBar")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setStackKillActionBar)))
+                        .then(literal("stackKillParticles")
+                                .then(argument("value", BoolArgumentType.bool())
+                                        .executes(MobStackerCommands::setStackKillParticles)))
                         .then(literal("maxStackSize")
                                 .then(argument("value", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setMaxStackSize)))
@@ -159,6 +165,10 @@ public class MobStackerCommands {
                 .append(formatBool(MobStacker.config.getSweepingEdgeOverflow())), false);
         source.sendSuccess(() -> Component.literal("stackEquippedMobs: ").withStyle(ChatFormatting.GRAY)
                 .append(formatBool(MobStacker.config.getStackEquippedMobs())), false);
+        source.sendSuccess(() -> Component.literal("stackKillActionBar: ").withStyle(ChatFormatting.GRAY)
+                .append(formatBool(MobStacker.config.getStackKillActionBar()))
+                .append(Component.literal("   stackKillParticles: ").withStyle(ChatFormatting.GRAY))
+                .append(formatBool(MobStacker.config.getStackKillParticles())), false);
         source.sendSuccess(() -> Component.literal("Regions defined: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Subcommands: ").withStyle(ChatFormatting.GRAY)
@@ -272,6 +282,28 @@ public class MobStackerCommands {
         } else {
             MobStacker.config.setStackEquippedMobs(newValue);
             context.getSource().sendSuccess(() -> Component.literal("Stack equipped mobs has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setStackKillActionBar(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getStackKillActionBar() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill action bar is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setStackKillActionBar(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill action bar has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
+        }
+        return 1;
+    }
+
+    private static int setStackKillParticles(CommandContext<CommandSourceStack> context) {
+        boolean newValue = BoolArgumentType.getBool(context, "value");
+        if (MobStacker.config.getStackKillParticles() == newValue) {
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill particles is already set to " + newValue).withStyle(ChatFormatting.RED), false);
+        } else {
+            MobStacker.config.setStackKillParticles(newValue);
+            context.getSource().sendSuccess(() -> Component.literal("Stack kill particles has been set to " + newValue).withStyle(ChatFormatting.AQUA), true);
         }
         return 1;
     }

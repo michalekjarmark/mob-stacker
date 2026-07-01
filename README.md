@@ -58,6 +58,8 @@ While actual performance gains vary based on server specifications, player count
 | `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
 | `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
 | `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
+| `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
+| `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
@@ -89,6 +91,12 @@ All commands require operator permissions (level 2) and are prefixed with `/mobs
 
 # Toggle whether mobs holding/wearing items are allowed to stack
 /mobstacker stackerConfig stackEquippedMobs [true|false]
+
+# Toggle the action-bar kill feedback (above the hotbar)
+/mobstacker stackerConfig stackKillActionBar [true|false]
+
+# Toggle the particle "pop" shown at the mob on a stack kill
+/mobstacker stackerConfig stackKillParticles [true|false]
 
 # Set maximum stack size
 /mobstacker stackerConfig maxStackSize [value]
@@ -206,8 +214,13 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
 > whole stack, so overflow does not apply.
 
-When a player kills mobs from a stack, an **action bar** message shows how many were
-killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
+When a hit kills mobs from a stack the mod can show feedback two ways, each with its own
+independent toggle:
+
+- **Action bar** (`stackKillActionBar`, default on): a line above the killer's hotbar
+  showing how many were killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
+- **Particle pop** (`stackKillParticles`, default on): a small burst of particles at the
+  mob, scaling with the number killed. It spawns no extra entities, so it stays cheap.
 
 ### Mob Cap Management
 
