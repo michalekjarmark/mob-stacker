@@ -7,6 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.5.1] - 2026-07-02
+### Added
+- **Config GUI on servers (phase 2).** The config screen can now edit a **remote server's** config,
+  not just singleplayer. When you open it on a server that has the mod, it shows the server's live
+  settings (fetched over a config-sync channel) and — if you are an **operator** — pushes your
+  changes back to the server, which validates them exactly like the `/mobstacker` commands and
+  **saves them to the world's config file**. Non-operators see the config read-only. The networking
+  uses **optional channels**, so a vanilla client (or any client without the mod) is never sent
+  anything and never disconnected — stacking stays fully server-side.
+
 ## [1.5.0] - 2026-07-02
 ### Added
 - **In-game config GUI (phase 1).** A client-side screen to change settings without commands,

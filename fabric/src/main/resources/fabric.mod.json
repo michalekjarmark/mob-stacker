@@ -4,7 +4,7 @@
   "version": "${version}",
   "name": "MobStacker: Restacked",
   "accessWidener": "mobstacker.accesswidener",
-  "description": "Greatly increases performance by stacking mobs together. An actively-developed, dependency-free fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback and per-world config.",
+  "description": "Greatly increases performance by stacking mobs together. An actively-developed fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback, per-world config and an in-game config GUI.",
   "authors": [
     "michalekjarmark",
     "davidex"

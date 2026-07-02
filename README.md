@@ -43,7 +43,7 @@ Everything below is on top of the original MobStacker — see the linked section
 - 📦 **Drop & XP compaction** — a stacked mob's death drops are merged into a few full item stacks (and its experience into a single orb) instead of dozens of scattered entities, cutting entity lag on big farms.
 - 🗂️ **Per-world config** — settings live in the world save folder, so they no longer leak between worlds.
 - 🧰 **Equipment-aware stacking** — mobs holding/wearing items stay unstacked by default (`stackEquippedMobs`).
-- 🖥️ **In-game config GUI** — a key binding and the `/mobstackerconfig` command open a screen to change settings without typing commands (singleplayer / LAN host for now; server support is coming). Commands still work everywhere.
+- 🖥️ **In-game config GUI** — a key binding and the `/mobstackerconfig` command open a screen to change settings without typing commands (singleplayer, LAN host, and remote servers with the mod for operators). Commands still work everywhere.
 - 🧭 **Streamlined commands** — a flat, vanilla-like tree: `/mobstacker set|get|toggle|reset <setting>` with tab-completion, plus `/mobstacker help`.
 - 🪶 **Only Fabric API required** — Almanac's functionality is built in; the sole library dependency is Fabric API (for the GUI). No other mods.
 
@@ -172,10 +172,11 @@ Prefer clicking to typing? Open the in-game config screen:
 - **Command:** `/mobstackerconfig` (client-side).
 
 The screen is driven by the same settings as the commands — flip booleans, cycle `stackMode`, and
-type numbers / item ids, browsing one category at a time. **For now it edits the config in
-singleplayer / on the LAN host**; on a remote server it is informational only (config-sync
-networking is a later phase), so keep using the commands there. Requires **Fabric API** on the
-client.
+type numbers / item ids, browsing one category at a time. It works in **singleplayer / on the LAN
+host**, and on a **remote server that has the mod**: there it shows the server's live config and, if
+you are an **operator**, saves your edits to the server (non-operators see it read-only). On a server
+without the mod it is informational only, so keep using the commands there. The networking uses
+optional channels, so vanilla clients are unaffected. Requires **Fabric API** on the client.
 
 ### Entity and Mod Management
 

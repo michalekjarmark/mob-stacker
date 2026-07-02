@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.fabric;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.fabricmc.api.ModInitializer;
 
 public final class MobStackerFabric implements ModInitializer {
@@ -12,5 +13,9 @@ public final class MobStackerFabric implements ModInitializer {
 
         // Run our common setup.
         MobStacker.init();
+
+        // Server side of the config-sync protocol (safe on a dedicated server: no client code).
+        // The channels are optional, so vanilla clients are never affected.
+        MobStackerNetworking.registerServer();
     }
 }

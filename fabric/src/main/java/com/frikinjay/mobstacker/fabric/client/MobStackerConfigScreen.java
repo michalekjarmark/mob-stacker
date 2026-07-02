@@ -22,10 +22,16 @@ import java.util.List;
  * renders one widget per {@link ConfigOption.Type} (on/off + cycle buttons, edit boxes for numbers
  * and item ids), one {@link Category} page at a time.
  * <p>
- * Editing is wired to the integrated server's config in singleplayer / on the LAN host (mutations
- * run on the server thread). On a multiplayer client the screen is informational only — pushing
- * changes to a remote server needs config-sync networking, which is a later phase; until then the
- * commands remain the way to configure a server.
+ * The screen works in three situations:
+ * <ul>
+ *   <li><b>Singleplayer / LAN host</b> — edits mutate the integrated server's config directly on the
+ *       server thread.</li>
+ *   <li><b>A remote server that has the mod</b> — the screen shows the server's live config (received
+ *       over the config-sync channel) and, for operators, pushes edits back as packets. See
+ *       {@link MobStackerClientNetworking} / {@code MobStackerNetworking}.</li>
+ *   <li><b>Anywhere else</b> — an informational notice; the {@code /mobstacker} commands remain the
+ *       way to configure such a server.</li>
+ * </ul>
  */
 public final class MobStackerConfigScreen extends Screen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
@@ -35,7 +41,13 @@ public final class MobStackerConfigScreen extends Screen {
     private final List<Category> categories = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
     private int categoryIndex;
-    private boolean editable;
+
+    // Where our config edits go and whether we may make them, resolved in init().
+    private boolean remote;         // connected to a server that speaks our config-sync protocol
+    private boolean editable;       // may actually change values (SP host, or remote operator)
+    private boolean showRows;       // have data to show (SP, or a remote snapshot has arrived)
+    private boolean connectedNoMod; // on a multiplayer server that doesn't have the mod
+    private boolean syncRequested;
 
     public MobStackerConfigScreen(Screen parent) {
         super(Component.literal("MobStacker: Restacked"));
@@ -50,16 +62,26 @@ public final class MobStackerConfigScreen extends Screen {
     @Override
     protected void init() {
         rows.clear();
-        editable = this.minecraft != null && this.minecraft.hasSingleplayerServer();
 
-        if (!categories.isEmpty()) {
+        boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
+        this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
+        this.editable = singleplayer || (remote && MobStackerClientNetworking.authorized());
+        this.showRows = singleplayer || (remote && MobStackerClientNetworking.hasSnapshot());
+        boolean connected = this.minecraft != null && this.minecraft.getConnection() != null;
+        this.connectedNoMod = connected && !singleplayer && !remote;
+
+        // Ask the server for its config the first time we open against it; the reply rebuilds us.
+        if (remote && !syncRequested) {
+            syncRequested = true;
+            MobStackerClientNetworking.requestSync();
+        }
+
+        if (showRows && !categories.isEmpty()) {
             addRenderableWidget(Button.builder(Component.literal("<"), b -> switchCategory(-1))
                     .bounds(this.width / 2 - 170, 24, 20, 20).build());
             addRenderableWidget(Button.builder(Component.literal(">"), b -> switchCategory(1))
                     .bounds(this.width / 2 + 150, 24, 20, 20).build());
-        }
 
-        if (editable && !categories.isEmpty()) {
             int y = 52;
             for (ConfigOption option : MobStackerSettings.byCategory(categories.get(categoryIndex))) {
                 addOptionRow(option, y);
@@ -69,6 +91,16 @@ public final class MobStackerConfigScreen extends Screen {
 
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
                 .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+    }
+
+    /** Called on the client thread when a fresh config snapshot arrives from the server. */
+    public void onConfigSynced() {
+        // Don't yank a text box the user is mid-typing in; the status line (rendered live) still
+        // updates. Otherwise rebuild so button / cycle states reflect the authoritative values.
+        if (this.getFocused() instanceof EditBox) {
+            return;
+        }
+        rebuildWidgets();
     }
 
     private void switchCategory(int delta) {
@@ -86,7 +118,7 @@ public final class MobStackerConfigScreen extends Screen {
 
         switch (option.type()) {
             case BOOL -> {
-                boolean[] state = { Boolean.parseBoolean(option.currentValue()) };
+                boolean[] state = { Boolean.parseBoolean(valueOf(option)) };
                 Button button = Button.builder(boolLabel(state[0]), b -> {
                     state[0] = !state[0];
                     b.setMessage(boolLabel(state[0]));
@@ -97,7 +129,7 @@ public final class MobStackerConfigScreen extends Screen {
             }
             case ENUM -> {
                 List<String> values = option.enumValues();
-                int[] index = { indexOfIgnoreCase(values, option.currentValue()) };
+                int[] index = { indexOfIgnoreCase(values, valueOf(option)) };
                 if (index[0] < 0) {
                     index[0] = 0;
                 }
@@ -112,7 +144,7 @@ public final class MobStackerConfigScreen extends Screen {
             }
             default -> {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
-                box.setValue(option.currentValue());
+                box.setValue(valueOf(option));
                 box.setMaxLength(64);
                 box.setEditable(editable);
                 box.setResponder(text -> {
@@ -129,14 +161,31 @@ public final class MobStackerConfigScreen extends Screen {
         rows.add(new Row(option, y));
     }
 
+    /** The value to display for an option: the server's snapshot when remote, else the live config. */
+    private String valueOf(ConfigOption option) {
+        if (remote) {
+            String value = MobStackerClientNetworking.value(option.id());
+            if (value != null) {
+                return value;
+            }
+        }
+        return option.currentValue();
+    }
+
     private void applyOption(ConfigOption option, String raw) {
-        if (!editable || this.minecraft == null) {
+        if (!editable) {
             return;
         }
-        MinecraftServer server = this.minecraft.getSingleplayerServer();
-        if (server != null) {
-            // Mutate the config on the server thread; the widget already reflects the new value.
-            server.execute(() -> option.apply(raw));
+        if (remote) {
+            // Optimistically keep the typed value across a rebuild; the server echo confirms/corrects.
+            MobStackerClientNetworking.rememberLocal(option.id(), raw);
+            MobStackerClientNetworking.sendEdit(option.id(), raw);
+        } else if (this.minecraft != null) {
+            MinecraftServer server = this.minecraft.getSingleplayerServer();
+            if (server != null) {
+                // Mutate the config on the server thread; the widget already reflects the new value.
+                server.execute(() -> option.apply(raw));
+            }
         }
     }
 
@@ -176,6 +225,37 @@ public final class MobStackerConfigScreen extends Screen {
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 
+        if (showRows) {
+            renderRows(guiGraphics, mouseX, mouseY);
+        } else if (remote) {
+            // Connected to a mod server, still waiting for the first snapshot.
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal("Loading config from the server…").withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height / 2 - 4, 0xFFFFFF);
+        } else if (connectedNoMod) {
+            // On a server that doesn't run MobStacker: say so plainly, and don't point at the
+            // /mobstacker commands (they don't exist there either).
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal("This server doesn't have MobStacker: Restacked installed.")
+                            .withStyle(ChatFormatting.YELLOW),
+                    this.width / 2, this.height / 2 - 16, 0xFFFFFF);
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal("There are no MobStacker settings to configure here.")
+                            .withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height / 2, 0xFFFFFF);
+        } else {
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal("Editing works in singleplayer, or on a MobStacker server as an operator.")
+                            .withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height / 2 - 16, 0xFFFFFF);
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal("On other servers, configure with /mobstacker commands.")
+                            .withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height / 2, 0xFFFFFF);
+        }
+    }
+
+    private void renderRows(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (!categories.isEmpty()) {
             Category category = categories.get(categoryIndex);
             Component header = Component.literal(category.display() + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")")
@@ -183,21 +263,27 @@ public final class MobStackerConfigScreen extends Screen {
             guiGraphics.drawCenteredString(this.font, header, this.width / 2, 30, 0xFFFFFF);
         }
 
-        if (editable) {
-            for (Row row : rows) {
-                guiGraphics.drawString(this.font, row.option.id(), this.width / 2 - 170, row.y + 6, NORMAL_TEXT);
-            }
-            Row hovered = rowAt(mouseX, mouseY);
-            if (hovered != null) {
-                guiGraphics.renderTooltip(this.font, Component.literal(hovered.option.description()), mouseX, mouseY);
-            }
-        } else {
+        for (Row row : rows) {
+            guiGraphics.drawString(this.font, row.option.id(), this.width / 2 - 170, row.y + 6, NORMAL_TEXT);
+        }
+
+        // A short note about why edits are disabled, when relevant.
+        if (remote && !editable) {
             guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Editing here works in singleplayer / on the LAN host.").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2 - 16, 0xFFFFFF);
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("On a server, configure with /mobstacker commands for now.").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2, 0xFFFFFF);
+                    Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height - 46, 0xFFFFFF);
+        } else if (remote) {
+            String status = MobStackerClientNetworking.status();
+            if (status != null && !status.isEmpty()) {
+                guiGraphics.drawCenteredString(this.font,
+                        Component.literal(status).withStyle(ChatFormatting.YELLOW),
+                        this.width / 2, this.height - 46, 0xFFFFFF);
+            }
+        }
+
+        Row hovered = rowAt(mouseX, mouseY);
+        if (hovered != null) {
+            guiGraphics.renderTooltip(this.font, Component.literal(hovered.option.description()), mouseX, mouseY);
         }
     }
 

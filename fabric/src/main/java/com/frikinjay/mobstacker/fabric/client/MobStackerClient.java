@@ -25,6 +25,9 @@ public final class MobStackerClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Client side of the config-sync protocol (S2C snapshot receiver + disconnect cleanup).
+        MobStackerClientNetworking.register();
+
         openConfigKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.mobstacker.open_config",
                 InputConstants.Type.KEYSYM,
