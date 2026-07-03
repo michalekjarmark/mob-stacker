@@ -5,6 +5,7 @@ import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.ConfigSelfTest;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -185,6 +186,9 @@ public class MobStackerCommands {
                 changed++;
             }
         }
+        if (changed > 0) {
+            MobStacker.config.save();
+        }
         final int count = changed;
         context.getSource().sendSuccess(() -> Component.literal("Reset " + count + " setting(s) to their defaults").withStyle(ChatFormatting.AQUA), true);
         return 1;
@@ -194,6 +198,8 @@ public class MobStackerCommands {
     private static int report(CommandSourceStack source, ConfigOption option, ConfigOption.Result result) {
         switch (result.status) {
             case CHANGED -> {
+                // Persist the change so a command edit survives a restart, matching the GUI path.
+                MobStacker.config.save();
                 MutableComponent message = Component.literal("Set ").withStyle(ChatFormatting.GREEN)
                         .append(Component.literal(option.id()).withStyle(ChatFormatting.WHITE))
                         .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
@@ -261,6 +267,7 @@ public class MobStackerCommands {
                 .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredMods().size())).withStyle(ChatFormatting.AQUA)), false);
         source.sendSuccess(() -> Component.literal("Commands: set, get, toggle, reset, stacksize, ignore, region, reload  -  ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help").withStyle(ChatFormatting.YELLOW)), false);
+        warnIfStacksNowhere(source);
         return 1;
     }
 
@@ -437,6 +444,7 @@ public class MobStackerCommands {
             context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.addIgnoredEntity(entityIdString);
+            MobStacker.config.save();
             context.getSource().sendSuccess(() -> Component.literal("Added '" + entityIdString + "' to ignored entities").withStyle(ChatFormatting.GREEN), true);
         }
         return 1;
@@ -448,6 +456,7 @@ public class MobStackerCommands {
             context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.addIgnoredMod(modId);
+            MobStacker.config.save();
             context.getSource().sendSuccess(() -> Component.literal("Added '" + modId + "' to ignored mods").withStyle(ChatFormatting.GREEN), true);
         }
         return 1;
@@ -460,6 +469,7 @@ public class MobStackerCommands {
             context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.removeIgnoredEntity(entityIdString);
+            MobStacker.config.save();
             context.getSource().sendSuccess(() -> Component.literal("Removed '" + entityIdString + "' from ignored entities").withStyle(ChatFormatting.GOLD), true);
         }
         return 1;
@@ -471,6 +481,7 @@ public class MobStackerCommands {
             context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
         } else {
             MobStacker.config.removeIgnoredMod(modId);
+            MobStacker.config.save();
             context.getSource().sendSuccess(() -> Component.literal("Removed '" + modId + "' from ignored mods").withStyle(ChatFormatting.GOLD), true);
         }
         return 1;
@@ -564,6 +575,25 @@ public class MobStackerCommands {
 
     // ============================================================ regions
 
+    /**
+     * True when {@code stackMode} is REGIONS but no ALLOW region exists — a configuration in which
+     * nothing can ever stack (a common source of confusion). DENY regions do not help here.
+     */
+    private static boolean stacksNowhere() {
+        return MobStacker.config.getStackMode() == StackMode.REGIONS
+                && MobStacker.config.getRegions().stream().noneMatch(StackRegion::isAllow);
+    }
+
+    /** Emits a yellow heads-up when the current config would stack nowhere (see {@link #stacksNowhere()}). */
+    private static void warnIfStacksNowhere(CommandSourceStack source) {
+        if (stacksNowhere()) {
+            source.sendSuccess(() -> Component.literal(
+                    "Note: stackMode is REGIONS but no ALLOW region is defined - nothing will stack anywhere. "
+                            + "Add one with /mobstacker region add <name> allow <c1> <c2>, or /mobstacker set stackMode everywhere."
+            ).withStyle(ChatFormatting.YELLOW), false);
+        }
+    }
+
     private static int addRegion(CommandContext<CommandSourceStack> context, StackRegion.Type type) throws CommandSyntaxException {
         String name = StringArgumentType.getString(context, "name");
         if (MobStacker.config.getRegion(name) != null) {
@@ -579,16 +609,27 @@ public class MobStackerCommands {
                 corner1.getX(), corner1.getY(), corner1.getZ(),
                 corner2.getX(), corner2.getY(), corner2.getZ());
         MobStacker.config.addRegion(region);
+        MobStacker.config.save();
 
         context.getSource().sendSuccess(() -> Component.literal(
                 "Added " + type + " region '" + name + "' in " + dimension + " " + region.describeBounds()
         ).withStyle(ChatFormatting.GREEN), true);
+
+        // Adding an ALLOW region while stacking is OFF is almost certainly meant to turn it on, so
+        // auto-switch to REGIONS mode (only from OFF — never override an explicit EVERYWHERE/PLAYERS).
+        if (type == StackRegion.Type.ALLOW && MobStacker.config.getStackMode() == StackMode.OFF) {
+            MobStacker.config.setStackMode(StackMode.REGIONS);
+            context.getSource().sendSuccess(() -> Component.literal(
+                    "stackMode was OFF - automatically switched to REGIONS so this region takes effect."
+            ).withStyle(ChatFormatting.AQUA), true);
+        }
         return 1;
     }
 
     private static int removeRegion(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         if (MobStacker.config.removeRegion(name)) {
+            MobStacker.config.save();
             context.getSource().sendSuccess(() -> Component.literal("Removed region '" + name + "'").withStyle(ChatFormatting.GOLD), true);
         } else {
             context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist").withStyle(ChatFormatting.RED));
@@ -602,6 +643,7 @@ public class MobStackerCommands {
 
         if (regions.isEmpty()) {
             context.getSource().sendSuccess(() -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
+            warnIfStacksNowhere(context.getSource());
             return 1;
         }
 
@@ -612,6 +654,7 @@ public class MobStackerCommands {
                     " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " " + region.describeBounds()
             ).withStyle(color), false);
         }
+        warnIfStacksNowhere(context.getSource());
         return 1;
     }
 }

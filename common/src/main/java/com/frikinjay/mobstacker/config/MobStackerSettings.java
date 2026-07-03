@@ -27,14 +27,17 @@ public final class MobStackerSettings {
     static {
         // --- Stacking ---
         register(ConfigOption.ofEnum("stackMode", Category.STACKING,
-                "Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), or EVERYWHERE.",
-                StackMode.class, () -> MobStacker.config.getStackMode(), v -> MobStacker.config.setStackMode(v), StackMode.REGIONS));
+                "Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE.",
+                StackMode.class, () -> MobStacker.config.getStackMode(), v -> MobStacker.config.setStackMode(v), StackMode.OFF));
         register(ConfigOption.ofInt("maxStackSize", Category.STACKING,
                 "The largest a stack is allowed to grow to.",
                 1, 100000, () -> MobStacker.config.getMaxMobStackSize(), v -> MobStacker.config.setMaxMobStackSize(v), 16));
         register(ConfigOption.ofDouble("stackRadius", Category.STACKING,
                 "How far apart (in blocks) mobs can be and still merge into the same stack.",
                 0.1, 42000.0, () -> MobStacker.config.getStackRadius(), v -> MobStacker.config.setStackRadius(v), 6.0));
+        register(ConfigOption.ofDouble("playerStackRadius", Category.STACKING,
+                "In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack.",
+                1.0, 42000.0, () -> MobStacker.config.getPlayerStackRadius(), v -> MobStacker.config.setPlayerStackRadius(v), 12.0));
         register(ConfigOption.ofBool("stackEquippedMobs", Category.STACKING,
                 "Allow mobs that hold or wear items to stack (variant B: off keeps them separate).",
                 () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));

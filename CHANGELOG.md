@@ -7,6 +7,36 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.5.3] - 2026-07-03
+### Added
+- **New `PLAYERS` stack mode.** Mobs stack only when they are near a player — within
+  `playerStackRadius` blocks (default **12**) of anyone — and nowhere else. Great for keeping farms
+  and busy areas tidy without stacking mobs out in the untouched wilderness. DENY regions still
+  override it, so you can carve out no-stack pockets even inside the player bubble. Set it with
+  `/mobstacker set stackMode players` and tune the range with `/mobstacker set playerStackRadius <n>`.
+### Changed
+- **Stacking now ships OFF by default.** A freshly installed mod no longer stacks anything until an
+  operator opts in, so nothing changes on your server until you choose to enable it. The first time a
+  world loads without a config, the server log prints a short notice explaining that stacking is OFF
+  and how to turn it on. (Existing configs keep whatever mode they already had.)
+- **Adding an ALLOW region auto-enables REGIONS mode** when stacking is currently OFF, so a
+  freshly-defined region takes effect immediately instead of silently doing nothing. An explicit
+  `everywhere`/`players` mode is never overridden.
+
+## [1.5.2] - 2026-07-03
+### Added
+- **"Nothing will stack" heads-up.** `/mobstacker` and `/mobstacker region list` now print a yellow
+  note when `stackMode` is `REGIONS` but no `ALLOW` region is defined — the one config in which mobs
+  stack nowhere at all — and point to the two ways out (add an ALLOW region, or switch to
+  `everywhere`). A frequent source of "stacking isn't working" confusion.
+### Fixed
+- **Commands now persist to disk.** Changes made with `/mobstacker set`, `toggle`, `reset`,
+  `reset all`, `ignore …`, and `region add|remove` are now written to the world's
+  `serverconfig/mobstacker.json` immediately, so they survive a server restart. Previously these
+  commands only changed the config **in memory** and were lost on restart unless something else saved
+  the file — the config GUI already saved, so this brings commands in line with it. (`stacksize`,
+  which sets a live mob's count rather than a config value, is unaffected.)
+
 ## [1.5.1] - 2026-07-02
 ### Added
 - **Config GUI on servers (phase 2).** The config screen can now edit a **remote server's** config,

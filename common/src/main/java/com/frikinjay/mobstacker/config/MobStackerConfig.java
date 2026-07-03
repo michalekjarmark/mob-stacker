@@ -33,6 +33,7 @@ public class MobStackerConfig {
     private boolean compactExperience = true;
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
+    private double playerStackRadius = 12.0;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -45,7 +46,9 @@ public class MobStackerConfig {
             "corpse"
     ));
 
-    private StackMode stackMode = StackMode.REGIONS;
+    // Off by default: a freshly installed mod stacks nothing until an operator opts in (see the
+    // first-run notice logged by MobStacker.loadWorldConfig). Existing configs keep their saved mode.
+    private StackMode stackMode = StackMode.OFF;
     private List<StackRegion> regions = new ArrayList<>();
 
     private final MobCaps mobCaps = new MobCaps();
@@ -95,6 +98,7 @@ public class MobStackerConfig {
     public boolean getCompactExperience() { return compactExperience; }
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
+    public double getPlayerStackRadius() { return playerStackRadius; }
 
     public void setSeparatorItem(String separatorItem) {
         this.separatorItem = separatorItem;
@@ -191,6 +195,11 @@ public class MobStackerConfig {
         save();
     }
 
+    public void setPlayerStackRadius(double playerStackRadius) {
+        this.playerStackRadius = Math.min(playerStackRadius, MAX_RADIUS);
+        save();
+    }
+
     public List<String> getIgnoredEntities() {
         return Collections.unmodifiableList(ignoredEntities);
     }
@@ -233,7 +242,7 @@ public class MobStackerConfig {
     }
 
     public StackMode getStackMode() {
-        return stackMode != null ? stackMode : StackMode.REGIONS;
+        return stackMode != null ? stackMode : StackMode.OFF;
     }
 
     public void setStackMode(StackMode stackMode) {

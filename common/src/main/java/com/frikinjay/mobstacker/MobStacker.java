@@ -125,8 +125,30 @@ public final class MobStacker {
             logger.error("MobStacker: could not resolve the per-world config path, using the global file", e);
             configFile = new File("config/mobstacker.json");
         }
+        // Capture first-run state before save() creates the file, so we only nag once per world.
+        boolean firstRun = !configFile.exists();
         config = MobStackerConfig.load();
         config.save();
+        logger.info("MobStacker: per-world config loaded (stackMode={})", config.getStackMode());
+        if (firstRun) {
+            logFirstRunNotice();
+        }
+    }
+
+    /**
+     * Logged once, the first time a world loads without an existing config. Stacking now ships
+     * {@link StackMode#OFF}, so this tells an operator how to turn it on rather than silently
+     * doing nothing.
+     */
+    private static void logFirstRunNotice() {
+        logger.info("============================================================");
+        logger.info("  MobStacker is installed, but stacking is currently OFF.");
+        logger.info("  Mobs will NOT stack until you pick a mode:");
+        logger.info("    /mobstacker set stackMode everywhere   - stack everywhere");
+        logger.info("    /mobstacker set stackMode players      - stack only near players");
+        logger.info("    /mobstacker set stackMode regions      - stack only in ALLOW regions");
+        logger.info("  Tip: adding an ALLOW region auto-enables REGIONS mode.");
+        logger.info("============================================================");
     }
 
     /** Re-reads the config from disk (used by {@code /mobstacker reload} after a manual edit). */
@@ -209,6 +231,13 @@ public final class MobStacker {
 
         if (mode == StackMode.EVERYWHERE) {
             return true;
+        }
+
+        if (mode == StackMode.PLAYERS) {
+            // Only stack near a player. getNearestPlayer applies the distance limit itself and
+            // excludes spectators; a radius <= 0 would disable stacking entirely (guarded below).
+            double radius = config.getPlayerStackRadius();
+            return radius > 0 && entity.level().getNearestPlayer(entity, radius) != null;
         }
 
         // StackMode.REGIONS: only stack when inside at least one ALLOW region.

@@ -35,7 +35,7 @@
 
 Everything below is on top of the original MobStacker — see the linked sections for detail:
 
-- 🗺️ **Region-based stacking** — limit stacking to chosen world regions (allow/deny cuboids + a global mode).
+- 🗺️ **Where-to-stack modes** — `OFF` (default), `EVERYWHERE`, `REGIONS` (allow/deny cuboids), or `PLAYERS` (only near players, within a configurable radius). Stacking ships **off** until you opt in.
 - 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
 - ⚔️ **Sweeping Edge support** — folds vanilla sweep damage back into the hit so it clears stacks.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop, and a floating `-N` hologram (each toggleable).
@@ -107,7 +107,8 @@ While actual performance gains vary based on server specifications, player count
 | `separatorItem` | Specifies the item used as a separator | `"minecraft:diamond"` |
 | `ignoredEntities` | List of entities excluded from stacking | `["minecraft:ender_dragon", "minecraft:vex"]` |
 | `ignoredMods` | List of mod IDs whose entities are excluded from stacking | `["corpse"]` |
-| `stackMode` | Where new stacks may form: `REGIONS`, `EVERYWHERE` or `OFF` | `REGIONS` |
+| `stackMode` | Where new stacks may form: `OFF`, `REGIONS`, `PLAYERS` or `EVERYWHERE` | `OFF` |
+| `playerStackRadius` | In `PLAYERS` mode, mobs within this many blocks of any player may stack | `12.0` |
 | `regions` | Allow/deny cuboids that gate stacking (see Region & Mode Management) | `[]` |
 
 ## Commands
@@ -208,14 +209,21 @@ everywhere).
 
 | Mode | Behaviour |
 |------|-----------|
-| `regions` *(default)* | Stacking only forms inside an `allow` region, and never inside a `deny` region. |
+| `off` *(default)* | No new stacks ever form. Stacking ships off — pick another mode to enable it. |
+| `regions` | Stacking only forms inside an `allow` region, and never inside a `deny` region. |
+| `players` | Stacking only forms near a player (within `playerStackRadius` blocks), and never inside a `deny` region. |
 | `everywhere` | Stacking forms everywhere, except inside a `deny` region. |
-| `off` | No new stacks ever form. |
 
 ```bash
 # Set the global stacking mode
-/mobstacker set stackMode <regions|everywhere|off>
+/mobstacker set stackMode <off|regions|players|everywhere>
+# In players mode, tune how far from a player mobs may stack (blocks)
+/mobstacker set playerStackRadius 12
 ```
+
+> **Getting started:** because stacking is `off` by default, a fresh install stacks nothing until
+> you enable a mode. Adding an `allow` region while the mode is still `off` **auto-switches** it to
+> `regions` so the region works right away.
 
 Regions are axis-aligned cuboids tied to the dimension you run the command in.
 Corners accept absolute coordinates or `~` relative coordinates (relative to you).
