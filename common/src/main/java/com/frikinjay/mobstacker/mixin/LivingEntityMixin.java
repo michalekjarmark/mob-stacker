@@ -40,6 +40,13 @@ public abstract class LivingEntityMixin extends Entity {
     private int mobstacker$overflowKills = 0;
     @Unique
     private float mobstacker$overflowSurvivorHealth = -1.0F;
+    // Per-mob Sweeping Edge: the sweep damage owed to the rest of the stack for the hit currently
+    // being resolved, plus the raw damage it was computed from (used to re-apply the same armor
+    // reduction). Both are set at hurt() HEAD and consumed once the hit lands.
+    @Unique
+    private float mobstacker$pendingSweepDamage = 0.0F;
+    @Unique
+    private float mobstacker$pendingSweepRawAmount = 0.0F;
 
     public LivingEntityMixin(EntityType<?> entityType, Level level) {
         super(entityType, level);
@@ -211,11 +218,24 @@ public abstract class LivingEntityMixin extends Entity {
     /**
      * Sweeping Edge normally deals bonus damage to mobs <i>around</i> the target. Because a stack is
      * a single entity there is nothing around it, so the enchantment would otherwise do nothing here.
-     * We fold the vanilla sweep damage back into the hit on the stack, where it feeds the damage
-     * overflow below (so a sweeping sword chews through more mobs per swing, like it should).
+     * Vanilla's sweep damage is {@code 1 + attackDamage * (level / (level + 1))}, where the attack
+     * damage already includes Sharpness / Smite / Bane of Arthropods -- and since every member of a
+     * stack is the same mob type, {@code amount} here is exactly that value, so the right enchantment
+     * bonus is baked in for free.
+     * <p>
+     * Two behaviours share this hook:
+     * <ul>
+     *   <li>default: one sweep's worth of damage is folded into the hit, feeding the damage overflow
+     *       below, so a sweeping sword chews a little deeper into the stack;</li>
+     *   <li>{@code sweepingEdgePerMob}: the hit itself is left alone and the sweep is dealt to every
+     *       other member of the stack instead (see {@link #mobstacker$applyPerMobSweep}), which is
+     *       what a vanilla sweep through those same mobs standing loose would have done.</li>
+     * </ul>
      */
     @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private float mobstacker$applySweepingEdgeToStack(float amount, DamageSource damageSource) {
+        mobstacker$pendingSweepDamage = 0.0F;
+        mobstacker$pendingSweepRawAmount = 0.0F;
         LivingEntity self = (LivingEntity) (Object) this;
         if (self.level().isClientSide() || !(self instanceof Mob mob)) {
             return amount;
@@ -233,10 +253,83 @@ public abstract class LivingEntityMixin extends Entity {
         if (level <= 0) {
             return amount;
         }
+        if (MobStacker.getSweepingEdgeVanillaConditions() && !MobStacker.hadVanillaSweepConditions(attacker)) {
+            return amount;
+        }
         // Vanilla: sweepDamage = 1.0 + (level / (level + 1)) * attackDamage.
         float ratio = (float) level / (level + 1);
-        float sweepBonus = 1.0F + ratio * amount;
-        return amount + sweepBonus;
+        float sweepDamage = 1.0F + ratio * amount;
+        if (MobStacker.getSweepingEdgePerMob()) {
+            // Dealt to the other members once this hit resolves, where post-armor damage is known.
+            mobstacker$pendingSweepDamage = sweepDamage;
+            mobstacker$pendingSweepRawAmount = amount;
+            return amount;
+        }
+        return amount + sweepDamage;
+    }
+
+    /**
+     * Per-mob Sweeping Edge. A vanilla sweep hits every mob standing around the target; a stack keeps
+     * all of its members in one spot, so the sweep is dealt to each remaining member here, once the
+     * main hit has been resolved. Members share one set of stats, so a sweep either kills a member
+     * outright or leaves it untouched -- the one exception being the wounded survivor the stack
+     * already tracks, which can be finished off or hurt further. Sweep damage is scaled by the same
+     * armor / absorption reduction the main hit just took, since every member wears the same gear.
+     * <p>
+     * This runs only when the main hit killed the top mob, which is the enclosing redirect's own
+     * condition. In practice that costs nothing: to fell a full-health member the sweep has to exceed
+     * that member's max health, and a hit large enough for that has already killed the mob it landed
+     * on.
+     */
+    @Unique
+    private void mobstacker$applyPerMobSweep(LivingEntity instance, int stackSize, float maxHealth, float newHealth) {
+        float rawSweep = mobstacker$pendingSweepDamage;
+        float rawAmount = mobstacker$pendingSweepRawAmount;
+        mobstacker$pendingSweepDamage = 0.0F;
+        mobstacker$pendingSweepRawAmount = 0.0F;
+
+        int remaining = stackSize - mobstacker$overflowKills;
+        if (rawSweep <= 0.0F || rawAmount <= 0.0F || maxHealth <= 0.0F || remaining <= 0
+                || !MobStacker.getSweepingEdgePerMob()) {
+            return;
+        }
+
+        float dealt = instance.getHealth() - newHealth;
+        float reduction = Math.max(0.0F, Math.min(1.0F, dealt / rawAmount));
+        float sweep = rawSweep * reduction;
+        if (sweep <= 0.0F) {
+            return;
+        }
+
+        float survivorHealth = mobstacker$overflowSurvivorHealth > 0.0F
+                ? mobstacker$overflowSurvivorHealth : maxHealth;
+
+        int sweepKills;
+        if (sweep >= maxHealth) {
+            sweepKills = remaining;        // enough to fell a healthy member, so the whole stack falls
+        } else if (sweep >= survivorHealth) {
+            sweepKills = 1;                // only the member the main hit left wounded
+        } else {
+            sweepKills = 0;
+        }
+
+        int cap = MobStacker.getSweepingEdgeMaxKills();
+        if (cap > 0) {
+            sweepKills = Math.min(sweepKills, cap);
+        }
+        sweepKills = Math.min(sweepKills, remaining);
+
+        mobstacker$overflowKills += sweepKills;
+        remaining -= sweepKills;
+        if (remaining <= 0) {
+            mobstacker$overflowSurvivorHealth = -1.0F;
+            return;
+        }
+
+        // Whoever is on top now took the sweep as well. Keep at least a sliver of health, so a capped
+        // sweep can never spawn the remainder already dead.
+        float frontHealth = sweepKills > 0 ? maxHealth : survivorHealth;
+        mobstacker$overflowSurvivorHealth = Math.max(0.5F, frontHealth - sweep);
     }
 
     /**
@@ -272,6 +365,8 @@ public abstract class LivingEntityMixin extends Entity {
         } else {
             mobstacker$overflowSurvivorHealth = -1.0F;
         }
+
+        mobstacker$applyPerMobSweep(instance, stackSize, maxHealth, newHealth);
 
         instance.setHealth(newHealth); // let the top mob die normally
     }

@@ -60,6 +60,18 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("sweepingEdgeOverflow", Category.COMBAT,
                 "Fold vanilla Sweeping Edge damage back into the hit so it clears a stack.",
                 () -> MobStacker.config.getSweepingEdgeOverflow(), v -> MobStacker.config.setSweepingEdgeOverflow(v), true));
+        register(ConfigOption.ofBool("sweepingEdgePerMob", Category.COMBAT,
+                "Sweep every mob in the stack for 1 + damage x (level / (level + 1)) each, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit.",
+                () -> MobStacker.config.getSweepingEdgePerMob(), v -> MobStacker.config.setSweepingEdgePerMob(v), false)
+                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgePerMob")));
+        register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
+                "Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand.",
+                () -> MobStacker.config.getSweepingEdgeVanillaConditions(), v -> MobStacker.config.setSweepingEdgeVanillaConditions(v), false)
+                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgeVanillaConditions")));
+        register(ConfigOption.ofInt("sweepingEdgeMaxKills", Category.COMBAT,
+                "Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob.",
+                0, 100000, () -> MobStacker.config.getSweepingEdgeMaxKills(), v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
+                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgeMaxKills")));
 
         // --- Kill feedback ---
         register(ConfigOption.ofBool("stackKillActionBar", Category.FEEDBACK,
@@ -127,6 +139,21 @@ public final class MobStackerSettings {
     }
 
     private MobStackerSettings() {
+    }
+
+    /**
+     * The Sweeping Edge tuning options only do anything while sweepingEdgeOverflow is on, so they
+     * refuse to be changed away from their default until it is enabled — the same "explain the
+     * dependency instead of silently doing nothing" rule used by stackHealth / killWholeStackOnDeath.
+     */
+    private static java.util.function.Function<Object, String> requiresSweepingEdgeOverflow(String id) {
+        return value -> {
+            boolean wantsDefault = Boolean.FALSE.equals(value) || Integer.valueOf(0).equals(value);
+            if (wantsDefault || MobStacker.config.getSweepingEdgeOverflow()) {
+                return null;
+            }
+            return "'" + id + "' only applies while sweepingEdgeOverflow is on. Enable it first.";
+        };
     }
 
     private static void register(ConfigOption option) {

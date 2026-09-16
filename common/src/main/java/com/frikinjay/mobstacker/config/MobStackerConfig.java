@@ -21,6 +21,9 @@ public class MobStackerConfig {
     private boolean stackHealth = false;
     private boolean enableDamageOverflow = true;
     private boolean sweepingEdgeOverflow = true;
+    private boolean sweepingEdgePerMob = false;
+    private boolean sweepingEdgeVanillaConditions = false;
+    private int sweepingEdgeMaxKills = 0;
     private boolean stackEquippedMobs = false;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
@@ -86,6 +89,9 @@ public class MobStackerConfig {
     public boolean getStackHealth() { return stackHealth; }
     public boolean getDamageOverflow() { return enableDamageOverflow; }
     public boolean getSweepingEdgeOverflow() { return sweepingEdgeOverflow; }
+    public boolean getSweepingEdgePerMob() { return sweepingEdgePerMob; }
+    public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
+    public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
@@ -132,6 +138,21 @@ public class MobStackerConfig {
 
     public void setSweepingEdgeOverflow(boolean sweepingEdgeOverflow) {
         this.sweepingEdgeOverflow = sweepingEdgeOverflow;
+        save();
+    }
+
+    public void setSweepingEdgePerMob(boolean sweepingEdgePerMob) {
+        this.sweepingEdgePerMob = sweepingEdgePerMob;
+        save();
+    }
+
+    public void setSweepingEdgeVanillaConditions(boolean sweepingEdgeVanillaConditions) {
+        this.sweepingEdgeVanillaConditions = sweepingEdgeVanillaConditions;
+        save();
+    }
+
+    public void setSweepingEdgeMaxKills(int sweepingEdgeMaxKills) {
+        this.sweepingEdgeMaxKills = Math.max(0, sweepingEdgeMaxKills);
         save();
     }
 

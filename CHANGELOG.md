@@ -7,6 +7,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.6.0] - 2026-09-16
+### Added
+- **Vanilla-style Sweeping Edge** (`sweepingEdgePerMob`, default `false`). With it on, the mob you
+  hit takes the full hit and **every other mob in the stack takes its own sweep hit** —
+  `1 + attack damage x (level / (level + 1))`, the vanilla formula — instead of the stack receiving a
+  single flat bonus. Since that attack damage is the damage *after* Sharpness, Smite and Bane of
+  Arthropods, and a stack is always one mob type, each enchantment automatically scales the sweep
+  against the mobs it is meant for. Note that a sweep strong enough to kill one healthy mob of that
+  type now clears the whole stack in one swing — exactly what vanilla would do to those mobs standing
+  loose, but a big jump in power, so two tuning options come with it.
+- `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
+  charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
+- `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
+### Fixed
+- **Kill holograms no longer get stuck in the world.** The floating `-N` text above a killed stack is
+  an armor stand that lives for about a second, but it was being written into the world save like any
+  other entity: if the server stopped — or the chunk unloaded — during that second, it came back on
+  the next load with nothing left to remove it and stayed floating there forever. Holograms are now
+  kept strictly in memory and are never saved, are cleared when the server stops, and any stray one
+  left behind by an earlier version is removed automatically as soon as its chunk loads.
+
 ## [1.5.3] - 2026-07-03
 ### Added
 - **New `PLAYERS` stack mode.** Mobs stack only when they are near a player — within

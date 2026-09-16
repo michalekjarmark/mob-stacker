@@ -90,6 +90,9 @@ While actual performance gains vary based on server specifications, player count
 | `stackHealth` | Combines health of stacked mobs when enabled | `false` |
 | `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
 | `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
+| `sweepingEdgePerMob` | Sweep **every** mob in the stack for its own `1 + damage x (level / (level + 1))`, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit | `false` |
+| `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand | `false` |
+| `sweepingEdgeMaxKills` | Caps how many mobs one sweep may kill per swing (`0` = no cap). Only used by `sweepingEdgePerMob` | `0` |
 | `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
 | `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
@@ -283,10 +286,29 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 | II | `1.0 + 0.67 × attack damage` |
 | III | `1.0 + 0.75 × attack damage` |
 
-> 💡 Both behaviours are independent toggles — disable `damageOverflow` to return to
+### Vanilla-style sweeping (`sweepingEdgePerMob`)
+
+Turn this on and the sweep stops being a single bonus on the hit: the mob you actually
+struck takes the full hit, and **every other mob in the stack takes its own sweep hit**
+— `1 + attack damage x (level / (level + 1))`, the vanilla formula — just as a real
+sweep would have hit them if they were standing loose. Because the attack damage in that
+formula is the damage *after* Sharpness, Smite and Bane of Arthropods, and every mob in a
+stack is the same type, the right enchantment bonus is applied automatically: Smite
+scales the sweep against a stack of zombies, Bane of Arthropods against spiders, and
+Sharpness against everything.
+
+One consequence is worth knowing before enabling it: since the whole stack stands in one
+spot, a sweep strong enough to kill a single healthy mob of that type kills **all** of
+them in one swing. That is exactly what vanilla would do to the same mobs standing side
+by side, but it is a big jump in power — use `sweepingEdgeMaxKills` to cap it, and
+`sweepingEdgeVanillaConditions` if you want the bonus only on the kind of swing vanilla
+actually sweeps with.
+
+> 💡 All of these are independent toggles — disable `damageOverflow` to return to
 > one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
-> whole stack, so overflow does not apply.
+> whole stack, so overflow does not apply. The three `sweepingEdge*` tuning options above
+> only apply while `sweepingEdgeOverflow` is on.
 
 When a hit kills mobs from a stack the mod can show feedback three ways, each with its own
 independent toggle:
@@ -298,6 +320,8 @@ independent toggle:
 - **Floating hologram** (`stackKillHologram`, default on): a short-lived `-N` text that
   drifts up above the mob showing how many that hit killed. This is the only feedback
   channel that spawns an entity — an invisible marker armor stand removed after ~1 second.
+  It is never written to the world save, so a server restart or a chunk unload in the
+  middle of its short life can no longer leave one floating behind.
 
 ### Breeding & Baby Stacking
 

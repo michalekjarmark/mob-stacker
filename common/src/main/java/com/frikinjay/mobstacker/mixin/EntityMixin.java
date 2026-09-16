@@ -38,6 +38,21 @@ public class EntityMixin {
         }
     }
 
+    /**
+     * Kill holograms are ordinary armor stands, and an ordinary armor stand is written into its
+     * chunk. If the server stopped (or the chunk unloaded) inside a hologram's ~1 second lifetime,
+     * the stand came back on the next load with nothing left to remove it, and stayed floating in
+     * the world forever. Marking them as never-saved keeps them strictly in-memory, so they can
+     * only ever be removed by the tick that owns them.
+     */
+    @Inject(method = "shouldBeSaved", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$dontSaveKillHolograms(CallbackInfoReturnable<Boolean> cir) {
+        Entity self = (Entity) (Object) this;
+        if (self.getTags().contains(MobStacker.KILL_HOLOGRAM_TAG)) {
+            cir.setReturnValue(false);
+        }
+    }
+
     @Inject(method = "setCustomName", at = @At("TAIL"))
     private void mobstacker$onSetCustomName(@Nullable Component component, CallbackInfo ci) {
         Entity self = (Entity) (Object) this;

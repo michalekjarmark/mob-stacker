@@ -85,6 +85,10 @@ public final class MobStacker {
     // stack kill and cleaned up ~1s later from the server tick (see MinecraftServerMixin).
     private static final int KILL_HOLOGRAM_LIFETIME_TICKS = 24;
     private static final List<KillHologram> killHolograms = new ArrayList<>();
+    // Every hologram carries this scoreboard tag. It marks the stand as ours so it is never saved
+    // to disk (EntityMixin#shouldBeSaved) and so a stray one left in an old world by a previous
+    // version can be identified and cleaned up when it ticks (ArmorStandMixin).
+    public static final String KILL_HOLOGRAM_TAG = "mobstacker_kill_hologram";
 
     private record KillHologram(ArmorStand entity, long expireGameTime) {}
 
@@ -117,6 +121,8 @@ public final class MobStacker {
      * {@code MinecraftServerMixin} when the server is created.
      */
     public static void loadWorldConfig(MinecraftServer server) {
+        // A previous world's holograms must never be ticked against this one.
+        clearKillHolograms();
         try {
             Path dir = server.getWorldPath(LevelResource.ROOT).resolve("serverconfig");
             Files.createDirectories(dir);
@@ -853,6 +859,31 @@ public final class MobStacker {
 
     public static boolean getSweepingEdgeOverflow() {return config.getSweepingEdgeOverflow();}
 
+    public static boolean getSweepingEdgePerMob() {return config.getSweepingEdgePerMob();}
+
+    public static boolean getSweepingEdgeVanillaConditions() {return config.getSweepingEdgeVanillaConditions();}
+
+    public static int getSweepingEdgeMaxKills() {return config.getSweepingEdgeMaxKills();}
+
+    // --- Vanilla sweep context -----------------------------------------------------------------
+    // Whether the swing currently being resolved satisfies vanilla's own conditions for a sweep
+    // attack (fully charged, no crit, not sprinting, on the ground, sword in hand). It has to be
+    // sampled in Player#attack, because the attack-strength counter is reset there before the
+    // target's hurt() ever runs. Attack and damage resolve back-to-back on the server thread, so a
+    // single slot keyed by the attacker is enough.
+    private static Entity sweepContextAttacker;
+    private static boolean sweepContextVanillaSweep;
+
+    public static void setVanillaSweepContext(Entity attacker, boolean vanillaSweep) {
+        sweepContextAttacker = attacker;
+        sweepContextVanillaSweep = vanillaSweep;
+    }
+
+    /** True when {@code attacker}'s current swing is one vanilla would have swept with. */
+    public static boolean hadVanillaSweepConditions(Entity attacker) {
+        return attacker != null && attacker == sweepContextAttacker && sweepContextVanillaSweep;
+    }
+
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
@@ -894,6 +925,7 @@ public final class MobStacker {
         stand.setInvulnerable(true);
         stand.setCustomName(Component.literal("-" + killed).withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
         stand.setCustomNameVisible(true);
+        stand.addTag(KILL_HOLOGRAM_TAG);
         level.addFreshEntity(stand);
         killHolograms.add(new KillHologram(stand, level.getGameTime() + KILL_HOLOGRAM_LIFETIME_TICKS));
     }
@@ -916,6 +948,31 @@ public final class MobStacker {
                 stand.setPos(stand.getX(), stand.getY() + 0.025, stand.getZ());
             }
         }
+    }
+
+    /** True while this entity is one of the kill holograms we are actively ticking. */
+    public static boolean isTrackedKillHologram(Entity entity) {
+        for (KillHologram hologram : killHolograms) {
+            if (hologram.entity() == entity) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Discards every hologram still being tracked and forgets them. Called when a server stops and
+     * when a world's config is loaded, so holograms can never outlive the session that spawned them
+     * and the list can never hold entities from a world we already left.
+     */
+    public static void clearKillHolograms() {
+        for (KillHologram hologram : killHolograms) {
+            ArmorStand stand = hologram.entity();
+            if (!stand.isRemoved()) {
+                stand.discard();
+            }
+        }
+        killHolograms.clear();
     }
 
     // --- Drop compaction ---------------------------------------------------------------------
