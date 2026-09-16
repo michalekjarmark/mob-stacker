@@ -22,6 +22,16 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
 - `stackScanInterval` (default `20` ticks): how often a mob re-checks for a nearby stack to join. Set
   it to `0` for the old behaviour, where mobs only ever merge on crossing a block boundary.
+- **Settings per region.** A region can now carry its own value for almost every setting, so a cow
+  farm can stack to 64 while a mob grinder next door stays at 16, with its own combat, feedback,
+  breeding, drops and display behaviour. Anything a region does not override simply follows the
+  global config, so you only state the differences and existing config files keep working untouched.
+  Manage it with `/mobstacker region set|unset <region> <setting> <value>`, see everything a region
+  does with `/mobstacker region show <region>`, and settle overlapping regions with
+  `/mobstacker region priority <region> <n>` (higher wins, ties go to the smaller region). The only
+  settings that stay global are `stackMode` and `playerStackRadius` — which decide where the region
+  system applies at all — and the seven mob caps, which are world-level spawn limits. `deny` regions
+  still override everything, in every mode.
 - **Colour control for stack names and kill holograms.** The `Cow x16` name above a stack is drawn in
   `stackNameColor` (any of the sixteen Minecraft colours), and the floating `-N` kill hologram in
   `killHologramColor`, so stacks no longer all look alike. Turn on `stackNameColorBySize` and the

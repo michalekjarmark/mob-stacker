@@ -73,7 +73,7 @@ public abstract class LivingEntityMixin extends Entity {
     private void mobstacker$beginDropCompaction(DamageSource damageSource, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (!self.level().isClientSide && self instanceof Mob mob && MobStacker.getStackSize(mob) > 1
-                && (MobStacker.getCompactDrops() || MobStacker.getCompactExperience())) {
+                && (MobStacker.getCompactDrops(mob) || MobStacker.getCompactExperience(mob))) {
             MobStacker.beginDropCapture(mob);
         }
     }
@@ -98,12 +98,12 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "remove", at = @At("HEAD"))
     private void mobstacker$onRemoveHead(RemovalReason reason, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if (!MobStacker.getKillWholeStackOnDeath() && mobstacker$thisEntity instanceof Mob) {
+        if (mobstacker$thisEntity instanceof Mob && !MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
 
             // With damage overflow a single hit can kill several mobs at once; otherwise exactly one.
-            int killed = (MobStacker.getDamageOverflow() && mobstacker$overflowKills > 0)
+            int killed = (MobStacker.getDamageOverflow(mobstacker$self) && mobstacker$overflowKills > 0)
                     ? mobstacker$overflowKills : 1;
             int survivors = stackSize - killed;
 
@@ -116,13 +116,13 @@ public abstract class LivingEntityMixin extends Entity {
             // "-N" hologram above it, and/or an action bar line to the killer. Each is toggled
             // by its own config flag.
             if (stackSize > 1 && MobStacker.shouldSpawnNewEntity(mobstacker$self, reason)) {
-                if (MobStacker.getStackKillParticles()) {
+                if (MobStacker.getStackKillParticles(mobstacker$self)) {
                     mobstacker$spawnStackKillParticles(mobstacker$self, killed);
                 }
-                if (MobStacker.getStackKillHologram() && mobstacker$self.level() instanceof ServerLevel serverLevel) {
+                if (MobStacker.getStackKillHologram(mobstacker$self) && mobstacker$self.level() instanceof ServerLevel serverLevel) {
                     MobStacker.spawnKillHologram(serverLevel, mobstacker$self, killed);
                 }
-                if (MobStacker.getStackKillActionBar()) {
+                if (MobStacker.getStackKillActionBar(mobstacker$self)) {
                     mobstacker$sendStackKillFeedback(mobstacker$self, killed, Math.max(survivors, 0));
                 }
             }
@@ -171,7 +171,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
     private void mobstacker$onDieAllScore(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath()) {
+        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             LivingEntity livingEntity = mobstacker$self.getKillCredit();
@@ -186,7 +186,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
     private void mobstacker$onDieAllDropLoot(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath()) {
+        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             for (int i = 1; i < stackSize; i++) {
@@ -200,7 +200,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
     private void mobstacker$onDieAllCreateWRose(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath()) {
+        if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             LivingEntity livingEntity = mobstacker$self.getKillCredit();
@@ -235,7 +235,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (self.level().isClientSide() || !(self instanceof Mob mob)) {
             return amount;
         }
-        if (!MobStacker.getDamageOverflow() || !MobStacker.getSweepingEdgeOverflow()) {
+        if (!MobStacker.getDamageOverflow(mob) || !MobStacker.getSweepingEdgeOverflow(mob)) {
             return amount;
         }
         if (MobStacker.getStackSize(mob) <= 1 || !damageSource.is(DamageTypes.PLAYER_ATTACK)) {
@@ -248,13 +248,13 @@ public abstract class LivingEntityMixin extends Entity {
         if (level <= 0) {
             return amount;
         }
-        if (MobStacker.getSweepingEdgeVanillaConditions() && !MobStacker.hadVanillaSweepConditions(attacker)) {
+        if (MobStacker.getSweepingEdgeVanillaConditions(mob) && !MobStacker.hadVanillaSweepConditions(attacker)) {
             return amount;
         }
         // Vanilla: sweepDamage = 1.0 + (level / (level + 1)) * attackDamage.
         float ratio = (float) level / (level + 1);
         float sweepDamage = 1.0F + ratio * amount;
-        if (MobStacker.getSweepingEdgePerMob()) {
+        if (MobStacker.getSweepingEdgePerMob(mob)) {
             // Dealt to the other members once this hit resolves, where post-armor damage is known.
             mobstacker$pendingSweepDamage = sweepDamage;
             mobstacker$pendingSweepRawAmount = amount;
@@ -285,7 +285,7 @@ public abstract class LivingEntityMixin extends Entity {
 
         int remaining = stackSize - mobstacker$overflowKills;
         if (rawSweep <= 0.0F || rawAmount <= 0.0F || maxHealth <= 0.0F || remaining <= 0
-                || !MobStacker.getSweepingEdgePerMob()) {
+                || !MobStacker.getSweepingEdgePerMob(instance)) {
             return;
         }
 
@@ -308,7 +308,7 @@ public abstract class LivingEntityMixin extends Entity {
             sweepKills = 0;
         }
 
-        int cap = MobStacker.getSweepingEdgeMaxKills();
+        int cap = MobStacker.getSweepingEdgeMaxKills(instance);
         if (cap > 0) {
             sweepKills = Math.min(sweepKills, cap);
         }
@@ -336,7 +336,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
     private void mobstacker$overflowDamage(LivingEntity instance, float newHealth) {
         if (instance.level().isClientSide() || !(instance instanceof Mob mob)
-                || MobStacker.getKillWholeStackOnDeath() || !MobStacker.getDamageOverflow()) {
+                || MobStacker.getKillWholeStackOnDeath(instance) || !MobStacker.getDamageOverflow(instance)) {
             instance.setHealth(newHealth);
             return;
         }
@@ -373,7 +373,7 @@ public abstract class LivingEntityMixin extends Entity {
             return;
         }
         // killWholeStackOnDeath has its own multi-drop logic; /kill must not duplicate loot.
-        if (MobStacker.getKillWholeStackOnDeath() || !MobStacker.getDamageOverflow()
+        if (MobStacker.getKillWholeStackOnDeath(mob) || !MobStacker.getDamageOverflow(mob)
                 || damageSource.is(DamageTypes.GENERIC_KILL)) {
             return;
         }

@@ -190,6 +190,24 @@ public final class ConfigOption {
         return Result.changed(oldValue, actualNew, note);
     }
 
+    /**
+     * Parses and validates {@code raw} without changing anything, returning it in the same canonical
+     * form {@link #currentValue()} uses. This is what lets a value be stored somewhere other than the
+     * global config - a region's own settings - while still being checked exactly like a global edit.
+     *
+     * @throws IllegalArgumentException with a message fit for a player, when the value is not usable
+     */
+    public String canonicalize(String raw) {
+        Object parsed = parser.apply(raw);
+        if (validator != null) {
+            String problem = validator.apply(parsed);
+            if (problem != null) {
+                throw new IllegalArgumentException(problem);
+            }
+        }
+        return String.valueOf(parsed);
+    }
+
     /** Flips a boolean option. Errors for any non-boolean type. */
     public Result toggle() {
         if (type != Type.BOOL) {

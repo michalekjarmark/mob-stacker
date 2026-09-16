@@ -23,7 +23,7 @@ public abstract class AnimalMixin {
     @Inject(method = "mobInteract", at = @At("HEAD"), cancellable = true)
     private void mobstacker$stackBreeding(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
         Animal self = (Animal) (Object) this;
-        if (self.level().isClientSide || !MobStacker.getEnableStackBreeding()) {
+        if (self.level().isClientSide || !MobStacker.getEnableStackBreeding(self)) {
             return;
         }
         if (MobStacker.getStackSize(self) <= 1) {

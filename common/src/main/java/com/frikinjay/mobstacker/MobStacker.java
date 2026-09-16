@@ -174,8 +174,8 @@ public final class MobStacker {
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
             boolean allowed = (entity instanceof Animal)
-                    ? config.getEnableAnimalBabyStacking()
-                    : config.getEnableHostileBabyStacking();
+                    ? getEnableAnimalBabyStacking(entity)
+                    : getEnableHostileBabyStacking(entity);
             if (!allowed) {
                 return false;
             }
@@ -191,7 +191,7 @@ public final class MobStacker {
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
-        if (!config.getStackEquippedMobs() && hasEquipment(entity)) {
+        if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
             return false;
         }
 
@@ -205,7 +205,7 @@ public final class MobStacker {
             return false;
         }
 
-        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize();
+        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize(entity);
     }
 
     /**
@@ -274,7 +274,7 @@ public final class MobStacker {
             return false;
         }
 
-        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize()) {
+        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize(self)) {
             return false;
         }
 
@@ -427,7 +427,7 @@ public final class MobStacker {
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
-        if (getStackHealth() && source.getHealth() > target.getMaxHealth()) {
+        if (getStackHealth(source) && source.getHealth() > target.getMaxHealth()) {
             source.setHealth(source.getHealth() - target.getMaxHealth());
         }
     }
@@ -439,7 +439,7 @@ public final class MobStacker {
      * @return true when the mob was merged away
      */
     public static boolean tryMergeIntoNearbyStack(Mob self) {
-        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius()),
+        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
                 entity -> entity instanceof Mob && canStack((Mob) entity))) {
             if (canMerge(self, (Mob) nearby)) {
                 mergeEntities((Mob) nearby, self);
@@ -464,7 +464,7 @@ public final class MobStacker {
      * merge.
      */
     public static void tickStackScan(Mob mob) {
-        int interval = config.getStackScanInterval();
+        int interval = getStackScanInterval(mob);
         if (interval <= 0 || mob.level().isClientSide()) {
             return;
         }
@@ -477,7 +477,7 @@ public final class MobStacker {
             // stacks that already exist. The component only reaches clients when it really differs.
             updateStackDisplay(mob);
         }
-        if (stackSize >= getMaxMobStackSize()) {
+        if (stackSize >= getMaxMobStackSize(mob)) {
             return;
         }
         if (!getCanStack(mob) || !canStack(mob)) {
@@ -487,7 +487,7 @@ public final class MobStacker {
     }
 
     public static void mergeEntities(Mob target, Mob source) {
-        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize());
+        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize(target));
 
         // When two babies merge, keep the youngest (most negative) age so no member ever grows up
         // early — this replaces a strict age-band gate and lets baby-stacks freely consolidate.
@@ -563,7 +563,7 @@ public final class MobStacker {
         }
         return stackSize > 1 ?
                 Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize)
-                        .withStyle(stackNameColor(stackSize)) :
+                        .withStyle(stackNameColor(entity, stackSize)) :
                 null;
     }
 
@@ -601,7 +601,7 @@ public final class MobStacker {
         double maxHealth = target.getMaxHealth();
         float newHealth = target.getHealth() + source.getHealth();
 
-        if (getStackHealth() && getKillWholeStackOnDeath()) {
+        if (getStackHealth(target) && getKillWholeStackOnDeath(target)) {
             maxHealth += source.getMaxHealth();
             target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(maxHealth);
         }
@@ -721,7 +721,7 @@ public final class MobStacker {
         boolean creative = player.getAbilities().instabuild;
         // "One per click" mode feeds a single member per interaction (click once per animal);
         // otherwise a single click feeds as many members as the food in hand allows.
-        int limit = getBreedOnePerClick() ? Math.min(1, free) : free;
+        int limit = getBreedOnePerClick(self) ? Math.min(1, free) : free;
         int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
@@ -764,7 +764,7 @@ public final class MobStacker {
         }
         int stackSize = getStackSize(self);
         boolean creative = player.getAbilities().instabuild;
-        int limit = getBreedOnePerClick() ? 1 : stackSize;
+        int limit = getBreedOnePerClick(self) ? 1 : stackSize;
         int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
@@ -806,11 +806,11 @@ public final class MobStacker {
      * then spawning the overflow as new baby-stack entities capped at the max stack size.
      */
     private static void spawnOrMergeBabyStack(ServerLevel level, Animal parent, int count) {
-        int max = getMaxMobStackSize();
+        int max = getMaxMobStackSize(parent);
         int remaining = count;
 
         BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(parent.getClass());
-        for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius()),
+        for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius(parent)),
                 e -> e != parent && e.getClass() == parent.getClass() && ((Mob) e).isBaby())) {
             if (remaining <= 0) {
                 break;
@@ -903,23 +903,152 @@ public final class MobStacker {
         }
     }
 
+    // --- Per-region settings -------------------------------------------------------------------
+    // A region can carry its own value for (almost) any setting; anything it does not mention keeps
+    // following the global config. Every gameplay read therefore goes through the helpers below with
+    // the mob in question, so the answer is the one that applies where that mob is standing. The
+    // lookup returns immediately when no regions exist, which is the usual case.
+
+    /**
+     * The region whose settings apply at this entity, or null when it is outside every region.
+     * Where regions overlap the highest {@code priority} wins, and equal priorities are settled in
+     * favour of the smaller region, so a small exception carved inside a large area behaves the way
+     * it looks. Both ALLOW and DENY regions carry settings: a DENY region stops new stacks forming,
+     * but existing stacks can still wander in and should behave the way that place is configured.
+     */
+    public static StackRegion regionAt(Entity entity) {
+        List<StackRegion> regions = config.getRegions();
+        if (entity == null || regions.isEmpty()) {
+            return null;
+        }
+        String dimension = entity.level().dimension().location().toString();
+        BlockPos pos = entity.blockPosition();
+        StackRegion best = null;
+        for (StackRegion region : regions) {
+            if (!region.contains(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+                continue;
+            }
+            if (best == null || region.getPriority() > best.getPriority()
+                    || (region.getPriority() == best.getPriority() && region.volume() < best.volume())) {
+                best = region;
+            }
+        }
+        return best;
+    }
+
+    private static String regionValue(String id, Entity at) {
+        if (at == null || config.getRegions().isEmpty()) {
+            return null;
+        }
+        StackRegion region = regionAt(at);
+        return region == null ? null : region.getSetting(id);
+    }
+
+    /** The value of a boolean setting where {@code at} is standing. */
+    public static boolean setting(String id, Entity at, boolean fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        return fallback;
+    }
+
+    /** The value of a whole-number setting where {@code at} is standing. */
+    public static int setting(String id, Entity at, int fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** The value of a decimal setting where {@code at} is standing. */
+    public static double setting(String id, Entity at, double fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** The value of a text setting where {@code at} is standing. */
+    public static String setting(String id, Entity at, String fallback) {
+        String value = regionValue(id, at);
+        return value == null ? fallback : value;
+    }
+
+    /** The value of an enum setting where {@code at} is standing. */
+    public static <E extends Enum<E>> E setting(String id, Entity at, E fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        for (E constant : fallback.getDeclaringClass().getEnumConstants()) {
+            if (constant.name().equalsIgnoreCase(value.trim())) {
+                return constant;
+            }
+        }
+        return fallback;
+    }
+
     public static double getStackRadius() {return config.getStackRadius();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static double getStackRadius(Entity at) {return setting("stackRadius", at, config.getStackRadius());}
 
     public static int getMaxMobStackSize() {return config.getMaxMobStackSize();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getMaxMobStackSize(Entity at) {return setting("maxStackSize", at, config.getMaxMobStackSize());}
+
     public static boolean getKillWholeStackOnDeath() {return config.getKillWholeStackOnDeath();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getKillWholeStackOnDeath(Entity at) {return setting("killWholeStackOnDeath", at, config.getKillWholeStackOnDeath());}
 
     public static boolean getStackHealth() {return config.getStackHealth();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackHealth(Entity at) {return setting("stackHealth", at, config.getStackHealth());}
+
     public static boolean getDamageOverflow() {return config.getDamageOverflow();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getDamageOverflow(Entity at) {return setting("damageOverflow", at, config.getDamageOverflow());}
 
     public static boolean getSweepingEdgeOverflow() {return config.getSweepingEdgeOverflow();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeOverflow(Entity at) {return setting("sweepingEdgeOverflow", at, config.getSweepingEdgeOverflow());}
+
     public static boolean getSweepingEdgePerMob() {return config.getSweepingEdgePerMob();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgePerMob(Entity at) {return setting("sweepingEdgePerMob", at, config.getSweepingEdgePerMob());}
 
     public static boolean getSweepingEdgeVanillaConditions() {return config.getSweepingEdgeVanillaConditions();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeVanillaConditions(Entity at) {return setting("sweepingEdgeVanillaConditions", at, config.getSweepingEdgeVanillaConditions());}
+
     public static int getSweepingEdgeMaxKills() {return config.getSweepingEdgeMaxKills();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getSweepingEdgeMaxKills(Entity at) {return setting("sweepingEdgeMaxKills", at, config.getSweepingEdgeMaxKills());}
 
     // --- Vanilla sweep context -----------------------------------------------------------------
     // Whether the swing currently being resolved satisfies vanilla's own conditions for a sweep
@@ -942,42 +1071,75 @@ public final class MobStacker {
 
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackEquippedMobs(Entity at) {return setting("stackEquippedMobs", at, config.getStackEquippedMobs());}
+
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillActionBar(Entity at) {return setting("stackKillActionBar", at, config.getStackKillActionBar());}
 
     public static boolean getStackKillParticles() {return config.getStackKillParticles();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillParticles(Entity at) {return setting("stackKillParticles", at, config.getStackKillParticles());}
+
     public static boolean getStackKillHologram() {return config.getStackKillHologram();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillHologram(Entity at) {return setting("stackKillHologram", at, config.getStackKillHologram());}
+
     public static int getStackScanInterval() {return config.getStackScanInterval();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getStackScanInterval(Entity at) {return setting("stackScanInterval", at, config.getStackScanInterval());}
 
     /**
      * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up
      * at the two configured stack sizes, so a huge stack is recognisable at a glance; otherwise every
      * stack uses the single configured colour.
      */
-    public static ChatFormatting stackNameColor(int stackSize) {
-        if (config.getStackNameColorBySize()) {
-            if (stackSize >= config.getStackSizeLargeThreshold()) {
-                return config.getStackNameColorLarge().format();
+    public static ChatFormatting stackNameColor(Entity at, int stackSize) {
+        if (setting("stackNameColorBySize", at, config.getStackNameColorBySize())) {
+            if (stackSize >= setting("stackSizeLargeThreshold", at, config.getStackSizeLargeThreshold())) {
+                return setting("stackNameColorLarge", at, config.getStackNameColorLarge()).format();
             }
-            if (stackSize >= config.getStackSizeMediumThreshold()) {
-                return config.getStackNameColorMedium().format();
+            if (stackSize >= setting("stackSizeMediumThreshold", at, config.getStackSizeMediumThreshold())) {
+                return setting("stackNameColorMedium", at, config.getStackNameColorMedium()).format();
             }
         }
-        return config.getStackNameColor().format();
+        return setting("stackNameColor", at, config.getStackNameColor()).format();
     }
 
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableStackBreeding(Entity at) {return setting("enableStackBreeding", at, config.getEnableStackBreeding());}
+
     public static boolean getBreedOnePerClick() {return config.getBreedOnePerClick();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getBreedOnePerClick(Entity at) {return setting("breedOnePerClick", at, config.getBreedOnePerClick());}
 
     public static boolean getEnableAnimalBabyStacking() {return config.getEnableAnimalBabyStacking();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableAnimalBabyStacking(Entity at) {return setting("enableAnimalBabyStacking", at, config.getEnableAnimalBabyStacking());}
+
     public static boolean getEnableHostileBabyStacking() {return config.getEnableHostileBabyStacking();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableHostileBabyStacking(Entity at) {return setting("enableHostileBabyStacking", at, config.getEnableHostileBabyStacking());}
 
     public static boolean getCompactDrops() {return config.getCompactDrops();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getCompactDrops(Entity at) {return setting("compactDrops", at, config.getCompactDrops());}
+
     public static boolean getCompactExperience() {return config.getCompactExperience();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getCompactExperience(Entity at) {return setting("compactExperience", at, config.getCompactExperience());}
 
     /**
      * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.
@@ -999,7 +1161,8 @@ public final class MobStacker {
         stand.setNoBasePlate(true);
         stand.setInvulnerable(true);
         stand.setCustomName(Component.literal("-" + killed)
-                .withStyle(config.getKillHologramColor().format(), ChatFormatting.BOLD));
+                .withStyle(setting("killHologramColor", mob, config.getKillHologramColor()).format(),
+                        ChatFormatting.BOLD));
         stand.setCustomNameVisible(true);
         stand.addTag(KILL_HOLOGRAM_TAG);
         level.addFreshEntity(stand);
@@ -1069,8 +1232,8 @@ public final class MobStacker {
      */
     public static void beginDropCapture(Mob mob) {
         dropCaptureMob = mob;
-        captureItems = config.getCompactDrops();
-        captureXp = config.getCompactExperience();
+        captureItems = getCompactDrops(mob);
+        captureXp = getCompactExperience(mob);
         dropCaptureBuffer.clear();
         xpCaptureTotal = 0;
     }
@@ -1177,9 +1340,18 @@ public final class MobStacker {
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableSeparator(Entity at) {return setting("enableSeparator", at, config.getEnableSeparator());}
+
     public static boolean getConsumeSeparator() {return config.getConsumeSeparator();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getConsumeSeparator(Entity at) {return setting("consumeSeparator", at, config.getConsumeSeparator());}
+
     public static String getSeparatorItem() {return config.getSeparatorItem();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static String getSeparatorItem(Entity at) {return setting("separatorItem", at, config.getSeparatorItem());}
 
     public static int getMonsterMobCap() {return config.getMonsterMobCap();}
     public static int getCreatureMobCap() {return config.getCreatureMobCap();}

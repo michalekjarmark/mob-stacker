@@ -256,7 +256,34 @@ several cuboids.
 
 # List all regions and the current mode
 /mobstacker region list
+
+# Everything about one region: bounds, priority and the settings it overrides
+/mobstacker region show <name>
 ```
+
+#### Settings per region
+
+A region can carry its own value for almost every setting, so one farm can behave
+differently from another without touching the rest of the world. Anything a region does
+not mention simply follows the global config, so you only ever state the differences.
+
+```bash
+# Give a region its own value for a setting
+/mobstacker region set <name> <setting> <value>
+/mobstacker region set cowfarm maxStackSize 64
+/mobstacker region set cowfarm stackNameColor GREEN
+
+# Drop an override, so the setting follows the global config again
+/mobstacker region unset cowfarm maxStackSize
+
+# Decide which region wins where two overlap (higher first; ties go to the smaller one)
+/mobstacker region priority <name> <number>
+```
+
+The only settings that stay global are `stackMode` and `playerStackRadius` — they decide
+where the region system applies at all — and the seven `mobcaps`, which are world-level
+spawn limits rather than a property of a place. `deny` still beats everything, in every
+mode, whatever a region's own settings say.
 
 > 💡 With the default `regions` mode and no regions defined, **no mobs stack at all**.
 > Add at least one `allow` region (e.g. around a laggy farm) to enable stacking there

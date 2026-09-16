@@ -25,16 +25,16 @@ public class PlayerMixin {
 
     @Inject(method = "interactOn", at = @At("HEAD"))
     private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
-        if(MobStacker.getEnableSeparator() && entity instanceof Mob && !entity.level().isClientSide) {
+        if(entity instanceof Mob && !entity.level().isClientSide && MobStacker.getEnableSeparator(entity)) {
             Player player = (Player) (Object) this;
             int stackSize = MobStacker.getStackSize((Mob) entity);
             ItemStack itemStack = player.getItemInHand(interactionHand);
 
-            ResourceLocation separatorResourceLocation = mobstacker$getResourceLocation();
+            ResourceLocation separatorResourceLocation = mobstacker$getResourceLocation(entity);
 
             if (stackSize > 1 && itemStack.is(BuiltInRegistries.ITEM.get(separatorResourceLocation))) {
                 MobStacker.separateEntity((Mob) entity);
-                if(!player.isCreative() && MobStacker.getConsumeSeparator()) {
+                if(!player.isCreative() && MobStacker.getConsumeSeparator(entity)) {
                     itemStack.setCount(itemStack.getCount() - 1);
                 }
             }
@@ -74,8 +74,8 @@ public class PlayerMixin {
     }
 
     @Unique
-    private static @NotNull ResourceLocation mobstacker$getResourceLocation() {
-        String separatorItemId = MobStacker.getSeparatorItem();
+    private static @NotNull ResourceLocation mobstacker$getResourceLocation(Entity at) {
+        String separatorItemId = MobStacker.getSeparatorItem(at);
         String[] parts = separatorItemId.split(":", 2);
         ResourceLocation separatorResourceLocation;
 

@@ -22,6 +22,14 @@ import java.util.Map;
  */
 public final class MobStackerSettings {
     private static final List<ConfigOption> OPTIONS = new ArrayList<>();
+    // Settings that only ever make sense globally. stackMode and playerStackRadius decide where the
+    // region system applies at all, so letting a region override them would be circular, and the mob
+    // caps are world-level spawn limits rather than a property of a place. Everything else can be
+    // given a different value inside a region.
+    private static final java.util.Set<String> GLOBAL_ONLY = java.util.Set.of(
+            "stackMode", "playerStackRadius",
+            "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
+            "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
     private static final Map<String, ConfigOption> BY_ID = new LinkedHashMap<>();
 
     static {
@@ -187,6 +195,23 @@ public final class MobStackerSettings {
             }
             return "'" + id + "' only applies while sweepingEdgeOverflow is on. Enable it first.";
         };
+    }
+
+    /** Whether a region may carry its own value for this setting. */
+    public static boolean isRegionOverridable(String id) {
+        ConfigOption option = byId(id);
+        return option != null && !GLOBAL_ONLY.contains(option.id());
+    }
+
+    /** Every setting a region may override, in registry order. */
+    public static List<ConfigOption> regionOverridable() {
+        List<ConfigOption> out = new ArrayList<>();
+        for (ConfigOption option : OPTIONS) {
+            if (!GLOBAL_ONLY.contains(option.id())) {
+                out.add(option);
+            }
+        }
+        return out;
     }
 
     private static void register(ConfigOption option) {
