@@ -32,7 +32,9 @@ public class StackRegion {
     private int maxY;
     private int maxZ;
     // Settings that differ inside this region, keyed by the same ids the commands and the GUI use.
-    private Map<String, String> settings;
+    // Volatile because in singleplayer the config screen reads this from the client thread while the
+    // integrated server writes it, and a stale reference would leave the screen showing old state.
+    private volatile Map<String, String> settings;
     // Decides which region wins where two overlap: higher first, then the smaller region.
     private int priority;
 

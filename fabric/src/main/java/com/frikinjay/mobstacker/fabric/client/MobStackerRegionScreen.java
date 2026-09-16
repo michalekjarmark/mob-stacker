@@ -7,6 +7,7 @@ import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -19,6 +20,7 @@ import net.minecraft.server.MinecraftServer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * The per-region editor: the same registry-driven rows as {@link MobStackerConfigScreen}, but every
@@ -53,12 +55,30 @@ public final class MobStackerRegionScreen extends Screen {
     private boolean remote;
     private boolean editable;
     private boolean showRows;
+    /** Set while a widget is being repainted, so its own responder does not send that back as an edit. */
+    private boolean repainting;
 
     /** A region as the screen needs it, from the local config or from the server's snapshot. */
     private record RegionView(String name, String type, String dimension, String bounds, int priority) {
     }
 
-    private record Row(ConfigOption option, int y, boolean overridden) {
+    /**
+     * One editable setting on screen. The override state is mutable because dropping an override
+     * has to repaint the row straight away, without rebuilding (and unfocusing) every widget.
+     */
+    private static final class Row {
+        final ConfigOption option;
+        final int y;
+        boolean overridden;
+        Button clear;
+        /** Shows the given value in this row's widget, e.g. after an override was dropped. */
+        Consumer<String> display;
+
+        Row(ConfigOption option, int y, boolean overridden) {
+            this.option = option;
+            this.y = y;
+            this.overridden = overridden;
+        }
     }
 
     public MobStackerRegionScreen(Screen parent) {
@@ -170,12 +190,13 @@ public final class MobStackerRegionScreen extends Screen {
         int widgetX = this.width / 2 + 30;
         int widgetW = 140;
         int widgetH = 20;
-        boolean overridden = regionValue(option.id()) != null;
+        Row row = new Row(option, y, regionValue(option.id()) != null);
 
         // Drops the override, so the setting follows the global config again.
         Button clear = Button.builder(Component.literal("↺"), b -> applyEdit(option.id(), ""))
                 .bounds(this.width / 2 + 6, y, 20, widgetH).build();
-        clear.active = editable && overridden;
+        clear.active = editable && row.overridden;
+        row.clear = clear;
         addRenderableWidget(clear);
 
         switch (option.type()) {
@@ -188,6 +209,10 @@ public final class MobStackerRegionScreen extends Screen {
                 }).bounds(widgetX, y, widgetW, widgetH).build();
                 button.active = editable;
                 addRenderableWidget(button);
+                row.display = value -> {
+                    state[0] = Boolean.parseBoolean(value);
+                    button.setMessage(boolLabel(state[0]));
+                };
             }
             case ENUM -> {
                 List<String> values = option.enumValues();
@@ -203,6 +228,13 @@ public final class MobStackerRegionScreen extends Screen {
                 }).bounds(widgetX, y, widgetW, widgetH).build();
                 button.active = editable;
                 addRenderableWidget(button);
+                row.display = value -> {
+                    int found = indexOfIgnoreCase(values, value);
+                    if (found >= 0) {
+                        index[0] = found;
+                        button.setMessage(enumLabel(values.get(found)));
+                    }
+                };
             }
             default -> {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
@@ -218,9 +250,38 @@ public final class MobStackerRegionScreen extends Screen {
                     }
                 });
                 addRenderableWidget(box);
+                row.display = value -> {
+                    repainting = true;
+                    box.setValue(value);
+                    box.setTextColor(NORMAL_TEXT);
+                    repainting = false;
+                };
             }
         }
-        rows.add(new Row(option, y, overridden));
+        rows.add(row);
+    }
+
+    /**
+     * Repaints the rows against what the region currently stores. Called right after an edit, so the
+     * gold label and the {@code ↺} button follow the change immediately instead of waiting for the
+     * screen to be rebuilt. Only rows whose override state actually changed are touched, which keeps
+     * a box the player is typing in out of the way.
+     */
+    private void refreshRows() {
+        for (Row row : rows) {
+            boolean overridden = regionValue(row.option.id()) != null;
+            if (overridden == row.overridden) {
+                continue;
+            }
+            row.overridden = overridden;
+            if (row.clear != null) {
+                row.clear.active = editable && overridden;
+            }
+            // The override is gone, so the row now shows whatever the global config says.
+            if (!overridden && row.display != null) {
+                row.display.accept(globalValue(row.option));
+            }
+        }
     }
 
     /** The value this region gives the setting, or null when it follows the global config. */
@@ -239,9 +300,11 @@ public final class MobStackerRegionScreen extends Screen {
     /** What the row shows: the region's own value when it has one, otherwise the global value. */
     private String valueOf(ConfigOption option) {
         String override = regionValue(option.id());
-        if (override != null) {
-            return override;
-        }
+        return override != null ? override : globalValue(option);
+    }
+
+    /** The value this setting has outside the region, i.e. what dropping the override falls back to. */
+    private String globalValue(ConfigOption option) {
         if (remote) {
             String global = MobStackerClientNetworking.value(option.id());
             if (global != null) {
@@ -256,19 +319,37 @@ public final class MobStackerRegionScreen extends Screen {
      * the override, or {@link MobStackerNetworking#REGION_PRIORITY} for the region's priority.
      */
     private void applyEdit(String id, String raw) {
-        if (!editable || regions.isEmpty()) {
+        if (!editable || repainting || regions.isEmpty()) {
             return;
         }
         String name = currentRegion().name();
+        String value = raw;
+        if (!MobStackerNetworking.REGION_PRIORITY.equals(id) && !value.isEmpty()) {
+            ConfigOption option = MobStackerSettings.byId(id);
+            if (option != null && value.trim().equalsIgnoreCase(globalValue(option))) {
+                // Picking exactly what the global config already says is not an override: the row
+                // goes back to following it, so a gold label always means "different in here".
+                value = "";
+            }
+        }
+
+        final String edit = value;
         if (remote) {
             if (!MobStackerNetworking.REGION_PRIORITY.equals(id)) {
-                MobStackerClientNetworking.rememberRegionLocal(name, id, raw);
+                MobStackerClientNetworking.rememberRegionLocal(name, id, edit);
             }
-            MobStackerClientNetworking.sendEdit(MobStackerNetworking.REGION_PREFIX + name + ":" + id, raw);
+            MobStackerClientNetworking.sendEdit(MobStackerNetworking.REGION_PREFIX + name + ":" + id, edit);
+            refreshRows();
         } else if (this.minecraft != null) {
-            MinecraftServer server = this.minecraft.getSingleplayerServer();
+            Minecraft client = this.minecraft;
+            MinecraftServer server = client.getSingleplayerServer();
             if (server != null) {
-                server.execute(() -> applyOnServer(name, id, raw));
+                // The config lives on the server thread, so the rows are repainted once it has
+                // really applied the change - otherwise the row would still claim the old state.
+                server.execute(() -> {
+                    applyOnServer(name, id, edit);
+                    client.execute(this::refreshRows);
+                });
             }
         }
     }
@@ -406,7 +487,7 @@ public final class MobStackerRegionScreen extends Screen {
             int total = overridableIn(categories.get(categoryIndex)).size();
             guiGraphics.drawCenteredString(this.font, Component.literal("scroll for more  ("
                             + (scrollOffset + 1) + "-" + Math.min(total, scrollOffset + visibleRows)
-                            + " of " + total + ")").withStyle(ChatFormatting.DARK_GRAY),
+                            + " of " + total + ")").withStyle(ChatFormatting.GRAY),
                     this.width / 2, 84, 0xFFFFFF);
         }
 
@@ -420,10 +501,41 @@ public final class MobStackerRegionScreen extends Screen {
 
         renderFooter(guiGraphics);
 
+        if (overPriority(mouseX, mouseY)) {
+            guiGraphics.renderComponentTooltip(this.font, List.of(
+                    Component.literal("priority").withStyle(ChatFormatting.WHITE),
+                    Component.literal("Which region wins where two of them overlap:").withStyle(ChatFormatting.GRAY),
+                    Component.literal("the higher priority first, then the smaller region.").withStyle(ChatFormatting.GRAY),
+                    Component.literal("A deny region always stops stacking, whatever its priority.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), mouseX, mouseY);
+            return;
+        }
+
         Row hovered = rowAt(mouseX, mouseY);
         if (hovered != null) {
-            guiGraphics.renderTooltip(this.font, Component.literal(hovered.option.description()), mouseX, mouseY);
+            // Say in words what the colour means, so a value that happens to match the global one
+            // is still clearly either the region's own or inherited.
+            String global = globalValue(hovered.option);
+            Component state = hovered.overridden
+                    ? Component.literal("Set in this region  (global: " + global + ")").withStyle(ChatFormatting.GOLD)
+                    : Component.literal("Follows the global config  (" + global + ")").withStyle(ChatFormatting.GRAY);
+            guiGraphics.renderComponentTooltip(this.font, List.of(
+                    Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE), state),
+                    mouseX, mouseY);
         }
+    }
+
+    /** True over the priority label or its box, which share one tooltip. */
+    private boolean overPriority(int mouseX, int mouseY) {
+        if (!showRows) {
+            return false;
+        }
+        int labelX = this.width / 2 - 170;
+        boolean overLabel = mouseX >= labelX && mouseX <= labelX + this.font.width("priority")
+                && mouseY >= 74 && mouseY <= 74 + this.font.lineHeight;
+        boolean overBox = mouseX >= this.width / 2 + 30 && mouseX <= this.width / 2 + 90
+                && mouseY >= 68 && mouseY <= 88;
+        return overLabel || overBox;
     }
 
     private void renderEmptyNotice(GuiGraphics guiGraphics) {
@@ -444,10 +556,13 @@ public final class MobStackerRegionScreen extends Screen {
 
     private void renderFooter(GuiGraphics guiGraphics) {
         RegionView region = currentRegion();
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(region.dimension() + "  " + region.bounds()
-                        + "   -   gold = set here, grey = global").withStyle(ChatFormatting.DARK_GRAY),
-                this.width / 2, this.height - 58, 0xFFFFFF);
+        // Readable grey, not the dark grey that looks like a disabled line lying behind the screen.
+        Component footer = Component.literal(region.dimension() + "  " + region.bounds())
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("   -   ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal("gold").withStyle(ChatFormatting.GOLD))
+                .append(Component.literal(" = set here, grey = global").withStyle(ChatFormatting.GRAY));
+        guiGraphics.drawCenteredString(this.font, footer, this.width / 2, this.height - 58, 0xFFFFFF);
 
         if (remote && !editable) {
             guiGraphics.drawCenteredString(this.font,
