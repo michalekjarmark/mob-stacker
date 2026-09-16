@@ -20,7 +20,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
   charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
+- `stackScanInterval` (default `20` ticks): how often a mob re-checks for a nearby stack to join. Set
+  it to `0` for the old behaviour, where mobs only ever merge on crossing a block boundary.
 ### Fixed
+- **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
+  so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
+  or stuck group — stood side by side and never stacked until something nudged them. Every mob now
+  also re-checks on a timer (see `stackScanInterval`), staggered across mobs and skipped for stacks
+  that are already full, so it costs less than the movement checks it complements.
 - **Kill holograms no longer get stuck in the world.** The floating `-N` text above a killed stack is
   an armor stand that lives for about a second, but it was being written into the world save like any
   other entity: if the server stopped — or the chunk unloaded — during that second, it came back on

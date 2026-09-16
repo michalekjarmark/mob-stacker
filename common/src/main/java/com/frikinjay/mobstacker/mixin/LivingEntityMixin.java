@@ -58,12 +58,7 @@ public abstract class LivingEntityMixin extends Entity {
         if (!mobstacker$thisEntity.level().isClientSide && mobstacker$thisEntity instanceof Mob) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             if (MobStacker.getCanStack(mobstacker$self) && MobStacker.canStack(mobstacker$self)) {
-                mobstacker$self.level().getEntities(mobstacker$self, mobstacker$self.getBoundingBox().inflate(MobStacker.getStackRadius()),
-                                e -> e instanceof Mob && MobStacker.canStack((Mob) e))
-                        .stream()
-                        .filter(nearby -> MobStacker.canMerge(mobstacker$self, (Mob) nearby))
-                        .findFirst()
-                        .ifPresent(nearby -> MobStacker.mergeEntities((Mob) nearby, mobstacker$self));
+                MobStacker.tryMergeIntoNearbyStack(mobstacker$self);
             }
         }
     }

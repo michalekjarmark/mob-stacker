@@ -105,6 +105,7 @@ While actual performance gains vary based on server specifications, player count
 | `compactExperience` | Merge a stacked mob's death experience into a single orb instead of many small ones | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
+| `stackScanInterval` | How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. `0` only merges when a mob crosses a block boundary | `20` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
 | `consumeSeparator` | Determines if separator item is consumed on use | `true` |
 | `separatorItem` | Specifies the item used as a separator | `"minecraft:diamond"` |

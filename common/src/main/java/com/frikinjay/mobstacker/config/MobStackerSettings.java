@@ -38,6 +38,9 @@ public final class MobStackerSettings {
         register(ConfigOption.ofDouble("playerStackRadius", Category.STACKING,
                 "In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack.",
                 1.0, 42000.0, () -> MobStacker.config.getPlayerStackRadius(), v -> MobStacker.config.setPlayerStackRadius(v), 12.0));
+        register(ConfigOption.ofInt("stackScanInterval", Category.STACKING,
+                "How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary.",
+                0, 1200, () -> MobStacker.config.getStackScanInterval(), v -> MobStacker.config.setStackScanInterval(v), 20));
         register(ConfigOption.ofBool("stackEquippedMobs", Category.STACKING,
                 "Allow mobs that hold or wear items to stack (variant B: off keeps them separate).",
                 () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));

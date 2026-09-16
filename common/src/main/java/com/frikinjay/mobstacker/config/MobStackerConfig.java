@@ -37,6 +37,7 @@ public class MobStackerConfig {
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private double playerStackRadius = 12.0;
+    private int stackScanInterval = 20;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -105,6 +106,7 @@ public class MobStackerConfig {
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
     public double getPlayerStackRadius() { return playerStackRadius; }
+    public int getStackScanInterval() { return stackScanInterval; }
 
     public void setSeparatorItem(String separatorItem) {
         this.separatorItem = separatorItem;
@@ -218,6 +220,11 @@ public class MobStackerConfig {
 
     public void setPlayerStackRadius(double playerStackRadius) {
         this.playerStackRadius = Math.min(playerStackRadius, MAX_RADIUS);
+        save();
+    }
+
+    public void setStackScanInterval(int stackScanInterval) {
+        this.stackScanInterval = Math.max(0, stackScanInterval);
         save();
     }
 

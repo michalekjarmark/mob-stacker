@@ -431,6 +431,50 @@ public final class MobStacker {
         }
     }
 
+    /**
+     * Looks for a nearby stack this mob can join and merges into it. The nearby mob is kept as the
+     * stack and this one is discarded, so callers must not touch {@code self} afterwards.
+     *
+     * @return true when the mob was merged away
+     */
+    public static boolean tryMergeIntoNearbyStack(Mob self) {
+        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius()),
+                entity -> entity instanceof Mob && canStack((Mob) entity))) {
+            if (canMerge(self, (Mob) nearby)) {
+                mergeEntities((Mob) nearby, self);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Periodic re-check for mobs that are already standing together.
+     * <p>
+     * Merging is normally driven by a mob crossing a block boundary, which misses every mob that
+     * simply never moves: several spawn eggs used on the same block, mobs with no AI, a stuck
+     * spawner batch, or anything penned in place. Those used to sit side by side unstacked until
+     * something nudged them. Each mob therefore also re-checks on a timer, staggered by entity id so
+     * the whole world never scans on the same tick, and skipped entirely for a mob that is already
+     * at the maximum stack size (it could not merge with anything anyway).
+     */
+    public static void tickStackScan(Mob mob) {
+        int interval = config.getStackScanInterval();
+        if (interval <= 0 || mob.level().isClientSide()) {
+            return;
+        }
+        if ((mob.tickCount + mob.getId()) % interval != 0) {
+            return;
+        }
+        if (getStackSize(mob) >= getMaxMobStackSize()) {
+            return;
+        }
+        if (!getCanStack(mob) || !canStack(mob)) {
+            return;
+        }
+        tryMergeIntoNearbyStack(mob);
+    }
+
     public static void mergeEntities(Mob target, Mob source) {
         int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize());
 
@@ -891,6 +935,8 @@ public final class MobStacker {
     public static boolean getStackKillParticles() {return config.getStackKillParticles();}
 
     public static boolean getStackKillHologram() {return config.getStackKillHologram();}
+
+    public static int getStackScanInterval() {return config.getStackScanInterval();}
 
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
 
