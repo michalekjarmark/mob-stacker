@@ -355,7 +355,10 @@ actually sweeps with.
 > one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
 > whole stack, so overflow does not apply. The three `sweepingEdge*` tuning options above
-> only apply while `sweepingEdgeOverflow` is on.
+> only apply while `sweepingEdgeOverflow` is on — they refuse to be turned on before then,
+> and the config GUI greys them out until it is. Inside a region that dependency is
+> judged by the region's own value, so a region may enable `sweepingEdgeOverflow` for
+> itself and use everything built on it while the rest of the world does without.
 
 When a hit kills mobs from a stack the mod can show feedback three ways, each with its own
 independent toggle:

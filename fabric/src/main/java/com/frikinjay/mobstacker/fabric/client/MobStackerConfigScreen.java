@@ -5,6 +5,8 @@ import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -16,6 +18,7 @@ import net.minecraft.server.MinecraftServer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Registry-driven config GUI: it iterates the same {@link MobStackerSettings} as the commands and
@@ -56,6 +59,8 @@ public final class MobStackerConfigScreen extends Screen {
     private boolean showRows;       // have data to show (SP, or a remote snapshot has arrived)
     private boolean connectedNoMod; // on a multiplayer server that doesn't have the mod
     private boolean syncRequested;
+    // Set while a widget is being repainted, so its own responder does not send that back as an edit.
+    private boolean repainting;
 
     public MobStackerConfigScreen(Screen parent) {
         super(Component.literal("MobStacker: Restacked"));
@@ -164,6 +169,8 @@ public final class MobStackerConfigScreen extends Screen {
         int widgetX = this.width / 2 + 30;
         int widgetW = 140;
         int widgetH = 20;
+        Row row = new Row(option, y);
+        boolean allowed = rowEditable(option);
 
         switch (option.type()) {
             case BOOL -> {
@@ -173,8 +180,13 @@ public final class MobStackerConfigScreen extends Screen {
                     b.setMessage(boolLabel(state[0]));
                     applyOption(option, String.valueOf(state[0]));
                 }).bounds(widgetX, y, widgetW, widgetH).build();
-                button.active = editable;
+                button.active = allowed;
                 addRenderableWidget(button);
+                row.widget = button;
+                row.display = value -> {
+                    state[0] = Boolean.parseBoolean(value);
+                    button.setMessage(boolLabel(state[0]));
+                };
             }
             case ENUM -> {
                 List<String> values = option.enumValues();
@@ -188,14 +200,22 @@ public final class MobStackerConfigScreen extends Screen {
                     b.setMessage(enumLabel(value));
                     applyOption(option, value);
                 }).bounds(widgetX, y, widgetW, widgetH).build();
-                button.active = editable;
+                button.active = allowed;
                 addRenderableWidget(button);
+                row.widget = button;
+                row.display = value -> {
+                    int found = indexOfIgnoreCase(values, value);
+                    if (found >= 0) {
+                        index[0] = found;
+                        button.setMessage(enumLabel(values.get(found)));
+                    }
+                };
             }
             default -> {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
                 box.setValue(valueOf(option));
                 box.setMaxLength(64);
-                box.setEditable(editable);
+                box.setEditable(allowed);
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
                         box.setTextColor(NORMAL_TEXT);
@@ -205,9 +225,62 @@ public final class MobStackerConfigScreen extends Screen {
                     }
                 });
                 addRenderableWidget(box);
+                row.widget = box;
+                row.display = value -> {
+                    repainting = true;
+                    box.setValue(value);
+                    box.setTextColor(NORMAL_TEXT);
+                    repainting = false;
+                };
             }
         }
-        rows.add(new Row(option, y));
+        rows.add(row);
+    }
+
+    /**
+     * Repaints the rows from the config itself after an edit. A value the config refuses - a setting
+     * whose dependency is off, or one another setting forces - used to stay on the widget as if it
+     * had been saved; now the widget always ends up showing what was really stored. It also re-locks
+     * or unlocks the rows that depend on the setting just changed.
+     */
+    private void refreshRows() {
+        for (Row row : rows) {
+            setEnabled(row.widget, rowEditable(row.option));
+            // Never yank a box out from under someone mid-typing.
+            if (row.display != null && row.widget != this.getFocused()) {
+                row.display.accept(valueOf(row.option));
+            }
+        }
+    }
+
+    /**
+     * Whether this row may be touched. A setting whose dependency is off is locked - except while
+     * it still holds a non-default value, because there has to be a way to switch it back off.
+     */
+    private boolean rowEditable(ConfigOption option) {
+        if (!editable) {
+            return false;
+        }
+        return blockedReason(option) == null
+                || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+    }
+
+    /** Why this setting cannot be edited right now (the setting it depends on is off), or null. */
+    private String blockedReason(ConfigOption option) {
+        return MobStackerSettings.dependencyProblem(option, this::valueOfId, null);
+    }
+
+    private String valueOfId(String id) {
+        ConfigOption other = MobStackerSettings.byId(id);
+        return other == null ? null : valueOf(other);
+    }
+
+    private static void setEnabled(AbstractWidget widget, boolean enabled) {
+        if (widget instanceof EditBox box) {
+            box.setEditable(enabled);
+        } else if (widget != null) {
+            widget.active = enabled;
+        }
     }
 
     /** The value to display for an option: the server's snapshot when remote, else the live config. */
@@ -222,18 +295,24 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     private void applyOption(ConfigOption option, String raw) {
-        if (!editable) {
+        if (!editable || repainting) {
             return;
         }
         if (remote) {
             // Optimistically keep the typed value across a rebuild; the server echo confirms/corrects.
             MobStackerClientNetworking.rememberLocal(option.id(), raw);
             MobStackerClientNetworking.sendEdit(option.id(), raw);
+            refreshRows();
         } else if (this.minecraft != null) {
-            MinecraftServer server = this.minecraft.getSingleplayerServer();
+            Minecraft client = this.minecraft;
+            MinecraftServer server = client.getSingleplayerServer();
             if (server != null) {
-                // Mutate the config on the server thread; the widget already reflects the new value.
-                server.execute(() -> option.apply(raw));
+                // Mutate the config on the server thread, then repaint from what it actually stored -
+                // an edit the config refuses must not be left sitting on the widget.
+                server.execute(() -> {
+                    option.apply(raw);
+                    client.execute(this::refreshRows);
+                });
             }
         }
     }
@@ -340,7 +419,13 @@ public final class MobStackerConfigScreen extends Screen {
 
         Row hovered = rowAt(mouseX, mouseY);
         if (hovered != null) {
-            guiGraphics.renderTooltip(this.font, Component.literal(hovered.option.description()), mouseX, mouseY);
+            List<Component> lines = new ArrayList<>();
+            lines.add(Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE));
+            String blocked = blockedReason(hovered.option);
+            if (blocked != null) {
+                lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
+            }
+            guiGraphics.renderComponentTooltip(this.font, lines, mouseX, mouseY);
         }
     }
 
@@ -386,6 +471,9 @@ public final class MobStackerConfigScreen extends Screen {
     private static final class Row {
         private final ConfigOption option;
         private final int y;
+        private AbstractWidget widget;
+        /** Shows the given value in this row's widget, so it can be repainted from the config. */
+        private Consumer<String> display;
 
         private Row(ConfigOption option, int y) {
             this.option = option;

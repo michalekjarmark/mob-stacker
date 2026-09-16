@@ -141,6 +141,15 @@ public final class MobStackerNetworking {
 
         try {
             String canonical = option.canonicalize(raw);
+            // Resolved against the region, so a region that enables the setting another one depends
+            // on may use it, exactly as the game resolves them at the mob.
+            if (!canonical.equalsIgnoreCase(option.defaultValue())) {
+                String problem = MobStackerSettings.dependencyProblem(option, region::getSetting, regionName);
+                if (problem != null) {
+                    sendSync(player, problem);
+                    return;
+                }
+            }
             region.setSetting(option.id(), canonical);
             MobStacker.config.save();
             sendSync(player, regionName + ": " + option.id() + " = " + canonical);

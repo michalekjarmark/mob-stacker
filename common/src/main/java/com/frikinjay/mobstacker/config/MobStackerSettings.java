@@ -74,15 +74,15 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("sweepingEdgePerMob", Category.COMBAT,
                 "Sweep every mob in the stack for 1 + damage x (level / (level + 1)) each, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit.",
                 () -> MobStacker.config.getSweepingEdgePerMob(), v -> MobStacker.config.setSweepingEdgePerMob(v), false)
-                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgePerMob")));
+                .requires("sweepingEdgeOverflow"));
         register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
                 "Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand.",
                 () -> MobStacker.config.getSweepingEdgeVanillaConditions(), v -> MobStacker.config.setSweepingEdgeVanillaConditions(v), false)
-                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgeVanillaConditions")));
+                .requires("sweepingEdgeOverflow"));
         register(ConfigOption.ofInt("sweepingEdgeMaxKills", Category.COMBAT,
                 "Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob.",
                 0, 100000, () -> MobStacker.config.getSweepingEdgeMaxKills(), v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
-                .withValidator(requiresSweepingEdgeOverflow("sweepingEdgeMaxKills")));
+                .requires("sweepingEdgeOverflow"));
 
         // --- Kill feedback ---
         register(ConfigOption.ofBool("stackKillActionBar", Category.FEEDBACK,
@@ -183,18 +183,41 @@ public final class MobStackerSettings {
     }
 
     /**
-     * The Sweeping Edge tuning options only do anything while sweepingEdgeOverflow is on, so they
-     * refuse to be changed away from their default until it is enabled — the same "explain the
-     * dependency instead of silently doing nothing" rule used by stackHealth / killWholeStackOnDeath.
+     * Why {@code option} cannot be changed right now, or null when it can. Settings that declare
+     * {@link ConfigOption#requires(String)} — the Sweeping Edge tuning options — do nothing until the
+     * setting they need is on, so they say so instead of silently having no effect.
+     * <p>
+     * The dependency is resolved wherever the change is being made: {@code lookup} is asked for the
+     * value in force there (a region's own value, or the config a remote client is showing) and a
+     * null answer falls back to the global config. That is what lets a region enable
+     * {@code sweepingEdgeOverflow} for itself and then use the options that build on it, exactly as
+     * the game resolves them at the mob.
+     *
+     * @param lookup     the value of a setting id in the scope being edited, or null for the global config
+     * @param regionName the region being edited, only used to word the message
      */
-    private static java.util.function.Function<Object, String> requiresSweepingEdgeOverflow(String id) {
-        return value -> {
-            boolean wantsDefault = Boolean.FALSE.equals(value) || Integer.valueOf(0).equals(value);
-            if (wantsDefault || MobStacker.config.getSweepingEdgeOverflow()) {
-                return null;
-            }
-            return "'" + id + "' only applies while sweepingEdgeOverflow is on. Enable it first.";
-        };
+    public static String dependencyProblem(ConfigOption option,
+                                           java.util.function.Function<String, String> lookup,
+                                           String regionName) {
+        String requiredId = option.requires();
+        if (requiredId == null) {
+            return null;
+        }
+        ConfigOption required = byId(requiredId);
+        if (required == null) {
+            return null;
+        }
+        String value = lookup == null ? null : lookup.apply(requiredId);
+        if (value == null || value.isEmpty()) {
+            value = required.currentValue();
+        }
+        if (Boolean.parseBoolean(value)) {
+            return null;
+        }
+        String where = regionName == null
+                ? "Enable it first."
+                : "Enable it in region '" + regionName + "' (or globally) first.";
+        return "'" + option.id() + "' only applies while " + requiredId + " is on. " + where;
     }
 
     /** Whether a region may carry its own value for this setting. */

@@ -9,6 +9,7 @@ import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -71,6 +72,7 @@ public final class MobStackerRegionScreen extends Screen {
         final int y;
         boolean overridden;
         Button clear;
+        AbstractWidget widget;
         /** Shows the given value in this row's widget, e.g. after an override was dropped. */
         Consumer<String> display;
 
@@ -191,8 +193,10 @@ public final class MobStackerRegionScreen extends Screen {
         int widgetW = 140;
         int widgetH = 20;
         Row row = new Row(option, y, regionValue(option.id()) != null);
+        boolean allowed = rowEditable(option);
 
-        // Drops the override, so the setting follows the global config again.
+        // Drops the override, so the setting follows the global config again. Always allowed: going
+        // back to the global value is how a setting is switched off again.
         Button clear = Button.builder(Component.literal("↺"), b -> applyEdit(option.id(), ""))
                 .bounds(this.width / 2 + 6, y, 20, widgetH).build();
         clear.active = editable && row.overridden;
@@ -207,8 +211,9 @@ public final class MobStackerRegionScreen extends Screen {
                     b.setMessage(boolLabel(state[0]));
                     applyEdit(option.id(), String.valueOf(state[0]));
                 }).bounds(widgetX, y, widgetW, widgetH).build();
-                button.active = editable;
+                button.active = allowed;
                 addRenderableWidget(button);
+                row.widget = button;
                 row.display = value -> {
                     state[0] = Boolean.parseBoolean(value);
                     button.setMessage(boolLabel(state[0]));
@@ -226,8 +231,9 @@ public final class MobStackerRegionScreen extends Screen {
                     b.setMessage(enumLabel(value));
                     applyEdit(option.id(), value);
                 }).bounds(widgetX, y, widgetW, widgetH).build();
-                button.active = editable;
+                button.active = allowed;
                 addRenderableWidget(button);
+                row.widget = button;
                 row.display = value -> {
                     int found = indexOfIgnoreCase(values, value);
                     if (found >= 0) {
@@ -240,7 +246,7 @@ public final class MobStackerRegionScreen extends Screen {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
                 box.setValue(valueOf(option));
                 box.setMaxLength(64);
-                box.setEditable(editable);
+                box.setEditable(allowed);
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
                         box.setTextColor(NORMAL_TEXT);
@@ -250,6 +256,7 @@ public final class MobStackerRegionScreen extends Screen {
                     }
                 });
                 addRenderableWidget(box);
+                row.widget = box;
                 row.display = value -> {
                     repainting = true;
                     box.setValue(value);
@@ -269,6 +276,10 @@ public final class MobStackerRegionScreen extends Screen {
      */
     private void refreshRows() {
         for (Row row : rows) {
+            // A setting whose dependency was just switched on (or off) in here becomes editable
+            // (or stops being) without leaving the screen.
+            setEnabled(row.widget, rowEditable(row.option));
+
             boolean overridden = regionValue(row.option.id()) != null;
             if (overridden == row.overridden) {
                 continue;
@@ -281,6 +292,46 @@ public final class MobStackerRegionScreen extends Screen {
             if (!overridden && row.display != null) {
                 row.display.accept(globalValue(row.option));
             }
+        }
+    }
+
+    /**
+     * Whether this row may be touched. A setting whose dependency is off in this region is locked -
+     * except while it still holds a non-default value, because there has to be a way to switch it
+     * back off. The clear button stays usable either way.
+     */
+    private boolean rowEditable(ConfigOption option) {
+        if (!editable) {
+            return false;
+        }
+        return blockedReason(option) == null
+                || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+    }
+
+    /**
+     * Why this setting cannot be edited in this region — the setting it depends on is off here — or
+     * null when it can. Resolved against the region first, so a region that enables
+     * {@code sweepingEdgeOverflow} for itself unlocks the options built on it even when the global
+     * config has it off.
+     */
+    private String blockedReason(ConfigOption option) {
+        if (regions.isEmpty()) {
+            return null;
+        }
+        return MobStackerSettings.dependencyProblem(option, this::valueOfId, currentRegion().name());
+    }
+
+    /** The value in force in this region for another setting's id, for dependency checks. */
+    private String valueOfId(String id) {
+        ConfigOption other = MobStackerSettings.byId(id);
+        return other == null ? null : valueOf(other);
+    }
+
+    private static void setEnabled(AbstractWidget widget, boolean enabled) {
+        if (widget instanceof EditBox box) {
+            box.setEditable(enabled);
+        } else if (widget != null) {
+            widget.active = enabled;
         }
     }
 
@@ -380,7 +431,14 @@ public final class MobStackerRegionScreen extends Screen {
             return;
         }
         try {
-            region.setSetting(option.id(), option.canonicalize(raw));
+            String canonical = option.canonicalize(raw);
+            // Judged against this region's own values, so a region that enables sweepingEdgeOverflow
+            // for itself may use the options built on it even when the global config has it off.
+            if (!canonical.equalsIgnoreCase(option.defaultValue())
+                    && MobStackerSettings.dependencyProblem(option, region::getSetting, region.getName()) != null) {
+                return;
+            }
+            region.setSetting(option.id(), canonical);
             MobStacker.config.save();
         } catch (IllegalArgumentException ignored) {
             // Rejected values stay red in the box; the stored value is left alone.
@@ -519,9 +577,14 @@ public final class MobStackerRegionScreen extends Screen {
             Component state = hovered.overridden
                     ? Component.literal("Set in this region  (global: " + global + ")").withStyle(ChatFormatting.GOLD)
                     : Component.literal("Follows the global config  (" + global + ")").withStyle(ChatFormatting.GRAY);
-            guiGraphics.renderComponentTooltip(this.font, List.of(
-                    Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE), state),
-                    mouseX, mouseY);
+            List<Component> lines = new ArrayList<>();
+            lines.add(Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE));
+            lines.add(state);
+            String blocked = blockedReason(hovered.option);
+            if (blocked != null) {
+                lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
+            }
+            guiGraphics.renderComponentTooltip(this.font, lines, mouseX, mouseY);
         }
     }
 

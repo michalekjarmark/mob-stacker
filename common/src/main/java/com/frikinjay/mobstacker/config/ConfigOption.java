@@ -84,6 +84,9 @@ public final class ConfigOption {
     private final List<String> enumValues;
     // Optional: given the proposed (parsed) value, return an error message or null if valid.
     private Function<Object, String> validator;
+    // Optional: the id of a boolean setting that must be on before this one can be changed away from
+    // its default. Resolved where the change is made, so a region uses its own value for it.
+    private String requires;
     // Optional: after a successful change, return an extra info note (e.g. a forced dependency) or null.
     private Supplier<String> appliedNote;
 
@@ -184,6 +187,15 @@ public final class ConfigOption {
             return Result.unchanged(oldValue);
         }
 
+        // A setting that depends on another one may always go back to its default (so it can be
+        // switched off again), but only turn on once the setting it needs is on.
+        if (!newValue.equalsIgnoreCase(defaultValue())) {
+            String problem = MobStackerSettings.dependencyProblem(this, null, null);
+            if (problem != null) {
+                return Result.error(problem);
+            }
+        }
+
         setter.accept(parsed);
         String actualNew = currentValue();
         String note = appliedNote != null ? appliedNote.get() : null;
@@ -227,6 +239,22 @@ public final class ConfigOption {
     public ConfigOption withValidator(Function<Object, String> validator) {
         this.validator = validator;
         return this;
+    }
+
+    /**
+     * Declares that this setting does nothing until {@code settingId} (a boolean setting) is on, so
+     * it refuses to be turned on before then and the config GUI greys it out. Unlike a validator this
+     * is metadata, which lets it be resolved against a region's own value rather than only the global
+     * one — see {@link MobStackerSettings#dependencyProblem}.
+     */
+    public ConfigOption requires(String settingId) {
+        this.requires = settingId;
+        return this;
+    }
+
+    /** The setting that has to be on for this one to work, or null when it stands alone. */
+    public String requires() {
+        return requires;
     }
 
     public ConfigOption withAppliedNote(Supplier<String> appliedNote) {

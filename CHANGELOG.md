@@ -52,6 +52,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   where they could not be reached. Each page now shows as many rows as fit and the mouse wheel moves
   through the rest, with a line telling you which rows you are looking at.
 ### Fixed
+- **A setting that depends on another one behaves the same everywhere.** The `sweepingEdge*` tuning
+  options only work while `sweepingEdgeOverflow` is on, but that was checked against the *global*
+  config only: inside a region that had enabled `sweepingEdgeOverflow` for itself, they were still
+  refused, and the config GUI let you flip the switch anyway and then quietly dropped the change. The
+  dependency is now resolved wherever the change is made — a region uses its own value for it, just
+  as the game does at the mob — and the GUI greys a setting out (with a tooltip saying why) until the
+  setting it needs is on. The GUI also repaints a row from the config after every edit, so a value
+  the config refuses can no longer sit on a widget as if it had been saved.
 - **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
   so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
   or stuck group — stood side by side and never stacked until something nudged them. Every mob now
