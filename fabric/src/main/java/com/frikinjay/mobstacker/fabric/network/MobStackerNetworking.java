@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker.fabric.network;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.StackRegion;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
@@ -10,6 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Server side of the config-sync protocol used by the in-game GUI to edit a dedicated (or LAN)
@@ -30,6 +32,15 @@ public final class MobStackerNetworking {
     public static final ResourceLocation EDIT = new ResourceLocation(MobStacker.MOD_ID, "cfg_edit");
     /** S2C: full snapshot of every setting's current value, plus an authorization flag and a status line. */
     public static final ResourceLocation SYNC = new ResourceLocation(MobStacker.MOD_ID, "cfg_sync");
+
+    /**
+     * Prefix that turns an edit into a per-region override: {@code region:<name>:<setting>}. Reusing
+     * the existing edit packet this way keeps the wire format unchanged (still two strings), so a
+     * client and server on different versions of the mod still understand each other's global edits.
+     */
+    public static final String REGION_PREFIX = "region:";
+    /** Pseudo-setting naming a region's overlap priority rather than one of its settings. */
+    public static final String REGION_PRIORITY = "@priority";
 
     /** Operator level required to change settings, matching the {@code /mobstacker} command tree. */
     private static final int EDIT_PERMISSION_LEVEL = 2;
@@ -57,6 +68,11 @@ public final class MobStackerNetworking {
             return;
         }
 
+        if (id.startsWith(REGION_PREFIX)) {
+            handleRegionEdit(player, id.substring(REGION_PREFIX.length()), raw);
+            return;
+        }
+
         ConfigOption option = MobStackerSettings.byId(id);
         if (option == null) {
             sendSync(player, "Unknown setting: " + id);
@@ -80,6 +96,60 @@ public final class MobStackerNetworking {
     }
 
     /**
+     * Applies one per-region change: a setting override, its removal (an empty value), or the
+     * region's priority. Values are validated exactly as a global edit would be.
+     */
+    private static void handleRegionEdit(ServerPlayer player, String path, String raw) {
+        int split = path.lastIndexOf(':');
+        if (split <= 0 || split == path.length() - 1) {
+            sendSync(player, "Malformed region edit: " + path);
+            return;
+        }
+        String regionName = path.substring(0, split);
+        String settingId = path.substring(split + 1);
+
+        StackRegion region = MobStacker.config.getRegion(regionName);
+        if (region == null) {
+            sendSync(player, "Unknown region: " + regionName);
+            return;
+        }
+
+        if (REGION_PRIORITY.equals(settingId)) {
+            try {
+                region.setPriority(Integer.parseInt(raw.trim()));
+            } catch (NumberFormatException e) {
+                sendSync(player, "Priority must be a whole number");
+                return;
+            }
+            MobStacker.config.save();
+            sendSync(player, regionName + ": priority " + region.getPriority());
+            return;
+        }
+
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        if (option == null || !MobStackerSettings.isRegionOverridable(option.id())) {
+            sendSync(player, "'" + settingId + "' cannot differ per region");
+            return;
+        }
+
+        if (raw.isEmpty()) {
+            region.clearSetting(option.id());
+            MobStacker.config.save();
+            sendSync(player, regionName + ": " + option.id() + " follows the global config");
+            return;
+        }
+
+        try {
+            String canonical = option.canonicalize(raw);
+            region.setSetting(option.id(), canonical);
+            MobStacker.config.save();
+            sendSync(player, regionName + ": " + option.id() + " = " + canonical);
+        } catch (IllegalArgumentException e) {
+            sendSync(player, e.getMessage());
+        }
+    }
+
+    /**
      * Sends the full config snapshot to one player, but only if their client speaks our protocol.
      * The status line carries a short human-readable result of the last edit (or {@code ""}).
      */
@@ -95,6 +165,23 @@ public final class MobStackerNetworking {
         for (ConfigOption option : options) {
             buf.writeUtf(option.id());
             buf.writeUtf(option.currentValue());
+        }
+
+        // Regions follow the settings, so the GUI can edit each region's own values too.
+        List<StackRegion> regions = MobStacker.config.getRegions();
+        buf.writeVarInt(regions.size());
+        for (StackRegion region : regions) {
+            buf.writeUtf(region.getName());
+            buf.writeUtf(region.getType().name());
+            buf.writeUtf(region.getDimension() == null ? "" : region.getDimension());
+            buf.writeUtf(region.describeBounds());
+            buf.writeInt(region.getPriority());
+            Map<String, String> overrides = region.getSettings();
+            buf.writeVarInt(overrides.size());
+            for (Map.Entry<String, String> entry : overrides.entrySet()) {
+                buf.writeUtf(entry.getKey());
+                buf.writeUtf(entry.getValue());
+            }
         }
         ServerPlayNetworking.send(player, SYNC, buf);
     }

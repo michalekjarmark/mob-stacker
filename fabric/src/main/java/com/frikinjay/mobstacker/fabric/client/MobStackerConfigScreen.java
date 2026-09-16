@@ -103,8 +103,19 @@ public final class MobStackerConfigScreen extends Screen {
             }
         }
 
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        // The per-region editor is only worth offering where regions can actually be shown.
+        if (showRows) {
+            addRenderableWidget(Button.builder(Component.literal("Regions…"), b -> {
+                if (this.minecraft != null) {
+                    this.minecraft.setScreen(new MobStackerRegionScreen(this));
+                }
+            }).bounds(this.width / 2 + 2, this.height - 28, 98, 20).build());
+            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                    .bounds(this.width / 2 - 100, this.height - 28, 98, 20).build());
+        } else {
+            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                    .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        }
     }
 
     /** Called on the client thread when a fresh config snapshot arrives from the server. */

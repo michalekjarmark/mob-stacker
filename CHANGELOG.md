@@ -31,7 +31,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   `/mobstacker region priority <region> <n>` (higher wins, ties go to the smaller region). The only
   settings that stay global are `stackMode` and `playerStackRadius` — which decide where the region
   system applies at all — and the seven mob caps, which are world-level spawn limits. `deny` regions
-  still override everything, in every mode.
+  still override everything, in every mode. The config GUI has it all too, behind a new **Regions…**
+  button: pick a region, browse the categories, and each row shows a gold label where the region sets
+  the value itself and a grey one where it follows the global config, with a button to drop the
+  override. It works on a remote server the same way the rest of the GUI does — operators edit, other
+  players look.
 - **Colour control for stack names and kill holograms.** The `Cow x16` name above a stack is drawn in
   `stackNameColor` (any of the sixteen Minecraft colours), and the floating `-N` kill hologram in
   `killHologramColor`, so stacks no longer all look alike. Turn on `stackNameColorBySize` and the

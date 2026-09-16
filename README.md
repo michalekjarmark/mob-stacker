@@ -280,6 +280,12 @@ not mention simply follows the global config, so you only ever state the differe
 /mobstacker region priority <name> <number>
 ```
 
+In the config GUI the same thing lives behind the **Regions…** button: pick a region,
+walk the categories, and every row shows its value with a **gold** label when the region
+sets it itself and a **grey** one when it follows the global config — the small `↺`
+button beside a row drops the override again. The region's overlap priority is editable
+right there too.
+
 The only settings that stay global are `stackMode` and `playerStackRadius` — they decide
 where the region system applies at all — and the seven `mobcaps`, which are world-level
 spawn limits rather than a property of a place. `deny` still beats everything, in every
