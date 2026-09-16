@@ -48,6 +48,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   anything and never disconnected — stacking stays fully server-side.
 
 ## [1.5.0] - 2026-07-02
+*Never released on its own — these changes first reached players as part of 1.5.1.*
 ### Added
 - **In-game config GUI (phase 1).** A client-side screen to change settings without commands,
   driven by the same settings registry: on/off and cycle buttons for booleans and `stackMode`, edit
