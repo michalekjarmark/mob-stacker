@@ -18,6 +18,7 @@ build/
 # AI assistant working notes (local only)
 CLAUDE.md
 ROADMAP.md
+TESTING.md
 
 # Local build helper (machine-specific JDK path)
 build.bat
