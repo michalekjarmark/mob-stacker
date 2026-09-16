@@ -14,9 +14,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   `1 + attack damage x (level / (level + 1))`, the vanilla formula — instead of the stack receiving a
   single flat bonus. Since that attack damage is the damage *after* Sharpness, Smite and Bane of
   Arthropods, and a stack is always one mob type, each enchantment automatically scales the sweep
-  against the mobs it is meant for. Note that a sweep strong enough to kill one healthy mob of that
-  type now clears the whole stack in one swing — exactly what vanilla would do to those mobs standing
-  loose, but a big jump in power, so two tuning options come with it.
+  against the mobs it is meant for. The sweep wounds every member, and those wounds add up from swing
+  to swing, so a stack wears down the way a herd of loose mobs does under repeated sweeps instead of
+  shrugging the sweep off whenever one swing cannot kill outright. Note that a sweep strong enough to
+  kill a healthy mob of that type clears the whole stack in one swing — exactly what vanilla would do
+  to those mobs standing loose, but a big jump in power, so two tuning options come with it.
 - `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
   charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.

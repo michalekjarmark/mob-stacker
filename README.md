@@ -283,8 +283,10 @@ not mention simply follows the global config, so you only ever state the differe
 In the config GUI the same thing lives behind the **Regions…** button: pick a region,
 walk the categories, and every row shows its value with a **gold** label when the region
 sets it itself and a **grey** one when it follows the global config — the small `↺`
-button beside a row drops the override again. The region's overlap priority is editable
-right there too.
+button beside a row drops the override again. Picking exactly the value the global config
+already has counts as no override at all, so in the GUI gold always means "different in
+here". Hovering a row says the same thing in words, along with the global value. The
+region's overlap priority is editable right there too.
 
 The only settings that stay global are `stackMode` and `playerStackRadius` — they decide
 where the region system applies at all — and the seven `mobcaps`, which are world-level
@@ -337,6 +339,10 @@ formula is the damage *after* Sharpness, Smite and Bane of Arthropods, and every
 stack is the same type, the right enchantment bonus is applied automatically: Smite
 scales the sweep against a stack of zombies, Bane of Arthropods against spiders, and
 Sharpness against everything.
+
+The sweep leaves the other mobs wounded rather than untouched, and those wounds add up
+from swing to swing — so a stack of cows takes a couple of swings to fall apart, exactly
+as a herd standing loose would under the same sweeps.
 
 One consequence is worth knowing before enabling it: since the whole stack stands in one
 spot, a sweep strong enough to kill a single healthy mob of that type kills **all** of

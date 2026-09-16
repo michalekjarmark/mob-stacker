@@ -223,8 +223,8 @@ public abstract class LivingEntityMixin extends Entity {
      *   <li>default: one sweep's worth of damage is folded into the hit, feeding the damage overflow
      *       below, so a sweeping sword chews a little deeper into the stack;</li>
      *   <li>{@code sweepingEdgePerMob}: the hit itself is left alone and the sweep is dealt to every
-     *       other member of the stack instead (see {@link #mobstacker$applyPerMobSweep}), which is
-     *       what a vanilla sweep through those same mobs standing loose would have done.</li>
+     *       other member of the stack instead (see {@link #mobstacker$overflowDamage}), which is what
+     *       a vanilla sweep through those same mobs standing loose would have done.</li>
      * </ul>
      */
     @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
@@ -264,104 +264,97 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     /**
-     * Per-mob Sweeping Edge. A vanilla sweep hits every mob standing around the target; a stack keeps
-     * all of its members in one spot, so the sweep is dealt to each remaining member here, once the
-     * main hit has been resolved. Members share one set of stats, so a sweep either kills a member
-     * outright or leaves it untouched -- the one exception being the wounded survivor the stack
-     * already tracks, which can be finished off or hurt further. Sweep damage is scaled by the same
-     * armor / absorption reduction the main hit just took, since every member wears the same gear.
-     * <p>
-     * This runs only when the main hit killed the top mob, which is the enclosing redirect's own
-     * condition. In practice that costs nothing: to fell a full-health member the sweep has to exceed
-     * that member's max health, and a hit large enough for that has already killed the mob it landed
-     * on.
+     * The sweep damage this hit owes the members under the top mob, softened by the same
+     * armor / absorption reduction the main hit just took (every member wears the same gear). Also
+     * clears the pending values, so a hit that never reaches the stack cannot leak into the next one.
+     *
+     * @param dealt the damage the top mob actually took, after armor
      */
     @Unique
-    private void mobstacker$applyPerMobSweep(LivingEntity instance, int stackSize, float maxHealth, float newHealth) {
+    private float mobstacker$consumeSweepDamage(Mob mob, float dealt) {
         float rawSweep = mobstacker$pendingSweepDamage;
         float rawAmount = mobstacker$pendingSweepRawAmount;
         mobstacker$pendingSweepDamage = 0.0F;
         mobstacker$pendingSweepRawAmount = 0.0F;
 
-        int remaining = stackSize - mobstacker$overflowKills;
-        if (rawSweep <= 0.0F || rawAmount <= 0.0F || maxHealth <= 0.0F || remaining <= 0
-                || !MobStacker.getSweepingEdgePerMob(instance)) {
-            return;
+        if (rawSweep <= 0.0F || rawAmount <= 0.0F || dealt <= 0.0F || !MobStacker.getSweepingEdgePerMob(mob)) {
+            return 0.0F;
         }
-
-        float dealt = instance.getHealth() - newHealth;
         float reduction = Math.max(0.0F, Math.min(1.0F, dealt / rawAmount));
-        float sweep = rawSweep * reduction;
-        if (sweep <= 0.0F) {
-            return;
-        }
-
-        float survivorHealth = mobstacker$overflowSurvivorHealth > 0.0F
-                ? mobstacker$overflowSurvivorHealth : maxHealth;
-
-        int sweepKills;
-        if (sweep >= maxHealth) {
-            sweepKills = remaining;        // enough to fell a healthy member, so the whole stack falls
-        } else if (sweep >= survivorHealth) {
-            sweepKills = 1;                // only the member the main hit left wounded
-        } else {
-            sweepKills = 0;
-        }
-
-        int cap = MobStacker.getSweepingEdgeMaxKills(instance);
-        if (cap > 0) {
-            sweepKills = Math.min(sweepKills, cap);
-        }
-        sweepKills = Math.min(sweepKills, remaining);
-
-        mobstacker$overflowKills += sweepKills;
-        remaining -= sweepKills;
-        if (remaining <= 0) {
-            mobstacker$overflowSurvivorHealth = -1.0F;
-            return;
-        }
-
-        // Whoever is on top now took the sweep as well. Keep at least a sliver of health, so a capped
-        // sweep can never spawn the remainder already dead.
-        float frontHealth = sweepKills > 0 ? maxHealth : survivorHealth;
-        mobstacker$overflowSurvivorHealth = Math.max(0.5F, frontHealth - sweep);
+        return rawSweep * reduction;
     }
 
     /**
-     * Damage overflow. When a hit would reduce the top mob of a stack below 0 HP, the leftover damage
-     * is carried onto the mobs underneath it. We compute how many mobs the hit actually kills (and how
-     * wounded the next survivor is left) here, then {@link #mobstacker$overflowDeathLoot} drops the
-     * extra loot and {@link #mobstacker$onRemoveHead} spawns the wounded remainder.
+     * Damage overflow, and with it per-mob Sweeping Edge. When a hit would reduce the top mob of a
+     * stack below 0 HP, the leftover damage is carried onto the mobs underneath it. We compute how
+     * many mobs the hit actually kills (and how wounded the next survivor is left) here, then
+     * {@link #mobstacker$overflowDeathLoot} drops the extra loot and {@link #mobstacker$onRemoveHead}
+     * spawns the wounded remainder.
+     * <p>
+     * A vanilla sweep hits every mob standing <i>around</i> the target, whether or not the target
+     * dies, and those mobs keep the wound until something finishes them off. A stack keeps all of its
+     * members in one spot and they are identical, so the sweep is recorded once for all of them (see
+     * {@link MobStacker#getStackMemberDamage}) and deepens with every swing, exactly as a herd of
+     * loose mobs would wear down.
      */
     @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
     private void mobstacker$overflowDamage(LivingEntity instance, float newHealth) {
         if (instance.level().isClientSide() || !(instance instanceof Mob mob)
                 || MobStacker.getKillWholeStackOnDeath(instance) || !MobStacker.getDamageOverflow(instance)) {
+            mobstacker$pendingSweepDamage = 0.0F;
+            mobstacker$pendingSweepRawAmount = 0.0F;
             instance.setHealth(newHealth);
             return;
         }
 
         int stackSize = MobStacker.getStackSize(mob);
-        if (newHealth > 0.0F || stackSize <= 1) {
+        float maxHealth = instance.getMaxHealth();
+        float dealt = instance.getHealth() - newHealth;
+        float memberDamage = MobStacker.getStackMemberDamage(mob) + mobstacker$consumeSweepDamage(mob, dealt);
+
+        if (newHealth > 0.0F || stackSize <= 1 || maxHealth <= 0.0F) {
+            // The top mob takes the whole hit while the members only take the smaller sweep, so it is
+            // always the first to fall and nothing under it can die while it still stands. Should a
+            // hit ever leave it alive with the members spent (a healed or freshly merged top mob),
+            // they are held a sliver from death and the next swing takes them the ordinary way.
+            MobStacker.setStackMemberDamage(mob, stackSize > 1 ? Math.min(memberDamage, maxHealth - 0.5F) : 0.0F);
             instance.setHealth(newHealth);
             return;
         }
 
-        float maxHealth = instance.getMaxHealth();
-        float overflow = -newHealth; // damage left over once the top mob's remaining health is gone
-        int extraKills = maxHealth > 0.0F ? (int) Math.floor(overflow / maxHealth) : 0;
-        int totalKilled = Math.min(1 + extraKills, stackSize);
+        // The top mob is dead; work out how deep into the stack this hit reaches.
+        int killed = 1;
+        int remaining = stackSize - 1;
+        float memberHealth = Math.max(0.5F, maxHealth - memberDamage);
 
-        mobstacker$overflowKills = totalKilled;
-        if (totalKilled < stackSize) {
-            float leftover = overflow - (totalKilled - 1) * maxHealth; // 0 .. maxHealth, hurts the next mob
-            leftover = Math.max(0.0F, Math.min(leftover, maxHealth));
-            mobstacker$overflowSurvivorHealth = maxHealth - leftover;
-        } else {
-            mobstacker$overflowSurvivorHealth = -1.0F;
+        if (memberDamage >= maxHealth && remaining > 0) {
+            // The accumulated sweep alone finished every member below the top one.
+            int sweepKills = remaining;
+            int cap = MobStacker.getSweepingEdgeMaxKills(mob);
+            if (cap > 0) {
+                sweepKills = Math.min(sweepKills, cap);
+            }
+            killed += sweepKills;
+            remaining -= sweepKills;
+            // Whoever the cap spared is left a sliver from death, not healed back up.
+            memberDamage = maxHealth - 0.5F;
+            memberHealth = 0.5F;
         }
 
-        mobstacker$applyPerMobSweep(instance, stackSize, maxHealth, newHealth);
+        float overflow = -newHealth; // damage left over once the top mob's remaining health is gone
+        int overflowKills = remaining > 0 ? Math.min((int) Math.floor(overflow / memberHealth), remaining) : 0;
+        killed += overflowKills;
+        remaining -= overflowKills;
+
+        mobstacker$overflowKills = killed;
+        if (remaining > 0) {
+            float leftover = Math.max(0.0F, Math.min(overflow - overflowKills * memberHealth, memberHealth));
+            mobstacker$overflowSurvivorHealth = Math.max(0.5F, memberHealth - leftover);
+            MobStacker.setStackMemberDamage(mob, Math.min(memberDamage, maxHealth - 0.5F));
+        } else {
+            mobstacker$overflowSurvivorHealth = -1.0F;
+            MobStacker.setStackMemberDamage(mob, 0.0F);
+        }
 
         instance.setHealth(newHealth); // let the top mob die normally
     }

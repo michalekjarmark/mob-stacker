@@ -63,6 +63,9 @@ public final class MobStacker {
     public static final String STACK_DATA_KEY = "StackData";
     public static final String STACK_SIZE_KEY = "StackSize";
     public static final String CAN_STACK_KEY = "CanStack";
+    // Damage already carried by every member below the top one (per-mob Sweeping Edge). All members
+    // of a stack share one set of stats, so a single number describes all of them.
+    public static final String MEMBER_DAMAGE_KEY = "MemberDamage";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -326,6 +329,10 @@ public final class MobStacker {
 
         copyEntityData(self, newEntity, serverLevel);
         MobStacker.setStackSize(newEntity, newStackSize);
+        if (newStackSize > 1) {
+            // The mobs under the new top one are the same wounded members as before the kill.
+            MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
+        }
         copyBreedData(self, newEntity, newStackSize);
         if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
             newEntity.setHealth(survivorHealth);
@@ -885,7 +892,41 @@ public final class MobStacker {
     public static void setStackSize(Mob entity, int size) {
         if (entity instanceof ICustomDataHolder holder) {
             holder.mobstacker$getCustomData().putInt(STACK_SIZE_KEY, size);
+            if (size <= 1) {
+                // Nothing left under the top mob, so there is no shared wound to remember either.
+                setStackMemberDamage(entity, 0.0F);
+            }
             updateStackDisplay(entity);
+        }
+    }
+
+    /**
+     * Damage every member below the top mob is already carrying, so their health is
+     * {@code maxHealth - memberDamage}. Per-mob Sweeping Edge adds to it on every swing: members are
+     * identical, take the same sweep and therefore always share the same health, which is what lets
+     * one number stand for all of them.
+     * <p>
+     * It is stored with the stack data, so it survives saving, and the surviving remainder of a stack
+     * inherits it (see {@link #spawnNewEntity}). A merge keeps the target stack's value — the merge
+     * already tops the target's own health up the same way.
+     */
+    public static float getStackMemberDamage(Mob entity) {
+        if (!(entity instanceof ICustomDataHolder holder)) {
+            return 0.0F;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        return customData.contains(MEMBER_DAMAGE_KEY) ? customData.getFloat(MEMBER_DAMAGE_KEY) : 0.0F;
+    }
+
+    public static void setStackMemberDamage(Mob entity, float damage) {
+        if (!(entity instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        if (damage <= 0.0F) {
+            customData.remove(MEMBER_DAMAGE_KEY);
+        } else {
+            customData.putFloat(MEMBER_DAMAGE_KEY, damage);
         }
     }
 
