@@ -41,6 +41,14 @@ public final class MobStackerConfigScreen extends Screen {
     private final List<Category> categories = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
     private int categoryIndex;
+    // A category can hold more settings than fit on screen (and a small window fits very few), so a
+    // page shows a window of rows that the mouse wheel moves through.
+    private static final int ROW_HEIGHT = 24;
+    private static final int LIST_TOP = 52;
+    // Space kept below the rows for the status line and the Done button.
+    private static final int LIST_BOTTOM_MARGIN = 52;
+    private int scrollOffset;
+    private int visibleRows = 1;
 
     // Where our config edits go and whether we may make them, resolved in init().
     private boolean remote;         // connected to a server that speaks our config-sync protocol
@@ -82,10 +90,16 @@ public final class MobStackerConfigScreen extends Screen {
             addRenderableWidget(Button.builder(Component.literal(">"), b -> switchCategory(1))
                     .bounds(this.width / 2 + 150, 24, 20, 20).build());
 
-            int y = 52;
-            for (ConfigOption option : MobStackerSettings.byCategory(categories.get(categoryIndex))) {
-                addOptionRow(option, y);
-                y += 24;
+            List<ConfigOption> options = MobStackerSettings.byCategory(categories.get(categoryIndex));
+            // Keep clear of the status line (height - 46) and the Done button (height - 28).
+            this.visibleRows = Math.max(1, (this.height - LIST_BOTTOM_MARGIN - LIST_TOP) / ROW_HEIGHT);
+            this.scrollOffset = Math.max(0, Math.min(scrollOffset, options.size() - visibleRows));
+
+            int y = LIST_TOP;
+            int last = Math.min(options.size(), scrollOffset + visibleRows);
+            for (int i = scrollOffset; i < last; i++) {
+                addOptionRow(options.get(i), y);
+                y += ROW_HEIGHT;
             }
         }
 
@@ -108,7 +122,31 @@ public final class MobStackerConfigScreen extends Screen {
             return;
         }
         categoryIndex = Math.floorMod(categoryIndex + delta, categories.size());
+        scrollOffset = 0;
         rebuildWidgets();
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (showRows && !categories.isEmpty() && delta != 0.0) {
+            int maxOffset = maxScrollOffset();
+            if (maxOffset > 0) {
+                int next = Math.max(0, Math.min(scrollOffset - (int) Math.signum(delta), maxOffset));
+                if (next != scrollOffset) {
+                    scrollOffset = next;
+                    rebuildWidgets();
+                }
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    private int maxScrollOffset() {
+        if (categories.isEmpty()) {
+            return 0;
+        }
+        return Math.max(0, MobStackerSettings.byCategory(categories.get(categoryIndex)).size() - visibleRows);
     }
 
     private void addOptionRow(ConfigOption option, int y) {
@@ -261,6 +299,14 @@ public final class MobStackerConfigScreen extends Screen {
             Component header = Component.literal(category.display() + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")")
                     .withStyle(ChatFormatting.GOLD);
             guiGraphics.drawCenteredString(this.font, header, this.width / 2, 30, 0xFFFFFF);
+        }
+
+        if (maxScrollOffset() > 0) {
+            int total = MobStackerSettings.byCategory(categories.get(categoryIndex)).size();
+            Component hint = Component.literal("scroll for more  (" + (scrollOffset + 1) + "-"
+                            + Math.min(total, scrollOffset + visibleRows) + " of " + total + ")")
+                    .withStyle(ChatFormatting.DARK_GRAY);
+            guiGraphics.drawCenteredString(this.font, hint, this.width / 2, 41, 0xFFFFFF);
         }
 
         for (Row row : rows) {

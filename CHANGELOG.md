@@ -30,6 +30,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   stack is recognisable at a glance. Mobs named with a name tag keep their own colour, and colour
   changes apply to stacks that already exist. These live in a new **Stack display** settings category
   (`/mobstacker help display`).
+### Changed
+- **The config GUI scrolls.** A settings page used to draw its rows at fixed positions, so a long
+  category — or simply a large GUI scale — could push the last settings off the bottom of the screen
+  where they could not be reached. Each page now shows as many rows as fit and the mouse wheel moves
+  through the rest, with a line telling you which rows you are looking at.
 ### Fixed
 - **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
   so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
