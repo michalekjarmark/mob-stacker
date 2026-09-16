@@ -86,6 +86,36 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("stackKillHologram", Category.FEEDBACK,
                 "Float a short-lived \"-N\" hologram above the mob on a stacked kill.",
                 () -> MobStacker.config.getStackKillHologram(), v -> MobStacker.config.setStackKillHologram(v), true));
+        register(ConfigOption.ofEnum("killHologramColor", Category.FEEDBACK,
+                "Colour of the floating \"-N\" kill hologram.",
+                StackColor.class, () -> MobStacker.config.getKillHologramColor(),
+                v -> MobStacker.config.setKillHologramColor(v), StackColor.RED));
+
+        // --- Stack display ---
+        register(ConfigOption.ofEnum("stackNameColor", Category.DISPLAY,
+                "Colour of the \"Cow x16\" name shown above a stack. A mob named with a name tag keeps its own colour.",
+                StackColor.class, () -> MobStacker.config.getStackNameColor(),
+                v -> MobStacker.config.setStackNameColor(v), StackColor.WHITE));
+        register(ConfigOption.ofBool("stackNameColorBySize", Category.DISPLAY,
+                "Colour the stack name by how big the stack is, so large stacks stand out at a glance.",
+                () -> MobStacker.config.getStackNameColorBySize(),
+                v -> MobStacker.config.setStackNameColorBySize(v), false));
+        register(ConfigOption.ofEnum("stackNameColorMedium", Category.DISPLAY,
+                "Name colour once a stack reaches stackSizeMediumThreshold (needs stackNameColorBySize).",
+                StackColor.class, () -> MobStacker.config.getStackNameColorMedium(),
+                v -> MobStacker.config.setStackNameColorMedium(v), StackColor.YELLOW));
+        register(ConfigOption.ofEnum("stackNameColorLarge", Category.DISPLAY,
+                "Name colour once a stack reaches stackSizeLargeThreshold (needs stackNameColorBySize).",
+                StackColor.class, () -> MobStacker.config.getStackNameColorLarge(),
+                v -> MobStacker.config.setStackNameColorLarge(v), StackColor.RED));
+        register(ConfigOption.ofInt("stackSizeMediumThreshold", Category.DISPLAY,
+                "Stack size at which the name switches to stackNameColorMedium.",
+                2, 100000, () -> MobStacker.config.getStackSizeMediumThreshold(),
+                v -> MobStacker.config.setStackSizeMediumThreshold(v), 16));
+        register(ConfigOption.ofInt("stackSizeLargeThreshold", Category.DISPLAY,
+                "Stack size at which the name switches to stackNameColorLarge.",
+                2, 100000, () -> MobStacker.config.getStackSizeLargeThreshold(),
+                v -> MobStacker.config.setStackSizeLargeThreshold(v), 64));
 
         // --- Breeding ---
         register(ConfigOption.ofBool("enableStackBreeding", Category.BREEDING,

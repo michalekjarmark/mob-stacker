@@ -25,6 +25,7 @@ public final class ConfigOption {
         STACKING("Stacking"),
         COMBAT("Combat"),
         FEEDBACK("Kill feedback"),
+        DISPLAY("Stack display"),
         BREEDING("Breeding"),
         DROPS("Drops & XP"),
         MOBCAPS("Mob caps"),

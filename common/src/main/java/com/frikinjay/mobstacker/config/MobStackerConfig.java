@@ -28,6 +28,13 @@ public class MobStackerConfig {
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
+    private StackColor killHologramColor = StackColor.RED;
+    private StackColor stackNameColor = StackColor.WHITE;
+    private boolean stackNameColorBySize = false;
+    private StackColor stackNameColorMedium = StackColor.YELLOW;
+    private StackColor stackNameColorLarge = StackColor.RED;
+    private int stackSizeMediumThreshold = 16;
+    private int stackSizeLargeThreshold = 64;
     private boolean enableStackBreeding = true;
     private boolean breedOnePerClick = false;
     private boolean enableAnimalBabyStacking = true;
@@ -97,6 +104,13 @@ public class MobStackerConfig {
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
     public boolean getStackKillHologram() { return stackKillHologram; }
+    public StackColor getKillHologramColor() { return killHologramColor != null ? killHologramColor : StackColor.RED; }
+    public StackColor getStackNameColor() { return stackNameColor != null ? stackNameColor : StackColor.WHITE; }
+    public boolean getStackNameColorBySize() { return stackNameColorBySize; }
+    public StackColor getStackNameColorMedium() { return stackNameColorMedium != null ? stackNameColorMedium : StackColor.YELLOW; }
+    public StackColor getStackNameColorLarge() { return stackNameColorLarge != null ? stackNameColorLarge : StackColor.RED; }
+    public int getStackSizeMediumThreshold() { return stackSizeMediumThreshold; }
+    public int getStackSizeLargeThreshold() { return stackSizeLargeThreshold; }
     public boolean getEnableStackBreeding() { return enableStackBreeding; }
     public boolean getBreedOnePerClick() { return breedOnePerClick; }
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
@@ -175,6 +189,41 @@ public class MobStackerConfig {
 
     public void setStackKillHologram(boolean stackKillHologram) {
         this.stackKillHologram = stackKillHologram;
+        save();
+    }
+
+    public void setKillHologramColor(StackColor killHologramColor) {
+        this.killHologramColor = killHologramColor;
+        save();
+    }
+
+    public void setStackNameColor(StackColor stackNameColor) {
+        this.stackNameColor = stackNameColor;
+        save();
+    }
+
+    public void setStackNameColorBySize(boolean stackNameColorBySize) {
+        this.stackNameColorBySize = stackNameColorBySize;
+        save();
+    }
+
+    public void setStackNameColorMedium(StackColor stackNameColorMedium) {
+        this.stackNameColorMedium = stackNameColorMedium;
+        save();
+    }
+
+    public void setStackNameColorLarge(StackColor stackNameColorLarge) {
+        this.stackNameColorLarge = stackNameColorLarge;
+        save();
+    }
+
+    public void setStackSizeMediumThreshold(int stackSizeMediumThreshold) {
+        this.stackSizeMediumThreshold = Math.max(2, stackSizeMediumThreshold);
+        save();
+    }
+
+    public void setStackSizeLargeThreshold(int stackSizeLargeThreshold) {
+        this.stackSizeLargeThreshold = Math.max(2, stackSizeLargeThreshold);
         save();
     }
 

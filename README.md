@@ -97,6 +97,13 @@ While actual performance gains vary based on server specifications, player count
 | `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
 | `stackKillHologram` | Show a short-lived floating `-N` hologram above the mob indicating how many that hit killed | `true` |
+| `killHologramColor` | Colour of that floating `-N` hologram | `RED` |
+| `stackNameColor` | Colour of the `Cow x16` name above a stack (a mob named with a name tag keeps its own colour) | `WHITE` |
+| `stackNameColorBySize` | Colour the stack name by how big the stack is, so large stacks stand out | `false` |
+| `stackNameColorMedium` | Name colour from `stackSizeMediumThreshold` upwards | `YELLOW` |
+| `stackNameColorLarge` | Name colour from `stackSizeLargeThreshold` upwards | `RED` |
+| `stackSizeMediumThreshold` | Stack size at which the name switches to `stackNameColorMedium` | `16` |
+| `stackSizeLargeThreshold` | Stack size at which the name switches to `stackNameColorLarge` | `64` |
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs into a baby-stack (feeding a baby-stack speeds its growth) | `true` |
 | `breedOnePerClick` | If `true`, each click feeds a single member (click once per animal); if `false`, one click feeds as many members as the food in hand allows | `false` |
 | `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
@@ -131,7 +138,7 @@ descriptions.
 # Grouped overview of every current setting
 /mobstacker
 
-# Command list + setting categories (stacking, combat, feedback, breeding, drops, separator, mobcaps)
+# Command list + setting categories (stacking, combat, feedback, display, breeding, drops, separator, mobcaps)
 /mobstacker help [category]
 
 # Inspect one setting (current value, default, description)
@@ -318,6 +325,16 @@ independent toggle:
   showing how many were killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
 - **Particle pop** (`stackKillParticles`, default on): a burst of particles at the mob,
   growing in amount and height with the number killed. It spawns no extra entities.
+### Telling stacks apart
+
+The name above a stack is drawn in `stackNameColor` — any of the sixteen Minecraft colours — so
+stacks can be made to stand out from ordinary mobs, and (once you put them in different regions)
+from each other. Turn on `stackNameColorBySize` and the colour steps up with the stack: the base
+colour below `stackSizeMediumThreshold`, `stackNameColorMedium` from there, and
+`stackNameColorLarge` from `stackSizeLargeThreshold` upwards — a 64-stack is then recognisable
+across the farm without counting. A mob you named with a name tag keeps the colour you gave it.
+Colour changes reach stacks that already exist within a second (see `stackScanInterval`).
+
 - **Floating hologram** (`stackKillHologram`, default on): a short-lived `-N` text that
   drifts up above the mob showing how many that hit killed. This is the only feedback
   channel that spawns an entity — an invisible marker armor stand removed after ~1 second.

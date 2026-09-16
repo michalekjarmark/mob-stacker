@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker;
 
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -457,6 +458,10 @@ public final class MobStacker {
      * something nudged them. Each mob therefore also re-checks on a timer, staggered by entity id so
      * the whole world never scans on the same tick, and skipped entirely for a mob that is already
      * at the maximum stack size (it could not merge with anything anyway).
+     * <p>
+     * The same pass refreshes an existing stack's name, so display settings such as the name colour
+     * take effect on stacks that are already standing in the world rather than only on the next
+     * merge.
      */
     public static void tickStackScan(Mob mob) {
         int interval = config.getStackScanInterval();
@@ -466,7 +471,13 @@ public final class MobStacker {
         if ((mob.tickCount + mob.getId()) % interval != 0) {
             return;
         }
-        if (getStackSize(mob) >= getMaxMobStackSize()) {
+        int stackSize = getStackSize(mob);
+        if (stackSize > 1) {
+            // Also keeps the name in step with the display settings, so a colour change shows up on
+            // stacks that already exist. The component only reaches clients when it really differs.
+            updateStackDisplay(mob);
+        }
+        if (stackSize >= getMaxMobStackSize()) {
             return;
         }
         if (!getCanStack(mob) || !canStack(mob)) {
@@ -551,7 +562,8 @@ public final class MobStacker {
                     .withStyle(entity.getCustomName().getStyle());
         }
         return stackSize > 1 ?
-                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize) :
+                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize)
+                        .withStyle(stackNameColor(stackSize)) :
                 null;
     }
 
@@ -938,6 +950,23 @@ public final class MobStacker {
 
     public static int getStackScanInterval() {return config.getStackScanInterval();}
 
+    /**
+     * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up
+     * at the two configured stack sizes, so a huge stack is recognisable at a glance; otherwise every
+     * stack uses the single configured colour.
+     */
+    public static ChatFormatting stackNameColor(int stackSize) {
+        if (config.getStackNameColorBySize()) {
+            if (stackSize >= config.getStackSizeLargeThreshold()) {
+                return config.getStackNameColorLarge().format();
+            }
+            if (stackSize >= config.getStackSizeMediumThreshold()) {
+                return config.getStackNameColorMedium().format();
+            }
+        }
+        return config.getStackNameColor().format();
+    }
+
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
 
     public static boolean getBreedOnePerClick() {return config.getBreedOnePerClick();}
@@ -969,7 +998,8 @@ public final class MobStacker {
         stand.setSilent(true);
         stand.setNoBasePlate(true);
         stand.setInvulnerable(true);
-        stand.setCustomName(Component.literal("-" + killed).withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+        stand.setCustomName(Component.literal("-" + killed)
+                .withStyle(config.getKillHologramColor().format(), ChatFormatting.BOLD));
         stand.setCustomNameVisible(true);
         stand.addTag(KILL_HOLOGRAM_TAG);
         level.addFreshEntity(stand);

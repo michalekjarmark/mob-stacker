@@ -22,6 +22,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
 - `stackScanInterval` (default `20` ticks): how often a mob re-checks for a nearby stack to join. Set
   it to `0` for the old behaviour, where mobs only ever merge on crossing a block boundary.
+- **Colour control for stack names and kill holograms.** The `Cow x16` name above a stack is drawn in
+  `stackNameColor` (any of the sixteen Minecraft colours), and the floating `-N` kill hologram in
+  `killHologramColor`, so stacks no longer all look alike. Turn on `stackNameColorBySize` and the
+  colour steps up with the stack — the base colour, then `stackNameColorMedium` from
+  `stackSizeMediumThreshold` and `stackNameColorLarge` from `stackSizeLargeThreshold` — so a huge
+  stack is recognisable at a glance. Mobs named with a name tag keep their own colour, and colour
+  changes apply to stacks that already exist. These live in a new **Stack display** settings category
+  (`/mobstacker help display`).
 ### Fixed
 - **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
   so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
