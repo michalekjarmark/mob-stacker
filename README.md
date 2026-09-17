@@ -30,6 +30,11 @@
 **MobStacker** is a performance Minecraft mod to optimize entity handling, addressing a common cause of performance issues in vanilla and modded environments. By intelligently "stacking" similar mobs in close proximity, MobStacker significantly reduces server load and enhances client-side performance without compromising gameplay mechanics.
 
 > 💡 **Note**: MobStacker preserves all loot and mob properties within stacked entities. Named mobs (via name tags) are exempt from stacking to maintain uniqueness.
+>
+> That exemption is judged by the name itself, so naming an existing stack works for display — it
+> shows as `Bella x16`, keeps the colour you gave it and survives kills — but that stack stops
+> taking in new mobs from then on. Renaming a stack you still want to grow is therefore not
+> advisable yet; telling the two apart properly is on the roadmap.
 
 ## ✨ What this fork adds
 
