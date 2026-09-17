@@ -70,6 +70,12 @@ public final class MobStacker {
     public static final String MEMBER_DAMAGE_KEY = "MemberDamage";
     /** What each mob below the top one wears and holds, one entry per member. */
     public static final String MEMBER_EQUIPMENT_KEY = "MemberEquipment";
+    /** Set once a player has put a name tag on this mob, so its name is never guessed at again. */
+    public static final String PLAYER_NAMED_KEY = "PlayerNamed";
+    /** Set when that name tag was put on a stack, i.e. the name is a label and not a pet's name. */
+    public static final String NAMED_STACK_KEY = "NamedStack";
+    /** The name the player typed, as JSON, so the " xN" suffix is appended and never parsed back off. */
+    public static final String STACK_NAME_KEY = "StackName";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -291,6 +297,13 @@ public final class MobStacker {
             return false;
         }
 
+        // The stack shows one name, and the survivor keeps its own, so a mob carrying a different
+        // player-given name must not be merged away into it - that name would simply vanish.
+        Component ownName = playerGivenName(self);
+        if (ownName != null && !ownName.equals(playerGivenName(nearby))) {
+            return false;
+        }
+
         BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(self.getClass());
         if (variantChecker != null && !variantChecker.test(self, nearby)) {
             return false;
@@ -332,6 +345,7 @@ public final class MobStacker {
         if (newEntity == null) return;
 
         copyEntityData(self, newEntity, serverLevel);
+        copyStackNaming(self, newEntity);
         // After copyEntityData, because finalizeSpawn hands out random gear of its own that the
         // stored loadout has to overwrite.
         handOverMemberEquipment(self, newEntity, newStackSize);
@@ -593,6 +607,12 @@ public final class MobStacker {
     }
 
     private static Component generateNewDisplayName(Mob entity, int stackSize) {
+        Component given = playerGivenName(entity);
+        if (given != null) {
+            // Exactly what the player typed on the name tag, plus the live count. Nothing is parsed
+            // back off the label, so a stack named "Cow x5" stays "Cow x5" and gains " x16".
+            return stackSize > 1 ? given.copy().append(" x" + stackSize) : given.copy();
+        }
         if (entity.hasCustomName() && !matchesStackedName(entity.getCustomName().getString(), entity)) {
             String baseName = STACKED_NAME_PATTERN.matcher(entity.getCustomName().getString())
                     .replaceFirst("");
@@ -673,9 +693,23 @@ public final class MobStacker {
         }
     }
 
+    /**
+     * Whether this mob's name leaves it free to stack.
+     * <p>
+     * A name tag records what the player meant (see {@link #onNameTagApplied}) instead of the mod
+     * guessing it from the text: a tag put on a stack is a label for the whole stack, so it keeps
+     * stacking for good, while a tag put on a single mob is how players protect a pet and keeps it
+     * out of stacks unless {@code stackNamedMobs} says otherwise. Any other custom name is only
+     * accepted when it is the mod's own "Cow x12" label.
+     */
     public static boolean hasValidCustomNameForStacking(Mob entity) {
-        return !entity.hasCustomName() ||
-                matchesStackedName(entity.getCustomName().getString(), entity);
+        if (!entity.hasCustomName()) {
+            return true;
+        }
+        if (isPlayerNamed(entity)) {
+            return isNamedStack(entity) || getStackNamedMobs(entity);
+        }
+        return matchesStackedName(entity.getCustomName().getString(), entity);
     }
 
     public static boolean matchesStackedName(String customName, Entity entity) {
@@ -697,6 +731,9 @@ public final class MobStacker {
      * out of stacking and to hide the auto stack label.
      */
     public static boolean hasNonCustomName(LivingEntity entity) {
+        if (entity instanceof Mob mob && isPlayerNamed(mob)) {
+            return false; // a name tag is the player's own name, however much it looks like our label
+        }
         return !entity.hasCustomName() || matchesStackedName(entity.getCustomName().getString(), entity);
     }
 
@@ -851,6 +888,87 @@ public final class MobStacker {
         CompoundTag loadout = takeMemberLoadout(stack);
         if (loadout != null) {
             applyLoadout(separated, loadout);
+        }
+    }
+
+    // --- Name tags ------------------------------------------------------------------------------
+    // What a custom name means is recorded when the name tag is used, instead of being guessed from
+    // the text afterwards. A tag on a stack labels the whole stack and leaves it stacking; a tag on
+    // a single mob is how players protect a pet, and keeps it out of stacks.
+
+    /** Called from {@code NameTagItemMixin} once a name tag has actually renamed a mob. */
+    public static void onNameTagApplied(Mob mob, Component name) {
+        if (!(mob instanceof ICustomDataHolder holder) || name == null) {
+            return;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        int stackSize = getStackSize(mob);
+        customData.putBoolean(PLAYER_NAMED_KEY, true);
+        if (stackSize > 1) {
+            // Naming a stack names the stack, so it stays a stack for good - down to its last mob.
+            customData.putBoolean(NAMED_STACK_KEY, true);
+        }
+        customData.putString(STACK_NAME_KEY, Component.Serializer.toJson(stripLiveCount(name, stackSize)));
+        updateStackDisplay(mob);
+    }
+
+    /**
+     * Drops a trailing " xN" when N is exactly the stack's current size, i.e. the player retyped the
+     * label they could see. Any other " xN" is part of the name and is kept, so a cow deliberately
+     * called "Cow x5" stays called that.
+     */
+    private static Component stripLiveCount(Component name, int stackSize) {
+        String text = name.getString();
+        String suffix = " x" + stackSize;
+        if (stackSize > 1 && text.endsWith(suffix) && text.length() > suffix.length()) {
+            return Component.literal(text.substring(0, text.length() - suffix.length()))
+                    .withStyle(name.getStyle());
+        }
+        return name;
+    }
+
+    public static boolean isPlayerNamed(Mob mob) {
+        return mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().getBoolean(PLAYER_NAMED_KEY);
+    }
+
+    public static boolean isNamedStack(Mob mob) {
+        return mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().getBoolean(NAMED_STACK_KEY);
+    }
+
+    /** The name the player gave this mob, without the " xN" count, or null when they gave none. */
+    public static Component playerGivenName(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return null;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        if (!customData.getBoolean(PLAYER_NAMED_KEY) || !customData.contains(STACK_NAME_KEY, 8)) {
+            return null;
+        }
+        try {
+            return Component.Serializer.fromJson(customData.getString(STACK_NAME_KEY));
+        } catch (Exception e) {
+            return null; // a name we can no longer read is no worse than no name at all
+        }
+    }
+
+    /** Carries a player-given name onto a mob that replaces this one (a remainder, a conversion). */
+    public static void copyStackNaming(Mob source, Mob target) {
+        if (!(source instanceof ICustomDataHolder from) || !(target instanceof ICustomDataHolder to)) {
+            return;
+        }
+        CompoundTag sourceData = from.mobstacker$getCustomData();
+        if (!sourceData.getBoolean(PLAYER_NAMED_KEY)) {
+            return;
+        }
+        CompoundTag targetData = to.mobstacker$getCustomData();
+        targetData.putBoolean(PLAYER_NAMED_KEY, true);
+        if (sourceData.getBoolean(NAMED_STACK_KEY)) {
+            targetData.putBoolean(NAMED_STACK_KEY, true);
+        }
+        if (sourceData.contains(STACK_NAME_KEY, 8)) {
+            targetData.putString(STACK_NAME_KEY, sourceData.getString(STACK_NAME_KEY));
         }
     }
 
@@ -1293,6 +1411,10 @@ public final class MobStacker {
     public static boolean getKeepMemberEquipment() {return config.getKeepMemberEquipment();}
 
     public static boolean getKeepMemberEquipment(Entity at) {return setting("keepMemberEquipment", at, config.getKeepMemberEquipment());}
+
+    public static boolean getStackNamedMobs() {return config.getStackNamedMobs();}
+
+    public static boolean getStackNamedMobs(Entity at) {return setting("stackNamedMobs", at, config.getStackNamedMobs());}
 
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
 

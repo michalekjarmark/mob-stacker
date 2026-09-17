@@ -56,6 +56,9 @@ public final class MobStackerSettings {
                 "Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge.",
                 () -> MobStacker.config.getKeepMemberEquipment(), v -> MobStacker.config.setKeepMemberEquipment(v), true)
                 .requires("stackEquippedMobs"));
+        register(ConfigOption.ofBool("stackNamedMobs", Category.STACKING,
+                "Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way.",
+                () -> MobStacker.config.getStackNamedMobs(), v -> MobStacker.config.setStackNamedMobs(v), false));
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)
