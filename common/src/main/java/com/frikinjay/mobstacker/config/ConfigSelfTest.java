@@ -70,11 +70,18 @@ public final class ConfigSelfTest {
 
         switch (option.type()) {
             case BOOL -> {
+                // A setting that needs another one is inert until that one is on, and refuses to be
+                // switched on - which is the point of it, not a fault. Switch its prerequisites on
+                // for the duration so the setting itself is actually exercised.
+                List<ConfigOption> prerequisites = satisfyDependencies(option);
                 boolean before = Boolean.parseBoolean(option.currentValue());
                 ConfigOption.Result first = option.toggle();
                 check(report, first.status == Status.CHANGED, option.id() + ": first toggle was not CHANGED (" + first.status + ")");
                 check(report, Boolean.parseBoolean(option.currentValue()) != before, option.id() + ": toggle did not flip the value");
                 option.toggle(); // restore
+                for (ConfigOption prerequisite : prerequisites) {
+                    prerequisite.reset();
+                }
             }
             case INT, DOUBLE -> {
                 check(report, option.apply("notanumber").status == Status.ERROR, option.id() + ": accepted a non-numeric value");
@@ -105,6 +112,40 @@ public final class ConfigSelfTest {
                 // Free-form; nothing to assert beyond the reset baseline above.
             }
         }
+    }
+
+    /**
+     * Switches on everything {@code option} depends on, innermost first.
+     *
+     * @return the settings that were changed, for the caller to put back
+     */
+    private static List<ConfigOption> satisfyDependencies(ConfigOption option) {
+        List<ConfigOption> chain = new ArrayList<>();
+        ConfigOption current = option;
+        // Guarded against a dependency loop a future setting could introduce by mistake.
+        for (int depth = 0; depth < 16; depth++) {
+            String requiredId = current.requires();
+            if (requiredId == null) {
+                break;
+            }
+            ConfigOption required = MobStackerSettings.byId(requiredId);
+            if (required == null || required.type() != Type.BOOL) {
+                break;
+            }
+            chain.add(required);
+            current = required;
+        }
+
+        // Innermost first: a setting can only be switched on once the one it needs already is.
+        List<ConfigOption> changed = new ArrayList<>();
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            ConfigOption required = chain.get(i);
+            if (!Boolean.parseBoolean(required.currentValue())) {
+                required.apply("true");
+                changed.add(required);
+            }
+        }
+        return changed;
     }
 
     private static void testDependencies(Report report) {
