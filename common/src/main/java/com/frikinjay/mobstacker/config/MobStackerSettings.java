@@ -74,7 +74,7 @@ public final class MobStackerSettings {
                 () -> MobStacker.config.getSweepingEdgePerMob(), v -> MobStacker.config.setSweepingEdgePerMob(v), false)
                 .requires("sweepingEdgeOverflow"));
         register(ConfigOption.ofBool("sweepingEdgeSingleHit", Category.COMBAT,
-                "Put the whole sweep into the one hit - 1 + damage x (level / (level + 1)) for every other mob in the stack - and let damage overflow carry it down, instead of wounding each mob separately. Needs damageOverflow to kill anything beyond the top mob.",
+                "Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately.",
                 () -> MobStacker.config.getSweepingEdgeSingleHit(), v -> MobStacker.config.setSweepingEdgeSingleHit(v), false)
                 .requires("sweepingEdgePerMob"));
         register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
