@@ -30,8 +30,13 @@ public final class MobStackerClientNetworking {
     private static String status = "";
 
     /** One region as the server described it, for the region editor screen. */
-    public record RegionInfo(String name, String type, String dimension, String bounds, int priority,
-                             Map<String, String> settings) {
+    public record RegionInfo(String name, String type, String dimension,
+                             int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
+                             int priority, Map<String, String> settings) {
+        /** The same corner text the server's own {@code /mobstacker region list} prints. */
+        public String bounds() {
+            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+        }
     }
 
     private MobStackerClientNetworking() {
@@ -54,14 +59,20 @@ public final class MobStackerClientNetworking {
                 String name = buf.readUtf();
                 String type = buf.readUtf();
                 String dimension = buf.readUtf();
-                String bounds = buf.readUtf();
+                int minX = buf.readInt();
+                int minY = buf.readInt();
+                int minZ = buf.readInt();
+                int maxX = buf.readInt();
+                int maxY = buf.readInt();
+                int maxZ = buf.readInt();
                 int priority = buf.readInt();
                 int overrideCount = buf.readVarInt();
                 Map<String, String> overrides = new LinkedHashMap<>();
                 for (int o = 0; o < overrideCount; o++) {
                     overrides.put(buf.readUtf(), buf.readUtf());
                 }
-                incomingRegions.add(new RegionInfo(name, type, dimension, bounds, priority, overrides));
+                incomingRegions.add(new RegionInfo(name, type, dimension,
+                        minX, minY, minZ, maxX, maxY, maxZ, priority, overrides));
             }
             client.execute(() -> {
                 authorized = incomingAuth;
@@ -156,7 +167,8 @@ public final class MobStackerClientNetworking {
             } else {
                 settings.put(id, value);
             }
-            REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(), info.bounds(),
+            REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(),
+                    info.minX(), info.minY(), info.minZ(), info.maxX(), info.maxY(), info.maxZ(),
                     info.priority(), settings));
             return;
         }

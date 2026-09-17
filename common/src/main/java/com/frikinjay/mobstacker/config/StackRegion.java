@@ -75,6 +75,52 @@ public class StackRegion {
         return getType() == Type.DENY;
     }
 
+    public int getMinX() {
+        return minX;
+    }
+
+    public int getMinY() {
+        return minY;
+    }
+
+    public int getMinZ() {
+        return minZ;
+    }
+
+    public int getMaxX() {
+        return maxX;
+    }
+
+    public int getMaxY() {
+        return maxY;
+    }
+
+    public int getMaxZ() {
+        return maxZ;
+    }
+
+    /**
+     * Moves or resizes the region, keeping everything else about it — its settings, its priority and
+     * its name. Redrawing the area used to mean deleting the region and adding it again, which threw
+     * all of that away.
+     */
+    public void setBounds(int x1, int y1, int z1, int x2, int y2, int z2) {
+        this.minX = Math.min(x1, x2);
+        this.minY = Math.min(y1, y2);
+        this.minZ = Math.min(z1, z2);
+        this.maxX = Math.max(x1, x2);
+        this.maxY = Math.max(y1, y2);
+        this.maxZ = Math.max(z1, z2);
+    }
+
+    public void setType(Type type) {
+        this.type = type;
+    }
+
+    public void setDimension(String dimension) {
+        this.dimension = dimension;
+    }
+
     public boolean contains(String dimension, int x, int y, int z) {
         return this.dimension != null && this.dimension.equals(dimension)
                 && x >= minX && x <= maxX
