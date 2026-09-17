@@ -254,16 +254,12 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     /**
-     * Whether this row may be touched. A setting another one forces on cannot be changed at all; a
-     * setting whose dependency is off is locked too - except while it still holds a non-default
-     * value, because there has to be a way to switch it back off.
+     * Whether this row may be touched: not while another setting forces it on, and not while the
+     * setting it depends on is off - it reads as its own default then, so there is nothing to switch
+     * back off and no way for a switch to sit on ON while doing nothing.
      */
     private boolean rowEditable(ConfigOption option) {
-        if (!editable || lockReason(option) != null) {
-            return false;
-        }
-        return blockedReason(option) == null
-                || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+        return editable && rowProblem(option) == null;
     }
 
     /** Why this setting cannot be edited right now, or null when it can. */
@@ -297,13 +293,14 @@ public final class MobStackerConfigScreen extends Screen {
 
     /**
      * The value to display for an option: the server's snapshot when remote, else the live config.
-     * Both carry the value as stored, so a setting another one currently forces on is resolved here
-     * — the row then shows what the game acts on rather than the choice parked underneath it.
+     * Both carry the value as stored, so a setting another one forces on - or holds at its default,
+     * because what it needs is off - is resolved here: the row shows what the game acts on rather
+     * than the choice parked underneath it.
      */
     private String valueOf(ConfigOption option) {
-        String locked = MobStackerSettings.lockedValue(option, this::valueOfId);
-        if (locked != null) {
-            return locked;
+        String effective = MobStackerSettings.effectiveValue(option, this::valueOfId);
+        if (effective != null) {
+            return effective;
         }
         if (remote) {
             String value = MobStackerClientNetworking.value(option.id());

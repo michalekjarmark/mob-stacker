@@ -209,17 +209,54 @@ public final class MobStackerSettings {
         if (required == null) {
             return null;
         }
-        String value = lookup == null ? null : lookup.apply(requiredId);
-        if (value == null || value.isEmpty()) {
-            value = required.currentValue();
-        }
-        if (Boolean.parseBoolean(value)) {
+        if (dependencyMet(option, lookup)) {
             return null;
         }
         String where = regionName == null
                 ? "Enable it first."
                 : "Enable it in region '" + regionName + "' (or globally) first.";
         return "'" + option.id() + "' only applies while " + requiredId + " is on. " + where;
+    }
+
+    /** Whether the setting this one needs is on in the scope {@code lookup} answers for. */
+    private static boolean dependencyMet(ConfigOption option,
+                                         java.util.function.Function<String, String> lookup) {
+        String requiredId = option.requires();
+        if (requiredId == null) {
+            return true;
+        }
+        ConfigOption required = byId(requiredId);
+        if (required == null) {
+            return true;
+        }
+        String value = lookup == null ? null : lookup.apply(requiredId);
+        if (value == null || value.isEmpty()) {
+            // Resolved, not stored: a setting whose own dependency is off is off, so a chain of them
+            // (sweepingEdgeOverflow -> sweepingEdgePerMob -> sweepingEdgeSingleHit) collapses as one.
+            value = required.currentValue();
+        }
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * The value {@code option} really has in the scope {@code lookup} answers for, or null when
+     * nothing overrides what is stored. Two things can override it, and they are opposites:
+     * <ul>
+     *   <li>a setting that pins this one on ({@link ConfigOption#lockedOnBy(String)}) — it reads as
+     *       {@code true};</li>
+     *   <li>a setting this one needs that is off ({@link ConfigOption#requires(String)}) — it reads
+     *       as its default, because it does nothing at all until that setting comes back on.</li>
+     * </ul>
+     * Either way the stored value is left untouched and returns the moment the scope changes back,
+     * so switching a master setting off and on again costs the player nothing.
+     */
+    public static String effectiveValue(ConfigOption option,
+                                        java.util.function.Function<String, String> lookup) {
+        String locked = lockedValue(option, lookup);
+        if (locked != null) {
+            return locked;
+        }
+        return dependencyMet(option, lookup) ? null : option.defaultValue();
     }
 
     /**

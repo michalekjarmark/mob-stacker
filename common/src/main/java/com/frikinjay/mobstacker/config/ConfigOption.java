@@ -122,15 +122,17 @@ public final class ConfigOption {
 
     /**
      * Current value formatted as a canonical string (e.g. {@code "true"}, {@code "16"},
-     * {@code "REGIONS"}). A setting another one currently pins reports the pinned value, because
-     * that is what the game acts on — the value stored underneath comes back once the lock lifts.
+     * {@code "REGIONS"}) — what the game actually acts on. A setting another one pins reports the
+     * pinned value, and one whose dependency is off reports its default, because until that
+     * dependency comes back on it does nothing. The value stored underneath is untouched either way
+     * and returns as soon as the setting it hangs on changes.
      */
     public String currentValue() {
-        String locked = MobStackerSettings.lockedValue(this, null);
-        return locked != null ? locked : storedValue();
+        String effective = MobStackerSettings.effectiveValue(this, null);
+        return effective != null ? effective : storedValue();
     }
 
-    /** The value actually stored in the config, ignoring any lock currently pinning this setting. */
+    /** The value actually stored in the config, whatever another setting currently makes of it. */
     public String storedValue() {
         return String.valueOf(getter.get());
     }
@@ -195,7 +197,9 @@ public final class ConfigOption {
             }
         }
 
-        String oldValue = currentValue();
+        // Judged on what is stored, not on what the setting currently reads as: a setting held at
+        // its default by a dependency must still be resettable, and `set` changes the stored value.
+        String oldValue = storedValue();
         String newValue = String.valueOf(parsed);
         if (oldValue.equals(newValue)) {
             return Result.unchanged(oldValue);
@@ -217,7 +221,7 @@ public final class ConfigOption {
         }
 
         setter.accept(parsed);
-        String actualNew = currentValue();
+        String actualNew = storedValue();
         String note = appliedNote != null ? appliedNote.get() : null;
         return Result.changed(oldValue, actualNew, note);
     }
@@ -262,10 +266,12 @@ public final class ConfigOption {
     }
 
     /**
-     * Declares that this setting does nothing until {@code settingId} (a boolean setting) is on, so
-     * it refuses to be turned on before then and the config GUI greys it out. Unlike a validator this
-     * is metadata, which lets it be resolved against a region's own value rather than only the global
-     * one — see {@link MobStackerSettings#dependencyProblem}.
+     * Declares that this setting does nothing until {@code settingId} (a boolean setting) is on. It
+     * then reads as its own default and refuses to be changed, and the config GUI greys it out, so a
+     * switch can never sit on {@code ON} while having no effect. Whatever was stored is kept and
+     * comes back when {@code settingId} does. Unlike a validator this is metadata, which lets it be
+     * resolved against a region's own value rather than only the global one — see
+     * {@link MobStackerSettings#dependencyProblem}.
      */
     public ConfigOption requires(String settingId) {
         this.requires = settingId;

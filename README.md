@@ -380,7 +380,11 @@ actually sweeps with.
 > whole stack, so overflow does not apply — and `stackHealth` forces it on, because a
 > pooled health bar only makes sense if the whole stack goes down with it. The four
 > `sweepingEdge*` tuning options above only apply while `sweepingEdgeOverflow` is on —
-> they refuse to be turned on before then, and the config GUI greys them out until it is.
+> they refuse to be turned on before then, the config GUI greys them out until it is, and
+> they **read as off** meanwhile, so a switch never sits on `ON` while doing nothing. The
+> same goes down the chain: `sweepingEdgeSingleHit` follows `sweepingEdgePerMob`, which
+> follows `sweepingEdgeOverflow`. Nothing is erased — turn the master setting back on and
+> everything you had set is there again.
 > Both kinds of dependency are judged by the region's own value inside a region, so a
 > region may enable `sweepingEdgeOverflow` for itself and use everything built on it while
 > the rest of the world does without, and a region that turns `stackHealth` off is not

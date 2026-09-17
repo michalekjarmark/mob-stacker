@@ -296,17 +296,13 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     /**
-     * Whether this row may be touched. A setting another one forces on in this region cannot be
-     * changed at all; a setting whose dependency is off here is locked too - except while it still
-     * holds a non-default value, because there has to be a way to switch it back off. The clear
-     * button stays usable either way.
+     * Whether this row may be touched: not while another setting forces it on in this region, and
+     * not while the setting it depends on is off here - it reads as its own default then, so there
+     * is nothing to switch back off. The clear button stays usable either way, so an override that
+     * has gone inert can still be dropped.
      */
     private boolean rowEditable(ConfigOption option) {
-        if (!editable || lockReason(option) != null) {
-            return false;
-        }
-        return blockedReason(option) == null
-                || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+        return editable && rowProblem(option) == null;
     }
 
     /** Why this setting cannot be edited in this region, or null when it can. */
@@ -385,9 +381,9 @@ public final class MobStackerRegionScreen extends Screen {
      * there — and a region that turns it off does not inherit the world's lock.
      */
     private String valueOf(ConfigOption option) {
-        String locked = MobStackerSettings.lockedValue(option, this::valueOfId);
-        if (locked != null) {
-            return locked;
+        String effective = MobStackerSettings.effectiveValue(option, this::valueOfId);
+        if (effective != null) {
+            return effective;
         }
         String override = regionValue(option.id());
         return override != null ? override : globalValue(option);

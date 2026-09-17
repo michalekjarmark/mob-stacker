@@ -331,9 +331,11 @@ public abstract class LivingEntityMixin extends Entity {
         // overflow (the killing blow's leftover carries down the stack) and per-mob Sweeping Edge
         // (the members carry their own wounds between swings). killWholeStackOnDeath makes both
         // moot, because then one death is every death.
+        boolean perMobSweep = MobStacker.getSweepingEdgeOverflow(instance)
+                && MobStacker.getSweepingEdgePerMob(instance);
         if (instance.level().isClientSide() || !(instance instanceof Mob mob)
                 || MobStacker.getKillWholeStackOnDeath(instance)
-                || (!MobStacker.getDamageOverflow(instance) && !MobStacker.getSweepingEdgePerMob(instance))) {
+                || (!MobStacker.getDamageOverflow(instance) && !perMobSweep)) {
             mobstacker$pendingSweepDamage = 0.0F;
             mobstacker$pendingSweepRawAmount = 0.0F;
             instance.setHealth(newHealth);

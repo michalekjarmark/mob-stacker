@@ -99,8 +99,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   refused, and the config GUI let you flip the switch anyway and then quietly dropped the change. The
   dependency is now resolved wherever the change is made — a region uses its own value for it, just
   as the game does at the mob — and the GUI greys a setting out (with a tooltip saying why) until the
-  setting it needs is on. The GUI also repaints a row from the config after every edit, so a value
-  the config refuses can no longer sit on a widget as if it had been saved.
+  setting it needs is on. A setting whose dependency is off also **reads as off**, all the way down a
+  chain of them, so a switch can never sit on `ON` while having no effect: turning
+  `sweepingEdgeOverflow` off shows `sweepingEdgePerMob` and `sweepingEdgeSingleHit` as off too. What
+  you had set is kept, not erased, and comes straight back when you turn the master setting on again.
+  The GUI also repaints a row from the config after every edit, so a value the config refuses can no
+  longer sit on a widget as if it had been saved.
 - **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
   so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
   or stuck group — stood side by side and never stacked until something nudged them. Every mob now
