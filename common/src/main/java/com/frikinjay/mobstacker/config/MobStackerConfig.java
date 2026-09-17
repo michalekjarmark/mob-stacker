@@ -84,10 +84,34 @@ public class MobStackerConfig {
         // read (MobStacker#getKillWholeStackOnDeath) rather than written here. Overwriting the
         // stored value would lose the player's own choice the first time stackHealth was switched
         // on, and would only ever cover the global config - never a region that enables it.
+        pruneRedundantRegionOverrides();
         try (FileWriter writer = new FileWriter(MobStacker.configFile)) {
             GSON.toJson(this, writer);
         } catch (Exception e) {
             MobStacker.logger.error("Failed to save config", e);
+        }
+    }
+
+    /**
+     * Drops region overrides that say exactly what the global config already says.
+     * <p>
+     * A region stores only the settings it changes, so an override equal to the global value is not
+     * one: it made the GUI mark the row as changed, and it pinned the region in place when the
+     * global value later moved on to something else. Doing it here, on the way to disk, catches
+     * every way the two can come to agree - the region being set to the global value, or the global
+     * value being changed to the region's - from the commands and both GUIs alike.
+     */
+    private void pruneRedundantRegionOverrides() {
+        if (MobStacker.config != this || regions == null || regions.isEmpty()) {
+            return; // not the live config: its values are not what these regions differ from
+        }
+        for (StackRegion region : regions) {
+            for (String id : new ArrayList<>(region.getSettings().keySet())) {
+                ConfigOption option = MobStackerSettings.byId(id);
+                if (option != null && option.storedValue().equalsIgnoreCase(region.getSetting(id))) {
+                    region.clearSetting(id);
+                }
+            }
         }
     }
 

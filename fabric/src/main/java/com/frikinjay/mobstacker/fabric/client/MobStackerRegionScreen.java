@@ -192,7 +192,7 @@ public final class MobStackerRegionScreen extends Screen {
         int widgetX = this.width / 2 + 30;
         int widgetW = 140;
         int widgetH = 20;
-        Row row = new Row(option, y, regionValue(option.id()) != null);
+        Row row = new Row(option, y, isOverridden(option));
         boolean allowed = rowEditable(option);
 
         // Drops the override, so the setting follows the global config again. Always allowed: going
@@ -280,7 +280,7 @@ public final class MobStackerRegionScreen extends Screen {
             // (or stops being) without leaving the screen.
             setEnabled(row.widget, rowEditable(row.option));
 
-            boolean overridden = regionValue(row.option.id()) != null;
+            boolean overridden = isOverridden(row.option);
             if (overridden == row.overridden) {
                 continue;
             }
@@ -352,6 +352,17 @@ public final class MobStackerRegionScreen extends Screen {
         } else if (widget != null) {
             widget.active = enabled;
         }
+    }
+
+    /**
+     * Whether this region really differs from the global config for this setting - which is what the
+     * gold label and the {@code ↺} button mean. A stored value that says exactly what the world
+     * already says is not a difference: the config drops it on the next save, so it must not show as
+     * one here either, however the two came to agree.
+     */
+    private boolean isOverridden(ConfigOption option) {
+        String override = regionValue(option.id());
+        return override != null && !override.equalsIgnoreCase(globalValue(option));
     }
 
     /** The value this region gives the setting, or null when it follows the global config. */
