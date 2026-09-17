@@ -87,10 +87,11 @@ While actual performance gains vary based on server specifications, player count
 | Option | Description | Default |
 |--------|-------------|---------|
 | `killWholeStackOnDeath` | Determines if entire stack dies when one mob is killed | `false` |
-| `stackHealth` | Combines health of stacked mobs when enabled | `false` |
+| `stackHealth` | Combines health of stacked mobs when enabled. Forces `killWholeStackOnDeath` on for as long as it is on | `false` |
 | `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
 | `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
 | `sweepingEdgePerMob` | Sweep **every** mob in the stack for its own `1 + damage x (level / (level + 1))`, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit | `false` |
+| `sweepingEdgeSingleHit` | Put the whole sweep into the one hit — every other mob's sweep added to it — and let `damageOverflow` carry it down the stack, instead of wounding each mob separately. Needs `sweepingEdgePerMob` | `false` |
 | `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand | `false` |
 | `sweepingEdgeMaxKills` | Caps how many mobs one sweep may kill per swing (`0` = no cap). Only used by `sweepingEdgePerMob` | `0` |
 | `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
@@ -283,10 +284,12 @@ not mention simply follows the global config, so you only ever state the differe
 In the config GUI the same thing lives behind the **Regions…** button: pick a region,
 walk the categories, and every row shows its value with a **gold** label when the region
 sets it itself and a **grey** one when it follows the global config — the small `↺`
-button beside a row drops the override again. Picking exactly the value the global config
-already has counts as no override at all, so in the GUI gold always means "different in
-here". Hovering a row says the same thing in words, along with the global value. The
-region's overlap priority is editable right there too.
+button beside a row drops the override again. A region only ever stores what it actually
+changes, so a value equal to the global one is not an override — whether you picked it in
+the region or later changed the global config to match — and gold therefore always means
+"different in here". Hovering a row says the same thing in words, along with the global
+value, and in red when a setting cannot be edited (the one it depends on is off here, or
+another one forces it on). The region's overlap priority is editable right there too.
 
 The only settings that stay global are `stackMode` and `playerStackRadius` — they decide
 where the region system applies at all — and the seven `mobcaps`, which are world-level
@@ -344,6 +347,18 @@ The sweep leaves the other mobs wounded rather than untouched, and those wounds 
 from swing to swing — so a stack of cows takes a couple of swings to fall apart, exactly
 as a herd standing loose would under the same sweeps.
 
+Some stacks have no separate mobs to wound: `stackHealth` pools their health into one bar,
+and `killWholeStackOnDeath` makes them die together. There, every other member's sweep is
+added to the single hit instead. The total health it costs the stack is the same, so a
+pooled stack falls in the same number of swings as an unpooled one.
+
+`sweepingEdgeSingleHit` asks for that concentrated hit even when the members *are*
+separate. Ten mobs with Sweeping Edge III means the top mob takes the weapon's damage plus
+nine sweeps' worth in one blow, which `damageOverflow` then carries down the stack — so a
+swing kills several mobs outright instead of leaving all of them wounded. It needs
+`damageOverflow` to reach past the mob you struck; without it the swing just kills that one
+mob, which is the whole point of the option. `sweepingEdgeMaxKills` caps it either way.
+
 One consequence is worth knowing before enabling it: since the whole stack stands in one
 spot, a sweep strong enough to kill a single healthy mob of that type kills **all** of
 them in one swing. That is exactly what vanilla would do to the same mobs standing side
@@ -354,11 +369,14 @@ actually sweeps with.
 > 💡 All of these are independent toggles — disable `damageOverflow` to return to
 > one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
-> whole stack, so overflow does not apply. The three `sweepingEdge*` tuning options above
-> only apply while `sweepingEdgeOverflow` is on — they refuse to be turned on before then,
-> and the config GUI greys them out until it is. Inside a region that dependency is
-> judged by the region's own value, so a region may enable `sweepingEdgeOverflow` for
-> itself and use everything built on it while the rest of the world does without.
+> whole stack, so overflow does not apply — and `stackHealth` forces it on, because a
+> pooled health bar only makes sense if the whole stack goes down with it. The four
+> `sweepingEdge*` tuning options above only apply while `sweepingEdgeOverflow` is on —
+> they refuse to be turned on before then, and the config GUI greys them out until it is.
+> Both kinds of dependency are judged by the region's own value inside a region, so a
+> region may enable `sweepingEdgeOverflow` for itself and use everything built on it while
+> the rest of the world does without, and a region that turns `stackHealth` off is not
+> bound by the world's forced `killWholeStackOnDeath`.
 
 When a hit kills mobs from a stack the mod can show feedback three ways, each with its own
 independent toggle:

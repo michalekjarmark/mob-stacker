@@ -18,7 +18,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   to swing, so a stack wears down the way a herd of loose mobs does under repeated sweeps instead of
   shrugging the sweep off whenever one swing cannot kill outright. Note that a sweep strong enough to
   kill a healthy mob of that type clears the whole stack in one swing — exactly what vanilla would do
-  to those mobs standing loose, but a big jump in power, so two tuning options come with it.
+  to those mobs standing loose, but a big jump in power, so three tuning options come with it.
+  Where a stack has no separate mobs to wound — `stackHealth` pools its health into one bar, or
+  `killWholeStackOnDeath` makes it die as one — every other member's sweep is added to that single
+  hit instead, which costs the stack the same total health and so takes the same number of swings.
+- `sweepingEdgeSingleHit` (default `false`, needs `sweepingEdgePerMob`): put the whole sweep into the
+  one hit even when the members *are* separate, and let damage overflow carry it down the stack. Ten
+  mobs with Sweeping Edge III means the top mob takes the weapon's damage plus nine sweeps' worth, so
+  a swing kills several outright instead of wounding all of them. Needs `damageOverflow` to reach
+  past the top mob; without it the swing simply kills that one mob, which is the point of the option.
 - `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
   charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
@@ -52,6 +60,22 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   where they could not be reached. Each page now shows as many rows as fit and the mouse wheel moves
   through the rest, with a line telling you which rows you are looking at.
 ### Fixed
+- **`stackHealth` forces `killWholeStackOnDeath` wherever it is on.** Pooling a stack's health into
+  one bar only makes sense if the whole stack dies with it, so `stackHealth` forces
+  `killWholeStackOnDeath` on. That was done by rewriting the stored value every time the config was
+  saved, which cost two things: your own `killWholeStackOnDeath` choice was overwritten the first
+  time `stackHealth` went on and never came back when it went off, and it only ever covered the
+  *global* config — so a region that enabled `stackHealth` for itself silently kept the global
+  `killWholeStackOnDeath`, and pooled health did nothing in that region. The rule is now applied
+  where the settings are read, region included, and stores nothing, so switching `stackHealth` off
+  hands your own value back. The GUI greys the forced setting out, shows the value the game acts on
+  and says in red why it cannot be changed, instead of accepting a click and quietly reverting it.
+- **A region no longer claims a change it does not make.** A region stores only the settings it
+  changes, so a stored value that says exactly what the global config already says is not an
+  override. Setting a region value *to* the global one already dropped it, but changing the *global*
+  value to match the region's did not: the row stayed gold and the region stayed pinned to a value it
+  was no longer changing. Such an override is now dropped on the way to disk, whichever of the two
+  moved, and a row is coloured by the difference itself rather than by the presence of a stored value.
 - **A setting that depends on another one behaves the same everywhere.** The `sweepingEdge*` tuning
   options only work while `sweepingEdgeOverflow` is on, but that was checked against the *global*
   config only: inside a region that had enabled `sweepingEdgeOverflow` for itself, they were still
@@ -69,8 +93,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   an armor stand that lives for about a second, but it was being written into the world save like any
   other entity: if the server stopped — or the chunk unloaded — during that second, it came back on
   the next load with nothing left to remove it and stayed floating there forever. Holograms are now
-  kept strictly in memory and are never saved, are cleared when the server stops, and any stray one
-  left behind by an earlier version is removed automatically as soon as its chunk loads.
+  kept strictly in memory and are never saved, and are cleared when the server stops. The versions
+  that leaked them did not mark their armor stands at all, so the ones already stuck in a world had
+  to be deleted by hand; an untagged stand is now recognised by its shape instead — an invisible,
+  silent, invulnerable marker with no gravity, no base plate and no equipment, named nothing but
+  `-<number>` — and removed as soon as its chunk loads, with a line in the server log saying where.
 
 ## [1.5.3] - 2026-07-03
 ### Added
