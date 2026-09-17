@@ -445,7 +445,7 @@ public final class MobStackerConfigScreen extends Screen {
             if (blocked != null) {
                 lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
             }
-            guiGraphics.renderComponentTooltip(this.font, lines, mouseX, mouseY);
+            ScreenTooltip.render(guiGraphics, this.font, lines, this.width, mouseX, mouseY);
         }
     }
 

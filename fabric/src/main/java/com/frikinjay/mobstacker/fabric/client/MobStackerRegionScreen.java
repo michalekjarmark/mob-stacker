@@ -269,10 +269,9 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     /**
-     * Repaints the rows against what the region currently stores. Called right after an edit, so the
-     * gold label and the {@code ↺} button follow the change immediately instead of waiting for the
-     * screen to be rebuilt. Only rows whose override state actually changed are touched, which keeps
-     * a box the player is typing in out of the way.
+     * Repaints every row against what is really in force in this region. Called right after an edit,
+     * so the gold label, the {@code ↺} button and the value itself follow the change immediately
+     * instead of waiting for the screen to be rebuilt.
      */
     private void refreshRows() {
         for (Row row : rows) {
@@ -281,16 +280,17 @@ public final class MobStackerRegionScreen extends Screen {
             setEnabled(row.widget, rowEditable(row.option));
 
             boolean overridden = isOverridden(row.option);
-            if (overridden == row.overridden) {
-                continue;
+            if (overridden != row.overridden) {
+                row.overridden = overridden;
+                if (row.clear != null) {
+                    row.clear.active = editable && overridden;
+                }
             }
-            row.overridden = overridden;
-            if (row.clear != null) {
-                row.clear.active = editable && overridden;
-            }
-            // The override is gone, so the row now shows whatever the global config says.
-            if (!overridden && row.display != null) {
-                row.display.accept(globalValue(row.option));
+            // Every row is repainted, not only the one that was edited: switching one setting can
+            // force another one on, and that row has to follow the value the game now reads. A
+            // widget the player is typing in is left alone.
+            if (row.display != null && row.widget != this.getFocused()) {
+                row.display.accept(valueOf(row.option));
             }
         }
     }
@@ -601,12 +601,12 @@ public final class MobStackerRegionScreen extends Screen {
         renderFooter(guiGraphics);
 
         if (overPriority(mouseX, mouseY)) {
-            guiGraphics.renderComponentTooltip(this.font, List.of(
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
                     Component.literal("priority").withStyle(ChatFormatting.WHITE),
-                    Component.literal("Which region wins where two of them overlap:").withStyle(ChatFormatting.GRAY),
-                    Component.literal("the higher priority first, then the smaller region.").withStyle(ChatFormatting.GRAY),
+                    Component.literal("Which region wins where two of them overlap: the higher priority first, then the smaller region.")
+                            .withStyle(ChatFormatting.GRAY),
                     Component.literal("A deny region always stops stacking, whatever its priority.")
-                            .withStyle(ChatFormatting.DARK_GRAY)), mouseX, mouseY);
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
             return;
         }
 
@@ -625,7 +625,7 @@ public final class MobStackerRegionScreen extends Screen {
             if (blocked != null) {
                 lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
             }
-            guiGraphics.renderComponentTooltip(this.font, lines, mouseX, mouseY);
+            ScreenTooltip.render(guiGraphics, this.font, lines, this.width, mouseX, mouseY);
         }
     }
 
