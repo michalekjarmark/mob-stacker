@@ -355,9 +355,10 @@ pooled stack falls in the same number of swings as an unpooled one.
 `sweepingEdgeSingleHit` asks for that concentrated hit even when the members *are*
 separate. Ten mobs with Sweeping Edge III means the top mob takes the weapon's damage plus
 nine sweeps' worth in one blow, which `damageOverflow` then carries down the stack — so a
-swing kills several mobs outright instead of leaving all of them wounded. It needs
+swing kills several mobs outright instead of leaving all of them wounded. It takes
 `damageOverflow` to reach past the mob you struck; without it the swing just kills that one
-mob, which is the whole point of the option. `sweepingEdgeMaxKills` caps it either way.
+mob, which is the point of putting everything in one place. `sweepingEdgeMaxKills` caps how
+far a single swing reaches either way.
 
 One consequence is worth knowing before enabling it: since the whole stack stands in one
 spot, a sweep strong enough to kill a single healthy mob of that type kills **all** of
@@ -366,8 +367,15 @@ by side, but it is a big jump in power — use `sweepingEdgeMaxKills` to cap it,
 `sweepingEdgeVanillaConditions` if you want the bonus only on the kind of swing vanilla
 actually sweeps with.
 
-> 💡 All of these are independent toggles — disable `damageOverflow` to return to
-> one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
+> 💡 All of these are genuinely independent toggles. `damageOverflow` and the
+> `sweepingEdge*` family answer different questions: overflow decides whether the leftover
+> of a **killing blow** carries onto the mobs below, while Sweeping Edge decides how much
+> damage a sweep deals at all. Sweeping Edge always adds its damage, and how far that
+> reaches is up to the stack — a pooled health bar spends all of it, overflow carries it
+> down, and with neither it fells the mob in front of you. Per-mob sweeping still wounds
+> the members with overflow off, so turning overflow off does **not** mean one kill per
+> hit unless you also turn the sweeping off. Disable `sweepingEdgeOverflow` alone for
+> that.
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
 > whole stack, so overflow does not apply — and `stackHealth` forces it on, because a
 > pooled health bar only makes sense if the whole stack goes down with it. The four

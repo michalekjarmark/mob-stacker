@@ -25,8 +25,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - `sweepingEdgeSingleHit` (default `false`, needs `sweepingEdgePerMob`): put the whole sweep into the
   one hit even when the members *are* separate, and let damage overflow carry it down the stack. Ten
   mobs with Sweeping Edge III means the top mob takes the weapon's damage plus nine sweeps' worth, so
-  a swing kills several outright instead of wounding all of them. Needs `damageOverflow` to reach
-  past the top mob; without it the swing simply kills that one mob, which is the point of the option.
+  a swing kills several outright instead of wounding all of them. It takes `damageOverflow` to reach
+  past the mob you struck; without it the swing simply kills that one mob, which is the point of the
+  option — all the damage in one place.
 - `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
   charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
 - `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
@@ -60,6 +61,16 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   where they could not be reached. Each page now shows as many rows as fit and the mouse wheel moves
   through the rest, with a line telling you which rows you are looking at.
 ### Fixed
+- **Sweeping Edge and `damageOverflow` are independent settings again.** They answer different
+  questions — overflow decides whether the leftover of a *killing blow* carries onto the mobs below,
+  while Sweeping Edge decides how much damage a sweep deals at all — but the code had them tangled:
+  with `damageOverflow` off, **every** sweeping mode bailed out and the hit fell back to the plain
+  weapon damage, so `sweepingEdgeOverflow` and everything under it silently did nothing. Sweeping
+  Edge now always adds its damage, and how far into the stack that reaches is up to the stack: a
+  pooled health bar spends all of it, damage overflow carries it down, and with neither it fells the
+  mob in front of you. Per-mob sweeping goes on wounding the members with overflow off too — the
+  wounds and the overflow are worked out separately now, and the kill count, loot and XP follow
+  whichever of them actually killed something.
 - **`stackHealth` forces `killWholeStackOnDeath` wherever it is on.** Pooling a stack's health into
   one bar only makes sense if the whole stack dies with it, so `stackHealth` forces
   `killWholeStackOnDeath` on. That was done by rewriting the stored value every time the config was
@@ -70,6 +81,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   where the settings are read, region included, and stores nothing, so switching `stackHealth` off
   hands your own value back. The GUI greys the forced setting out, shows the value the game acts on
   and says in red why it cannot be changed, instead of accepting a click and quietly reverting it.
+- **A region row follows a change made by another setting.** The region screen only repainted a row
+  when that row's own override changed, so a value that moved because a *different* row moved was
+  left stale — switching `stackHealth` in a region greyed `killWholeStackOnDeath` out correctly but
+  went on showing `OFF` until the screen was reopened, and dropping its override painted the global
+  value over a setting the region still forces on. Every row now repaints from what is really in
+  force there. Tooltips also wrap to the window instead of running off its right edge.
 - **A region no longer claims a change it does not make.** A region stores only the settings it
   changes, so a stored value that says exactly what the global config already says is not an
   override. Setting a region value *to* the global one already dropped it, but changing the *global*
