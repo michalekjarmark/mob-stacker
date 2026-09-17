@@ -87,13 +87,24 @@ While actual performance gains vary based on server specifications, player count
 | Option | Description | Default |
 |--------|-------------|---------|
 | `killWholeStackOnDeath` | Determines if entire stack dies when one mob is killed | `false` |
-| `stackHealth` | Combines health of stacked mobs when enabled | `false` |
+| `stackHealth` | Combines health of stacked mobs when enabled. Forces `killWholeStackOnDeath` on for as long as it is on | `false` |
 | `enableDamageOverflow` | Carries leftover damage from a lethal hit onto the next mobs in the stack | `true` |
 | `sweepingEdgeOverflow` | Lets the Sweeping Edge enchantment add bonus damage to stacks | `true` |
+| `sweepingEdgePerMob` | Sweep **every** mob in the stack for its own `1 + damage x (level / (level + 1))`, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit | `false` |
+| `sweepingEdgeSingleHit` | Put the whole sweep into the one hit — every other mob's sweep added to it — and let `damageOverflow` carry it down the stack, instead of wounding each mob separately. Needs `sweepingEdgePerMob` | `false` |
+| `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand | `false` |
+| `sweepingEdgeMaxKills` | Caps how many mobs one sweep may kill per swing (`0` = no cap). Only used by `sweepingEdgePerMob` | `0` |
 | `stackEquippedMobs` | If `true`, mobs holding/wearing items may stack (their gear is dropped on merge); if `false`, equipped mobs stay unstacked | `false` |
 | `stackKillActionBar` | Show an action-bar line (above the hotbar) telling the killer how many mobs a hit killed and how many remain | `true` |
 | `stackKillParticles` | Play a particle "pop" at the mob when a hit clears one or more mobs off a stack (scales with the number killed) | `true` |
 | `stackKillHologram` | Show a short-lived floating `-N` hologram above the mob indicating how many that hit killed | `true` |
+| `killHologramColor` | Colour of that floating `-N` hologram | `RED` |
+| `stackNameColor` | Colour of the `Cow x16` name above a stack (a mob named with a name tag keeps its own colour) | `WHITE` |
+| `stackNameColorBySize` | Colour the stack name by how big the stack is, so large stacks stand out | `false` |
+| `stackNameColorMedium` | Name colour from `stackSizeMediumThreshold` upwards | `YELLOW` |
+| `stackNameColorLarge` | Name colour from `stackSizeLargeThreshold` upwards | `RED` |
+| `stackSizeMediumThreshold` | Stack size at which the name switches to `stackNameColorMedium` | `16` |
+| `stackSizeLargeThreshold` | Stack size at which the name switches to `stackNameColorLarge` | `64` |
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs into a baby-stack (feeding a baby-stack speeds its growth) | `true` |
 | `breedOnePerClick` | If `true`, each click feeds a single member (click once per animal); if `false`, one click feeds as many members as the food in hand allows | `false` |
 | `enableAnimalBabyStacking` | Allow loose farm-animal babies (cows, sheep, …) to stack, matched by age | `true` |
@@ -102,6 +113,7 @@ While actual performance gains vary based on server specifications, player count
 | `compactExperience` | Merge a stacked mob's death experience into a single orb instead of many small ones | `true` |
 | `maxMobStackSize` | Maximum number of mobs in a single stack | `16` |
 | `stackRadius` | Radius within which mobs attempt to stack | `6.0` |
+| `stackScanInterval` | How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. `0` only merges when a mob crosses a block boundary | `20` |
 | `enableSeparator` | Toggles use of separator item for stack splitting | `false` |
 | `consumeSeparator` | Determines if separator item is consumed on use | `true` |
 | `separatorItem` | Specifies the item used as a separator | `"minecraft:diamond"` |
@@ -127,7 +139,7 @@ descriptions.
 # Grouped overview of every current setting
 /mobstacker
 
-# Command list + setting categories (stacking, combat, feedback, breeding, drops, separator, mobcaps)
+# Command list + setting categories (stacking, combat, feedback, display, breeding, drops, separator, mobcaps)
 /mobstacker help [category]
 
 # Inspect one setting (current value, default, description)
@@ -245,7 +257,44 @@ several cuboids.
 
 # List all regions and the current mode
 /mobstacker region list
+
+# Everything about one region: bounds, priority and the settings it overrides
+/mobstacker region show <name>
 ```
+
+#### Settings per region
+
+A region can carry its own value for almost every setting, so one farm can behave
+differently from another without touching the rest of the world. Anything a region does
+not mention simply follows the global config, so you only ever state the differences.
+
+```bash
+# Give a region its own value for a setting
+/mobstacker region set <name> <setting> <value>
+/mobstacker region set cowfarm maxStackSize 64
+/mobstacker region set cowfarm stackNameColor GREEN
+
+# Drop an override, so the setting follows the global config again
+/mobstacker region unset cowfarm maxStackSize
+
+# Decide which region wins where two overlap (higher first; ties go to the smaller one)
+/mobstacker region priority <name> <number>
+```
+
+In the config GUI the same thing lives behind the **Regions…** button: pick a region,
+walk the categories, and every row shows its value with a **gold** label when the region
+sets it itself and a **grey** one when it follows the global config — the small `↺`
+button beside a row drops the override again. A region only ever stores what it actually
+changes, so a value equal to the global one is not an override — whether you picked it in
+the region or later changed the global config to match — and gold therefore always means
+"different in here". Hovering a row says the same thing in words, along with the global
+value, and in red when a setting cannot be edited (the one it depends on is off here, or
+another one forces it on). The region's overlap priority is editable right there too.
+
+The only settings that stay global are `stackMode` and `playerStackRadius` — they decide
+where the region system applies at all — and the seven `mobcaps`, which are world-level
+spawn limits rather than a property of a place. `deny` still beats everything, in every
+mode, whatever a region's own settings say.
 
 > 💡 With the default `regions` mode and no regions defined, **no mobs stack at all**.
 > Add at least one `allow` region (e.g. around a laggy farm) to enable stacking there
@@ -283,10 +332,63 @@ into the hit, so Sweeping Edge meaningfully clears stacks:
 | II | `1.0 + 0.67 × attack damage` |
 | III | `1.0 + 0.75 × attack damage` |
 
-> 💡 Both behaviours are independent toggles — disable `damageOverflow` to return to
-> one-kill-per-hit, or keep overflow but disable `sweepingEdgeOverflow` alone.
+### Vanilla-style sweeping (`sweepingEdgePerMob`)
+
+Turn this on and the sweep stops being a single bonus on the hit: the mob you actually
+struck takes the full hit, and **every other mob in the stack takes its own sweep hit**
+— `1 + attack damage x (level / (level + 1))`, the vanilla formula — just as a real
+sweep would have hit them if they were standing loose. Because the attack damage in that
+formula is the damage *after* Sharpness, Smite and Bane of Arthropods, and every mob in a
+stack is the same type, the right enchantment bonus is applied automatically: Smite
+scales the sweep against a stack of zombies, Bane of Arthropods against spiders, and
+Sharpness against everything.
+
+The sweep leaves the other mobs wounded rather than untouched, and those wounds add up
+from swing to swing — so a stack of cows takes a couple of swings to fall apart, exactly
+as a herd standing loose would under the same sweeps.
+
+Some stacks have no separate mobs to wound: `stackHealth` pools their health into one bar,
+and `killWholeStackOnDeath` makes them die together. There, every other member's sweep is
+added to the single hit instead. The total health it costs the stack is the same, so a
+pooled stack falls in the same number of swings as an unpooled one.
+
+`sweepingEdgeSingleHit` asks for that concentrated hit even when the members *are*
+separate. Ten mobs with Sweeping Edge III means the top mob takes the weapon's damage plus
+nine sweeps' worth in one blow, which `damageOverflow` then carries down the stack — so a
+swing kills several mobs outright instead of leaving all of them wounded. It takes
+`damageOverflow` to reach past the mob you struck; without it the swing just kills that one
+mob, which is the point of putting everything in one place. `sweepingEdgeMaxKills` caps how
+far a single swing reaches either way.
+
+One consequence is worth knowing before enabling it: since the whole stack stands in one
+spot, a sweep strong enough to kill a single healthy mob of that type kills **all** of
+them in one swing. That is exactly what vanilla would do to the same mobs standing side
+by side, but it is a big jump in power — use `sweepingEdgeMaxKills` to cap it, and
+`sweepingEdgeVanillaConditions` if you want the bonus only on the kind of swing vanilla
+actually sweeps with.
+
+> 💡 All of these are genuinely independent toggles. `damageOverflow` and the
+> `sweepingEdge*` family answer different questions: overflow decides whether the leftover
+> of a **killing blow** carries onto the mobs below, while Sweeping Edge decides how much
+> damage a sweep deals at all. Sweeping Edge always adds its damage, and how far that
+> reaches is up to the stack — a pooled health bar spends all of it, overflow carries it
+> down, and with neither it fells the mob in front of you. Per-mob sweeping still wounds
+> the members with overflow off, so turning overflow off does **not** mean one kill per
+> hit unless you also turn the sweeping off. Disable `sweepingEdgeOverflow` alone for
+> that.
 > `killWholeStackOnDeath` takes priority: with it enabled, any kill already wipes the
-> whole stack, so overflow does not apply.
+> whole stack, so overflow does not apply — and `stackHealth` forces it on, because a
+> pooled health bar only makes sense if the whole stack goes down with it. The four
+> `sweepingEdge*` tuning options above only apply while `sweepingEdgeOverflow` is on —
+> they refuse to be turned on before then, the config GUI greys them out until it is, and
+> they **read as off** meanwhile, so a switch never sits on `ON` while doing nothing. The
+> same goes down the chain: `sweepingEdgeSingleHit` follows `sweepingEdgePerMob`, which
+> follows `sweepingEdgeOverflow`. Nothing is erased — turn the master setting back on and
+> everything you had set is there again.
+> Both kinds of dependency are judged by the region's own value inside a region, so a
+> region may enable `sweepingEdgeOverflow` for itself and use everything built on it while
+> the rest of the world does without, and a region that turns `stackHealth` off is not
+> bound by the world's forced `killWholeStackOnDeath`.
 
 When a hit kills mobs from a stack the mod can show feedback three ways, each with its own
 independent toggle:
@@ -295,9 +397,21 @@ independent toggle:
   showing how many were killed by that hit and how many remain (e.g. `Killed 3× Cow • 9 left`).
 - **Particle pop** (`stackKillParticles`, default on): a burst of particles at the mob,
   growing in amount and height with the number killed. It spawns no extra entities.
+### Telling stacks apart
+
+The name above a stack is drawn in `stackNameColor` — any of the sixteen Minecraft colours — so
+stacks can be made to stand out from ordinary mobs, and (once you put them in different regions)
+from each other. Turn on `stackNameColorBySize` and the colour steps up with the stack: the base
+colour below `stackSizeMediumThreshold`, `stackNameColorMedium` from there, and
+`stackNameColorLarge` from `stackSizeLargeThreshold` upwards — a 64-stack is then recognisable
+across the farm without counting. A mob you named with a name tag keeps the colour you gave it.
+Colour changes reach stacks that already exist within a second (see `stackScanInterval`).
+
 - **Floating hologram** (`stackKillHologram`, default on): a short-lived `-N` text that
   drifts up above the mob showing how many that hit killed. This is the only feedback
   channel that spawns an entity — an invisible marker armor stand removed after ~1 second.
+  It is never written to the world save, so a server restart or a chunk unload in the
+  middle of its short life can no longer leave one floating behind.
 
 ### Breeding & Baby Stacking
 

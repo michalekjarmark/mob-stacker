@@ -7,6 +7,119 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.6.0] - 2026-09-17
+### Added
+- **Vanilla-style Sweeping Edge** (`sweepingEdgePerMob`, default `false`). With it on, the mob you
+  hit takes the full hit and **every other mob in the stack takes its own sweep hit** —
+  `1 + attack damage x (level / (level + 1))`, the vanilla formula — instead of the stack receiving a
+  single flat bonus. Since that attack damage is the damage *after* Sharpness, Smite and Bane of
+  Arthropods, and a stack is always one mob type, each enchantment automatically scales the sweep
+  against the mobs it is meant for. The sweep wounds every member, and those wounds add up from swing
+  to swing, so a stack wears down the way a herd of loose mobs does under repeated sweeps instead of
+  shrugging the sweep off whenever one swing cannot kill outright. Note that a sweep strong enough to
+  kill a healthy mob of that type clears the whole stack in one swing — exactly what vanilla would do
+  to those mobs standing loose, but a big jump in power, so three tuning options come with it.
+  Where a stack has no separate mobs to wound — `stackHealth` pools its health into one bar, or
+  `killWholeStackOnDeath` makes it die as one — every other member's sweep is added to that single
+  hit instead, which costs the stack the same total health and so takes the same number of swings.
+- `sweepingEdgeSingleHit` (default `false`, needs `sweepingEdgePerMob`): put the whole sweep into the
+  one hit even when the members *are* separate, and let damage overflow carry it down the stack. Ten
+  mobs with Sweeping Edge III means the top mob takes the weapon's damage plus nine sweeps' worth, so
+  a swing kills several outright instead of wounding all of them. It takes `damageOverflow` to reach
+  past the mob you struck; without it the swing simply kills that one mob, which is the point of the
+  option — all the damage in one place.
+- `sweepingEdgeVanillaConditions` (default `false`): only sweep when vanilla actually would — a fully
+  charged swing, no critical hit, not sprinting, standing on the ground, sword in hand.
+- `sweepingEdgeMaxKills` (default `0` = no cap): the most mobs one swing's sweep may kill.
+- `stackScanInterval` (default `20` ticks): how often a mob re-checks for a nearby stack to join. Set
+  it to `0` for the old behaviour, where mobs only ever merge on crossing a block boundary.
+- **Settings per region.** A region can now carry its own value for almost every setting, so a cow
+  farm can stack to 64 while a mob grinder next door stays at 16, with its own combat, feedback,
+  breeding, drops and display behaviour. Anything a region does not override simply follows the
+  global config, so you only state the differences and existing config files keep working untouched.
+  Manage it with `/mobstacker region set|unset <region> <setting> <value>`, see everything a region
+  does with `/mobstacker region show <region>`, and settle overlapping regions with
+  `/mobstacker region priority <region> <n>` (higher wins, ties go to the smaller region). The only
+  settings that stay global are `stackMode` and `playerStackRadius` — which decide where the region
+  system applies at all — and the seven mob caps, which are world-level spawn limits. `deny` regions
+  still override everything, in every mode. The config GUI has it all too, behind a new **Regions…**
+  button: pick a region, browse the categories, and each row shows a gold label where the region sets
+  the value itself and a grey one where it follows the global config, with a button to drop the
+  override. It works on a remote server the same way the rest of the GUI does — operators edit, other
+  players look.
+- **Colour control for stack names and kill holograms.** The `Cow x16` name above a stack is drawn in
+  `stackNameColor` (any of the sixteen Minecraft colours), and the floating `-N` kill hologram in
+  `killHologramColor`, so stacks no longer all look alike. Turn on `stackNameColorBySize` and the
+  colour steps up with the stack — the base colour, then `stackNameColorMedium` from
+  `stackSizeMediumThreshold` and `stackNameColorLarge` from `stackSizeLargeThreshold` — so a huge
+  stack is recognisable at a glance. Mobs named with a name tag keep their own colour, and colour
+  changes apply to stacks that already exist. These live in a new **Stack display** settings category
+  (`/mobstacker help display`).
+### Changed
+- **The config GUI scrolls.** A settings page used to draw its rows at fixed positions, so a long
+  category — or simply a large GUI scale — could push the last settings off the bottom of the screen
+  where they could not be reached. Each page now shows as many rows as fit and the mouse wheel moves
+  through the rest, with a line telling you which rows you are looking at.
+### Fixed
+- **Sweeping Edge and `damageOverflow` are independent settings again.** They answer different
+  questions — overflow decides whether the leftover of a *killing blow* carries onto the mobs below,
+  while Sweeping Edge decides how much damage a sweep deals at all — but the code had them tangled:
+  with `damageOverflow` off, **every** sweeping mode bailed out and the hit fell back to the plain
+  weapon damage, so `sweepingEdgeOverflow` and everything under it silently did nothing. Sweeping
+  Edge now always adds its damage, and how far into the stack that reaches is up to the stack: a
+  pooled health bar spends all of it, damage overflow carries it down, and with neither it fells the
+  mob in front of you. Per-mob sweeping goes on wounding the members with overflow off too — the
+  wounds and the overflow are worked out separately now, and the kill count, loot and XP follow
+  whichever of them actually killed something.
+- **`stackHealth` forces `killWholeStackOnDeath` wherever it is on.** Pooling a stack's health into
+  one bar only makes sense if the whole stack dies with it, so `stackHealth` forces
+  `killWholeStackOnDeath` on. That was done by rewriting the stored value every time the config was
+  saved, which cost two things: your own `killWholeStackOnDeath` choice was overwritten the first
+  time `stackHealth` went on and never came back when it went off, and it only ever covered the
+  *global* config — so a region that enabled `stackHealth` for itself silently kept the global
+  `killWholeStackOnDeath`, and pooled health did nothing in that region. The rule is now applied
+  where the settings are read, region included, and stores nothing, so switching `stackHealth` off
+  hands your own value back. The GUI greys the forced setting out, shows the value the game acts on
+  and says in red why it cannot be changed, instead of accepting a click and quietly reverting it.
+- **A region row follows a change made by another setting.** The region screen only repainted a row
+  when that row's own override changed, so a value that moved because a *different* row moved was
+  left stale — switching `stackHealth` in a region greyed `killWholeStackOnDeath` out correctly but
+  went on showing `OFF` until the screen was reopened, and dropping its override painted the global
+  value over a setting the region still forces on. Every row now repaints from what is really in
+  force there. Tooltips also wrap to the window instead of running off its right edge.
+- **A region no longer claims a change it does not make.** A region stores only the settings it
+  changes, so a stored value that says exactly what the global config already says is not an
+  override. Setting a region value *to* the global one already dropped it, but changing the *global*
+  value to match the region's did not: the row stayed gold and the region stayed pinned to a value it
+  was no longer changing. Such an override is now dropped on the way to disk, whichever of the two
+  moved, and a row is coloured by the difference itself rather than by the presence of a stored value.
+- **A setting that depends on another one behaves the same everywhere.** The `sweepingEdge*` tuning
+  options only work while `sweepingEdgeOverflow` is on, but that was checked against the *global*
+  config only: inside a region that had enabled `sweepingEdgeOverflow` for itself, they were still
+  refused, and the config GUI let you flip the switch anyway and then quietly dropped the change. The
+  dependency is now resolved wherever the change is made — a region uses its own value for it, just
+  as the game does at the mob — and the GUI greys a setting out (with a tooltip saying why) until the
+  setting it needs is on. A setting whose dependency is off also **reads as off**, all the way down a
+  chain of them, so a switch can never sit on `ON` while having no effect: turning
+  `sweepingEdgeOverflow` off shows `sweepingEdgePerMob` and `sweepingEdgeSingleHit` as off too. What
+  you had set is kept, not erased, and comes straight back when you turn the master setting on again.
+  The GUI also repaints a row from the config after every edit, so a value the config refuses can no
+  longer sit on a widget as if it had been saved.
+- **Mobs that never move now stack.** Merging was only attempted when a mob crossed a block boundary,
+  so mobs that simply stay put — several spawn eggs used on the same block, mobs with no AI, a penned
+  or stuck group — stood side by side and never stacked until something nudged them. Every mob now
+  also re-checks on a timer (see `stackScanInterval`), staggered across mobs and skipped for stacks
+  that are already full, so it costs less than the movement checks it complements.
+- **Kill holograms no longer get stuck in the world.** The floating `-N` text above a killed stack is
+  an armor stand that lives for about a second, but it was being written into the world save like any
+  other entity: if the server stopped — or the chunk unloaded — during that second, it came back on
+  the next load with nothing left to remove it and stayed floating there forever. Holograms are now
+  kept strictly in memory and are never saved, and are cleared when the server stops. The versions
+  that leaked them did not mark their armor stands at all, so the ones already stuck in a world had
+  to be deleted by hand; an untagged stand is now recognised by its shape instead — an invisible,
+  silent, invulnerable marker with no gravity, no base plate and no equipment, named nothing but
+  `-<number>` — and removed as soon as its chunk loads, with a line in the server log saying where.
+
 ## [1.5.3] - 2026-07-03
 ### Added
 - **New `PLAYERS` stack mode.** Mobs stack only when they are near a player — within

@@ -25,4 +25,13 @@ public abstract class MinecraftServerMixin {
     private void mobstacker$tickKillHolograms(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
         MobStacker.tickKillHolograms();
     }
+
+    /**
+     * Remove any kill hologram that is still floating when the server shuts down, so a stop timed
+     * inside a hologram's short lifetime cannot leave one behind in the world.
+     */
+    @Inject(method = "stopServer", at = @At("HEAD"))
+    private void mobstacker$clearKillHolograms(CallbackInfo ci) {
+        MobStacker.clearKillHolograms();
+    }
 }

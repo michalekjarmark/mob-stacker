@@ -30,6 +30,7 @@ import net.minecraft.world.entity.Mob;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -116,7 +117,30 @@ public class MobStackerCommands {
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .executes(MobStackerCommands::removeRegion)))
                         .then(literal("list")
-                                .executes(MobStackerCommands::listRegions)));
+                                .executes(MobStackerCommands::listRegions))
+                        .then(literal("show")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(MobStackerCommands::showRegion)))
+                        .then(literal("set")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("setting", StringArgumentType.word())
+                                                .suggests(MobStackerCommands::suggestRegionSettings)
+                                                .then(argument("value", StringArgumentType.greedyString())
+                                                        .suggests(MobStackerCommands::suggestValues)
+                                                        .executes(MobStackerCommands::setRegionValue)))))
+                        .then(literal("unset")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("setting", StringArgumentType.word())
+                                                .suggests(MobStackerCommands::suggestRegionOverrides)
+                                                .executes(MobStackerCommands::unsetRegionValue))))
+                        .then(literal("priority")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("priority", IntegerArgumentType.integer())
+                                                .executes(MobStackerCommands::setRegionPriority)))));
 
         // The self-test command is an opt-in developer/testing tool: it is only registered when the
         // JVM is started with -Dmobstacker.selftest=true, so the public release never exposes it.
@@ -138,6 +162,19 @@ public class MobStackerCommands {
                 .append(valueComponent(option))
                 .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
         context.getSource().sendSuccess(() -> Component.literal(option.description()).withStyle(ChatFormatting.GRAY), false);
+        // Say so when the value above is not the one in the config file: another setting is forcing
+        // it, or the setting it depends on is off and holding it at its default.
+        String problem = MobStackerSettings.lockProblem(option, null, null);
+        if (problem == null) {
+            problem = MobStackerSettings.dependencyProblem(option, null, null);
+        }
+        if (problem != null) {
+            String stored = option.storedValue();
+            final String note = option.currentValue().equalsIgnoreCase(stored)
+                    ? problem
+                    : problem + "  (stored: " + stored + ")";
+            context.getSource().sendSuccess(() -> Component.literal(note).withStyle(ChatFormatting.YELLOW), false);
+        }
         return 1;
     }
 
@@ -283,7 +320,7 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
@@ -626,6 +663,19 @@ public class MobStackerCommands {
         return 1;
     }
 
+    /** The "priority 5, 3 settings" tail shown after a region's bounds, omitted when there is none. */
+    private static String describeRegionExtras(StackRegion region) {
+        StringBuilder out = new StringBuilder();
+        if (region.getPriority() != 0) {
+            out.append("  priority ").append(region.getPriority());
+        }
+        int overrides = region.getSettings().size();
+        if (overrides > 0) {
+            out.append("  ").append(overrides).append(overrides == 1 ? " setting" : " settings");
+        }
+        return out.toString();
+    }
+
     private static int removeRegion(CommandContext<CommandSourceStack> context) {
         String name = StringArgumentType.getString(context, "name");
         if (MobStacker.config.removeRegion(name)) {
@@ -651,10 +701,172 @@ public class MobStackerCommands {
         for (StackRegion region : regions) {
             ChatFormatting color = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
             context.getSource().sendSuccess(() -> Component.literal(
-                    " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " " + region.describeBounds()
+                    " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " "
+                            + region.describeBounds() + describeRegionExtras(region)
             ).withStyle(color), false);
         }
         warnIfStacksNowhere(context.getSource());
         return 1;
+    }
+
+    // --- per-region settings -------------------------------------------------------------------
+
+    /** Looks up the region named by the command, reporting to the source when there is none. */
+    private static StackRegion requireRegion(CommandContext<CommandSourceStack> context) {
+        String name = StringArgumentType.getString(context, "name");
+        StackRegion region = MobStacker.config.getRegion(name);
+        if (region == null) {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist")
+                    .withStyle(ChatFormatting.RED));
+        }
+        return region;
+    }
+
+    private static int setRegionValue(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        String settingId = StringArgumentType.getString(context, "setting");
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        if (option == null) {
+            return unknownSetting(context, settingId);
+        }
+        if (!MobStackerSettings.isRegionOverridable(option.id())) {
+            context.getSource().sendFailure(Component.literal(
+                    "'" + option.id() + "' is global and cannot differ per region. Set it with /mobstacker set "
+                            + option.id() + " <value>.").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+
+        String canonical;
+        try {
+            canonical = option.canonicalize(StringArgumentType.getString(context, "value"));
+        } catch (IllegalArgumentException e) {
+            context.getSource().sendFailure(Component.literal(e.getMessage()).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+
+        // Dependencies are judged by what is in force inside this region, so a region that enables
+        // sweepingEdgeOverflow for itself may use the options built on it.
+        String problem = MobStackerSettings.regionEditProblem(option, region, canonical);
+        if (problem != null) {
+            context.getSource().sendFailure(Component.literal(problem).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+
+        String previous = region.getSetting(option.id());
+        if (canonical.equals(previous)) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    region.getName() + ": " + option.id() + " is already " + canonical).withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+
+        region.setSetting(option.id(), canonical);
+        MobStacker.config.save();
+        String from = previous != null ? previous : option.currentValue() + " (global)";
+        context.getSource().sendSuccess(() -> Component.literal(
+                region.getName() + ": " + option.id() + " " + from + " -> " + canonical).withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int unsetRegionValue(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        String settingId = StringArgumentType.getString(context, "setting");
+        ConfigOption option = MobStackerSettings.byId(settingId);
+        String id = option != null ? option.id() : settingId;
+        if (!region.clearSetting(id)) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    region.getName() + " does not override " + id).withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        MobStacker.config.save();
+        String now = option != null ? option.currentValue() : "the global value";
+        context.getSource().sendSuccess(() -> Component.literal(
+                region.getName() + ": " + id + " follows the global config again (" + now + ")")
+                .withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int setRegionPriority(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        int priority = IntegerArgumentType.getInteger(context, "priority");
+        int previous = region.getPriority();
+        if (priority == previous) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    region.getName() + ": priority is already " + priority).withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        region.setPriority(priority);
+        MobStacker.config.save();
+        context.getSource().sendSuccess(() -> Component.literal(
+                region.getName() + ": priority " + previous + " -> " + priority).withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int showRegion(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        ChatFormatting typeColor = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
+        source.sendSuccess(() -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        source.sendSuccess(() -> Component.literal(" type: " + region.getType()).withStyle(typeColor), false);
+        source.sendSuccess(() -> Component.literal(
+                " at: " + region.getDimension() + " " + region.describeBounds()).withStyle(ChatFormatting.GRAY), false);
+        source.sendSuccess(() -> Component.literal(
+                " priority: " + region.getPriority() + " (higher wins where regions overlap)").withStyle(ChatFormatting.GRAY), false);
+
+        Map<String, String> overrides = region.getSettings();
+        if (overrides.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    " settings: none - everything follows the global config").withStyle(ChatFormatting.DARK_GRAY), false);
+            source.sendSuccess(() -> Component.literal(
+                    " set one with /mobstacker region set " + region.getName() + " <setting> <value>")
+                    .withStyle(ChatFormatting.DARK_GRAY), false);
+            return 1;
+        }
+        source.sendSuccess(() -> Component.literal(
+                " settings (" + overrides.size() + " overridden here):").withStyle(ChatFormatting.GOLD), false);
+        for (Map.Entry<String, String> entry : overrides.entrySet()) {
+            ConfigOption option = MobStackerSettings.byId(entry.getKey());
+            String global = option != null ? option.currentValue() : "?";
+            source.sendSuccess(() -> Component.literal("  " + entry.getKey() + " = ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(entry.getValue()).withStyle(ChatFormatting.AQUA))
+                    .append(Component.literal("   [global " + global + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
+        }
+        return 1;
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegionSettings(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase();
+        for (ConfigOption option : MobStackerSettings.regionOverridable()) {
+            if (option.id().toLowerCase().startsWith(remaining)) {
+                builder.suggest(option.id());
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegionOverrides(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        StackRegion region = MobStacker.config.getRegion(StringArgumentType.getString(context, "name"));
+        if (region == null) {
+            return builder.buildFuture();
+        }
+        String remaining = builder.getRemaining().toLowerCase();
+        for (String id : region.getSettings().keySet()) {
+            if (id.toLowerCase().startsWith(remaining)) {
+                builder.suggest(id);
+            }
+        }
+        return builder.buildFuture();
     }
 }

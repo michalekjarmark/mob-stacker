@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker;
 
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -62,6 +63,9 @@ public final class MobStacker {
     public static final String STACK_DATA_KEY = "StackData";
     public static final String STACK_SIZE_KEY = "StackSize";
     public static final String CAN_STACK_KEY = "CanStack";
+    // Damage already carried by every member below the top one (per-mob Sweeping Edge). All members
+    // of a stack share one set of stats, so a single number describes all of them.
+    public static final String MEMBER_DAMAGE_KEY = "MemberDamage";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -85,6 +89,10 @@ public final class MobStacker {
     // stack kill and cleaned up ~1s later from the server tick (see MinecraftServerMixin).
     private static final int KILL_HOLOGRAM_LIFETIME_TICKS = 24;
     private static final List<KillHologram> killHolograms = new ArrayList<>();
+    // Every hologram carries this scoreboard tag. It marks the stand as ours so it is never saved
+    // to disk (EntityMixin#shouldBeSaved) and so a stray one left in an old world by a previous
+    // version can be identified and cleaned up when it ticks (ArmorStandMixin).
+    public static final String KILL_HOLOGRAM_TAG = "mobstacker_kill_hologram";
 
     private record KillHologram(ArmorStand entity, long expireGameTime) {}
 
@@ -117,6 +125,8 @@ public final class MobStacker {
      * {@code MinecraftServerMixin} when the server is created.
      */
     public static void loadWorldConfig(MinecraftServer server) {
+        // A previous world's holograms must never be ticked against this one.
+        clearKillHolograms();
         try {
             Path dir = server.getWorldPath(LevelResource.ROOT).resolve("serverconfig");
             Files.createDirectories(dir);
@@ -167,8 +177,8 @@ public final class MobStacker {
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
             boolean allowed = (entity instanceof Animal)
-                    ? config.getEnableAnimalBabyStacking()
-                    : config.getEnableHostileBabyStacking();
+                    ? getEnableAnimalBabyStacking(entity)
+                    : getEnableHostileBabyStacking(entity);
             if (!allowed) {
                 return false;
             }
@@ -184,7 +194,7 @@ public final class MobStacker {
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
-        if (!config.getStackEquippedMobs() && hasEquipment(entity)) {
+        if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
             return false;
         }
 
@@ -198,7 +208,7 @@ public final class MobStacker {
             return false;
         }
 
-        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize();
+        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize(entity);
     }
 
     /**
@@ -267,7 +277,7 @@ public final class MobStacker {
             return false;
         }
 
-        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize()) {
+        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize(self)) {
             return false;
         }
 
@@ -319,6 +329,10 @@ public final class MobStacker {
 
         copyEntityData(self, newEntity, serverLevel);
         MobStacker.setStackSize(newEntity, newStackSize);
+        if (newStackSize > 1) {
+            // The mobs under the new top one are the same wounded members as before the kill.
+            MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
+        }
         copyBreedData(self, newEntity, newStackSize);
         if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
             newEntity.setHealth(survivorHealth);
@@ -420,13 +434,67 @@ public final class MobStacker {
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
-        if (getStackHealth() && source.getHealth() > target.getMaxHealth()) {
+        if (getStackHealth(source) && source.getHealth() > target.getMaxHealth()) {
             source.setHealth(source.getHealth() - target.getMaxHealth());
         }
     }
 
+    /**
+     * Looks for a nearby stack this mob can join and merges into it. The nearby mob is kept as the
+     * stack and this one is discarded, so callers must not touch {@code self} afterwards.
+     *
+     * @return true when the mob was merged away
+     */
+    public static boolean tryMergeIntoNearbyStack(Mob self) {
+        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
+                entity -> entity instanceof Mob && canStack((Mob) entity))) {
+            if (canMerge(self, (Mob) nearby)) {
+                mergeEntities((Mob) nearby, self);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Periodic re-check for mobs that are already standing together.
+     * <p>
+     * Merging is normally driven by a mob crossing a block boundary, which misses every mob that
+     * simply never moves: several spawn eggs used on the same block, mobs with no AI, a stuck
+     * spawner batch, or anything penned in place. Those used to sit side by side unstacked until
+     * something nudged them. Each mob therefore also re-checks on a timer, staggered by entity id so
+     * the whole world never scans on the same tick, and skipped entirely for a mob that is already
+     * at the maximum stack size (it could not merge with anything anyway).
+     * <p>
+     * The same pass refreshes an existing stack's name, so display settings such as the name colour
+     * take effect on stacks that are already standing in the world rather than only on the next
+     * merge.
+     */
+    public static void tickStackScan(Mob mob) {
+        int interval = getStackScanInterval(mob);
+        if (interval <= 0 || mob.level().isClientSide()) {
+            return;
+        }
+        if ((mob.tickCount + mob.getId()) % interval != 0) {
+            return;
+        }
+        int stackSize = getStackSize(mob);
+        if (stackSize > 1) {
+            // Also keeps the name in step with the display settings, so a colour change shows up on
+            // stacks that already exist. The component only reaches clients when it really differs.
+            updateStackDisplay(mob);
+        }
+        if (stackSize >= getMaxMobStackSize(mob)) {
+            return;
+        }
+        if (!getCanStack(mob) || !canStack(mob)) {
+            return;
+        }
+        tryMergeIntoNearbyStack(mob);
+    }
+
     public static void mergeEntities(Mob target, Mob source) {
-        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize());
+        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize(target));
 
         // When two babies merge, keep the youngest (most negative) age so no member ever grows up
         // early — this replaces a strict age-band gate and lets baby-stacks freely consolidate.
@@ -501,7 +569,8 @@ public final class MobStacker {
                     .withStyle(entity.getCustomName().getStyle());
         }
         return stackSize > 1 ?
-                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize) :
+                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize)
+                        .withStyle(stackNameColor(entity, stackSize)) :
                 null;
     }
 
@@ -539,7 +608,7 @@ public final class MobStacker {
         double maxHealth = target.getMaxHealth();
         float newHealth = target.getHealth() + source.getHealth();
 
-        if (getStackHealth() && getKillWholeStackOnDeath()) {
+        if (getStackHealth(target) && getKillWholeStackOnDeath(target)) {
             maxHealth += source.getMaxHealth();
             target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(maxHealth);
         }
@@ -659,7 +728,7 @@ public final class MobStacker {
         boolean creative = player.getAbilities().instabuild;
         // "One per click" mode feeds a single member per interaction (click once per animal);
         // otherwise a single click feeds as many members as the food in hand allows.
-        int limit = getBreedOnePerClick() ? Math.min(1, free) : free;
+        int limit = getBreedOnePerClick(self) ? Math.min(1, free) : free;
         int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
@@ -702,7 +771,7 @@ public final class MobStacker {
         }
         int stackSize = getStackSize(self);
         boolean creative = player.getAbilities().instabuild;
-        int limit = getBreedOnePerClick() ? 1 : stackSize;
+        int limit = getBreedOnePerClick(self) ? 1 : stackSize;
         int toFeed = creative ? limit : Math.min(limit, food.getCount());
         if (toFeed <= 0) {
             return InteractionResult.PASS;
@@ -744,11 +813,11 @@ public final class MobStacker {
      * then spawning the overflow as new baby-stack entities capped at the max stack size.
      */
     private static void spawnOrMergeBabyStack(ServerLevel level, Animal parent, int count) {
-        int max = getMaxMobStackSize();
+        int max = getMaxMobStackSize(parent);
         int remaining = count;
 
         BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(parent.getClass());
-        for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius()),
+        for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius(parent)),
                 e -> e != parent && e.getClass() == parent.getClass() && ((Mob) e).isBaby())) {
             if (remaining <= 0) {
                 break;
@@ -823,7 +892,41 @@ public final class MobStacker {
     public static void setStackSize(Mob entity, int size) {
         if (entity instanceof ICustomDataHolder holder) {
             holder.mobstacker$getCustomData().putInt(STACK_SIZE_KEY, size);
+            if (size <= 1) {
+                // Nothing left under the top mob, so there is no shared wound to remember either.
+                setStackMemberDamage(entity, 0.0F);
+            }
             updateStackDisplay(entity);
+        }
+    }
+
+    /**
+     * Damage every member below the top mob is already carrying, so their health is
+     * {@code maxHealth - memberDamage}. Per-mob Sweeping Edge adds to it on every swing: members are
+     * identical, take the same sweep and therefore always share the same health, which is what lets
+     * one number stand for all of them.
+     * <p>
+     * It is stored with the stack data, so it survives saving, and the surviving remainder of a stack
+     * inherits it (see {@link #spawnNewEntity}). A merge keeps the target stack's value — the merge
+     * already tops the target's own health up the same way.
+     */
+    public static float getStackMemberDamage(Mob entity) {
+        if (!(entity instanceof ICustomDataHolder holder)) {
+            return 0.0F;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        return customData.contains(MEMBER_DAMAGE_KEY) ? customData.getFloat(MEMBER_DAMAGE_KEY) : 0.0F;
+    }
+
+    public static void setStackMemberDamage(Mob entity, float damage) {
+        if (!(entity instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        if (damage <= 0.0F) {
+            customData.remove(MEMBER_DAMAGE_KEY);
+        } else {
+            customData.putFloat(MEMBER_DAMAGE_KEY, damage);
         }
     }
 
@@ -841,37 +944,257 @@ public final class MobStacker {
         }
     }
 
+    // --- Per-region settings -------------------------------------------------------------------
+    // A region can carry its own value for (almost) any setting; anything it does not mention keeps
+    // following the global config. Every gameplay read therefore goes through the helpers below with
+    // the mob in question, so the answer is the one that applies where that mob is standing. The
+    // lookup returns immediately when no regions exist, which is the usual case.
+
+    /**
+     * The region whose settings apply at this entity, or null when it is outside every region.
+     * Where regions overlap the highest {@code priority} wins, and equal priorities are settled in
+     * favour of the smaller region, so a small exception carved inside a large area behaves the way
+     * it looks. Both ALLOW and DENY regions carry settings: a DENY region stops new stacks forming,
+     * but existing stacks can still wander in and should behave the way that place is configured.
+     */
+    public static StackRegion regionAt(Entity entity) {
+        List<StackRegion> regions = config.getRegions();
+        if (entity == null || regions.isEmpty()) {
+            return null;
+        }
+        String dimension = entity.level().dimension().location().toString();
+        BlockPos pos = entity.blockPosition();
+        StackRegion best = null;
+        for (StackRegion region : regions) {
+            if (!region.contains(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+                continue;
+            }
+            if (best == null || region.getPriority() > best.getPriority()
+                    || (region.getPriority() == best.getPriority() && region.volume() < best.volume())) {
+                best = region;
+            }
+        }
+        return best;
+    }
+
+    private static String regionValue(String id, Entity at) {
+        if (at == null || config.getRegions().isEmpty()) {
+            return null;
+        }
+        StackRegion region = regionAt(at);
+        return region == null ? null : region.getSetting(id);
+    }
+
+    /** The value of a boolean setting where {@code at} is standing. */
+    public static boolean setting(String id, Entity at, boolean fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        return fallback;
+    }
+
+    /** The value of a whole-number setting where {@code at} is standing. */
+    public static int setting(String id, Entity at, int fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** The value of a decimal setting where {@code at} is standing. */
+    public static double setting(String id, Entity at, double fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /** The value of a text setting where {@code at} is standing. */
+    public static String setting(String id, Entity at, String fallback) {
+        String value = regionValue(id, at);
+        return value == null ? fallback : value;
+    }
+
+    /** The value of an enum setting where {@code at} is standing. */
+    public static <E extends Enum<E>> E setting(String id, Entity at, E fallback) {
+        String value = regionValue(id, at);
+        if (value == null) {
+            return fallback;
+        }
+        for (E constant : fallback.getDeclaringClass().getEnumConstants()) {
+            if (constant.name().equalsIgnoreCase(value.trim())) {
+                return constant;
+            }
+        }
+        return fallback;
+    }
+
     public static double getStackRadius() {return config.getStackRadius();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static double getStackRadius(Entity at) {return setting("stackRadius", at, config.getStackRadius());}
 
     public static int getMaxMobStackSize() {return config.getMaxMobStackSize();}
 
-    public static boolean getKillWholeStackOnDeath() {return config.getKillWholeStackOnDeath();}
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getMaxMobStackSize(Entity at) {return setting("maxStackSize", at, config.getMaxMobStackSize());}
+
+    /**
+     * Whether killing the top mob takes the whole stack with it. {@code stackHealth} pools the
+     * stack's health into one bar, which only makes sense if the whole stack dies with it, so it
+     * forces this on. The rule lives here rather than in the stored config so it also holds inside a
+     * region that turns {@code stackHealth} on for itself, and so switching {@code stackHealth} off
+     * gives the player their own value back.
+     */
+    public static boolean getKillWholeStackOnDeath() {return config.getStackHealth() || config.getKillWholeStackOnDeath();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getKillWholeStackOnDeath(Entity at) {
+        return getStackHealth(at) || setting("killWholeStackOnDeath", at, config.getKillWholeStackOnDeath());
+    }
 
     public static boolean getStackHealth() {return config.getStackHealth();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackHealth(Entity at) {return setting("stackHealth", at, config.getStackHealth());}
+
     public static boolean getDamageOverflow() {return config.getDamageOverflow();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getDamageOverflow(Entity at) {return setting("damageOverflow", at, config.getDamageOverflow());}
 
     public static boolean getSweepingEdgeOverflow() {return config.getSweepingEdgeOverflow();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeOverflow(Entity at) {return setting("sweepingEdgeOverflow", at, config.getSweepingEdgeOverflow());}
+
+    public static boolean getSweepingEdgePerMob() {return config.getSweepingEdgePerMob();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgePerMob(Entity at) {return setting("sweepingEdgePerMob", at, config.getSweepingEdgePerMob());}
+
+    public static boolean getSweepingEdgeSingleHit() {return config.getSweepingEdgeSingleHit();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeSingleHit(Entity at) {return setting("sweepingEdgeSingleHit", at, config.getSweepingEdgeSingleHit());}
+
+    public static boolean getSweepingEdgeVanillaConditions() {return config.getSweepingEdgeVanillaConditions();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeVanillaConditions(Entity at) {return setting("sweepingEdgeVanillaConditions", at, config.getSweepingEdgeVanillaConditions());}
+
+    public static int getSweepingEdgeMaxKills() {return config.getSweepingEdgeMaxKills();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getSweepingEdgeMaxKills(Entity at) {return setting("sweepingEdgeMaxKills", at, config.getSweepingEdgeMaxKills());}
+
+    // --- Vanilla sweep context -----------------------------------------------------------------
+    // Whether the swing currently being resolved satisfies vanilla's own conditions for a sweep
+    // attack (fully charged, no crit, not sprinting, on the ground, sword in hand). It has to be
+    // sampled in Player#attack, because the attack-strength counter is reset there before the
+    // target's hurt() ever runs. Attack and damage resolve back-to-back on the server thread, so a
+    // single slot keyed by the attacker is enough.
+    private static Entity sweepContextAttacker;
+    private static boolean sweepContextVanillaSweep;
+
+    public static void setVanillaSweepContext(Entity attacker, boolean vanillaSweep) {
+        sweepContextAttacker = attacker;
+        sweepContextVanillaSweep = vanillaSweep;
+    }
+
+    /** True when {@code attacker}'s current swing is one vanilla would have swept with. */
+    public static boolean hadVanillaSweepConditions(Entity attacker) {
+        return attacker != null && attacker == sweepContextAttacker && sweepContextVanillaSweep;
+    }
+
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackEquippedMobs(Entity at) {return setting("stackEquippedMobs", at, config.getStackEquippedMobs());}
 
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillActionBar(Entity at) {return setting("stackKillActionBar", at, config.getStackKillActionBar());}
+
     public static boolean getStackKillParticles() {return config.getStackKillParticles();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillParticles(Entity at) {return setting("stackKillParticles", at, config.getStackKillParticles());}
 
     public static boolean getStackKillHologram() {return config.getStackKillHologram();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackKillHologram(Entity at) {return setting("stackKillHologram", at, config.getStackKillHologram());}
+
+    public static int getStackScanInterval() {return config.getStackScanInterval();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getStackScanInterval(Entity at) {return setting("stackScanInterval", at, config.getStackScanInterval());}
+
+    /**
+     * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up
+     * at the two configured stack sizes, so a huge stack is recognisable at a glance; otherwise every
+     * stack uses the single configured colour.
+     */
+    public static ChatFormatting stackNameColor(Entity at, int stackSize) {
+        if (setting("stackNameColorBySize", at, config.getStackNameColorBySize())) {
+            if (stackSize >= setting("stackSizeLargeThreshold", at, config.getStackSizeLargeThreshold())) {
+                return setting("stackNameColorLarge", at, config.getStackNameColorLarge()).format();
+            }
+            if (stackSize >= setting("stackSizeMediumThreshold", at, config.getStackSizeMediumThreshold())) {
+                return setting("stackNameColorMedium", at, config.getStackNameColorMedium()).format();
+            }
+        }
+        return setting("stackNameColor", at, config.getStackNameColor()).format();
+    }
+
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableStackBreeding(Entity at) {return setting("enableStackBreeding", at, config.getEnableStackBreeding());}
 
     public static boolean getBreedOnePerClick() {return config.getBreedOnePerClick();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getBreedOnePerClick(Entity at) {return setting("breedOnePerClick", at, config.getBreedOnePerClick());}
+
     public static boolean getEnableAnimalBabyStacking() {return config.getEnableAnimalBabyStacking();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableAnimalBabyStacking(Entity at) {return setting("enableAnimalBabyStacking", at, config.getEnableAnimalBabyStacking());}
 
     public static boolean getEnableHostileBabyStacking() {return config.getEnableHostileBabyStacking();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableHostileBabyStacking(Entity at) {return setting("enableHostileBabyStacking", at, config.getEnableHostileBabyStacking());}
+
     public static boolean getCompactDrops() {return config.getCompactDrops();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getCompactDrops(Entity at) {return setting("compactDrops", at, config.getCompactDrops());}
+
     public static boolean getCompactExperience() {return config.getCompactExperience();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getCompactExperience(Entity at) {return setting("compactExperience", at, config.getCompactExperience());}
 
     /**
      * Spawns a small floating "-N" hologram above the mob when a hit clears mobs off a stack.
@@ -892,8 +1215,11 @@ public final class MobStacker {
         stand.setSilent(true);
         stand.setNoBasePlate(true);
         stand.setInvulnerable(true);
-        stand.setCustomName(Component.literal("-" + killed).withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+        stand.setCustomName(Component.literal("-" + killed)
+                .withStyle(setting("killHologramColor", mob, config.getKillHologramColor()).format(),
+                        ChatFormatting.BOLD));
         stand.setCustomNameVisible(true);
+        stand.addTag(KILL_HOLOGRAM_TAG);
         level.addFreshEntity(stand);
         killHolograms.add(new KillHologram(stand, level.getGameTime() + KILL_HOLOGRAM_LIFETIME_TICKS));
     }
@@ -918,6 +1244,78 @@ public final class MobStacker {
         }
     }
 
+    /** True while this entity is one of the kill holograms we are actively ticking. */
+    /**
+     * Whether this armor stand looks like a kill hologram left behind by a version that did not tag
+     * them (up to and including 1.5.x). Those were ordinary armor stands written into their chunk,
+     * so a server that stopped - or a chunk that unloaded - inside a hologram's one second left one
+     * floating for good, with nothing able to recognise it afterwards. Tagging fixed that going
+     * forward but could not reach the ones already out there, and they do not go away on their own.
+     * <p>
+     * The shape is distinctive enough to be safe: an invisible, silent, invulnerable marker with no
+     * gravity, no base plate and no equipment, whose whole visible name is {@code -<number>}. It is
+     * also only ever asked on a stand's very first tick (see {@code ArmorStandMixin}), so nothing
+     * built in the world afterwards can be caught by it.
+     */
+    public static boolean isLegacyKillHologram(ArmorStand stand) {
+        if (!stand.isMarker() || !stand.isInvisible() || !stand.isNoGravity()
+                || !stand.isInvulnerable() || !stand.isSilent()
+                || !stand.isNoBasePlate() || !stand.isCustomNameVisible()) {
+            return false;
+        }
+        Component name = stand.getCustomName();
+        if (name == null) {
+            return false;
+        }
+        String text = name.getString();
+        // "-" plus at least one digit, and no longer than a stack size could ever be.
+        if (text.length() < 2 || text.length() > 7 || text.charAt(0) != '-') {
+            return false;
+        }
+        for (int i = 1; i < text.length(); i++) {
+            if (!Character.isDigit(text.charAt(i))) {
+                return false;
+            }
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (!stand.getItemBySlot(slot).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Removes a stray hologram and says so, so an operator can see an old world clean itself up. */
+    public static void discardStrayKillHologram(ArmorStand stand) {
+        logger.info("MobStacker: removed a leftover kill hologram at {} {} {}",
+                stand.getBlockX(), stand.getBlockY(), stand.getBlockZ());
+        stand.discard();
+    }
+
+    public static boolean isTrackedKillHologram(Entity entity) {
+        for (KillHologram hologram : killHolograms) {
+            if (hologram.entity() == entity) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Discards every hologram still being tracked and forgets them. Called when a server stops and
+     * when a world's config is loaded, so holograms can never outlive the session that spawned them
+     * and the list can never hold entities from a world we already left.
+     */
+    public static void clearKillHolograms() {
+        for (KillHologram hologram : killHolograms) {
+            ArmorStand stand = hologram.entity();
+            if (!stand.isRemoved()) {
+                stand.discard();
+            }
+        }
+        killHolograms.clear();
+    }
+
     // --- Drop compaction ---------------------------------------------------------------------
     // While a stacked mob is dying we capture the item stacks (and experience) it drops and
     // re-emit them merged: a handful of full item stacks and a single experience orb, instead of
@@ -936,8 +1334,8 @@ public final class MobStacker {
      */
     public static void beginDropCapture(Mob mob) {
         dropCaptureMob = mob;
-        captureItems = config.getCompactDrops();
-        captureXp = config.getCompactExperience();
+        captureItems = getCompactDrops(mob);
+        captureXp = getCompactExperience(mob);
         dropCaptureBuffer.clear();
         xpCaptureTotal = 0;
     }
@@ -1044,9 +1442,18 @@ public final class MobStacker {
 
     public static boolean getEnableSeparator() {return config.getEnableSeparator();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnableSeparator(Entity at) {return setting("enableSeparator", at, config.getEnableSeparator());}
+
     public static boolean getConsumeSeparator() {return config.getConsumeSeparator();}
 
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getConsumeSeparator(Entity at) {return setting("consumeSeparator", at, config.getConsumeSeparator());}
+
     public static String getSeparatorItem() {return config.getSeparatorItem();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static String getSeparatorItem(Entity at) {return setting("separatorItem", at, config.getSeparatorItem());}
 
     public static int getMonsterMobCap() {return config.getMonsterMobCap();}
     public static int getCreatureMobCap() {return config.getCreatureMobCap();}

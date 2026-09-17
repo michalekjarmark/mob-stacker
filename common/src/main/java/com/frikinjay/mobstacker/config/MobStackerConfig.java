@@ -21,10 +21,21 @@ public class MobStackerConfig {
     private boolean stackHealth = false;
     private boolean enableDamageOverflow = true;
     private boolean sweepingEdgeOverflow = true;
+    private boolean sweepingEdgePerMob = false;
+    private boolean sweepingEdgeSingleHit = false;
+    private boolean sweepingEdgeVanillaConditions = false;
+    private int sweepingEdgeMaxKills = 0;
     private boolean stackEquippedMobs = false;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
+    private StackColor killHologramColor = StackColor.RED;
+    private StackColor stackNameColor = StackColor.WHITE;
+    private boolean stackNameColorBySize = false;
+    private StackColor stackNameColorMedium = StackColor.YELLOW;
+    private StackColor stackNameColorLarge = StackColor.RED;
+    private int stackSizeMediumThreshold = 16;
+    private int stackSizeLargeThreshold = 64;
     private boolean enableStackBreeding = true;
     private boolean breedOnePerClick = false;
     private boolean enableAnimalBabyStacking = true;
@@ -34,6 +45,7 @@ public class MobStackerConfig {
     private int maxMobStackSize = 16;
     private double stackRadius = 6.0;
     private double playerStackRadius = 12.0;
+    private int stackScanInterval = 20;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -69,13 +81,38 @@ public class MobStackerConfig {
     }
 
     public void save() {
-        if (stackHealth && !killWholeStackOnDeath) {
-            killWholeStackOnDeath = true;
-        }
+        // stackHealth forces killWholeStackOnDeath on, but that is applied where the settings are
+        // read (MobStacker#getKillWholeStackOnDeath) rather than written here. Overwriting the
+        // stored value would lose the player's own choice the first time stackHealth was switched
+        // on, and would only ever cover the global config - never a region that enables it.
+        pruneRedundantRegionOverrides();
         try (FileWriter writer = new FileWriter(MobStacker.configFile)) {
             GSON.toJson(this, writer);
         } catch (Exception e) {
             MobStacker.logger.error("Failed to save config", e);
+        }
+    }
+
+    /**
+     * Drops region overrides that say exactly what the global config already says.
+     * <p>
+     * A region stores only the settings it changes, so an override equal to the global value is not
+     * one: it made the GUI mark the row as changed, and it pinned the region in place when the
+     * global value later moved on to something else. Doing it here, on the way to disk, catches
+     * every way the two can come to agree - the region being set to the global value, or the global
+     * value being changed to the region's - from the commands and both GUIs alike.
+     */
+    private void pruneRedundantRegionOverrides() {
+        if (MobStacker.config != this || regions == null || regions.isEmpty()) {
+            return; // not the live config: its values are not what these regions differ from
+        }
+        for (StackRegion region : regions) {
+            for (String id : new ArrayList<>(region.getSettings().keySet())) {
+                ConfigOption option = MobStackerSettings.byId(id);
+                if (option != null && option.storedValue().equalsIgnoreCase(region.getSetting(id))) {
+                    region.clearSetting(id);
+                }
+            }
         }
     }
 
@@ -86,10 +123,21 @@ public class MobStackerConfig {
     public boolean getStackHealth() { return stackHealth; }
     public boolean getDamageOverflow() { return enableDamageOverflow; }
     public boolean getSweepingEdgeOverflow() { return sweepingEdgeOverflow; }
+    public boolean getSweepingEdgePerMob() { return sweepingEdgePerMob; }
+    public boolean getSweepingEdgeSingleHit() { return sweepingEdgeSingleHit; }
+    public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
+    public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
     public boolean getStackKillHologram() { return stackKillHologram; }
+    public StackColor getKillHologramColor() { return killHologramColor != null ? killHologramColor : StackColor.RED; }
+    public StackColor getStackNameColor() { return stackNameColor != null ? stackNameColor : StackColor.WHITE; }
+    public boolean getStackNameColorBySize() { return stackNameColorBySize; }
+    public StackColor getStackNameColorMedium() { return stackNameColorMedium != null ? stackNameColorMedium : StackColor.YELLOW; }
+    public StackColor getStackNameColorLarge() { return stackNameColorLarge != null ? stackNameColorLarge : StackColor.RED; }
+    public int getStackSizeMediumThreshold() { return stackSizeMediumThreshold; }
+    public int getStackSizeLargeThreshold() { return stackSizeLargeThreshold; }
     public boolean getEnableStackBreeding() { return enableStackBreeding; }
     public boolean getBreedOnePerClick() { return breedOnePerClick; }
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
@@ -99,6 +147,7 @@ public class MobStackerConfig {
     public int getMaxMobStackSize() { return maxMobStackSize; }
     public double getStackRadius() { return stackRadius; }
     public double getPlayerStackRadius() { return playerStackRadius; }
+    public int getStackScanInterval() { return stackScanInterval; }
 
     public void setSeparatorItem(String separatorItem) {
         this.separatorItem = separatorItem;
@@ -135,6 +184,26 @@ public class MobStackerConfig {
         save();
     }
 
+    public void setSweepingEdgePerMob(boolean sweepingEdgePerMob) {
+        this.sweepingEdgePerMob = sweepingEdgePerMob;
+        save();
+    }
+
+    public void setSweepingEdgeSingleHit(boolean sweepingEdgeSingleHit) {
+        this.sweepingEdgeSingleHit = sweepingEdgeSingleHit;
+        save();
+    }
+
+    public void setSweepingEdgeVanillaConditions(boolean sweepingEdgeVanillaConditions) {
+        this.sweepingEdgeVanillaConditions = sweepingEdgeVanillaConditions;
+        save();
+    }
+
+    public void setSweepingEdgeMaxKills(int sweepingEdgeMaxKills) {
+        this.sweepingEdgeMaxKills = Math.max(0, sweepingEdgeMaxKills);
+        save();
+    }
+
     public void setStackEquippedMobs(boolean stackEquippedMobs) {
         this.stackEquippedMobs = stackEquippedMobs;
         save();
@@ -152,6 +221,41 @@ public class MobStackerConfig {
 
     public void setStackKillHologram(boolean stackKillHologram) {
         this.stackKillHologram = stackKillHologram;
+        save();
+    }
+
+    public void setKillHologramColor(StackColor killHologramColor) {
+        this.killHologramColor = killHologramColor;
+        save();
+    }
+
+    public void setStackNameColor(StackColor stackNameColor) {
+        this.stackNameColor = stackNameColor;
+        save();
+    }
+
+    public void setStackNameColorBySize(boolean stackNameColorBySize) {
+        this.stackNameColorBySize = stackNameColorBySize;
+        save();
+    }
+
+    public void setStackNameColorMedium(StackColor stackNameColorMedium) {
+        this.stackNameColorMedium = stackNameColorMedium;
+        save();
+    }
+
+    public void setStackNameColorLarge(StackColor stackNameColorLarge) {
+        this.stackNameColorLarge = stackNameColorLarge;
+        save();
+    }
+
+    public void setStackSizeMediumThreshold(int stackSizeMediumThreshold) {
+        this.stackSizeMediumThreshold = Math.max(2, stackSizeMediumThreshold);
+        save();
+    }
+
+    public void setStackSizeLargeThreshold(int stackSizeLargeThreshold) {
+        this.stackSizeLargeThreshold = Math.max(2, stackSizeLargeThreshold);
         save();
     }
 
@@ -197,6 +301,11 @@ public class MobStackerConfig {
 
     public void setPlayerStackRadius(double playerStackRadius) {
         this.playerStackRadius = Math.min(playerStackRadius, MAX_RADIUS);
+        save();
+    }
+
+    public void setStackScanInterval(int stackScanInterval) {
+        this.stackScanInterval = Math.max(0, stackScanInterval);
         save();
     }
 

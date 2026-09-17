@@ -25,6 +25,7 @@ public final class ConfigOption {
         STACKING("Stacking"),
         COMBAT("Combat"),
         FEEDBACK("Kill feedback"),
+        DISPLAY("Stack display"),
         BREEDING("Breeding"),
         DROPS("Drops & XP"),
         MOBCAPS("Mob caps"),
@@ -83,6 +84,13 @@ public final class ConfigOption {
     private final List<String> enumValues;
     // Optional: given the proposed (parsed) value, return an error message or null if valid.
     private Function<Object, String> validator;
+    // Optional: the id of a boolean setting that must be on before this one can be changed away from
+    // its default. Resolved where the change is made, so a region uses its own value for it.
+    private String requires;
+    // Optional: the id of a boolean setting that, while it is on, pins this one to "true". Unlike
+    // `requires` this is not a "does nothing" hint but a hard lock: the value cannot be changed at
+    // all until the other setting is off again. Also resolved where the change is made.
+    private String lockedOnBy;
     // Optional: after a successful change, return an extra info note (e.g. a forced dependency) or null.
     private Supplier<String> appliedNote;
 
@@ -112,8 +120,20 @@ public final class ConfigOption {
     public Double max() { return max; }
     public List<String> enumValues() { return enumValues; }
 
-    /** Current value formatted as a canonical string (e.g. {@code "true"}, {@code "16"}, {@code "REGIONS"}). */
+    /**
+     * Current value formatted as a canonical string (e.g. {@code "true"}, {@code "16"},
+     * {@code "REGIONS"}) — what the game actually acts on. A setting another one pins reports the
+     * pinned value, and one whose dependency is off reports its default, because until that
+     * dependency comes back on it does nothing. The value stored underneath is untouched either way
+     * and returns as soon as the setting it hangs on changes.
+     */
     public String currentValue() {
+        String effective = MobStackerSettings.effectiveValue(this, null);
+        return effective != null ? effective : storedValue();
+    }
+
+    /** The value actually stored in the config, whatever another setting currently makes of it. */
+    public String storedValue() {
         return String.valueOf(getter.get());
     }
 
@@ -177,16 +197,51 @@ public final class ConfigOption {
             }
         }
 
-        String oldValue = currentValue();
+        // Judged on what is stored, not on what the setting currently reads as: a setting held at
+        // its default by a dependency must still be resettable, and `set` changes the stored value.
+        String oldValue = storedValue();
         String newValue = String.valueOf(parsed);
         if (oldValue.equals(newValue)) {
             return Result.unchanged(oldValue);
         }
 
+        // A locked setting cannot be changed at all while whatever pins it is on.
+        String lock = MobStackerSettings.lockProblem(this, null, null);
+        if (lock != null) {
+            return Result.error(lock);
+        }
+
+        // A setting that depends on another one may always go back to its default (so it can be
+        // switched off again), but only turn on once the setting it needs is on.
+        if (!newValue.equalsIgnoreCase(defaultValue())) {
+            String problem = MobStackerSettings.dependencyProblem(this, null, null);
+            if (problem != null) {
+                return Result.error(problem);
+            }
+        }
+
         setter.accept(parsed);
-        String actualNew = currentValue();
+        String actualNew = storedValue();
         String note = appliedNote != null ? appliedNote.get() : null;
         return Result.changed(oldValue, actualNew, note);
+    }
+
+    /**
+     * Parses and validates {@code raw} without changing anything, returning it in the same canonical
+     * form {@link #currentValue()} uses. This is what lets a value be stored somewhere other than the
+     * global config - a region's own settings - while still being checked exactly like a global edit.
+     *
+     * @throws IllegalArgumentException with a message fit for a player, when the value is not usable
+     */
+    public String canonicalize(String raw) {
+        Object parsed = parser.apply(raw);
+        if (validator != null) {
+            String problem = validator.apply(parsed);
+            if (problem != null) {
+                throw new IllegalArgumentException(problem);
+            }
+        }
+        return String.valueOf(parsed);
     }
 
     /** Flips a boolean option. Errors for any non-boolean type. */
@@ -208,6 +263,40 @@ public final class ConfigOption {
     public ConfigOption withValidator(Function<Object, String> validator) {
         this.validator = validator;
         return this;
+    }
+
+    /**
+     * Declares that this setting does nothing until {@code settingId} (a boolean setting) is on. It
+     * then reads as its own default and refuses to be changed, and the config GUI greys it out, so a
+     * switch can never sit on {@code ON} while having no effect. Whatever was stored is kept and
+     * comes back when {@code settingId} does. Unlike a validator this is metadata, which lets it be
+     * resolved against a region's own value rather than only the global one — see
+     * {@link MobStackerSettings#dependencyProblem}.
+     */
+    public ConfigOption requires(String settingId) {
+        this.requires = settingId;
+        return this;
+    }
+
+    /** The setting that has to be on for this one to work, or null when it stands alone. */
+    public String requires() {
+        return requires;
+    }
+
+    /**
+     * Declares that this setting is forced on — and cannot be changed — while {@code settingId} (a
+     * boolean setting) is on, the way {@code stackHealth} needs {@code killWholeStackOnDeath}. The
+     * value stored underneath is left alone, so switching {@code settingId} off hands the player
+     * their own choice back instead of silently keeping the forced one.
+     */
+    public ConfigOption lockedOnBy(String settingId) {
+        this.lockedOnBy = settingId;
+        return this;
+    }
+
+    /** The setting that pins this one to "true" while it is on, or null when nothing does. */
+    public String lockedOnBy() {
+        return lockedOnBy;
     }
 
     public ConfigOption withAppliedNote(Supplier<String> appliedNote) {

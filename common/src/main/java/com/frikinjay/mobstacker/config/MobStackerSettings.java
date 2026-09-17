@@ -22,6 +22,14 @@ import java.util.Map;
  */
 public final class MobStackerSettings {
     private static final List<ConfigOption> OPTIONS = new ArrayList<>();
+    // Settings that only ever make sense globally. stackMode and playerStackRadius decide where the
+    // region system applies at all, so letting a region override them would be circular, and the mob
+    // caps are world-level spawn limits rather than a property of a place. Everything else can be
+    // given a different value inside a region.
+    private static final java.util.Set<String> GLOBAL_ONLY = java.util.Set.of(
+            "stackMode", "playerStackRadius",
+            "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
+            "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
     private static final Map<String, ConfigOption> BY_ID = new LinkedHashMap<>();
 
     static {
@@ -38,20 +46,21 @@ public final class MobStackerSettings {
         register(ConfigOption.ofDouble("playerStackRadius", Category.STACKING,
                 "In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack.",
                 1.0, 42000.0, () -> MobStacker.config.getPlayerStackRadius(), v -> MobStacker.config.setPlayerStackRadius(v), 12.0));
+        register(ConfigOption.ofInt("stackScanInterval", Category.STACKING,
+                "How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary.",
+                0, 1200, () -> MobStacker.config.getStackScanInterval(), v -> MobStacker.config.setStackScanInterval(v), 20));
         register(ConfigOption.ofBool("stackEquippedMobs", Category.STACKING,
                 "Allow mobs that hold or wear items to stack (variant B: off keeps them separate).",
                 () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)
-                .withValidator(value -> (!(Boolean) value && MobStacker.config.getStackHealth())
-                        ? "Cannot disable killWholeStackOnDeath while stackHealth is on. Turn stackHealth off first."
-                        : null));
+                .lockedOnBy("stackHealth"));
         register(ConfigOption.ofBool("stackHealth", Category.STACKING,
-                "A stack's health scales with its size (forces killWholeStackOnDeath on).",
+                "A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on.",
                 () -> MobStacker.config.getStackHealth(), v -> MobStacker.config.setStackHealth(v), false)
-                .withAppliedNote(() -> MobStacker.config.getStackHealth() && MobStacker.config.getKillWholeStackOnDeath()
-                        ? "killWholeStackOnDeath was also enabled" : null));
+                .withAppliedNote(() -> MobStacker.config.getStackHealth()
+                        ? "killWholeStackOnDeath is forced on while this is on" : null));
 
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
@@ -60,6 +69,22 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("sweepingEdgeOverflow", Category.COMBAT,
                 "Fold vanilla Sweeping Edge damage back into the hit so it clears a stack.",
                 () -> MobStacker.config.getSweepingEdgeOverflow(), v -> MobStacker.config.setSweepingEdgeOverflow(v), true));
+        register(ConfigOption.ofBool("sweepingEdgePerMob", Category.COMBAT,
+                "Sweep every mob in the stack for 1 + damage x (level / (level + 1)) each, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit.",
+                () -> MobStacker.config.getSweepingEdgePerMob(), v -> MobStacker.config.setSweepingEdgePerMob(v), false)
+                .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofBool("sweepingEdgeSingleHit", Category.COMBAT,
+                "Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately.",
+                () -> MobStacker.config.getSweepingEdgeSingleHit(), v -> MobStacker.config.setSweepingEdgeSingleHit(v), false)
+                .requires("sweepingEdgePerMob"));
+        register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
+                "Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand.",
+                () -> MobStacker.config.getSweepingEdgeVanillaConditions(), v -> MobStacker.config.setSweepingEdgeVanillaConditions(v), false)
+                .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofInt("sweepingEdgeMaxKills", Category.COMBAT,
+                "Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob.",
+                0, 100000, () -> MobStacker.config.getSweepingEdgeMaxKills(), v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
+                .requires("sweepingEdgeOverflow"));
 
         // --- Kill feedback ---
         register(ConfigOption.ofBool("stackKillActionBar", Category.FEEDBACK,
@@ -71,6 +96,36 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("stackKillHologram", Category.FEEDBACK,
                 "Float a short-lived \"-N\" hologram above the mob on a stacked kill.",
                 () -> MobStacker.config.getStackKillHologram(), v -> MobStacker.config.setStackKillHologram(v), true));
+        register(ConfigOption.ofEnum("killHologramColor", Category.FEEDBACK,
+                "Colour of the floating \"-N\" kill hologram.",
+                StackColor.class, () -> MobStacker.config.getKillHologramColor(),
+                v -> MobStacker.config.setKillHologramColor(v), StackColor.RED));
+
+        // --- Stack display ---
+        register(ConfigOption.ofEnum("stackNameColor", Category.DISPLAY,
+                "Colour of the \"Cow x16\" name shown above a stack. A mob named with a name tag keeps its own colour.",
+                StackColor.class, () -> MobStacker.config.getStackNameColor(),
+                v -> MobStacker.config.setStackNameColor(v), StackColor.WHITE));
+        register(ConfigOption.ofBool("stackNameColorBySize", Category.DISPLAY,
+                "Colour the stack name by how big the stack is, so large stacks stand out at a glance.",
+                () -> MobStacker.config.getStackNameColorBySize(),
+                v -> MobStacker.config.setStackNameColorBySize(v), false));
+        register(ConfigOption.ofEnum("stackNameColorMedium", Category.DISPLAY,
+                "Name colour once a stack reaches stackSizeMediumThreshold (needs stackNameColorBySize).",
+                StackColor.class, () -> MobStacker.config.getStackNameColorMedium(),
+                v -> MobStacker.config.setStackNameColorMedium(v), StackColor.YELLOW));
+        register(ConfigOption.ofEnum("stackNameColorLarge", Category.DISPLAY,
+                "Name colour once a stack reaches stackSizeLargeThreshold (needs stackNameColorBySize).",
+                StackColor.class, () -> MobStacker.config.getStackNameColorLarge(),
+                v -> MobStacker.config.setStackNameColorLarge(v), StackColor.RED));
+        register(ConfigOption.ofInt("stackSizeMediumThreshold", Category.DISPLAY,
+                "Stack size at which the name switches to stackNameColorMedium.",
+                2, 100000, () -> MobStacker.config.getStackSizeMediumThreshold(),
+                v -> MobStacker.config.setStackSizeMediumThreshold(v), 16));
+        register(ConfigOption.ofInt("stackSizeLargeThreshold", Category.DISPLAY,
+                "Stack size at which the name switches to stackNameColorLarge.",
+                2, 100000, () -> MobStacker.config.getStackSizeLargeThreshold(),
+                v -> MobStacker.config.setStackSizeLargeThreshold(v), 64));
 
         // --- Breeding ---
         register(ConfigOption.ofBool("enableStackBreeding", Category.BREEDING,
@@ -127,6 +182,160 @@ public final class MobStackerSettings {
     }
 
     private MobStackerSettings() {
+    }
+
+    /**
+     * Why {@code option} cannot be changed right now, or null when it can. Settings that declare
+     * {@link ConfigOption#requires(String)} — the Sweeping Edge tuning options — do nothing until the
+     * setting they need is on, so they say so instead of silently having no effect.
+     * <p>
+     * The dependency is resolved wherever the change is being made: {@code lookup} is asked for the
+     * value in force there (a region's own value, or the config a remote client is showing) and a
+     * null answer falls back to the global config. That is what lets a region enable
+     * {@code sweepingEdgeOverflow} for itself and then use the options that build on it, exactly as
+     * the game resolves them at the mob.
+     *
+     * @param lookup     the value of a setting id in the scope being edited, or null for the global config
+     * @param regionName the region being edited, only used to word the message
+     */
+    public static String dependencyProblem(ConfigOption option,
+                                           java.util.function.Function<String, String> lookup,
+                                           String regionName) {
+        String requiredId = option.requires();
+        if (requiredId == null) {
+            return null;
+        }
+        ConfigOption required = byId(requiredId);
+        if (required == null) {
+            return null;
+        }
+        if (dependencyMet(option, lookup)) {
+            return null;
+        }
+        String where = regionName == null
+                ? "Enable it first."
+                : "Enable it in region '" + regionName + "' (or globally) first.";
+        return "'" + option.id() + "' only applies while " + requiredId + " is on. " + where;
+    }
+
+    /** Whether the setting this one needs is on in the scope {@code lookup} answers for. */
+    private static boolean dependencyMet(ConfigOption option,
+                                         java.util.function.Function<String, String> lookup) {
+        String requiredId = option.requires();
+        if (requiredId == null) {
+            return true;
+        }
+        ConfigOption required = byId(requiredId);
+        if (required == null) {
+            return true;
+        }
+        String value = lookup == null ? null : lookup.apply(requiredId);
+        if (value == null || value.isEmpty()) {
+            // Resolved, not stored: a setting whose own dependency is off is off, so a chain of them
+            // (sweepingEdgeOverflow -> sweepingEdgePerMob -> sweepingEdgeSingleHit) collapses as one.
+            value = required.currentValue();
+        }
+        return Boolean.parseBoolean(value);
+    }
+
+    /**
+     * The value {@code option} really has in the scope {@code lookup} answers for, or null when
+     * nothing overrides what is stored. Two things can override it, and they are opposites:
+     * <ul>
+     *   <li>a setting that pins this one on ({@link ConfigOption#lockedOnBy(String)}) — it reads as
+     *       {@code true};</li>
+     *   <li>a setting this one needs that is off ({@link ConfigOption#requires(String)}) — it reads
+     *       as its default, because it does nothing at all until that setting comes back on.</li>
+     * </ul>
+     * Either way the stored value is left untouched and returns the moment the scope changes back,
+     * so switching a master setting off and on again costs the player nothing.
+     */
+    public static String effectiveValue(ConfigOption option,
+                                        java.util.function.Function<String, String> lookup) {
+        String locked = lockedValue(option, lookup);
+        if (locked != null) {
+            return locked;
+        }
+        return dependencyMet(option, lookup) ? null : option.defaultValue();
+    }
+
+    /**
+     * The value {@code option} is currently pinned to by another setting, or null when nothing pins
+     * it. A setting declared with {@link ConfigOption#lockedOnBy(String)} reads as {@code "true"}
+     * for as long as the setting that pins it is on, everywhere that setting is on: globally when
+     * {@code lookup} is null, and inside one region when it answers for that region. The value
+     * stored underneath is untouched and comes back the moment the lock lifts.
+     *
+     * @param lookup the value of a setting id in the scope being read, or null for the global config
+     */
+    public static String lockedValue(ConfigOption option,
+                                     java.util.function.Function<String, String> lookup) {
+        String lockId = option.lockedOnBy();
+        if (lockId == null) {
+            return null;
+        }
+        ConfigOption lock = byId(lockId);
+        if (lock == null) {
+            return null;
+        }
+        String value = lookup == null ? null : lookup.apply(lockId);
+        if (value == null || value.isEmpty()) {
+            value = lock.currentValue();
+        }
+        return Boolean.parseBoolean(value) ? "true" : null;
+    }
+
+    /**
+     * Why {@code option} cannot be changed at all right now — another setting pins it — or null when
+     * nothing does. Resolved in the scope being edited exactly like {@link #dependencyProblem}, so a
+     * region that turns {@code stackHealth} on locks {@code killWholeStackOnDeath} in that region
+     * only.
+     */
+    public static String lockProblem(ConfigOption option,
+                                     java.util.function.Function<String, String> lookup,
+                                     String regionName) {
+        if (lockedValue(option, lookup) == null) {
+            return null;
+        }
+        String where = regionName == null ? "here" : "in region '" + regionName + "'";
+        return "'" + option.id() + "' is forced on " + where + " while " + option.lockedOnBy()
+                + " is on. Turn " + option.lockedOnBy() + " off first.";
+    }
+
+    /**
+     * Why {@code region} may not be given {@code canonical} for this setting, or null when it may.
+     * Bundles both kinds of dependency — a hard lock and a "does nothing yet" requirement — and
+     * resolves each against the region's own settings, so the answer is the one that applies where
+     * that region is. Every path that writes a region override goes through this: the commands, the
+     * config-sync channel and the singleplayer GUI.
+     */
+    public static String regionEditProblem(ConfigOption option, StackRegion region, String canonical) {
+        String lock = lockProblem(option, region::getSetting, region.getName());
+        if (lock != null) {
+            return lock;
+        }
+        // Going back to the default is always allowed: that is how a setting is switched off again.
+        if (canonical.equalsIgnoreCase(option.defaultValue())) {
+            return null;
+        }
+        return dependencyProblem(option, region::getSetting, region.getName());
+    }
+
+    /** Whether a region may carry its own value for this setting. */
+    public static boolean isRegionOverridable(String id) {
+        ConfigOption option = byId(id);
+        return option != null && !GLOBAL_ONLY.contains(option.id());
+    }
+
+    /** Every setting a region may override, in registry order. */
+    public static List<ConfigOption> regionOverridable() {
+        List<ConfigOption> out = new ArrayList<>();
+        for (ConfigOption option : OPTIONS) {
+            if (!GLOBAL_ONLY.contains(option.id())) {
+                out.add(option);
+            }
+        }
+        return out;
     }
 
     private static void register(ConfigOption option) {

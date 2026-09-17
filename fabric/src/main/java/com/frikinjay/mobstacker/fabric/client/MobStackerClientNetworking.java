@@ -6,7 +6,10 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.network.FriendlyByteBuf;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,8 +24,15 @@ import java.util.Map;
 public final class MobStackerClientNetworking {
     // Latest snapshot from the server (id -> canonical value string). Kept in registry order.
     private static final Map<String, String> SNAPSHOT = new LinkedHashMap<>();
+    // The server's regions, with whatever settings each one overrides.
+    private static final List<RegionInfo> REGIONS = new ArrayList<>();
     private static boolean authorized;
     private static String status = "";
+
+    /** One region as the server described it, for the region editor screen. */
+    public record RegionInfo(String name, String type, String dimension, String bounds, int priority,
+                             Map<String, String> settings) {
+    }
 
     private MobStackerClientNetworking() {
     }
@@ -38,12 +48,31 @@ public final class MobStackerClientNetworking {
                 String value = buf.readUtf();
                 incoming.put(id, value);
             }
+            int regionCount = buf.readVarInt();
+            List<RegionInfo> incomingRegions = new ArrayList<>();
+            for (int i = 0; i < regionCount; i++) {
+                String name = buf.readUtf();
+                String type = buf.readUtf();
+                String dimension = buf.readUtf();
+                String bounds = buf.readUtf();
+                int priority = buf.readInt();
+                int overrideCount = buf.readVarInt();
+                Map<String, String> overrides = new LinkedHashMap<>();
+                for (int o = 0; o < overrideCount; o++) {
+                    overrides.put(buf.readUtf(), buf.readUtf());
+                }
+                incomingRegions.add(new RegionInfo(name, type, dimension, bounds, priority, overrides));
+            }
             client.execute(() -> {
                 authorized = incomingAuth;
                 status = incomingStatus;
                 SNAPSHOT.clear();
                 SNAPSHOT.putAll(incoming);
+                REGIONS.clear();
+                REGIONS.addAll(incomingRegions);
                 if (client.screen instanceof MobStackerConfigScreen screen) {
+                    screen.onConfigSynced();
+                } else if (client.screen instanceof MobStackerRegionScreen screen) {
                     screen.onConfigSynced();
                 }
             });
@@ -78,6 +107,21 @@ public final class MobStackerClientNetworking {
         return SNAPSHOT.get(id);
     }
 
+    /** The server's regions as of the last snapshot. */
+    public static List<RegionInfo> regions() {
+        return Collections.unmodifiableList(REGIONS);
+    }
+
+    /** The value {@code region} gives {@code id}, or null when it follows the global config. */
+    public static String regionValue(String region, String id) {
+        for (RegionInfo info : REGIONS) {
+            if (info.name().equals(region)) {
+                return info.settings().get(id);
+            }
+        }
+        return null;
+    }
+
     /** Optimistically remember a value the user just set, so a rebuild before the echo keeps it. */
     public static void rememberLocal(String id, String value) {
         SNAPSHOT.put(id, value);
@@ -99,8 +143,28 @@ public final class MobStackerClientNetworking {
         ClientPlayNetworking.send(MobStackerNetworking.EDIT, buf);
     }
 
+    /** Optimistically apply a region edit locally; the server echo confirms or corrects it. */
+    public static void rememberRegionLocal(String region, String id, String value) {
+        for (int i = 0; i < REGIONS.size(); i++) {
+            RegionInfo info = REGIONS.get(i);
+            if (!info.name().equals(region)) {
+                continue;
+            }
+            Map<String, String> settings = new LinkedHashMap<>(info.settings());
+            if (value == null || value.isEmpty()) {
+                settings.remove(id);
+            } else {
+                settings.put(id, value);
+            }
+            REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(), info.bounds(),
+                    info.priority(), settings));
+            return;
+        }
+    }
+
     private static void clear() {
         SNAPSHOT.clear();
+        REGIONS.clear();
         authorized = false;
         status = "";
     }
