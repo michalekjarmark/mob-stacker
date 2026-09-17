@@ -1245,6 +1245,53 @@ public final class MobStacker {
     }
 
     /** True while this entity is one of the kill holograms we are actively ticking. */
+    /**
+     * Whether this armor stand looks like a kill hologram left behind by a version that did not tag
+     * them (up to and including 1.5.x). Those were ordinary armor stands written into their chunk,
+     * so a server that stopped - or a chunk that unloaded - inside a hologram's one second left one
+     * floating for good, with nothing able to recognise it afterwards. Tagging fixed that going
+     * forward but could not reach the ones already out there, and they do not go away on their own.
+     * <p>
+     * The shape is distinctive enough to be safe: an invisible, silent, invulnerable marker with no
+     * gravity, no base plate and no equipment, whose whole visible name is {@code -<number>}. It is
+     * also only ever asked on a stand's very first tick (see {@code ArmorStandMixin}), so nothing
+     * built in the world afterwards can be caught by it.
+     */
+    public static boolean isLegacyKillHologram(ArmorStand stand) {
+        if (!stand.isMarker() || !stand.isInvisible() || !stand.isNoGravity()
+                || !stand.isInvulnerable() || !stand.isSilent()
+                || !stand.isNoBasePlate() || !stand.isCustomNameVisible()) {
+            return false;
+        }
+        Component name = stand.getCustomName();
+        if (name == null) {
+            return false;
+        }
+        String text = name.getString();
+        // "-" plus at least one digit, and no longer than a stack size could ever be.
+        if (text.length() < 2 || text.length() > 7 || text.charAt(0) != '-') {
+            return false;
+        }
+        for (int i = 1; i < text.length(); i++) {
+            if (!Character.isDigit(text.charAt(i))) {
+                return false;
+            }
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (!stand.getItemBySlot(slot).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Removes a stray hologram and says so, so an operator can see an old world clean itself up. */
+    public static void discardStrayKillHologram(ArmorStand stand) {
+        logger.info("MobStacker: removed a leftover kill hologram at {} {} {}",
+                stand.getBlockX(), stand.getBlockY(), stand.getBlockZ());
+        stand.discard();
+    }
+
     public static boolean isTrackedKillHologram(Entity entity) {
         for (KillHologram hologram : killHolograms) {
             if (hologram.entity() == entity) {
