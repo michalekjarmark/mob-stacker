@@ -162,6 +162,19 @@ public class MobStackerCommands {
                 .append(valueComponent(option))
                 .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
         context.getSource().sendSuccess(() -> Component.literal(option.description()).withStyle(ChatFormatting.GRAY), false);
+        // Say so when the value above is not the one in the config file: another setting is forcing
+        // it, or the setting it depends on is off and holding it at its default.
+        String problem = MobStackerSettings.lockProblem(option, null, null);
+        if (problem == null) {
+            problem = MobStackerSettings.dependencyProblem(option, null, null);
+        }
+        if (problem != null) {
+            String stored = option.storedValue();
+            final String note = option.currentValue().equalsIgnoreCase(stored)
+                    ? problem
+                    : problem + "  (stored: " + stored + ")";
+            context.getSource().sendSuccess(() -> Component.literal(note).withStyle(ChatFormatting.YELLOW), false);
+        }
         return 1;
     }
 
