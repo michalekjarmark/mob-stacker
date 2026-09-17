@@ -80,9 +80,10 @@ public class MobStackerConfig {
     }
 
     public void save() {
-        if (stackHealth && !killWholeStackOnDeath) {
-            killWholeStackOnDeath = true;
-        }
+        // stackHealth forces killWholeStackOnDeath on, but that is applied where the settings are
+        // read (MobStacker#getKillWholeStackOnDeath) rather than written here. Overwriting the
+        // stored value would lose the player's own choice the first time stackHealth was switched
+        // on, and would only ever cover the global config - never a region that enables it.
         try (FileWriter writer = new FileWriter(MobStacker.configFile)) {
             GSON.toJson(this, writer);
         } catch (Exception e) {

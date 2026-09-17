@@ -734,14 +734,12 @@ public class MobStackerCommands {
             return 0;
         }
 
-        // A dependent setting is judged by what is in force inside this region, so a region that
-        // enables sweepingEdgeOverflow for itself may use the options built on it.
-        if (!canonical.equalsIgnoreCase(option.defaultValue())) {
-            String problem = MobStackerSettings.dependencyProblem(option, region::getSetting, region.getName());
-            if (problem != null) {
-                context.getSource().sendFailure(Component.literal(problem).withStyle(ChatFormatting.RED));
-                return 0;
-            }
+        // Dependencies are judged by what is in force inside this region, so a region that enables
+        // sweepingEdgeOverflow for itself may use the options built on it.
+        String problem = MobStackerSettings.regionEditProblem(option, region, canonical);
+        if (problem != null) {
+            context.getSource().sendFailure(Component.literal(problem).withStyle(ChatFormatting.RED));
+            return 0;
         }
 
         String previous = region.getSetting(option.id());

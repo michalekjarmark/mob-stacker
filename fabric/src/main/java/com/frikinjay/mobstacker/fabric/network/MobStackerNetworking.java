@@ -143,12 +143,10 @@ public final class MobStackerNetworking {
             String canonical = option.canonicalize(raw);
             // Resolved against the region, so a region that enables the setting another one depends
             // on may use it, exactly as the game resolves them at the mob.
-            if (!canonical.equalsIgnoreCase(option.defaultValue())) {
-                String problem = MobStackerSettings.dependencyProblem(option, region::getSetting, regionName);
-                if (problem != null) {
-                    sendSync(player, problem);
-                    return;
-                }
+            String problem = MobStackerSettings.regionEditProblem(option, region, canonical);
+            if (problem != null) {
+                sendSync(player, problem);
+                return;
             }
             region.setSetting(option.id(), canonical);
             MobStacker.config.save();
@@ -173,7 +171,9 @@ public final class MobStackerNetworking {
         buf.writeVarInt(options.size());
         for (ConfigOption option : options) {
             buf.writeUtf(option.id());
-            buf.writeUtf(option.currentValue());
+            // As stored, not as forced: the client re-applies a lock in whatever scope it is showing,
+            // so a region that turns the forcing setting off is not handed the world's locked value.
+            buf.writeUtf(option.storedValue());
         }
 
         // Regions follow the settings, so the GUI can edit each region's own values too.

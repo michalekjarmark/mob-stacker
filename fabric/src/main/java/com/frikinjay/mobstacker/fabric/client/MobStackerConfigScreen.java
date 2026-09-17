@@ -254,15 +254,27 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     /**
-     * Whether this row may be touched. A setting whose dependency is off is locked - except while
-     * it still holds a non-default value, because there has to be a way to switch it back off.
+     * Whether this row may be touched. A setting another one forces on cannot be changed at all; a
+     * setting whose dependency is off is locked too - except while it still holds a non-default
+     * value, because there has to be a way to switch it back off.
      */
     private boolean rowEditable(ConfigOption option) {
-        if (!editable) {
+        if (!editable || lockReason(option) != null) {
             return false;
         }
         return blockedReason(option) == null
                 || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+    }
+
+    /** Why this setting cannot be edited right now, or null when it can. */
+    private String rowProblem(ConfigOption option) {
+        String lock = lockReason(option);
+        return lock != null ? lock : blockedReason(option);
+    }
+
+    /** Why this setting is pinned by another one (stackHealth forcing killWholeStackOnDeath), or null. */
+    private String lockReason(ConfigOption option) {
+        return MobStackerSettings.lockProblem(option, this::valueOfId, null);
     }
 
     /** Why this setting cannot be edited right now (the setting it depends on is off), or null. */
@@ -283,15 +295,23 @@ public final class MobStackerConfigScreen extends Screen {
         }
     }
 
-    /** The value to display for an option: the server's snapshot when remote, else the live config. */
+    /**
+     * The value to display for an option: the server's snapshot when remote, else the live config.
+     * Both carry the value as stored, so a setting another one currently forces on is resolved here
+     * — the row then shows what the game acts on rather than the choice parked underneath it.
+     */
     private String valueOf(ConfigOption option) {
+        String locked = MobStackerSettings.lockedValue(option, this::valueOfId);
+        if (locked != null) {
+            return locked;
+        }
         if (remote) {
             String value = MobStackerClientNetworking.value(option.id());
             if (value != null) {
                 return value;
             }
         }
-        return option.currentValue();
+        return option.storedValue();
     }
 
     private void applyOption(ConfigOption option, String raw) {
@@ -421,7 +441,7 @@ public final class MobStackerConfigScreen extends Screen {
         if (hovered != null) {
             List<Component> lines = new ArrayList<>();
             lines.add(Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE));
-            String blocked = blockedReason(hovered.option);
+            String blocked = rowProblem(hovered.option);
             if (blocked != null) {
                 lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
             }

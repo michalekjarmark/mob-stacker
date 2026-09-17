@@ -87,6 +87,10 @@ public final class ConfigOption {
     // Optional: the id of a boolean setting that must be on before this one can be changed away from
     // its default. Resolved where the change is made, so a region uses its own value for it.
     private String requires;
+    // Optional: the id of a boolean setting that, while it is on, pins this one to "true". Unlike
+    // `requires` this is not a "does nothing" hint but a hard lock: the value cannot be changed at
+    // all until the other setting is off again. Also resolved where the change is made.
+    private String lockedOnBy;
     // Optional: after a successful change, return an extra info note (e.g. a forced dependency) or null.
     private Supplier<String> appliedNote;
 
@@ -116,8 +120,18 @@ public final class ConfigOption {
     public Double max() { return max; }
     public List<String> enumValues() { return enumValues; }
 
-    /** Current value formatted as a canonical string (e.g. {@code "true"}, {@code "16"}, {@code "REGIONS"}). */
+    /**
+     * Current value formatted as a canonical string (e.g. {@code "true"}, {@code "16"},
+     * {@code "REGIONS"}). A setting another one currently pins reports the pinned value, because
+     * that is what the game acts on — the value stored underneath comes back once the lock lifts.
+     */
     public String currentValue() {
+        String locked = MobStackerSettings.lockedValue(this, null);
+        return locked != null ? locked : storedValue();
+    }
+
+    /** The value actually stored in the config, ignoring any lock currently pinning this setting. */
+    public String storedValue() {
         return String.valueOf(getter.get());
     }
 
@@ -185,6 +199,12 @@ public final class ConfigOption {
         String newValue = String.valueOf(parsed);
         if (oldValue.equals(newValue)) {
             return Result.unchanged(oldValue);
+        }
+
+        // A locked setting cannot be changed at all while whatever pins it is on.
+        String lock = MobStackerSettings.lockProblem(this, null, null);
+        if (lock != null) {
+            return Result.error(lock);
         }
 
         // A setting that depends on another one may always go back to its default (so it can be
@@ -255,6 +275,22 @@ public final class ConfigOption {
     /** The setting that has to be on for this one to work, or null when it stands alone. */
     public String requires() {
         return requires;
+    }
+
+    /**
+     * Declares that this setting is forced on — and cannot be changed — while {@code settingId} (a
+     * boolean setting) is on, the way {@code stackHealth} needs {@code killWholeStackOnDeath}. The
+     * value stored underneath is left alone, so switching {@code settingId} off hands the player
+     * their own choice back instead of silently keeping the forced one.
+     */
+    public ConfigOption lockedOnBy(String settingId) {
+        this.lockedOnBy = settingId;
+        return this;
+    }
+
+    /** The setting that pins this one to "true" while it is on, or null when nothing does. */
+    public String lockedOnBy() {
+        return lockedOnBy;
     }
 
     public ConfigOption withAppliedNote(Supplier<String> appliedNote) {

@@ -117,11 +117,17 @@ public final class ConfigSelfTest {
         stackHealth.reset();
         killWhole.reset();
         stackHealth.apply("true");
-        check(report, MobStacker.config.getKillWholeStackOnDeath(),
+        check(report, MobStacker.getKillWholeStackOnDeath(),
                 "stackHealth=true did not force killWholeStackOnDeath on");
+        check(report, "true".equals(killWhole.currentValue()),
+                "killWholeStackOnDeath did not report itself as forced on");
         ConfigOption.Result blocked = killWhole.apply("false");
         check(report, blocked.status == Status.ERROR,
                 "killWholeStackOnDeath=false was allowed while stackHealth is on");
+        // The lock must not overwrite what is stored: switching stackHealth off gives it back.
+        stackHealth.apply("false");
+        check(report, !MobStacker.getKillWholeStackOnDeath(),
+                "killWholeStackOnDeath stayed on after stackHealth was switched off");
         stackHealth.reset();
         killWhole.reset();
     }

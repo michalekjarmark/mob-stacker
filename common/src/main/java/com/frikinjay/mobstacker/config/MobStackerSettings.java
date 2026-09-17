@@ -55,14 +55,12 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)
-                .withValidator(value -> (!(Boolean) value && MobStacker.config.getStackHealth())
-                        ? "Cannot disable killWholeStackOnDeath while stackHealth is on. Turn stackHealth off first."
-                        : null));
+                .lockedOnBy("stackHealth"));
         register(ConfigOption.ofBool("stackHealth", Category.STACKING,
-                "A stack's health scales with its size (forces killWholeStackOnDeath on).",
+                "A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on.",
                 () -> MobStacker.config.getStackHealth(), v -> MobStacker.config.setStackHealth(v), false)
-                .withAppliedNote(() -> MobStacker.config.getStackHealth() && MobStacker.config.getKillWholeStackOnDeath()
-                        ? "killWholeStackOnDeath was also enabled" : null));
+                .withAppliedNote(() -> MobStacker.config.getStackHealth()
+                        ? "killWholeStackOnDeath is forced on while this is on" : null));
 
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
@@ -218,6 +216,68 @@ public final class MobStackerSettings {
                 ? "Enable it first."
                 : "Enable it in region '" + regionName + "' (or globally) first.";
         return "'" + option.id() + "' only applies while " + requiredId + " is on. " + where;
+    }
+
+    /**
+     * The value {@code option} is currently pinned to by another setting, or null when nothing pins
+     * it. A setting declared with {@link ConfigOption#lockedOnBy(String)} reads as {@code "true"}
+     * for as long as the setting that pins it is on, everywhere that setting is on: globally when
+     * {@code lookup} is null, and inside one region when it answers for that region. The value
+     * stored underneath is untouched and comes back the moment the lock lifts.
+     *
+     * @param lookup the value of a setting id in the scope being read, or null for the global config
+     */
+    public static String lockedValue(ConfigOption option,
+                                     java.util.function.Function<String, String> lookup) {
+        String lockId = option.lockedOnBy();
+        if (lockId == null) {
+            return null;
+        }
+        ConfigOption lock = byId(lockId);
+        if (lock == null) {
+            return null;
+        }
+        String value = lookup == null ? null : lookup.apply(lockId);
+        if (value == null || value.isEmpty()) {
+            value = lock.currentValue();
+        }
+        return Boolean.parseBoolean(value) ? "true" : null;
+    }
+
+    /**
+     * Why {@code option} cannot be changed at all right now — another setting pins it — or null when
+     * nothing does. Resolved in the scope being edited exactly like {@link #dependencyProblem}, so a
+     * region that turns {@code stackHealth} on locks {@code killWholeStackOnDeath} in that region
+     * only.
+     */
+    public static String lockProblem(ConfigOption option,
+                                     java.util.function.Function<String, String> lookup,
+                                     String regionName) {
+        if (lockedValue(option, lookup) == null) {
+            return null;
+        }
+        String where = regionName == null ? "here" : "in region '" + regionName + "'";
+        return "'" + option.id() + "' is forced on " + where + " while " + option.lockedOnBy()
+                + " is on. Turn " + option.lockedOnBy() + " off first.";
+    }
+
+    /**
+     * Why {@code region} may not be given {@code canonical} for this setting, or null when it may.
+     * Bundles both kinds of dependency — a hard lock and a "does nothing yet" requirement — and
+     * resolves each against the region's own settings, so the answer is the one that applies where
+     * that region is. Every path that writes a region override goes through this: the commands, the
+     * config-sync channel and the singleplayer GUI.
+     */
+    public static String regionEditProblem(ConfigOption option, StackRegion region, String canonical) {
+        String lock = lockProblem(option, region::getSetting, region.getName());
+        if (lock != null) {
+            return lock;
+        }
+        // Going back to the default is always allowed: that is how a setting is switched off again.
+        if (canonical.equalsIgnoreCase(option.defaultValue())) {
+            return null;
+        }
+        return dependencyProblem(option, region::getSetting, region.getName());
     }
 
     /** Whether a region may carry its own value for this setting. */

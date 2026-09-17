@@ -1056,10 +1056,19 @@ public final class MobStacker {
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static int getMaxMobStackSize(Entity at) {return setting("maxStackSize", at, config.getMaxMobStackSize());}
 
-    public static boolean getKillWholeStackOnDeath() {return config.getKillWholeStackOnDeath();}
+    /**
+     * Whether killing the top mob takes the whole stack with it. {@code stackHealth} pools the
+     * stack's health into one bar, which only makes sense if the whole stack dies with it, so it
+     * forces this on. The rule lives here rather than in the stored config so it also holds inside a
+     * region that turns {@code stackHealth} on for itself, and so switching {@code stackHealth} off
+     * gives the player their own value back.
+     */
+    public static boolean getKillWholeStackOnDeath() {return config.getStackHealth() || config.getKillWholeStackOnDeath();}
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
-    public static boolean getKillWholeStackOnDeath(Entity at) {return setting("killWholeStackOnDeath", at, config.getKillWholeStackOnDeath());}
+    public static boolean getKillWholeStackOnDeath(Entity at) {
+        return getStackHealth(at) || setting("killWholeStackOnDeath", at, config.getKillWholeStackOnDeath());
+    }
 
     public static boolean getStackHealth() {return config.getStackHealth();}
 

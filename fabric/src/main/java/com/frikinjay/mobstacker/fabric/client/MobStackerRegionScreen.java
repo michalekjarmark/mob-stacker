@@ -296,16 +296,35 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     /**
-     * Whether this row may be touched. A setting whose dependency is off in this region is locked -
-     * except while it still holds a non-default value, because there has to be a way to switch it
-     * back off. The clear button stays usable either way.
+     * Whether this row may be touched. A setting another one forces on in this region cannot be
+     * changed at all; a setting whose dependency is off here is locked too - except while it still
+     * holds a non-default value, because there has to be a way to switch it back off. The clear
+     * button stays usable either way.
      */
     private boolean rowEditable(ConfigOption option) {
-        if (!editable) {
+        if (!editable || lockReason(option) != null) {
             return false;
         }
         return blockedReason(option) == null
                 || !valueOf(option).equalsIgnoreCase(option.defaultValue());
+    }
+
+    /** Why this setting cannot be edited in this region, or null when it can. */
+    private String rowProblem(ConfigOption option) {
+        String lock = lockReason(option);
+        return lock != null ? lock : blockedReason(option);
+    }
+
+    /**
+     * Why this setting is pinned by another one here — {@code stackHealth} forcing
+     * {@code killWholeStackOnDeath} — or null. Judged on the region's own values, so a region that
+     * turns {@code stackHealth} off for itself may set it freely even where the world forces it.
+     */
+    private String lockReason(ConfigOption option) {
+        if (regions.isEmpty()) {
+            return null;
+        }
+        return MobStackerSettings.lockProblem(option, this::valueOfId, currentRegion().name());
     }
 
     /**
@@ -348,13 +367,25 @@ public final class MobStackerRegionScreen extends Screen {
         return region == null ? null : region.getSetting(id);
     }
 
-    /** What the row shows: the region's own value when it has one, otherwise the global value. */
+    /**
+     * What the row shows: whatever another setting forces on it in here, else the region's own value
+     * when it has one, else the global value. The lock is resolved against this region, so a region
+     * that turns {@code stackHealth} on shows {@code killWholeStackOnDeath} as the game reads it
+     * there — and a region that turns it off does not inherit the world's lock.
+     */
     private String valueOf(ConfigOption option) {
+        String locked = MobStackerSettings.lockedValue(option, this::valueOfId);
+        if (locked != null) {
+            return locked;
+        }
         String override = regionValue(option.id());
         return override != null ? override : globalValue(option);
     }
 
-    /** The value this setting has outside the region, i.e. what dropping the override falls back to. */
+    /**
+     * The value this setting has outside the region, i.e. what dropping the override falls back to.
+     * As stored: any lock is applied per region by {@link #valueOf}, never carried in from the world.
+     */
     private String globalValue(ConfigOption option) {
         if (remote) {
             String global = MobStackerClientNetworking.value(option.id());
@@ -362,7 +393,7 @@ public final class MobStackerRegionScreen extends Screen {
                 return global;
             }
         }
-        return option.currentValue();
+        return option.storedValue();
     }
 
     /**
@@ -434,8 +465,7 @@ public final class MobStackerRegionScreen extends Screen {
             String canonical = option.canonicalize(raw);
             // Judged against this region's own values, so a region that enables sweepingEdgeOverflow
             // for itself may use the options built on it even when the global config has it off.
-            if (!canonical.equalsIgnoreCase(option.defaultValue())
-                    && MobStackerSettings.dependencyProblem(option, region::getSetting, region.getName()) != null) {
+            if (MobStackerSettings.regionEditProblem(option, region, canonical) != null) {
                 return;
             }
             region.setSetting(option.id(), canonical);
@@ -580,7 +610,7 @@ public final class MobStackerRegionScreen extends Screen {
             List<Component> lines = new ArrayList<>();
             lines.add(Component.literal(hovered.option.description()).withStyle(ChatFormatting.WHITE));
             lines.add(state);
-            String blocked = blockedReason(hovered.option);
+            String blocked = rowProblem(hovered.option);
             if (blocked != null) {
                 lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
             }
