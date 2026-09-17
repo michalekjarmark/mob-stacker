@@ -50,8 +50,12 @@ public final class MobStackerSettings {
                 "How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary.",
                 0, 1200, () -> MobStacker.config.getStackScanInterval(), v -> MobStacker.config.setStackScanInterval(v), 20));
         register(ConfigOption.ofBool("stackEquippedMobs", Category.STACKING,
-                "Allow mobs that hold or wear items to stack (variant B: off keeps them separate).",
+                "Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely.",
                 () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));
+        register(ConfigOption.ofBool("keepMemberEquipment", Category.STACKING,
+                "Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge.",
+                () -> MobStacker.config.getKeepMemberEquipment(), v -> MobStacker.config.setKeepMemberEquipment(v), true)
+                .requires("stackEquippedMobs"));
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)

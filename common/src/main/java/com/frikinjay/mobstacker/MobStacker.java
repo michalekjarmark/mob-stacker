@@ -6,6 +6,7 @@ import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
+import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -14,6 +15,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
@@ -66,6 +68,8 @@ public final class MobStacker {
     // Damage already carried by every member below the top one (per-mob Sweeping Edge). All members
     // of a stack share one set of stats, so a single number describes all of them.
     public static final String MEMBER_DAMAGE_KEY = "MemberDamage";
+    /** What each mob below the top one wears and holds, one entry per member. */
+    public static final String MEMBER_EQUIPMENT_KEY = "MemberEquipment";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -328,6 +332,9 @@ public final class MobStacker {
         if (newEntity == null) return;
 
         copyEntityData(self, newEntity, serverLevel);
+        // After copyEntityData, because finalizeSpawn hands out random gear of its own that the
+        // stored loadout has to overwrite.
+        handOverMemberEquipment(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
         if (newStackSize > 1) {
             // The mobs under the new top one are the same wounded members as before the kill.
@@ -408,6 +415,9 @@ public final class MobStacker {
 
             copyEntityDataForSeparation(entity, newEntity, serverLevel);
             handleHealthOnSeparation(entity, newEntity);
+            // The separated mob is one of the stored members, so it leaves wearing that member's
+            // gear; the stack keeps the rest.
+            takeMemberEquipmentFor(entity, newEntity);
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
@@ -507,8 +517,18 @@ public final class MobStacker {
         CompoundTag targetNbt = new CompoundTag();
         target.saveWithoutId(targetNbt);
 
-        dropPickedEquipment(source);
-        dropPickedEquipment(target);
+        // With keepMemberEquipment the stack remembers what the mob being merged away was wearing
+        // (and everything its own members were wearing), so nothing has to be thrown on the floor.
+        ListTag mergedLoadouts = null;
+        if (keepsMemberEquipment(target)) {
+            mergedLoadouts = new ListTag();
+            mergedLoadouts.addAll(getMemberLoadouts(target));
+            mergedLoadouts.add(captureLoadout(source));
+            mergedLoadouts.addAll(getMemberLoadouts(source));
+        } else {
+            dropPickedEquipment(source);
+            dropPickedEquipment(target);
+        }
 
         copyRelevantNbtData(source, targetNbt);
 
@@ -520,6 +540,11 @@ public final class MobStacker {
 
         if (mergedBabyAge != null && target instanceof AgeableMob mergedAge) {
             mergedAge.setAge(mergedBabyAge);
+        }
+
+        if (mergedLoadouts != null) {
+            // After load(), which put the target's own stack data back from the snapshot above.
+            setMemberLoadouts(target, mergedLoadouts);
         }
 
         source.discard();
@@ -543,7 +568,13 @@ public final class MobStacker {
         // recomputed explicitly (updateStackDataInNbt / updateHealth).
         return key.equals("Pos") || key.equals("UUID") ||
                 key.equals("Motion") || key.equals("Health") ||
-                key.equals("Attributes") || key.equals(STACK_DATA_KEY);
+                key.equals("Attributes") || key.equals(STACK_DATA_KEY) ||
+                // What the stack wears and what it is called belong to the survivor: the mob being
+                // merged away has its gear stored as a member loadout, and copying its name over
+                // would rename a stack the player named ("Bella x16" -> "Cow x17").
+                key.equals("ArmorItems") || key.equals("HandItems") ||
+                key.equals("ArmorDropChances") || key.equals("HandDropChances") ||
+                key.equals("CustomName") || key.equals("CustomNameVisible");
     }
 
     private static void updateStackDataInNbt(CompoundTag nbt, int stackSize) {
@@ -690,6 +721,136 @@ public final class MobStacker {
             }
             entity.spawnAtLocation(stack);
             entity.setItemSlot(slot, ItemStack.EMPTY);
+        }
+    }
+
+    // --- Per-member equipment -------------------------------------------------------------------
+    // A stack shows one mob, so everything the mobs underneath it wear and hold is kept with the
+    // stack instead of on an entity. Each member's gear is stored exactly as the game stores it
+    // (the item tag plus its drop chance), which is what makes modded items and enchantments work
+    // without knowing anything about them, and it is put back on the entity just before that
+    // member's death loot is rolled - so Looting, the drop chances and the damage vanilla rolls
+    // onto dropped armor all apply by themselves.
+
+    /** Suffix of the drop chance stored beside each piece of a loadout. */
+    private static final String DROP_CHANCE_SUFFIX = "Chance";
+
+    /** True when this stack remembers what each of its members wears and holds. */
+    public static boolean keepsMemberEquipment(Mob mob) {
+        return getStackEquippedMobs(mob) && getKeepMemberEquipment(mob);
+    }
+
+    /** Everything a mob currently wears and holds, with the drop chance of each piece. */
+    public static CompoundTag captureLoadout(Mob mob) {
+        CompoundTag loadout = new CompoundTag();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = mob.getItemBySlot(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            loadout.put(slot.getName(), stack.save(new CompoundTag()));
+            loadout.putFloat(slot.getName() + DROP_CHANCE_SUFFIX, dropChance(mob, slot));
+        }
+        return loadout;
+    }
+
+    /**
+     * Puts a stored loadout back on a mob, emptying every slot the loadout does not mention - so a
+     * member with nothing on it really is empty-handed, whatever the mob was carrying before.
+     */
+    public static void applyLoadout(Mob mob, CompoundTag loadout) {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            String key = slot.getName();
+            boolean has = loadout != null && loadout.contains(key, 10);
+            mob.setItemSlot(slot, has ? ItemStack.of(loadout.getCompound(key)) : ItemStack.EMPTY);
+            if (loadout != null && loadout.contains(key + DROP_CHANCE_SUFFIX)) {
+                setDropChance(mob, slot, loadout.getFloat(key + DROP_CHANCE_SUFFIX));
+            }
+        }
+    }
+
+    private static float dropChance(Mob mob, EquipmentSlot slot) {
+        MobEquipmentAccessor chances = (MobEquipmentAccessor) mob;
+        return slot.getType() == EquipmentSlot.Type.ARMOR
+                ? chances.mobstacker$armorDropChances()[slot.getIndex()]
+                : chances.mobstacker$handDropChances()[slot.getIndex()];
+    }
+
+    private static void setDropChance(Mob mob, EquipmentSlot slot, float chance) {
+        MobEquipmentAccessor chances = (MobEquipmentAccessor) mob;
+        float[] array = slot.getType() == EquipmentSlot.Type.ARMOR
+                ? chances.mobstacker$armorDropChances()
+                : chances.mobstacker$handDropChances();
+        array[slot.getIndex()] = chance;
+    }
+
+    /** The loadouts of the members below the top mob, oldest first. Never null. */
+    public static ListTag getMemberLoadouts(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return new ListTag();
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        return customData.contains(MEMBER_EQUIPMENT_KEY, 9)
+                ? customData.getList(MEMBER_EQUIPMENT_KEY, 10) : new ListTag();
+    }
+
+    public static void setMemberLoadouts(Mob mob, ListTag loadouts) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        CompoundTag customData = holder.mobstacker$getCustomData();
+        if (loadouts == null || loadouts.isEmpty()) {
+            customData.remove(MEMBER_EQUIPMENT_KEY);
+        } else {
+            customData.put(MEMBER_EQUIPMENT_KEY, loadouts);
+        }
+    }
+
+    /**
+     * Takes the next member's gear off the stack and returns it, for the caller to put on the mob
+     * whose death loot is about to be rolled.
+     *
+     * @return that member's loadout, or null when the stack has none stored
+     */
+    public static CompoundTag takeMemberLoadout(Mob mob) {
+        if (!keepsMemberEquipment(mob)) {
+            return null;
+        }
+        ListTag loadouts = getMemberLoadouts(mob);
+        if (loadouts.isEmpty()) {
+            return null;
+        }
+        CompoundTag first = loadouts.getCompound(0).copy();
+        loadouts.remove(0);
+        setMemberLoadouts(mob, loadouts);
+        return first;
+    }
+
+    /**
+     * Hands the surviving remainder of a stack the gear of the member that becomes its new top mob,
+     * and the rest of the members' gear with it.
+     */
+    private static void handOverMemberEquipment(Mob source, Mob target, int newStackSize) {
+        if (!keepsMemberEquipment(source)) {
+            return;
+        }
+        ListTag loadouts = getMemberLoadouts(source);
+        if (loadouts.isEmpty()) {
+            return; // nothing was stored (the setting was off while this stack was built)
+        }
+        applyLoadout(target, loadouts.getCompound(0));
+        ListTag rest = new ListTag();
+        for (int i = 1; i < loadouts.size() && rest.size() < newStackSize - 1; i++) {
+            rest.add(loadouts.getCompound(i).copy());
+        }
+        setMemberLoadouts(target, rest);
+    }
+
+    /** The mob pulled out of a stack by the separator item leaves wearing one member's gear. */
+    private static void takeMemberEquipmentFor(Mob stack, Mob separated) {
+        CompoundTag loadout = takeMemberLoadout(stack);
+        if (loadout != null) {
+            applyLoadout(separated, loadout);
         }
     }
 
@@ -1128,6 +1289,10 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static boolean getStackEquippedMobs(Entity at) {return setting("stackEquippedMobs", at, config.getStackEquippedMobs());}
+
+    public static boolean getKeepMemberEquipment() {return config.getKeepMemberEquipment();}
+
+    public static boolean getKeepMemberEquipment(Entity at) {return setting("keepMemberEquipment", at, config.getKeepMemberEquipment());}
 
     public static boolean getStackKillActionBar() {return config.getStackKillActionBar();}
 

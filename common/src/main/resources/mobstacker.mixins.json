@@ -17,6 +17,7 @@
     "LivingEntityMixin",
     "MinecraftServerMixin",
     "MobCategoryMixin",
+    "MobEquipmentAccessor",
     "MobMixin",
     "PlayerMixin",
     "ServerEntityMixin",
