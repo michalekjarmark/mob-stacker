@@ -7,6 +7,51 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.7.0] - unreleased
+### Added
+- **Every stacked mob keeps its own equipment** (`keepMemberEquipment`, default `true`, needs
+  `stackEquippedMobs`). A stack now stores what each of its members wears and holds — item by item,
+  with the drop chance of each piece — instead of keeping only the survivor's gear and losing the
+  rest on the merge. When a member is killed, its own gear is put back on the entity just before that
+  member's death loot is rolled, so **Looting, the drop chances and the damage vanilla rolls onto
+  dropped armor all apply by themselves**, under every death mode (`killWholeStackOnDeath`, damage
+  overflow, or a plain one-at-a-time kill). Because the gear is stored exactly as the game stores it,
+  **other mods' items and any enchantment work without the mod knowing anything about them**. The
+  remainder of a killed stack, and a mob pulled out with the separator item, take the next member's
+  gear with them.
+- **A region's area can be changed** — `/mobstacker region bounds <name> <corner1> <corner2>` moves or
+  resizes a region **keeping its settings, its priority and its name**. Until now the only way to
+  redraw a region was to delete it and add it again, which threw all of that away.
+  `/mobstacker region type <name> <allow|deny>` likewise flips a region's kind without redrawing it.
+- **Regions can be created and edited from the GUI.** The region screen gained **New region…** and
+  **Edit area…** buttons, which open an editor for the region's name, kind, dimension and both
+  corners, with a **Here** button per corner that fills it from where you are standing. A new region
+  starts as a box around the player. The same screen deletes a region, behind a second click. Works
+  in singleplayer and on a server, operator-gated exactly like every other GUI edit.
+- **Name tags work on stacks** (`stackNamedMobs`, default `false`). Renaming a stack with a name tag
+  now labels the stack — `Bella x16` — and **the stack goes on accepting mobs**, instead of silently
+  refusing every new one. What a name means is recorded when the tag is used rather than guessed from
+  the text afterwards, so a name tag on a *single* mob still keeps it out of stacks (that is how
+  players protect a pet), and `stackNamedMobs` opts into stacking those too, with mobs of the same
+  name only. A stack keeps its name through kills and through conversions (zombie → drowned).
+
+### Fixed
+- **A merge no longer overwrites the surviving stack's name or gear** with the name and gear of the
+  mob being merged away. Merging a plain cow into a stack named `Bella x16` used to turn it into
+  `Cow x17`.
+- **Naming a mob something that looks like a stack label no longer confuses the mod.** A cow named
+  literally `Cow x5` was treated as if the name were the mod's own label, and a name ending in ` xN`
+  had that suffix eaten. The live count is now only ever appended to the name as typed, never parsed
+  back off it — the one exception being retyping the label you can see, which is taken to mean the
+  name without it.
+- **The self-test exercised settings it could not switch on.** A setting that depends on another one
+  refuses to be enabled while that one is off, which made `/mobstacker selftest` report a failure for
+  `sweepingEdgeSingleHit`. The test now switches a setting's prerequisites on for the duration.
+
+### Changed
+- `/mobstacker region add` now points at `region bounds` when the name is taken, instead of only
+  saying the region exists.
+
 ## [1.6.0] - 2026-09-17
 ### Added
 - **Vanilla-style Sweeping Edge** (`sweepingEdgePerMob`, default `false`). With it on, the mob you
