@@ -218,13 +218,18 @@ public abstract class LivingEntityMixin extends Entity {
      * stack is the same mob type, {@code amount} here is exactly that value, so the right enchantment
      * bonus is baked in for free.
      * <p>
-     * Two behaviours share this hook:
+     * Three behaviours share this hook:
      * <ul>
      *   <li>default: one sweep's worth of damage is folded into the hit, feeding the damage overflow
      *       below, so a sweeping sword chews a little deeper into the stack;</li>
      *   <li>{@code sweepingEdgePerMob}: the hit itself is left alone and the sweep is dealt to every
      *       other member of the stack instead (see {@link #mobstacker$overflowDamage}), which is what
-     *       a vanilla sweep through those same mobs standing loose would have done.</li>
+     *       a vanilla sweep through those same mobs standing loose would have done;</li>
+     *   <li>{@code sweepingEdgePerMob} where the stack has no separate members to wound - it shares
+     *       one health bar under {@code stackHealth}, or dies as one under
+     *       {@code killWholeStackOnDeath} - and equally when {@code sweepingEdgeSingleHit} asks for
+     *       it: every other member's sweep is added to this one hit instead, which costs the stack
+     *       exactly the same total health.</li>
      * </ul>
      */
     @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
@@ -235,10 +240,18 @@ public abstract class LivingEntityMixin extends Entity {
         if (self.level().isClientSide() || !(self instanceof Mob mob)) {
             return amount;
         }
-        if (!MobStacker.getDamageOverflow(mob) || !MobStacker.getSweepingEdgeOverflow(mob)) {
+        if (!MobStacker.getSweepingEdgeOverflow(mob)) {
             return amount;
         }
-        if (MobStacker.getStackSize(mob) <= 1 || !damageSource.is(DamageTypes.PLAYER_ATTACK)) {
+        int stackSize = MobStacker.getStackSize(mob);
+        if (stackSize <= 1 || !damageSource.is(DamageTypes.PLAYER_ATTACK)) {
+            return amount;
+        }
+        // Bonus damage needs somewhere to go: either the stack shares one health bar, or the damage
+        // overflow carries whatever kills the top mob down onto the ones below it. With neither, any
+        // bonus is spent on a mob that was about to die anyway.
+        boolean diesAsOne = MobStacker.getKillWholeStackOnDeath(mob);
+        if (!diesAsOne && !MobStacker.getDamageOverflow(mob)) {
             return amount;
         }
         if (!(damageSource.getEntity() instanceof LivingEntity attacker)) {
@@ -254,13 +267,24 @@ public abstract class LivingEntityMixin extends Entity {
         // Vanilla: sweepDamage = 1.0 + (level / (level + 1)) * attackDamage.
         float ratio = (float) level / (level + 1);
         float sweepDamage = 1.0F + ratio * amount;
-        if (MobStacker.getSweepingEdgePerMob(mob)) {
+        if (!MobStacker.getSweepingEdgePerMob(mob)) {
+            return amount + sweepDamage;
+        }
+        if (!diesAsOne && !MobStacker.getSweepingEdgeSingleHit(mob)) {
             // Dealt to the other members once this hit resolves, where post-armor damage is known.
             mobstacker$pendingSweepDamage = sweepDamage;
             mobstacker$pendingSweepRawAmount = amount;
             return amount;
         }
-        return amount + sweepDamage;
+        // Nothing separate to wound - one health bar, or one death for all of them - so the sweep
+        // every other member would have taken lands on this hit instead. The mob being struck takes
+        // the weapon's own damage, exactly as it would in a loose herd, hence stackSize - 1 sweeps.
+        int swept = stackSize - 1;
+        int cap = MobStacker.getSweepingEdgeMaxKills(mob);
+        if (cap > 0) {
+            swept = Math.min(swept, cap);
+        }
+        return amount + sweepDamage * swept;
     }
 
     /**

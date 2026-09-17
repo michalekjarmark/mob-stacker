@@ -1090,6 +1090,11 @@ public final class MobStacker {
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static boolean getSweepingEdgePerMob(Entity at) {return setting("sweepingEdgePerMob", at, config.getSweepingEdgePerMob());}
 
+    public static boolean getSweepingEdgeSingleHit() {return config.getSweepingEdgeSingleHit();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getSweepingEdgeSingleHit(Entity at) {return setting("sweepingEdgeSingleHit", at, config.getSweepingEdgeSingleHit());}
+
     public static boolean getSweepingEdgeVanillaConditions() {return config.getSweepingEdgeVanillaConditions();}
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */

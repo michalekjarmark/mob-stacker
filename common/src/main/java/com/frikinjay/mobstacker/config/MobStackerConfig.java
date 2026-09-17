@@ -22,6 +22,7 @@ public class MobStackerConfig {
     private boolean enableDamageOverflow = true;
     private boolean sweepingEdgeOverflow = true;
     private boolean sweepingEdgePerMob = false;
+    private boolean sweepingEdgeSingleHit = false;
     private boolean sweepingEdgeVanillaConditions = false;
     private int sweepingEdgeMaxKills = 0;
     private boolean stackEquippedMobs = false;
@@ -123,6 +124,7 @@ public class MobStackerConfig {
     public boolean getDamageOverflow() { return enableDamageOverflow; }
     public boolean getSweepingEdgeOverflow() { return sweepingEdgeOverflow; }
     public boolean getSweepingEdgePerMob() { return sweepingEdgePerMob; }
+    public boolean getSweepingEdgeSingleHit() { return sweepingEdgeSingleHit; }
     public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
     public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
@@ -184,6 +186,11 @@ public class MobStackerConfig {
 
     public void setSweepingEdgePerMob(boolean sweepingEdgePerMob) {
         this.sweepingEdgePerMob = sweepingEdgePerMob;
+        save();
+    }
+
+    public void setSweepingEdgeSingleHit(boolean sweepingEdgeSingleHit) {
+        this.sweepingEdgeSingleHit = sweepingEdgeSingleHit;
         save();
     }
 

@@ -73,6 +73,10 @@ public final class MobStackerSettings {
                 "Sweep every mob in the stack for 1 + damage x (level / (level + 1)) each, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit.",
                 () -> MobStacker.config.getSweepingEdgePerMob(), v -> MobStacker.config.setSweepingEdgePerMob(v), false)
                 .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofBool("sweepingEdgeSingleHit", Category.COMBAT,
+                "Put the whole sweep into the one hit - 1 + damage x (level / (level + 1)) for every other mob in the stack - and let damage overflow carry it down, instead of wounding each mob separately. Needs damageOverflow to kill anything beyond the top mob.",
+                () -> MobStacker.config.getSweepingEdgeSingleHit(), v -> MobStacker.config.setSweepingEdgeSingleHit(v), false)
+                .requires("sweepingEdgePerMob"));
         register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
                 "Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand.",
                 () -> MobStacker.config.getSweepingEdgeVanillaConditions(), v -> MobStacker.config.setSweepingEdgeVanillaConditions(v), false)
