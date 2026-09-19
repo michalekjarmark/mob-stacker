@@ -72,6 +72,9 @@ public class MobMixin {
         if (!(self instanceof AbstractHorse)) {
             return;
         }
+        if (MobStacker.isSeparatorInteraction(self, player.getItemInHand(hand))) {
+            return; // PlayerMixin already took one out at interactOn; two would leave the stack
+        }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
             cir.setReturnValue(separated.interact(player, hand));

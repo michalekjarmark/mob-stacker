@@ -405,6 +405,22 @@ public final class MobStacker {
     }
 
     /**
+     * Whether this item, used on this mob, is the separator taking one mob out of the stack.
+     *
+     * <p>Asked by {@code MobMixin} so that a separator click on a stacked mount does not pull out
+     * two: {@code PlayerMixin} separates at {@code Player.interactOn} and lets vanilla carry on, so
+     * without this the interaction would then reach a stack that is already one smaller and split
+     * it again.
+     */
+    public static boolean isSeparatorInteraction(Mob entity, ItemStack held) {
+        if (held.isEmpty() || !getEnableSeparator(entity)) {
+            return false;
+        }
+        ResourceLocation separator = ResourceLocation.tryParse(getSeparatorItem(entity));
+        return separator != null && held.is(BuiltInRegistries.ITEM.get(separator));
+    }
+
+    /**
      * Takes a single mob out of a stack and returns it.
      *
      * @param markAsSeparated whether to give the mob the "Lone ..." name. The separator item wants
