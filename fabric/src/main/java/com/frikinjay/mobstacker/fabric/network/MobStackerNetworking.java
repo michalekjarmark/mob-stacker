@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker.fabric.network;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -41,6 +42,14 @@ public final class MobStackerNetworking {
     public static final String REGION_PREFIX = "region:";
     /** Pseudo-setting naming a region's overlap priority rather than one of its settings. */
     public static final String REGION_PRIORITY = "@priority";
+    /**
+     * Pseudo-setting carrying a whole region shape ({@link RegionEdit.Definition}) instead of one of
+     * its settings, so the GUI can draw a new region or redraw an existing one. The region named in
+     * the path is created when it does not exist yet.
+     */
+    public static final String REGION_DEFINITION = "@region";
+    /** Pseudo-setting that removes the named region, with everything it carried. */
+    public static final String REGION_DELETE = "@delete";
 
     /** Operator level required to change settings, matching the {@code /mobstacker} command tree. */
     private static final int EDIT_PERMISSION_LEVEL = 2;
@@ -107,6 +116,17 @@ public final class MobStackerNetworking {
         }
         String regionName = path.substring(0, split);
         String settingId = path.substring(split + 1);
+
+        if (REGION_DEFINITION.equals(settingId)) {
+            RegionEdit.Result result = RegionEdit.apply(regionName, RegionEdit.Definition.decode(raw));
+            sendSync(player, result.message());
+            return;
+        }
+
+        if (REGION_DELETE.equals(settingId)) {
+            sendSync(player, RegionEdit.delete(regionName).message());
+            return;
+        }
 
         StackRegion region = MobStacker.config.getRegion(regionName);
         if (region == null) {
@@ -183,7 +203,14 @@ public final class MobStackerNetworking {
             buf.writeUtf(region.getName());
             buf.writeUtf(region.getType().name());
             buf.writeUtf(region.getDimension() == null ? "" : region.getDimension());
-            buf.writeUtf(region.describeBounds());
+            // The corners themselves, not a pretty string: the region editor puts them straight into
+            // its coordinate boxes, and the client formats the label the same way the server would.
+            buf.writeInt(region.getMinX());
+            buf.writeInt(region.getMinY());
+            buf.writeInt(region.getMinZ());
+            buf.writeInt(region.getMaxX());
+            buf.writeInt(region.getMaxY());
+            buf.writeInt(region.getMaxZ());
             buf.writeInt(region.getPriority());
             Map<String, String> overrides = region.getSettings();
             buf.writeVarInt(overrides.size());

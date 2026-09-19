@@ -26,6 +26,8 @@ public class MobStackerConfig {
     private boolean sweepingEdgeVanillaConditions = false;
     private int sweepingEdgeMaxKills = 0;
     private boolean stackEquippedMobs = false;
+    private boolean keepMemberEquipment = true;
+    private boolean stackNamedMobs = false;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
@@ -128,6 +130,8 @@ public class MobStackerConfig {
     public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
     public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
+    public boolean getKeepMemberEquipment() { return keepMemberEquipment; }
+    public boolean getStackNamedMobs() { return stackNamedMobs; }
     public boolean getStackKillActionBar() { return stackKillActionBar; }
     public boolean getStackKillParticles() { return stackKillParticles; }
     public boolean getStackKillHologram() { return stackKillHologram; }
@@ -206,6 +210,16 @@ public class MobStackerConfig {
 
     public void setStackEquippedMobs(boolean stackEquippedMobs) {
         this.stackEquippedMobs = stackEquippedMobs;
+        save();
+    }
+
+    public void setKeepMemberEquipment(boolean keepMemberEquipment) {
+        this.keepMemberEquipment = keepMemberEquipment;
+        save();
+    }
+
+    public void setStackNamedMobs(boolean stackNamedMobs) {
+        this.stackNamedMobs = stackNamedMobs;
         save();
     }
 

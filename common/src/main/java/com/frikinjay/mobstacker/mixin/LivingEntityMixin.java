@@ -191,6 +191,7 @@ public abstract class LivingEntityMixin extends Entity {
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             for (int i = 1; i < stackSize; i++) {
                 if(!mobstacker$self.level().isClientSide()) {
+                    mobstacker$wearNextMemberGear(mobstacker$self);
                     dropAllDeathLoot(damageSource);
                 }
             }
@@ -412,12 +413,31 @@ public abstract class LivingEntityMixin extends Entity {
         }
         LivingEntity killCredit = mob.getKillCredit();
         for (int i = 0; i < extraKilled; i++) {
+            mobstacker$wearNextMemberGear(mob);
             dropAllDeathLoot(damageSource);
             if (mob.deathScore >= 0 && killCredit != null) {
                 killCredit.awardKillScore(mob, mob.deathScore, damageSource);
             }
             mob.createWitherRose(killCredit);
         }
+    }
+
+    /**
+     * Dresses the dying mob in the next stored member's gear, so the {@code dropAllDeathLoot} call
+     * that follows rolls <em>that</em> member's equipment: vanilla's own loop applies the drop
+     * chances, the Looting bonus and the damage it rolls onto dropped armor, and clears the slots
+     * again. The loadout is taken off the stack as it is used, leaving exactly what the survivors
+     * still own for the remainder that is spawned afterwards.
+     */
+    @Unique
+    private void mobstacker$wearNextMemberGear(Mob mob) {
+        if (!MobStacker.keepsMemberEquipment(mob)) {
+            return; // not ours to touch: leave the mob exactly as vanilla left it
+        }
+        // An empty loadout is still an answer. Without it, gear whose drop roll just failed would
+        // stay in the slots and be rolled again for the next member, and members of a stack that
+        // predates this setting would inherit the top mob's armor.
+        MobStacker.applyLoadout(mob, MobStacker.takeMemberLoadout(mob));
     }
 
     @Inject(method = "<init>", at = @At("TAIL"))

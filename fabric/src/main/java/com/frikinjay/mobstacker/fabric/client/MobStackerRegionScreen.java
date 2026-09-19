@@ -56,11 +56,25 @@ public final class MobStackerRegionScreen extends Screen {
     private boolean remote;
     private boolean editable;
     private boolean showRows;
+    /** A region to show once it turns up in the config, set by the editor after creating one. */
+    private String pendingSelection;
     /** Set while a widget is being repainted, so its own responder does not send that back as an edit. */
     private boolean repainting;
 
     /** A region as the screen needs it, from the local config or from the server's snapshot. */
-    private record RegionView(String name, String type, String dimension, String bounds, int priority) {
+    private record RegionView(String name, String type, String dimension,
+                              int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int priority) {
+        String bounds() {
+            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+        }
+
+        StackRegion.Type parsedType() {
+            return "DENY".equalsIgnoreCase(type) ? StackRegion.Type.DENY : StackRegion.Type.ALLOW;
+        }
+
+        int[] corners() {
+            return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
+        }
     }
 
     /**
@@ -112,6 +126,7 @@ public final class MobStackerRegionScreen extends Screen {
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
         this.editable = singleplayer || (remote && MobStackerClientNetworking.authorized());
         this.regions = loadRegions(singleplayer);
+        applyPendingSelection();
         this.showRows = !regions.isEmpty() && !categories.isEmpty()
                 && (singleplayer || (remote && MobStackerClientNetworking.hasSnapshot()));
 
@@ -141,8 +156,57 @@ public final class MobStackerRegionScreen extends Screen {
             }
         }
 
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        if (editable) {
+            addRenderableWidget(Button.builder(Component.literal("New region…"), b -> openEditor(null))
+                    .bounds(this.width / 2 - 154, this.height - 28, 100, 20).build());
+            if (showRows) {
+                addRenderableWidget(Button.builder(Component.literal("Edit area…"), b -> openEditor(currentRegion()))
+                        .bounds(this.width / 2 - 50, this.height - 28, 100, 20).build());
+            }
+            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                    .bounds(this.width / 2 + 54, this.height - 28, 100, 20).build());
+        } else {
+            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                    .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+        }
+    }
+
+    /**
+     * Opens the area editor: on the region shown here, or on a blank one drawn around the player.
+     */
+    private void openEditor(RegionView view) {
+        if (this.minecraft == null) {
+            return;
+        }
+        this.minecraft.setScreen(view == null
+                ? MobStackerRegionEditScreen.forNewRegion(this, remote, editable)
+                : MobStackerRegionEditScreen.forRegion(this, view.name(), view.parsedType(),
+                        view.dimension(), view.corners(), remote, editable));
+    }
+
+    /**
+     * Asks to show the named region as soon as it appears. Over the network a region that was just
+     * created is not in the snapshot yet, so the request is kept until the next one arrives.
+     */
+    public void selectRegion(String name) {
+        this.pendingSelection = name;
+        if (name == null) {
+            this.regionIndex = 0;
+        }
+    }
+
+    private void applyPendingSelection() {
+        if (pendingSelection == null) {
+            return;
+        }
+        for (int i = 0; i < regions.size(); i++) {
+            if (regions.get(i).name().equals(pendingSelection)) {
+                regionIndex = i;
+                scrollOffset = 0;
+                pendingSelection = null;
+                return;
+            }
+        }
     }
 
     private List<RegionView> loadRegions(boolean singleplayer) {
@@ -151,11 +215,14 @@ public final class MobStackerRegionScreen extends Screen {
             for (StackRegion region : MobStacker.config.getRegions()) {
                 out.add(new RegionView(region.getName(), String.valueOf(region.getType()),
                         region.getDimension() == null ? "?" : region.getDimension(),
-                        region.describeBounds(), region.getPriority()));
+                        region.getMinX(), region.getMinY(), region.getMinZ(),
+                        region.getMaxX(), region.getMaxY(), region.getMaxZ(), region.getPriority()));
             }
         } else if (remote) {
             for (MobStackerClientNetworking.RegionInfo info : MobStackerClientNetworking.regions()) {
-                out.add(new RegionView(info.name(), info.type(), info.dimension(), info.bounds(), info.priority()));
+                out.add(new RegionView(info.name(), info.type(), info.dimension(),
+                        info.minX(), info.minY(), info.minZ(),
+                        info.maxX(), info.maxY(), info.maxZ(), info.priority()));
             }
         }
         return out;
@@ -649,7 +716,9 @@ public final class MobStackerRegionScreen extends Screen {
                 Component.literal("No regions defined.").withStyle(ChatFormatting.YELLOW),
                 this.width / 2, this.height / 2 - 16, 0xFFFFFF);
         guiGraphics.drawCenteredString(this.font,
-                Component.literal("Create one with /mobstacker region add <name> allow <corner> <corner>")
+                Component.literal(editable
+                                ? "Draw one with \"New region…\" below, or /mobstacker region add <name> allow <corner> <corner>"
+                                : "Regions are created with /mobstacker region add <name> allow <corner> <corner>")
                         .withStyle(ChatFormatting.GRAY),
                 this.width / 2, this.height / 2, 0xFFFFFF);
     }

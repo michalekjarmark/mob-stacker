@@ -7,6 +7,78 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.7.0] - unreleased
+### Added
+- **Every stacked mob keeps its own equipment** (`keepMemberEquipment`, default `true`, needs
+  `stackEquippedMobs`). A stack now stores what each of its members wears and holds — item by item,
+  with the drop chance of each piece — instead of keeping only the survivor's gear and losing the
+  rest on the merge. When a member is killed, its own gear is put back on the entity just before that
+  member's death loot is rolled, so **Looting, the drop chances and the damage vanilla rolls onto
+  dropped armor all apply by themselves**, under every death mode (`killWholeStackOnDeath`, damage
+  overflow, or a plain one-at-a-time kill). Because the gear is stored exactly as the game stores it,
+  **other mods' items and any enchantment work without the mod knowing anything about them**. The
+  remainder of a killed stack, and a mob pulled out with the separator item, take the next member's
+  gear with them.
+- **A region's area can be changed** — `/mobstacker region bounds <name> <corner1> <corner2>` moves or
+  resizes a region **keeping its settings, its priority and its name**. Until now the only way to
+  redraw a region was to delete it and add it again, which threw all of that away.
+  `/mobstacker region type <name> <allow|deny>` likewise flips a region's kind without redrawing it.
+- **Regions can be created and edited from the GUI.** The region screen gained **New region…** and
+  **Edit area…** buttons, which open an editor for the region's name, kind, dimension and both
+  corners, with a **Here** button per corner that fills it from where you are standing. A new region
+  starts as a box around the player. The same screen deletes a region, behind a second click. Works
+  in singleplayer and on a server, operator-gated exactly like every other GUI edit.
+- **Name tags work on stacks** (`stackNamedMobs`, default `false`). Renaming a stack with a name tag
+  now labels the stack — `Bella x16` — and **the stack goes on accepting mobs**, instead of silently
+  refusing every new one. What a name means is recorded when the tag is used rather than guessed from
+  the text afterwards, so a name tag on a *single* mob still keeps it out of stacks (that is how
+  players protect a pet), and `stackNamedMobs` opts into stacking those too, with mobs of the same
+  name only. A stack keeps its name through kills and through conversions (zombie → drowned).
+- **Touching a stacked mount hands you one animal out of it.** A horse is tamed, saddled, given armor
+  and ridden one at a time, so right-clicking a herd now steps a single horse out of the stack and
+  applies everything you do to that horse — including climbing onto it. It rejoins the herd afterwards
+  unless what you did was to keep it. Covers horses, donkeys, mules, llamas, camels and skeleton and
+  zombie horses.
+
+### Fixed
+- **A tamed, saddled or loaded mob is never stacked again.** A horse's saddle, armor and chest sit in
+  an inventory of the horse's own rather than in its equipment slots, so `stackEquippedMobs` never
+  protected them, and taming, ownership and temper were copied straight off the mob being merged
+  away onto the survivor. **A wild horse wandering into your tamed, saddled, armored horse wiped all
+  of it.** Stacking now leaves alone anything a player has put something into: tamed or owned mobs,
+  saddled ones, horse armor, a donkey's or llama's chest, a leashed mob, and anything currently
+  riding or being ridden. Wild herds — and the foals a breeding pen produces, which are born
+  untamed — still stack exactly as before.
+- **Mobs of different kinds no longer merge and then change appearance.** Which mobs count as the
+  same was checked in one place and carried onto a respawned stack in another, and the two had come
+  apart; horses were in neither, so a herd merged regardless of colour and came back in a colour
+  rolled at random. Both halves now live in one table, and it covers the types that were missing:
+  **horses, llamas** (colour and strength), **rabbits, parrots, pandas** (both genes), **goats**
+  (screaming, horns), **tropical fish, charged creepers, shulkers, snow golems** and the block an
+  **enderman** is carrying. Cats keep their collar colour and mooshrooms their stewed effect.
+- **Vanilla's name easter eggs work on stacks.** `Dinnerbone` and `Grumm` hang a stack upside down,
+  `jeb_` makes a stack of sheep cycle the dye colours, and `Toast` gives a stack of rabbits the
+  memorial skin. All four compare the mob's whole name to a literal, which `Dinnerbone x16` never
+  matched. Rendering only, and it needs the mod on the client.
+- **A merge no longer overwrites the surviving stack's name or gear** with the name and gear of the
+  mob being merged away. Merging a plain cow into a stack named `Bella x16` used to turn it into
+  `Cow x17`.
+- **Naming a mob something that looks like a stack label no longer confuses the mod.** A cow named
+  literally `Cow x5` was treated as if the name were the mod's own label, and a name ending in ` xN`
+  had that suffix eaten. The live count is now only ever appended to the name as typed, never parsed
+  back off it — the one exception being retyping the label you can see, which is taken to mean the
+  name without it.
+- **The self-test exercised settings it could not switch on.** A setting that depends on another one
+  refuses to be enabled while that one is off, which made `/mobstacker selftest` report a failure for
+  `sweepingEdgeSingleHit`. The test now switches a setting's prerequisites on for the duration.
+
+### Changed
+- `/mobstacker region add` now points at `region bounds` when the name is taken, instead of only
+  saying the region exists.
+- Different colours of sheep, and sheared and unsheared ones, still refuse to stack together. That
+  was already true and stays true on purpose — a stack shows one body, and it is what a per-stack
+  shearing rule will need.
+
 ## [1.6.0] - 2026-09-17
 ### Added
 - **Vanilla-style Sweeping Edge** (`sweepingEdgePerMob`, default `false`). With it on, the mob you

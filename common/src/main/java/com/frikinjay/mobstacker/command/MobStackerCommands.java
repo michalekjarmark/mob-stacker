@@ -6,6 +6,7 @@ import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.ConfigSelfTest;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackMode;
+import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -112,6 +113,19 @@ public class MobStackerCommands {
                                                 .then(argument("corner1", BlockPosArgument.blockPos())
                                                         .then(argument("corner2", BlockPosArgument.blockPos())
                                                                 .executes(ctx -> addRegion(ctx, StackRegion.Type.DENY)))))))
+                        .then(literal("bounds")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("corner1", BlockPosArgument.blockPos())
+                                                .then(argument("corner2", BlockPosArgument.blockPos())
+                                                        .executes(MobStackerCommands::setRegionBounds)))))
+                        .then(literal("type")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(literal("allow")
+                                                .executes(ctx -> setRegionType(ctx, StackRegion.Type.ALLOW)))
+                                        .then(literal("deny")
+                                                .executes(ctx -> setRegionType(ctx, StackRegion.Type.DENY)))))
                         .then(literal("remove")
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -320,7 +334,7 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
@@ -634,7 +648,9 @@ public class MobStackerCommands {
     private static int addRegion(CommandContext<CommandSourceStack> context, StackRegion.Type type) throws CommandSyntaxException {
         String name = StringArgumentType.getString(context, "name");
         if (MobStacker.config.getRegion(name) != null) {
-            context.getSource().sendFailure(Component.literal("Region '" + name + "' already exists. Remove it first.").withStyle(ChatFormatting.RED));
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' already exists. "
+                    + "Use /mobstacker region bounds " + name + " <corner> <corner> to move it, "
+                    + "which keeps its settings.").withStyle(ChatFormatting.RED));
             return 0;
         }
 
@@ -642,24 +658,72 @@ public class MobStackerCommands {
         BlockPos corner2 = BlockPosArgument.getBlockPos(context, "corner2");
         String dimension = context.getSource().getLevel().dimension().location().toString();
 
-        StackRegion region = new StackRegion(name, dimension, type,
+        return reportRegionEdit(context, RegionEdit.apply(name, type, dimension,
                 corner1.getX(), corner1.getY(), corner1.getZ(),
-                corner2.getX(), corner2.getY(), corner2.getZ());
-        MobStacker.config.addRegion(region);
-        MobStacker.config.save();
+                corner2.getX(), corner2.getY(), corner2.getZ()));
+    }
 
-        context.getSource().sendSuccess(() -> Component.literal(
-                "Added " + type + " region '" + name + "' in " + dimension + " " + region.describeBounds()
-        ).withStyle(ChatFormatting.GREEN), true);
+    /**
+     * Moves or resizes an existing region. The area is the only thing that changes: the settings it
+     * carries, its priority and its name all stay, which is what deleting and re-adding it lost.
+     */
+    private static int setRegionBounds(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String name = StringArgumentType.getString(context, "name");
+        StackRegion region = MobStacker.config.getRegion(name);
+        if (region == null) {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist").withStyle(ChatFormatting.RED));
+            return 0;
+        }
 
-        // Adding an ALLOW region while stacking is OFF is almost certainly meant to turn it on, so
-        // auto-switch to REGIONS mode (only from OFF — never override an explicit EVERYWHERE/PLAYERS).
-        if (type == StackRegion.Type.ALLOW && MobStacker.config.getStackMode() == StackMode.OFF) {
-            MobStacker.config.setStackMode(StackMode.REGIONS);
+        BlockPos corner1 = BlockPosArgument.getBlockPos(context, "corner1");
+        BlockPos corner2 = BlockPosArgument.getBlockPos(context, "corner2");
+        // The corners are read in the dimension the command is run from, so the region follows.
+        String dimension = context.getSource().getLevel().dimension().location().toString();
+        boolean moved = !dimension.equals(region.getDimension());
+
+        int result = reportRegionEdit(context, RegionEdit.apply(name, region.getType(), dimension,
+                corner1.getX(), corner1.getY(), corner1.getZ(),
+                corner2.getX(), corner2.getY(), corner2.getZ()));
+        if (result == 1 && moved) {
             context.getSource().sendSuccess(() -> Component.literal(
-                    "stackMode was OFF - automatically switched to REGIONS so this region takes effect."
+                    "The corners were read here, so the region moved to " + dimension + "."
             ).withStyle(ChatFormatting.AQUA), true);
         }
+        return result;
+    }
+
+    /** Turns an allow region into a deny one, or back, without redrawing it. */
+    private static int setRegionType(CommandContext<CommandSourceStack> context, StackRegion.Type type) {
+        String name = StringArgumentType.getString(context, "name");
+        StackRegion region = MobStacker.config.getRegion(name);
+        if (region == null) {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        if (region.getType() == type) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    "Region '" + name + "' is already " + type).withStyle(ChatFormatting.YELLOW), false);
+            return 0;
+        }
+        RegionEdit.Result result = RegionEdit.apply(name, type, region.getDimension(),
+                region.getMinX(), region.getMinY(), region.getMinZ(),
+                region.getMaxX(), region.getMaxY(), region.getMaxZ());
+        if (!result.ok()) {
+            context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        context.getSource().sendSuccess(() -> Component.literal(
+                "Region '" + name + "' is now " + type).withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    /** Turns a {@link RegionEdit} outcome into the usual green/red command feedback. */
+    private static int reportRegionEdit(CommandContext<CommandSourceStack> context, RegionEdit.Result result) {
+        if (!result.ok()) {
+            context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        context.getSource().sendSuccess(() -> Component.literal(result.message()).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
