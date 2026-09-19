@@ -1,6 +1,8 @@
 package com.frikinjay.mobstacker;
 
 import com.frikinjay.mobstacker.api.MobStackerAPI;
+import com.frikinjay.mobstacker.config.MobLists;
+import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
@@ -204,9 +206,11 @@ public final class MobStacker {
             return false;
         }
 
-        ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        if (config.getIgnoredEntities().contains(entityId.toString()) ||
-                config.getIgnoredMods().contains(entityId.getNamespace())) {
+        // Whether this kind of mob may stack at all here: a blacklist or a whitelist, global or
+        // the region's own. MobLists is the single place that decides, because the answer now
+        // depends on three things (the mode in force, which lists it consults, and whether the
+        // region overrides them) and working any of them out twice is how tables drift apart.
+        if (!MobLists.allows(entity)) {
             return false;
         }
 
@@ -1539,8 +1543,31 @@ public final class MobStacker {
 
     public static int getMaxMobStackSize() {return config.getMaxMobStackSize();}
 
-    /** As above, but for where {@code at} is standing: a region may set its own value. */
-    public static int getMaxMobStackSize(Entity at) {return setting("maxStackSize", at, config.getMaxMobStackSize());}
+    /**
+     * The largest a stack of <em>this</em> mob may grow where it is standing.
+     *
+     * <p>Four answers, most specific first: a ceiling this region sets for this mob's type, one the
+     * global config sets for that type, this region's own {@code maxStackSize}, and the global
+     * {@code maxStackSize}. The per-type ceilings are looked up by entity id, so "cows 64, zombies
+     * 16" is one line each and modded mobs work without the mod knowing they exist.
+     */
+    public static int getMaxMobStackSize(Entity at) {
+        if (at != null) {
+            String typeId = BuiltInRegistries.ENTITY_TYPE.getKey(at.getType()).toString();
+            StackRegion region = regionAt(at);
+            if (region != null) {
+                Integer here = region.getMaxStackSize(typeId);
+                if (here != null) {
+                    return here;
+                }
+            }
+            Integer globally = config.getMaxStackSize(typeId);
+            if (globally != null) {
+                return globally;
+            }
+        }
+        return setting("maxStackSize", at, config.getMaxMobStackSize());
+    }
 
     /**
      * Whether killing the top mob takes the whole stack with it. {@code stackHealth} pools the

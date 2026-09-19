@@ -38,8 +38,13 @@ public final class MobStackerSettings {
                 "Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE.",
                 StackMode.class, () -> MobStacker.config.getStackMode(), v -> MobStacker.config.setStackMode(v), StackMode.OFF));
         register(ConfigOption.ofInt("maxStackSize", Category.STACKING,
-                "The largest a stack is allowed to grow to.",
+                "The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this.",
                 1, 100000, () -> MobStacker.config.getMaxMobStackSize(), v -> MobStacker.config.setMaxMobStackSize(v), 16));
+        register(ConfigOption.ofEnum("mobListMode", Category.STACKING,
+                "Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or "
+                        + "WHITELIST (nothing stacks except the allowed lists).",
+                MobListMode.class, () -> MobStacker.config.getMobListMode(),
+                v -> MobStacker.config.setMobListMode(v), MobListMode.BLACKLIST));
         register(ConfigOption.ofDouble("stackRadius", Category.STACKING,
                 "How far apart (in blocks) mobs can be and still merge into the same stack.",
                 0.1, 42000.0, () -> MobStacker.config.getStackRadius(), v -> MobStacker.config.setStackRadius(v), 6.0));

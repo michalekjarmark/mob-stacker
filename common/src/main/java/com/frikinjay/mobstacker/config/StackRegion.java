@@ -1,7 +1,9 @@
 package com.frikinjay.mobstacker.config;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,7 +17,7 @@ import java.util.Map;
  * setting that is not listed simply follows the global config — so regions stay small in the config
  * file and only differ where you asked them to.
  */
-public class StackRegion {
+public class StackRegion implements MobLists.Holder {
 
     public enum Type {
         ALLOW,
@@ -40,6 +42,16 @@ public class StackRegion {
     // The colour the region is drawn in when a player switches its overlay on. Null means "no colour
     // chosen", which reads as green for an allow region and red for a deny one — see effectiveColor.
     private StackColor color;
+    // The region's own mob lists. Null means "not overridden here" and is NOT the same as an empty
+    // list, which means "nothing"; that difference is the whole point of hasList. Volatile for the
+    // same reason as settings — the singleplayer config screen reads them off the client thread.
+    private volatile List<String> ignoredEntities;
+    private volatile List<String> ignoredMods;
+    private volatile List<String> allowedEntities;
+    private volatile List<String> allowedMods;
+    // Per-type ceilings that apply only here, entity id -> size. Sparse like settings: a type that
+    // is not named follows the region's own maxStackSize, and failing that the global one.
+    private volatile Map<String, Integer> maxStackSizes;
 
     // Required for Gson deserialization.
     public StackRegion() {
@@ -202,6 +214,101 @@ public class StackRegion {
             settings = null;
         }
         return removed;
+    }
+
+    /** The backing list, or null when this region does not override it. */
+    private List<String> backing(MobListKind kind) {
+        switch (kind) {
+            case DENY_ENTITIES:
+                return ignoredEntities;
+            case DENY_MODS:
+                return ignoredMods;
+            case ALLOW_ENTITIES:
+                return allowedEntities;
+            case ALLOW_MODS:
+            default:
+                return allowedMods;
+        }
+    }
+
+    private void store(MobListKind kind, List<String> list) {
+        switch (kind) {
+            case DENY_ENTITIES -> ignoredEntities = list;
+            case DENY_MODS -> ignoredMods = list;
+            case ALLOW_ENTITIES -> allowedEntities = list;
+            case ALLOW_MODS -> allowedMods = list;
+        }
+    }
+
+    @Override
+    public List<String> getList(MobListKind kind) {
+        return MobLists.view(backing(kind));
+    }
+
+    @Override
+    public boolean hasList(MobListKind kind) {
+        return backing(kind) != null;
+    }
+
+    @Override
+    public boolean addToList(MobListKind kind, String entry) {
+        String value = MobLists.normalise(kind, entry);
+        if (value.isEmpty()) {
+            return false;
+        }
+        List<String> list = backing(kind);
+        if (list == null) {
+            // The first entry is also what turns the override on: until now this region inherited.
+            list = new ArrayList<>();
+            store(kind, list);
+        } else if (list.contains(value)) {
+            return false;
+        }
+        list.add(value);
+        return true;
+    }
+
+    @Override
+    public boolean removeFromList(MobListKind kind, String entry) {
+        List<String> list = backing(kind);
+        // An emptied list is kept, not dropped: "nothing stacks here" is a thing a region can mean,
+        // and silently falling back to the global list instead would be the opposite of what was asked.
+        return list != null && list.remove(MobLists.normalise(kind, entry));
+    }
+
+    @Override
+    public void clearList(MobListKind kind) {
+        store(kind, null);
+    }
+
+    /** The ceilings set here, entity id -> size. Never null. */
+    public Map<String, Integer> getMaxStackSizes() {
+        return maxStackSizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(maxStackSizes);
+    }
+
+    /** The ceiling this region gives that entity id, or null when it does not set one. */
+    public Integer getMaxStackSize(String entityId) {
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes == null ? null : sizes.get(MobLists.normalise(MobListKind.DENY_ENTITIES, entityId));
+    }
+
+    /** Sets a ceiling here, or drops it when {@code size} is null. @return true when something changed */
+    public boolean setMaxStackSize(String entityId, Integer size) {
+        String key = MobLists.normalise(MobListKind.DENY_ENTITIES, entityId);
+        if (size == null) {
+            if (maxStackSizes == null) {
+                return false;
+            }
+            boolean removed = maxStackSizes.remove(key) != null;
+            if (maxStackSizes.isEmpty()) {
+                maxStackSizes = null;
+            }
+            return removed;
+        }
+        if (maxStackSizes == null) {
+            maxStackSizes = new LinkedHashMap<>();
+        }
+        return !Integer.valueOf(Math.max(1, size)).equals(maxStackSizes.put(key, Math.max(1, size)));
     }
 
     public String describeBounds() {

@@ -4,6 +4,9 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.ConfigSelfTest;
+import com.frikinjay.mobstacker.config.MobListKind;
+import com.frikinjay.mobstacker.config.MobListMode;
+import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.RegionEdit;
@@ -83,27 +86,22 @@ public class MobStackerCommands {
                         .then(argument("target", EntityArgument.entity())
                                 .then(argument("size", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setStackSizeLive))))
+                .then(literal("list")
+                        .then(listHalf("deny", MobListKind.Half.DENY, null))
+                        .then(listHalf("allow", MobListKind.Half.ALLOW, null)))
+                // The old name for the deny lists, kept working because it is in every existing
+                // guide and in people's fingers. It reaches exactly the same code.
                 .then(literal("ignore")
-                        .then(literal("entity")
-                                .then(literal("add")
-                                        .then(argument("entityId", ResourceLocationArgument.id())
-                                                .suggests(MobStackerCommands::suggestEntities)
-                                                .executes(MobStackerCommands::ignoreEntity)))
-                                .then(literal("remove")
-                                        .then(argument("entityId", ResourceLocationArgument.id())
-                                                .suggests(MobStackerCommands::suggestIgnoredEntities)
-                                                .executes(MobStackerCommands::unignoreEntity)))
-                                .then(literal("list").executes(MobStackerCommands::listIgnoredEntities)))
-                        .then(literal("mod")
-                                .then(literal("add")
-                                        .then(argument("modId", StringArgumentType.word())
-                                                .suggests(MobStackerCommands::suggestMods)
-                                                .executes(MobStackerCommands::ignoreMod)))
-                                .then(literal("remove")
-                                        .then(argument("modId", StringArgumentType.word())
-                                                .suggests(MobStackerCommands::suggestIgnoredMods)
-                                                .executes(MobStackerCommands::unignoreMod)))
-                                .then(literal("list").executes(MobStackerCommands::listIgnoredMods))))
+                        .then(listFlavour(MobListKind.DENY_ENTITIES, null))
+                        .then(listFlavour(MobListKind.DENY_MODS, null)))
+                .then(literal("maxstack")
+                        .then(literal("list").executes(ctx -> showMaxStacks(ctx, null)))
+                        .then(argument("entityId", ResourceLocationArgument.id())
+                                .suggests(MobStackerCommands::suggestEntities)
+                                .then(literal("default").executes(ctx -> setMaxStack(ctx, null, null)))
+                                .then(argument("size", IntegerArgumentType.integer(1, 100000))
+                                        .executes(ctx -> setMaxStack(ctx, null,
+                                                IntegerArgumentType.getInteger(ctx, "size"))))))
                 .then(literal("region")
                         .then(literal("add")
                                 .then(argument("name", StringArgumentType.word())
@@ -162,6 +160,22 @@ public class MobStackerCommands {
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("newname", StringArgumentType.word())
                                                 .executes(MobStackerCommands::renameRegion))))
+                        // "mobs" rather than "list", which this tree already uses for listing regions.
+                        .then(literal("mobs")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(listHalf("deny", MobListKind.Half.DENY, "name"))
+                                        .then(listHalf("allow", MobListKind.Half.ALLOW, "name"))))
+                        .then(literal("maxstack")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(literal("list").executes(ctx -> showMaxStacks(ctx, "name")))
+                                        .then(argument("entityId", ResourceLocationArgument.id())
+                                                .suggests(MobStackerCommands::suggestEntities)
+                                                .then(literal("default").executes(ctx -> setMaxStack(ctx, "name", null)))
+                                                .then(argument("size", IntegerArgumentType.integer(1, 100000))
+                                                        .executes(ctx -> setMaxStack(ctx, "name",
+                                                                IntegerArgumentType.getInteger(ctx, "size")))))))
                         .then(literal("color")
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -346,8 +360,11 @@ public class MobStackerCommands {
                 .append(Component.literal("  restore every setting to default").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker list <deny|allow> <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  which mobs stack; see mobListMode").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  a ceiling for one mob type").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack>").withStyle(ChatFormatting.YELLOW), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
@@ -476,20 +493,6 @@ public class MobStackerCommands {
         return builder.buildFuture();
     }
 
-    private static CompletableFuture<Suggestions> suggestIgnoredEntities(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
-        MobStacker.config.getIgnoredEntities().stream()
-                .filter(entity -> entity.startsWith(builder.getRemaining()))
-                .forEach(builder::suggest);
-        return builder.buildFuture();
-    }
-
-    private static CompletableFuture<Suggestions> suggestIgnoredMods(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
-        MobStacker.config.getIgnoredMods().stream()
-                .filter(mod -> mod.startsWith(builder.getRemaining()))
-                .forEach(builder::suggest);
-        return builder.buildFuture();
-    }
-
     private static CompletableFuture<Suggestions> suggestRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase();
         MobStacker.config.getRegions().stream()
@@ -499,81 +502,219 @@ public class MobStackerCommands {
         return builder.buildFuture();
     }
 
-    // ============================================================ ignore lists
+    // ============================================================ mob lists
 
-    private static int ignoreEntity(CommandContext<CommandSourceStack> context) {
-        ResourceLocation entityId = ResourceLocationArgument.getId(context, "entityId");
-        String entityIdString = entityId.toString();
-        if (MobStacker.config.getIgnoredEntities().contains(entityIdString)) {
-            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
-        } else {
-            MobStacker.config.addIgnoredEntity(entityIdString);
-            MobStacker.config.save();
-            context.getSource().sendSuccess(() -> Component.literal("Added '" + entityIdString + "' to ignored entities").withStyle(ChatFormatting.GREEN), true);
-        }
-        return 1;
+    /**
+     * The {@code deny} / {@code allow} half of the list commands, with an entity and a mod branch
+     * under it. Built once and hung in two places — under {@code /mobstacker list} for the global
+     * lists and under {@code /mobstacker region mobs <name>} for a region's own — so the two scopes
+     * cannot grow different spellings, different validation or different messages.
+     *
+     * @param regionArg the name of the command argument holding the region, or null for global
+     */
+    private static LiteralArgumentBuilder<CommandSourceStack> listHalf(String name, MobListKind.Half half,
+                                                                      String regionArg) {
+        return literal(name)
+                .then(listFlavour(MobListKind.of(half, MobListKind.Flavour.ENTITY), regionArg))
+                .then(listFlavour(MobListKind.of(half, MobListKind.Flavour.MOD), regionArg));
     }
 
-    private static int ignoreMod(CommandContext<CommandSourceStack> context) {
-        String modId = StringArgumentType.getString(context, "modId");
-        if (MobStacker.config.getIgnoredMods().contains(modId)) {
-            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is already ignored").withStyle(ChatFormatting.YELLOW), false);
-        } else {
-            MobStacker.config.addIgnoredMod(modId);
-            MobStacker.config.save();
-            context.getSource().sendSuccess(() -> Component.literal("Added '" + modId + "' to ignored mods").withStyle(ChatFormatting.GREEN), true);
+    /** One list's {@code add} / {@code remove} / {@code list} (and, for a region, {@code inherit}). */
+    private static LiteralArgumentBuilder<CommandSourceStack> listFlavour(MobListKind kind, String regionArg) {
+        boolean entities = kind.flavour() == MobListKind.Flavour.ENTITY;
+        String argName = entities ? "entityId" : "modId";
+        LiteralArgumentBuilder<CommandSourceStack> node = literal(entities ? "entity" : "mod")
+                .then(literal("add")
+                        .then((entities
+                                ? argument(argName, ResourceLocationArgument.id()).suggests(MobStackerCommands::suggestEntities)
+                                : argument(argName, StringArgumentType.word()).suggests(MobStackerCommands::suggestMods))
+                                .executes(ctx -> editList(ctx, kind, regionArg, true))))
+                .then(literal("remove")
+                        .then((entities
+                                ? argument(argName, ResourceLocationArgument.id())
+                                : argument(argName, StringArgumentType.word()))
+                                .suggests((ctx, builder) -> suggestListed(ctx, builder, kind, regionArg))
+                                .executes(ctx -> editList(ctx, kind, regionArg, false))))
+                .then(literal("list").executes(ctx -> showList(ctx, kind, regionArg)));
+        if (regionArg != null) {
+            // Only a region can inherit; the global list is what everything else falls back to.
+            node = node.then(literal("inherit").executes(ctx -> inheritList(ctx, kind, regionArg)));
         }
-        return 1;
+        return node;
     }
 
-    private static int unignoreEntity(CommandContext<CommandSourceStack> context) {
-        ResourceLocation entityId = ResourceLocationArgument.getId(context, "entityId");
-        String entityIdString = entityId.toString();
-        if (!MobStacker.config.getIgnoredEntities().contains(entityIdString)) {
-            context.getSource().sendSuccess(() -> Component.literal("Entity '" + entityIdString + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
-        } else {
-            MobStacker.config.removeIgnoredEntity(entityIdString);
-            MobStacker.config.save();
-            context.getSource().sendSuccess(() -> Component.literal("Removed '" + entityIdString + "' from ignored entities").withStyle(ChatFormatting.GOLD), true);
+    /**
+     * The holder the command is editing: a named region, or the global config.
+     *
+     * @return null when a region was named and does not exist, after telling the player so
+     */
+    private static MobLists.Holder listHolder(CommandContext<CommandSourceStack> context, String regionArg) {
+        if (regionArg == null) {
+            return MobStacker.config;
         }
-        return 1;
+        String regionName = StringArgumentType.getString(context, regionArg);
+        StackRegion region = MobStacker.config.getRegion(regionName);
+        if (region == null) {
+            context.getSource().sendFailure(Component.literal("Region '" + regionName + "' does not exist"));
+        }
+        return region;
     }
 
-    private static int unignoreMod(CommandContext<CommandSourceStack> context) {
-        String modId = StringArgumentType.getString(context, "modId");
-        if (!MobStacker.config.getIgnoredMods().contains(modId)) {
-            context.getSource().sendSuccess(() -> Component.literal("Mod '" + modId + "' is not in the ignored list").withStyle(ChatFormatting.YELLOW), false);
-        } else {
-            MobStacker.config.removeIgnoredMod(modId);
-            MobStacker.config.save();
-            context.getSource().sendSuccess(() -> Component.literal("Removed '" + modId + "' from ignored mods").withStyle(ChatFormatting.GOLD), true);
-        }
-        return 1;
+    /** "globally" or "in region 'x'", so every message below reads the same in both scopes. */
+    private static String scopeOf(CommandContext<CommandSourceStack> context, String regionArg) {
+        return regionArg == null
+                ? "globally"
+                : "in region '" + StringArgumentType.getString(context, regionArg) + "'";
     }
 
-    private static int listIgnoredEntities(CommandContext<CommandSourceStack> context) {
-        List<String> ignored = MobStacker.config.getIgnoredEntities();
-        if (ignored.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal("No ignored entities").withStyle(ChatFormatting.YELLOW), false);
+    private static String listEntry(CommandContext<CommandSourceStack> context, MobListKind kind) {
+        return kind.flavour() == MobListKind.Flavour.ENTITY
+                ? ResourceLocationArgument.getId(context, "entityId").toString()
+                : StringArgumentType.getString(context, "modId");
+    }
+
+    private static int editList(CommandContext<CommandSourceStack> context, MobListKind kind,
+                                String regionArg, boolean add) {
+        MobLists.Holder holder = listHolder(context, regionArg);
+        if (holder == null) {
+            return 0;
+        }
+        String entry = MobLists.normalise(kind, listEntry(context, kind));
+        String scope = scopeOf(context, regionArg);
+        boolean changed = add ? holder.addToList(kind, entry) : holder.removeFromList(kind, entry);
+        if (!changed) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                            "'" + entry + "' is " + (add ? "already on " : "not on ") + kind.id() + " " + scope)
+                    .withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
-        context.getSource().sendSuccess(() -> Component.literal("Ignored entities (" + ignored.size() + "):").withStyle(ChatFormatting.AQUA), false);
-        for (String entity : ignored) {
-            context.getSource().sendSuccess(() -> Component.literal(" - " + entity).withStyle(ChatFormatting.GRAY), false);
-        }
+        // A region's lists live inside the config object, so the region path has to ask for the save
+        // that the global path already did for itself.
+        MobStacker.config.save();
+        context.getSource().sendSuccess(() -> Component.literal(
+                        (add ? "Added '" : "Removed '") + entry + (add ? "' to " : "' from ") + kind.id() + " " + scope)
+                .withStyle(add ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
         return 1;
     }
 
-    private static int listIgnoredMods(CommandContext<CommandSourceStack> context) {
-        List<String> ignored = MobStacker.config.getIgnoredMods();
-        if (ignored.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal("No ignored mods").withStyle(ChatFormatting.YELLOW), false);
+    private static int inheritList(CommandContext<CommandSourceStack> context, MobListKind kind, String regionArg) {
+        MobLists.Holder holder = listHolder(context, regionArg);
+        if (holder == null) {
+            return 0;
+        }
+        String scope = scopeOf(context, regionArg);
+        if (!holder.hasList(kind)) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    kind.id() + " " + scope + " already follows the global list").withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
-        context.getSource().sendSuccess(() -> Component.literal("Ignored mods (" + ignored.size() + "):").withStyle(ChatFormatting.AQUA), false);
-        for (String mod : ignored) {
-            context.getSource().sendSuccess(() -> Component.literal(" - " + mod).withStyle(ChatFormatting.GRAY), false);
+        holder.clearList(kind);
+        MobStacker.config.save();
+        context.getSource().sendSuccess(() -> Component.literal(
+                kind.id() + " " + scope + " now follows the global list").withStyle(ChatFormatting.GOLD), true);
+        return 1;
+    }
+
+    private static int showList(CommandContext<CommandSourceStack> context, MobListKind kind, String regionArg) {
+        MobLists.Holder holder = listHolder(context, regionArg);
+        if (holder == null) {
+            return 0;
         }
+        String scope = scopeOf(context, regionArg);
+        boolean own = holder.hasList(kind);
+        List<String> entries = own ? holder.getList(kind) : MobStacker.config.getList(kind);
+        String heading = kind.id() + " " + scope + (own ? "" : " (inherited)");
+        if (entries.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.literal(heading + ": empty").withStyle(ChatFormatting.YELLOW), false);
+        } else {
+            context.getSource().sendSuccess(() -> Component.literal(heading + " (" + entries.size() + "):")
+                    .withStyle(ChatFormatting.AQUA), false);
+            for (String entry : entries) {
+                context.getSource().sendSuccess(() -> Component.literal(" - " + entry).withStyle(ChatFormatting.GRAY), false);
+            }
+        }
+        // The mode decides whether this list is read at all, so say which one is in force rather
+        // than let somebody carefully fill a list that nothing is looking at.
+        MobListMode mode = regionArg == null
+                ? MobStacker.config.getMobListMode()
+                : regionMode(StringArgumentType.getString(context, regionArg));
+        boolean active = (mode == MobListMode.WHITELIST) == (kind.half() == MobListKind.Half.ALLOW);
+        context.getSource().sendSuccess(() -> Component.literal(
+                        "mobListMode " + scope + " is " + mode + ", so this list is "
+                                + (active ? "in use" : "not being read"))
+                .withStyle(active ? ChatFormatting.DARK_GRAY : ChatFormatting.RED), false);
+        return 1;
+    }
+
+    /** The list mode in force inside a region, answered by the same code the verdict itself uses. */
+    private static MobListMode regionMode(String regionName) {
+        return MobLists.modeIn(MobStacker.config.getRegion(regionName));
+    }
+
+    private static CompletableFuture<Suggestions> suggestListed(CommandContext<CommandSourceStack> context,
+                                                                SuggestionsBuilder builder,
+                                                                MobListKind kind, String regionArg) {
+        MobLists.Holder holder = regionArg == null
+                ? MobStacker.config
+                : MobStacker.config.getRegion(StringArgumentType.getString(context, regionArg));
+        if (holder == null) {
+            return builder.buildFuture();
+        }
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        holder.getList(kind).stream()
+                .filter(entry -> entry.toLowerCase(Locale.ROOT).startsWith(remaining))
+                .forEach(builder::suggest);
+        return builder.buildFuture();
+    }
+
+    // ============================================================ per-type stack ceilings
+
+    private static int setMaxStack(CommandContext<CommandSourceStack> context, String regionArg, Integer size) {
+        String entityId = ResourceLocationArgument.getId(context, "entityId").toString();
+        String scope = scopeOf(context, regionArg);
+        if (regionArg == null) {
+            MobStacker.config.setMaxStackSize(entityId, size);
+        } else {
+            String regionName = StringArgumentType.getString(context, regionArg);
+            StackRegion region = MobStacker.config.getRegion(regionName);
+            if (region == null) {
+                context.getSource().sendFailure(Component.literal("Region '" + regionName + "' does not exist"));
+                return 0;
+            }
+            region.setMaxStackSize(entityId, size);
+            MobStacker.config.save();
+        }
+        context.getSource().sendSuccess(() -> Component.literal(size == null
+                        ? "'" + entityId + "' " + scope + " follows maxStackSize again"
+                        : "'" + entityId + "' stacks up to " + size + " " + scope)
+                .withStyle(size == null ? ChatFormatting.GOLD : ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int showMaxStacks(CommandContext<CommandSourceStack> context, String regionArg) {
+        Map<String, Integer> sizes;
+        String scope = scopeOf(context, regionArg);
+        if (regionArg == null) {
+            sizes = MobStacker.config.getMaxStackSizes();
+        } else {
+            String regionName = StringArgumentType.getString(context, regionArg);
+            StackRegion region = MobStacker.config.getRegion(regionName);
+            if (region == null) {
+                context.getSource().sendFailure(Component.literal("Region '" + regionName + "' does not exist"));
+                return 0;
+            }
+            sizes = region.getMaxStackSizes();
+        }
+        if (sizes.isEmpty()) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                            "No per-type ceilings " + scope + "; everything follows maxStackSize")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        context.getSource().sendSuccess(() -> Component.literal(
+                "Per-type ceilings " + scope + " (" + sizes.size() + "):").withStyle(ChatFormatting.AQUA), false);
+        sizes.forEach((id, size) -> context.getSource().sendSuccess(
+                () -> Component.literal(" - " + id + " -> " + size).withStyle(ChatFormatting.GRAY), false));
         return 1;
     }
 
