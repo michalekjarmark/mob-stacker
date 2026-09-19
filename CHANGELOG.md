@@ -26,6 +26,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **Mobs stack the moment they appear** (`stackOnSpawn`, default on, per region). A spawner batch, a
   bred baby or a handful of spawn eggs used on one block no longer wait out a scan interval standing
   around as separate entities.
+- **Draw a region by clicking two blocks.** The area editor has a **Pick in world…** button: the
+  screen steps aside and the next two blocks you right-click become the corners, with the box drawn
+  live from the first corner to whatever you are looking at, so you can see the reach before you
+  commit to it. Sneak and click to cancel. Nothing is saved until you press Save — the picker fills
+  in the same six numbers you could have typed, and every rule about it is still the server's.
 
 ### Changed
 - `/mobstacker ignore <entity|mod> …` is now `/mobstacker list deny <entity|mod> …`, with

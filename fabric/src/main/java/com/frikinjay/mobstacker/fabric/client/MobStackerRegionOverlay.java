@@ -139,11 +139,16 @@ public final class MobStackerRegionOverlay {
     // ------------------------------------------------------------------ drawing
 
     private static void render(WorldRenderContext context) {
-        if (!anythingShowing() || Minecraft.getInstance().level == null) {
+        if (Minecraft.getInstance().level == null) {
             return;
         }
-        List<MobStackerClientRegions.View> regions = MobStackerClientRegions.inCurrentDimension();
-        if (regions.isEmpty()) {
+        List<MobStackerClientRegions.View> regions = anythingShowing()
+                ? MobStackerClientRegions.inCurrentDimension()
+                : List.of();
+        // The box being picked right now is drawn whatever the player's overlay settings say: they
+        // asked for it by starting to pick, and it disappears again the moment they stop.
+        AABB preview = MobStackerRegionPicker.previewBox();
+        if (regions.isEmpty() && preview == null) {
             return;
         }
 
@@ -180,6 +185,21 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
+            buffers.endBatch(RenderType.lines());
+        }
+
+        if (preview != null) {
+            // Always both faces and edges, in white: it is a transient answer to "is this the area
+            // I mean", so being unmistakable matters more than matching the chosen style.
+            VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
+            LevelRenderer.addChainedFilledBoxVertices(pose, faces,
+                    preview.minX, preview.minY, preview.minZ,
+                    preview.maxX, preview.maxY, preview.maxZ,
+                    1.0F, 1.0F, 1.0F, FACE_ALPHA);
+            buffers.endBatch(RenderType.debugFilledBox());
+
+            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
             buffers.endBatch(RenderType.lines());
         }
 

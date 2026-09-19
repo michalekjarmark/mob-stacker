@@ -319,6 +319,10 @@ separator item, take the next member's gear with them.
 
 ## Pets & mounts
 
+Regions can also be **drawn rather than typed**: open the area editor, press **Pick in world…**, and
+right-click two blocks. While you are picking, the box from the first corner to the block under your
+crosshair is drawn live, so the reach is visible before anything is saved. Sneak and click to cancel.
+
 **Anything a player has put something into stays out of stacks**, with no setting to change that:
 tamed or owned mobs, saddled ones, horse armour, a donkey's or llama's chest, a leashed mob, anything
 riding or being ridden, a trusting ocelot and a fox that knows you. A horse's saddle and chest live in an inventory of its own rather

@@ -122,6 +122,12 @@ public final class MobStackerRegionEditScreen extends Screen {
         addCornerRow(0, 110);
         addCornerRow(3, 134);
 
+        Button pick = Button.builder(Component.literal("Pick in world…"),
+                        b -> MobStackerRegionPicker.begin(this))
+                .bounds(this.width / 2 - 90, 158, 240, 20).build();
+        pick.active = editable && this.minecraft != null && this.minecraft.player != null;
+        addRenderableWidget(pick);
+
         Button save = Button.builder(Component.literal("Save"), b -> save())
                 .bounds(this.width / 2 - 154, this.height - 28, 100, 20).build();
         save.active = editable;
@@ -169,6 +175,39 @@ public final class MobStackerRegionEditScreen extends Screen {
                 .bounds(this.width / 2 + 62, y, 88, 20).build();
         here.active = editable && this.minecraft != null && this.minecraft.player != null;
         addRenderableWidget(here);
+    }
+
+    /**
+     * Takes the two corners the player clicked in the world and drops them into the coordinate
+     * boxes, sorted into a minimum and a maximum so either click may come first.
+     *
+     * <p>Nothing is saved: this fills the same fields somebody could have typed, and Save still has
+     * to be pressed. That is deliberate — the picker is a nicer way to answer the question, not a
+     * second way to change a region.
+     */
+    void applyPickedCorners(BlockPos a, BlockPos b) {
+        corners[0] = Math.min(a.getX(), b.getX());
+        corners[1] = Math.min(a.getY(), b.getY());
+        corners[2] = Math.min(a.getZ(), b.getZ());
+        corners[3] = Math.max(a.getX(), b.getX());
+        corners[4] = Math.max(a.getY(), b.getY());
+        corners[5] = Math.max(a.getZ(), b.getZ());
+        // The dimension the corners were clicked in is the only one they mean anything in.
+        if (this.minecraft != null && this.minecraft.level != null) {
+            String here = this.minecraft.level.dimension().location().toString();
+            int index = dimensions.indexOf(here);
+            if (index >= 0) {
+                dimensionIndex = index;
+            }
+        }
+        message = "Corners picked — press Save to keep them";
+        messageIsError = false;
+        for (int i = 0; i < 6; i++) {
+            EditBox box = cornerBoxes[i];
+            if (box != null) {
+                box.setValue(String.valueOf(corners[i]));
+            }
+        }
     }
 
     private void fillFromPlayer(int offset) {
