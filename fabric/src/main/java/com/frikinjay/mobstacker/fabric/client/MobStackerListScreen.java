@@ -12,9 +12,12 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,15 +38,29 @@ import java.util.Map;
  */
 public final class MobStackerListScreen extends Screen {
     private static final int ROW_HEIGHT = 22;
-    private static final int LIST_TOP = 72;
+    /** Where the rows start with nothing above them but the tab title. */
+    private static final int GLOBAL_LIST_TOP = 72;
+    /** Where they start on a region, which carries the inherit button and the line explaining it. */
+    private static final int REGION_LIST_TOP = 84;
     private static final int LIST_BOTTOM_MARGIN = 62;
+    /** The same, with room kept for the two lines saying the list is not being read. */
+    private static final int WARNED_BOTTOM_MARGIN = 86;
+    private static final int SUGGESTION_HEIGHT = 12;
+    private static final int MAX_SUGGESTIONS = 8;
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int MUTED_TEXT = 0xA0A0A0;
     private static final int WARN_TEXT = 0xFF5555;
+    private static final int SUGGESTION_TEXT = 0xAAAAAA;
+    private static final int SUGGESTION_PICKED = 0xFFFF55;
+    private static final int SUGGESTION_BACKGROUND = 0xF0100010;
 
     /** The tabs, in the order the {@code >} button walks them. Null kind = the ceilings tab. */
     private static final MobListKind[] TABS = MobListKind.values();
     private static final int CEILINGS_TAB = TABS.length;
+
+    /** Every entity id in the game, and every namespace that has one. Worked out once. */
+    private static List<String> entityIds;
+    private static List<String> modIds;
 
     private final Screen parent;
     /** The region being edited, or null for the global lists. */
@@ -56,6 +73,10 @@ public final class MobStackerListScreen extends Screen {
     private boolean editable;
     private EditBox entryBox;
     private EditBox sizeBox;
+    /** Set after the first click on the button that would drop this region's own list. */
+    private boolean inheritArmed;
+    private List<String> suggestions = List.of();
+    private int suggestionIndex;
 
     private MobStackerListScreen(Screen parent, String regionName) {
         super(Component.literal(regionName == null
@@ -80,6 +101,7 @@ public final class MobStackerListScreen extends Screen {
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
         this.editable = singleplayer || (remote && MobStackerClientNetworking.authorized());
+        this.suggestions = List.of();
 
         addRenderableWidget(Button.builder(Component.literal("<"), b -> switchTab(-1))
                 .bounds(this.width / 2 - 170, 20, 20, 20).build());
@@ -92,24 +114,30 @@ public final class MobStackerListScreen extends Screen {
         // not write, and ending up with a list of one, is not what anybody meant by "Add".
         if (regionName != null && tab != CEILINGS_TAB) {
             MobListKind kind = TABS[tab];
-            Button inherit = Button.builder(
-                            Component.literal(editableHere()
-                                    ? "This region's own — use the global list"
-                                    : "Inherited — give this region its own copy"),
-                            b -> {
-                                send(listId(kind, editableHere() ? "inherit" : "override"), "");
-                                rebuildWidgets();
-                            })
-                    .bounds(this.width / 2 - 170, 44, 260, 20).build();
+            boolean own = editableHere();
+            int wouldLose = own ? entries(kind).size() : 0;
+            Button inherit = Button.builder(inheritLabel(wouldLose), b -> {
+                // Going back to the global list throws this region's copy away, and there is no
+                // undo: somebody who has just typed ten entries in deserves to be asked once.
+                if (own && wouldLose > 0 && !inheritArmed) {
+                    inheritArmed = true;
+                    b.setMessage(inheritLabel(wouldLose));
+                    return;
+                }
+                inheritArmed = false;
+                send(listId(kind, own ? "inherit" : "override"), "");
+                rebuildWidgets();
+            }).bounds(this.width / 2 - 170, 44, 340, 20).build();
             inherit.active = editable;
             addRenderableWidget(inherit);
         }
 
         List<String> rows = rowLabels();
-        this.visibleRows = Math.max(1, (this.height - LIST_BOTTOM_MARGIN - LIST_TOP) / ROW_HEIGHT);
+        int listTop = listTop();
+        this.visibleRows = Math.max(1, (this.height - listBottomMargin() - listTop) / ROW_HEIGHT);
         this.scrollOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, rows.size() - visibleRows)));
 
-        int y = LIST_TOP;
+        int y = listTop;
         int last = Math.min(rows.size(), scrollOffset + visibleRows);
         for (int i = scrollOffset; i < last; i++) {
             String entry = rows.get(i);
@@ -126,6 +154,26 @@ public final class MobStackerListScreen extends Screen {
                 .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
     }
 
+    private Component inheritLabel(int wouldLose) {
+        if (!editableHere()) {
+            return Component.literal("Inherited — give this region its own copy");
+        }
+        if (inheritArmed) {
+            return Component.literal("Click again — this discards " + wouldLose
+                    + (wouldLose == 1 ? " entry" : " entries")).withStyle(ChatFormatting.RED);
+        }
+        return Component.literal("Set here — follow the global list again");
+    }
+
+    /** The rows start lower on a region, which has a button and a line of its own above them. */
+    private int listTop() {
+        return regionName == null ? GLOBAL_LIST_TOP : REGION_LIST_TOP;
+    }
+
+    private int listBottomMargin() {
+        return tabInUse() ? LIST_BOTTOM_MARGIN : WARNED_BOTTOM_MARGIN;
+    }
+
     /** The "type a new entry here" row: an id box, a size box on the ceilings tab, and a button. */
     private void addAddRow() {
         int y = this.height - 52;
@@ -137,6 +185,7 @@ public final class MobStackerListScreen extends Screen {
         box.setMaxLength(128);
         box.setHint(Component.literal(hintFor()));
         box.setEditable(editable && editableHere());
+        box.setResponder(this::updateSuggestions);
         this.entryBox = box;
         addRenderableWidget(box);
 
@@ -168,6 +217,8 @@ public final class MobStackerListScreen extends Screen {
     private void switchTab(int delta) {
         tab = Math.floorMod(tab + delta, TABS.length + 1);
         scrollOffset = 0;
+        inheritArmed = false;
+        suggestions = List.of();
         rebuildWidgets();
     }
 
@@ -191,6 +242,156 @@ public final class MobStackerListScreen extends Screen {
             return; // don't yank a box out from under somebody mid-word
         }
         rebuildWidgets();
+    }
+
+    // ------------------------------------------------------------------ suggestions
+
+    /**
+     * What the entry box could be completed to, in the same spirit as the command line's
+     * suggestions: an entity id has to be spelled exactly right, and nobody remembers whether it is
+     * {@code minecraft:zombified_piglin} or {@code zombie_pigman} until the game says so.
+     */
+    private void updateSuggestions(String typed) {
+        suggestionIndex = 0;
+        String text = typed.trim().toLowerCase(Locale.ROOT);
+        if (text.isEmpty() || !editable || !editableHere()) {
+            suggestions = List.of();
+            return;
+        }
+        List<String> already = tab == CEILINGS_TAB ? List.of() : entries(TABS[tab]);
+        // Three buckets, best first: the id itself, then the part after the colon (people type
+        // "cow"), then anything that merely contains what was typed.
+        List<String> byId = new ArrayList<>();
+        List<String> byPath = new ArrayList<>();
+        List<String> anywhere = new ArrayList<>();
+        for (String candidate : candidates()) {
+            if (candidate.equals(text) || already.contains(candidate)) {
+                continue;
+            }
+            if (candidate.startsWith(text)) {
+                byId.add(candidate);
+            } else if (pathOf(candidate).startsWith(text)) {
+                byPath.add(candidate);
+            } else if (candidate.contains(text)) {
+                anywhere.add(candidate);
+            }
+        }
+        List<String> out = new ArrayList<>(byId);
+        out.addAll(byPath);
+        out.addAll(anywhere);
+        suggestions = List.copyOf(out.subList(0, Math.min(out.size(), MAX_SUGGESTIONS)));
+    }
+
+    private List<String> candidates() {
+        boolean mods = tab != CEILINGS_TAB && TABS[tab].flavour() == MobListKind.Flavour.MOD;
+        return mods ? modIds() : entityIds();
+    }
+
+    private static String pathOf(String id) {
+        int colon = id.indexOf(':');
+        return colon < 0 ? id : id.substring(colon + 1);
+    }
+
+    private static List<String> entityIds() {
+        if (entityIds == null) {
+            List<String> ids = new ArrayList<>();
+            for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+                ids.add(id.toString());
+            }
+            ids.sort(String::compareTo);
+            entityIds = List.copyOf(ids);
+        }
+        return entityIds;
+    }
+
+    /** Namespaces that actually have an entity in them — the only ones a mod list can mean. */
+    private static List<String> modIds() {
+        if (modIds == null) {
+            List<String> ids = new ArrayList<>();
+            for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+                if (!ids.contains(id.getNamespace())) {
+                    ids.add(id.getNamespace());
+                }
+            }
+            ids.sort(String::compareTo);
+            modIds = List.copyOf(ids);
+        }
+        return modIds;
+    }
+
+    /** Where the suggestion list is drawn: x, top, width, bottom, sitting on top of the entry box. */
+    private int[] suggestionArea() {
+        int x = this.width / 2 - 170;
+        int width = tab == CEILINGS_TAB ? 180 : 250;
+        int bottom = this.height - 54;
+        return new int[]{x, bottom - suggestions.size() * SUGGESTION_HEIGHT, width, bottom};
+    }
+
+    private void acceptSuggestion() {
+        if (suggestions.isEmpty() || entryBox == null) {
+            return;
+        }
+        String chosen = suggestions.get(Math.min(suggestionIndex, suggestions.size() - 1));
+        entryBox.setValue(chosen);
+        // setValue runs the responder, which fills the list again from the completed id; it has
+        // served its purpose either way, so it closes here rather than a moment later.
+        suggestions = List.of();
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        boolean inEntry = this.getFocused() == entryBox && entryBox != null;
+        if (inEntry && !suggestions.isEmpty()) {
+            switch (keyCode) {
+                case GLFW.GLFW_KEY_TAB -> {
+                    acceptSuggestion();
+                    return true;
+                }
+                case GLFW.GLFW_KEY_DOWN -> {
+                    suggestionIndex = Math.floorMod(suggestionIndex + 1, suggestions.size());
+                    return true;
+                }
+                case GLFW.GLFW_KEY_UP -> {
+                    suggestionIndex = Math.floorMod(suggestionIndex - 1, suggestions.size());
+                    return true;
+                }
+                case GLFW.GLFW_KEY_ESCAPE -> {
+                    // Closes the list, not the screen: losing a half-typed entry to Escape would be
+                    // its own small betrayal.
+                    suggestions = List.of();
+                    return true;
+                }
+                default -> {
+                }
+            }
+        }
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (inEntry && tab == CEILINGS_TAB && sizeBox != null && sizeBox.getValue().trim().isEmpty()) {
+                setFocused(sizeBox); // a ceiling needs a number too, so go and ask for it
+                return true;
+            }
+            if (inEntry || (sizeBox != null && this.getFocused() == sizeBox)) {
+                addEntry();
+                return true;
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!suggestions.isEmpty()) {
+            int[] area = suggestionArea();
+            if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
+                int index = (int) ((mouseY - area[1]) / SUGGESTION_HEIGHT);
+                if (index >= 0 && index < suggestions.size()) {
+                    suggestionIndex = index;
+                    acceptSuggestion();
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     // ------------------------------------------------------------------ reading
@@ -268,18 +469,9 @@ public final class MobStackerListScreen extends Screen {
     }
 
     private MobListMode modeHere() {
-        String raw = null;
-        if (remote) {
-            MobStackerClientNetworking.RegionInfo info = regionName == null ? null : regionInfo();
-            if (info != null) {
-                raw = info.settings().get("mobListMode");
-            }
-            if (raw == null) {
-                raw = MobStackerClientNetworking.value("mobListMode");
-            }
-        } else if (regionName != null) {
-            StackRegion region = MobStacker.config.getRegion(regionName);
-            raw = region == null ? null : region.getSetting("mobListMode");
+        String raw = regionModeSetting();
+        if (raw == null && remote) {
+            raw = MobStackerClientNetworking.value("mobListMode");
         }
         if (raw != null) {
             for (MobListMode mode : MobListMode.values()) {
@@ -291,6 +483,19 @@ public final class MobStackerListScreen extends Screen {
         // On a server this client's own config is somebody else's file entirely, so fall back to
         // the default rather than to a local value that is not in force anywhere.
         return remote ? MobListMode.BLACKLIST : MobStacker.config.getMobListMode();
+    }
+
+    /** The mode this region sets for itself, or null when it follows the global config. */
+    private String regionModeSetting() {
+        if (regionName == null) {
+            return null;
+        }
+        if (remote) {
+            MobStackerClientNetworking.RegionInfo info = regionInfo();
+            return info == null ? null : info.settings().get("mobListMode");
+        }
+        StackRegion region = MobStacker.config.getRegion(regionName);
+        return region == null ? null : region.getSetting("mobListMode");
     }
 
     // ------------------------------------------------------------------ writing
@@ -328,6 +533,7 @@ public final class MobStackerListScreen extends Screen {
         if (sizeBox != null) {
             sizeBox.setValue("");
         }
+        suggestions = List.of();
         rebuildWidgets();
     }
 
@@ -432,28 +638,23 @@ public final class MobStackerListScreen extends Screen {
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.literal(tabTitle()), this.width / 2, 26, 0xFFFFFF);
 
-        // Say plainly when the list on screen is not the one being read, so nobody carefully fills
-        // an allow list while the world is still running a blacklist and wonders why nothing changed.
-        if (!tabInUse()) {
+        // Under the button it explains, never across it.
+        if (regionName != null && tab != CEILINGS_TAB) {
             graphics.drawCenteredString(this.font,
-                    Component.literal("mobListMode is " + modeHere() + " — this list is not being read")
-                            .withStyle(ChatFormatting.RED),
-                    this.width / 2, this.height - 66, WARN_TEXT);
-        }
-
-        if (!editableHere()) {
-            graphics.drawCenteredString(this.font,
-                    Component.literal("Showing the global list — give this region its own copy to change it")
+                    Component.literal(editableHere()
+                                    ? "This region has its own copy of this list"
+                                    : "Showing the global list — give this region its own copy to change it")
                             .withStyle(ChatFormatting.GRAY),
-                    this.width / 2, 62, MUTED_TEXT);
+                    this.width / 2, 68, MUTED_TEXT);
         }
 
         List<String> rows = rowLabels();
+        int listTop = listTop();
         if (rows.isEmpty()) {
             graphics.drawCenteredString(this.font, Component.literal(emptyText()),
-                    this.width / 2, LIST_TOP + 6, MUTED_TEXT);
+                    this.width / 2, listTop + 6, MUTED_TEXT);
         } else {
-            int y = LIST_TOP + 6;
+            int y = listTop + 6;
             int last = Math.min(rows.size(), scrollOffset + visibleRows);
             for (int i = scrollOffset; i < last; i++) {
                 graphics.drawString(this.font, rows.get(i), this.width / 2 - 170, y, NORMAL_TEXT);
@@ -461,7 +662,51 @@ public final class MobStackerListScreen extends Screen {
             }
         }
 
+        // Say plainly when the list on screen is not the one being read, so nobody carefully fills
+        // an allow list while the world is still running a blacklist and wonders why nothing changed.
+        if (!tabInUse()) {
+            graphics.drawCenteredString(this.font,
+                    Component.literal(modeWarning()).withStyle(ChatFormatting.RED),
+                    this.width / 2, this.height - 80, WARN_TEXT);
+            graphics.drawCenteredString(this.font,
+                    Component.literal(modeAdvice()).withStyle(ChatFormatting.GRAY),
+                    this.width / 2, this.height - 68, MUTED_TEXT);
+        }
+
         super.render(graphics, mouseX, mouseY, partialTick);
+        renderSuggestions(graphics, mouseX, mouseY);
+    }
+
+    private void renderSuggestions(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (suggestions.isEmpty()) {
+            return;
+        }
+        int[] area = suggestionArea();
+        graphics.fill(area[0] - 1, area[1] - 1, area[0] + area[2] + 1, area[3], SUGGESTION_BACKGROUND);
+        int hovered = -1;
+        if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
+            hovered = (int) ((mouseY - area[1]) / SUGGESTION_HEIGHT);
+        }
+        for (int i = 0; i < suggestions.size(); i++) {
+            boolean picked = i == suggestionIndex || i == hovered;
+            graphics.drawString(this.font, suggestions.get(i), area[0] + 2,
+                    area[1] + i * SUGGESTION_HEIGHT + 2, picked ? SUGGESTION_PICKED : SUGGESTION_TEXT);
+        }
+    }
+
+    private String modeWarning() {
+        String where = regionName == null
+                ? ""
+                : (regionModeSetting() != null ? " in this region" : " (from the global config)");
+        return "mobListMode is " + modeHere() + where + " — this list is not being read";
+    }
+
+    /** The exact command that would make this list count, rather than a hint to go and find it. */
+    private String modeAdvice() {
+        String want = TABS[tab].half() == MobListKind.Half.ALLOW ? "whitelist" : "blacklist";
+        return regionName == null
+                ? "Set it with /mobstacker set mobListMode " + want
+                : "Set it with /mobstacker region set " + regionName + " mobListMode " + want;
     }
 
     private String tabTitle() {
@@ -476,6 +721,9 @@ public final class MobStackerListScreen extends Screen {
     private String emptyText() {
         if (tab == CEILINGS_TAB) {
             return "Nothing here — every mob follows maxStackSize";
+        }
+        if (!tabInUse()) {
+            return "Empty";
         }
         MobListKind kind = TABS[tab];
         return kind.half() == MobListKind.Half.ALLOW

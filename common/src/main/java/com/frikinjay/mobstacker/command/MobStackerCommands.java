@@ -607,7 +607,38 @@ public class MobStackerCommands {
         context.getSource().sendSuccess(() -> Component.literal(
                         (add ? "Added '" : "Removed '") + entry + (add ? "' to " : "' from ") + kind.id() + " " + scope)
                 .withStyle(add ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
+        if (add) {
+            noteIfNotRead(context, kind, regionArg, scope);
+        }
         return 1;
+    }
+
+    /**
+     * Says so, right after the edit, when the list just added to is the half {@code mobListMode} is
+     * not reading - and says which command would change that.
+     *
+     * <p>{@code list} already reports this, but nobody runs {@code list} straight after an add. The
+     * entry really was stored, so this is a note rather than a failure: the list is being built for
+     * a mode that is not on yet, which is a perfectly ordinary thing to be doing.
+     */
+    private static void noteIfNotRead(CommandContext<CommandSourceStack> context, MobListKind kind,
+                                      String regionArg, String scope) {
+        MobListMode mode = regionArg == null
+                ? MobStacker.config.getMobListMode()
+                : regionMode(StringArgumentType.getString(context, regionArg));
+        if ((mode == MobListMode.WHITELIST) == (kind.half() == MobListKind.Half.ALLOW)) {
+            return;
+        }
+        String want = kind.half() == MobListKind.Half.ALLOW ? "whitelist" : "blacklist";
+        String fix = regionArg == null
+                ? "/mobstacker set mobListMode " + want
+                : "/mobstacker region set " + StringArgumentType.getString(context, regionArg)
+                        + " mobListMode " + want;
+        context.getSource().sendSuccess(() -> Component.literal(
+                " mobListMode " + scope + " is " + mode + ", so this list is not being read")
+                .withStyle(ChatFormatting.RED), false);
+        context.getSource().sendSuccess(() -> Component.literal(" change it with " + fix)
+                .withStyle(ChatFormatting.GRAY), false);
     }
 
     private static int inheritList(CommandContext<CommandSourceStack> context, MobListKind kind, String regionArg) {

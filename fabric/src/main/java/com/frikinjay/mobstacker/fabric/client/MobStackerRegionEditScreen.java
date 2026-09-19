@@ -128,12 +128,17 @@ public final class MobStackerRegionEditScreen extends Screen {
         pick.active = editable && this.minecraft != null && this.minecraft.player != null;
         addRenderableWidget(pick);
 
+        // Two buttons on a new region, three on an existing one - centred either way, so the row
+        // never looks like it is missing the one that is not there.
+        int buttons = existingName == null ? 2 : 3;
+        int left = this.width / 2 - (buttons * 104 - 4) / 2;
+
         Button save = Button.builder(Component.literal("Save"), b -> save())
-                .bounds(this.width / 2 - 154, this.height - 28, 100, 20).build();
+                .bounds(left, this.height - 28, 100, 20).build();
         save.active = editable;
         addRenderableWidget(save);
         addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, b -> onClose())
-                .bounds(this.width / 2 - 50, this.height - 28, 100, 20).build());
+                .bounds(left + 104, this.height - 28, 100, 20).build());
 
         if (existingName != null) {
             Button delete = Button.builder(deleteLabel(), b -> {
@@ -145,7 +150,7 @@ public final class MobStackerRegionEditScreen extends Screen {
                     deleteArmed = true;
                     b.setMessage(deleteLabel());
                 }
-            }).bounds(this.width / 2 + 54, this.height - 28, 100, 20).build();
+            }).bounds(left + 208, this.height - 28, 100, 20).build();
             delete.active = editable;
             addRenderableWidget(delete);
         }
@@ -387,13 +392,20 @@ public final class MobStackerRegionEditScreen extends Screen {
                 Component.literal("X            Y            Z").withStyle(ChatFormatting.DARK_GRAY),
                 this.width / 2 - 86, 100, NORMAL_TEXT);
 
-        Component note = messageIsError && !message.isEmpty()
-                ? Component.literal(message).withStyle(ChatFormatting.RED)
-                : Component.literal(existingName == null
-                        ? "The corners are inclusive; the region covers both blocks and everything between them."
-                        : "Redrawing or renaming a region keeps its settings, its priority and its colour.")
-                .withStyle(ChatFormatting.GRAY);
-        guiGraphics.drawCenteredString(this.font, note, this.width / 2, 166, 0xFFFFFF);
+        // Below the pick button, not across it. A message always wins over the standing hint,
+        // whether it is a refusal or the picker saying it has filled the boxes in - a confirmation
+        // nobody can see is the same as no confirmation at all.
+        Component note;
+        if (!message.isEmpty()) {
+            note = Component.literal(message)
+                    .withStyle(messageIsError ? ChatFormatting.RED : ChatFormatting.GREEN);
+        } else {
+            note = Component.literal(existingName == null
+                            ? "The corners are inclusive; the region covers both blocks and everything between them."
+                            : "Redrawing or renaming a region keeps its settings, its priority and its colour.")
+                    .withStyle(ChatFormatting.GRAY);
+        }
+        guiGraphics.drawCenteredString(this.font, note, this.width / 2, 184, 0xFFFFFF);
 
         if (!editable) {
             guiGraphics.drawCenteredString(this.font,

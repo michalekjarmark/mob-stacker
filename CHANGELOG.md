@@ -19,7 +19,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   and no other. Entity lists and mod lists inherit independently.
 - **A list editor in the GUI**, reached from **Mob lists…** on the config screen and on each region.
   One screen covers all eight lists and the ceilings below, with tabs, add and remove, and a note
-  when the list you are looking at is not the one `mobListMode` is currently reading.
+  when the list you are looking at is not the one `mobListMode` is currently reading — with the
+  command that would change that, so the answer is not "go and find the setting". The entry box
+  **completes ids as you type**, the way the command line does: Tab or a click takes the highlighted
+  one, the arrows walk the list, Esc closes it. Handing a region's list back to the global one asks
+  once before it discards what the region had.
 - **A stack ceiling per mob type** — `/mobstacker maxstack minecraft:cow 64`, globally or inside one
   region. Anything not named follows `maxStackSize` as before. Looked up by entity id, so modded
   mobs work without the mod knowing they exist.

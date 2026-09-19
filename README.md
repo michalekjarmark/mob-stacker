@@ -175,7 +175,13 @@ Because inheriting and overriding are different states, a region takes a list ov
 ```
 
 Adding straight to an inherited list is refused rather than silently turned into a one-entry
-override — the ten entries you were looking at would have gone.
+override — the ten entries you were looking at would have gone. Handing a region's list back to the
+global one asks once before it goes, for the same reason.
+
+In the **Mob lists…** screen the entry box completes ids as you type, the way the command line does:
+**Tab** or a click takes the highlighted one, the arrow keys walk the list and **Esc** closes it
+without closing the screen. Entity tabs suggest entity ids, mod tabs suggest the namespaces that
+actually have mobs in them, and ids already on the list are left out.
 
 Tab-completion suggests every setting name and then the valid values for the one you picked.
 
@@ -228,6 +234,11 @@ with several cuboids.
 
 > **Getting started:** stacking is `off` on a fresh install. Adding an `allow` region while it is
 > still off **switches it to `regions`** so the region works right away.
+
+Regions can also be **drawn rather than typed**: open the area editor, press **Pick in world…**, and
+right-click two blocks. While you are picking, the box from the first corner to the block under your
+crosshair is drawn live, so the reach is visible before anything is saved. Sneak and click to cancel.
+Nothing is saved until you press Save — the picker fills in the same six numbers you could have typed.
 
 ### Settings per region
 
@@ -319,10 +330,6 @@ separator item, take the next member's gear with them.
 
 ## Pets & mounts
 
-Regions can also be **drawn rather than typed**: open the area editor, press **Pick in world…**, and
-right-click two blocks. While you are picking, the box from the first corner to the block under your
-crosshair is drawn live, so the reach is visible before anything is saved. Sneak and click to cancel.
-
 **Anything a player has put something into stays out of stacks**, with no setting to change that:
 tamed or owned mobs, saddled ones, horse armour, a donkey's or llama's chest, a leashed mob, anything
 riding or being ridden, a trusting ocelot and a fox that knows you. A horse's saddle and chest live in an inventory of its own rather
@@ -350,7 +357,7 @@ to a corner to read coordinates off F3.
 | Colour a region | `/mobstacker region color <name> <colour\|auto>`, or the button beside its priority in the region screen |
 | Show or hide one | the **Box** button in the region screen |
 | Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
-| How it looks | the **Style** button — `wireframe`, `filled` or `both` |
+| How it looks | the **Style** button — `wireframe`, `filled` or `both` *(the default)* |
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn

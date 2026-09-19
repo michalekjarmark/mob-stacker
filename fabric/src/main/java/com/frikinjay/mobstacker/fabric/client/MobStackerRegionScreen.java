@@ -148,8 +148,9 @@ public final class MobStackerRegionScreen extends Screen {
         }
 
         if (editable) {
+            int left = showRows ? this.width / 2 - 206 : this.width / 2 - 102;
             addRenderableWidget(Button.builder(Component.literal("New region…"), b -> openEditor(null))
-                    .bounds(this.width / 2 - 206, this.height - 28, 100, 20).build());
+                    .bounds(left, this.height - 28, 100, 20).build());
             if (showRows) {
                 addRenderableWidget(Button.builder(Component.literal("Edit area…"), b -> openEditor(currentRegion()))
                         .bounds(this.width / 2 - 102, this.height - 28, 100, 20).build());
@@ -160,7 +161,7 @@ public final class MobStackerRegionScreen extends Screen {
                 }).bounds(this.width / 2 + 2, this.height - 28, 100, 20).build());
             }
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 + 106, this.height - 28, 100, 20).build());
+                    .bounds(left + 104 * (showRows ? 3 : 1), this.height - 28, 100, 20).build());
         } else {
             // A player who may not edit anything can still look, the way they can at the global
             // lists - the list screen greys its own buttons out. Leaving the button off here was an
@@ -745,21 +746,20 @@ public final class MobStackerRegionScreen extends Screen {
         guiGraphics.drawCenteredString(this.font,
                 Component.literal(region.name() + "  [" + region.type() + "]").withStyle(typeColor),
                 this.width / 2, 26, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(categories.get(categoryIndex).display()
-                        + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")").withStyle(ChatFormatting.GOLD),
-                this.width / 2, 50, 0xFFFFFF);
+        // The scroll range rides along with the category, because the only gap below it belongs
+        // to the priority box and the overlay row.
+        Component header = Component.literal(categories.get(categoryIndex).display()
+                + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")").withStyle(ChatFormatting.GOLD);
+        if (maxScrollOffset() > 0) {
+            int total = overridableIn(categories.get(categoryIndex)).size();
+            header = header.copy().append(Component.literal("   \u2195 " + (scrollOffset + 1) + "-"
+                            + Math.min(total, scrollOffset + visibleRows) + " of " + total)
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        guiGraphics.drawCenteredString(this.font, header, this.width / 2, 50, 0xFFFFFF);
         guiGraphics.drawString(this.font,
                 Component.literal("priority").withStyle(ChatFormatting.GRAY),
                 this.width / 2 - 170, 74, NORMAL_TEXT);
-
-        if (maxScrollOffset() > 0) {
-            int total = overridableIn(categories.get(categoryIndex)).size();
-            guiGraphics.drawCenteredString(this.font, Component.literal("scroll for more  ("
-                            + (scrollOffset + 1) + "-" + Math.min(total, scrollOffset + visibleRows)
-                            + " of " + total + ")").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, 84, 0xFFFFFF);
-        }
 
         // Gold means the region has its own value for that setting; grey means it follows the
         // global config. Keeping it on the label avoids a second column that long ids would run into.
