@@ -77,13 +77,18 @@ given its own value inside a region.
 | `maxStackSize` | Largest a stack may grow to | `16` |
 | `stackRadius` | How far apart mobs can be and still merge | `6.0` |
 | `stackScanInterval` | How often (ticks) a mob re-checks for a stack to join, so mobs that never move still merge. `0` = only when crossing a block boundary | `20` |
+| `stackOnSpawn` | Merge a mob into a nearby stack on its first tick, so spawners, breeding and spawn eggs stack at once instead of after a scan | `true` |
 | `stackEquippedMobs` | Let mobs holding or wearing items stack at all | `false` |
 | `keepMemberEquipment` | Remember each member's gear so it drops when *that* mob dies. Needs `stackEquippedMobs` | `true` |
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |
 | `stackHealth` | The stack shares one health bar, scaled to its size. Forces `killWholeStackOnDeath` on | `false` |
-| `ignoredEntities` | Entity ids that never stack | `["minecraft:ender_dragon", "minecraft:vex"]` |
-| `ignoredMods` | Mod ids whose entities never stack | `["corpse"]` |
+| `mobListMode` | `BLACKLIST` (everything stacks except the ignored lists) or `WHITELIST` (nothing stacks except the allowed lists) | `BLACKLIST` |
+| `ignoredEntities` | Entity ids that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
+| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse"]` |
+| `allowedEntities` | The only entity ids that stack, in `WHITELIST` mode | `[]` |
+| `allowedMods` | Mod ids whose entities stack, in `WHITELIST` mode | `[]` |
+| `maxStackSizes` | A ceiling for one mob type, e.g. `{"minecraft:cow": 64}`. Anything unlisted follows `maxStackSize` | `{}` |
 | `regions` | Allow/deny cuboids — see [Regions](#regions--modes) | `[]` |
 
 ### Combat
@@ -141,9 +146,36 @@ All of these need operator permission (level 2).
 /mobstacker reset <setting> | all
 /mobstacker reload                   # re-read the JSON after editing it by hand
 
-/mobstacker ignore entity|mod add|remove|list <id>
+/mobstacker list deny|allow entity|mod add|remove|list <id>
+/mobstacker maxstack <entity> <n|default>   # a ceiling for one mob type
+/mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
 ```
+
+`/mobstacker ignore …` still works as the old name for `list deny …`.
+
+### Which mobs may stack
+
+Two questions, answered separately. **`mobListMode`** picks which lists are read: `BLACKLIST`
+(the default, and how the mod has always worked) reads `ignoredEntities` / `ignoredMods` and stacks
+everything else; `WHITELIST` reads `allowedEntities` / `allowedMods` and stacks nothing else. The two
+halves keep their own lists, so flipping the mode to have a look never rewrites a list you built.
+
+Every one of these can also be set **per region** — `/mobstacker region mobs <name> …`, or the
+**Mob lists…** button on the region screen. A region that sets nothing follows the global list. A
+region that sets one means that list and no other, which is the same rule every per-region setting
+has followed since 1.6.0; entity lists and mod lists are inherited independently.
+
+Because inheriting and overriding are different states, a region takes a list over explicitly:
+
+```
+/mobstacker region mobs sheep_pen allow entity override   # its own copy, seeded with the global one
+/mobstacker region mobs sheep_pen allow entity add minecraft:sheep
+/mobstacker region mobs sheep_pen allow entity inherit    # back to following the global list
+```
+
+Adding straight to an inherited list is refused rather than silently turned into a one-entry
+override — the ten entries you were looking at would have gone.
 
 Tab-completion suggests every setting name and then the valid values for the one you picked.
 
@@ -184,7 +216,11 @@ with several cuboids.
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
+/mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit>
+/mobstacker region maxstack <name> <entity> <n|default>         # a ceiling just for this region
 /mobstacker region rename <name> <newname>                      # keeps its area, settings and colour
+/mobstacker list <deny|allow> <entity|mod> <add|remove|list>    # which mobs may stack at all
+/mobstacker maxstack <entity> <n|default> | maxstack list       # a ceiling for one mob type
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides

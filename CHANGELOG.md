@@ -7,6 +7,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.9.0] - unreleased
+### Added
+- **Whitelists.** Until now the only mob filter was a blacklist — "everything stacks except these".
+  The other half now exists: set `mobListMode` to `WHITELIST` and *nothing* stacks except what is on
+  the allow lists. The two halves keep separate lists, so switching the mode to have a look does not
+  invert the meaning of a list you spent an evening building; switch it back and your list is intact.
+- **Mob lists per region.** A region can carry its own "these never stack here" or "only these stack
+  here", instead of every region sharing one global pair. A region that sets nothing inherits the
+  global list, exactly like every other per-region setting; a region that sets one means that list
+  and no other. Entity lists and mod lists inherit independently.
+- **A list editor in the GUI**, reached from **Mob lists…** on the config screen and on each region.
+  One screen covers all eight lists and the ceilings below, with tabs, add and remove, and a note
+  when the list you are looking at is not the one `mobListMode` is currently reading.
+- **A stack ceiling per mob type** — `/mobstacker maxstack minecraft:cow 64`, globally or inside one
+  region. Anything not named follows `maxStackSize` as before. Looked up by entity id, so modded
+  mobs work without the mod knowing they exist.
+- **Mobs stack the moment they appear** (`stackOnSpawn`, default on, per region). A spawner batch, a
+  bred baby or a handful of spawn eggs used on one block no longer wait out a scan interval standing
+  around as separate entities.
+
+### Changed
+- `/mobstacker ignore <entity|mod> …` is now `/mobstacker list deny <entity|mod> …`, with
+  `list allow` for the whitelist half and `region mobs <name> …` for a region's own. **The old
+  `ignore` spelling still works** and reaches exactly the same code.
+- The settings registry is now **45 settings, 36 of them overridable per region**.
+
 ## [1.8.0] - 2026-09-19
 ### Added
 - **Regions can be drawn in the world.** Switch a region's box on and its bounds appear as a coloured
