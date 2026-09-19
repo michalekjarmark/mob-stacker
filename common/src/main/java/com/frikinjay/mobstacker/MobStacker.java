@@ -45,6 +45,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.regex.Pattern;
 
@@ -597,6 +598,54 @@ public final class MobStacker {
                 nbt.getCompound(STACK_DATA_KEY) : new CompoundTag();
         stackData.putInt(STACK_SIZE_KEY, stackSize);
         nbt.put(STACK_DATA_KEY, stackData);
+    }
+
+    /**
+     * The four names vanilla reacts to, and the only strings this mod is ever allowed to look for
+     * behind a stack's count: "Dinnerbone" and "Grumm" turn a mob upside down, "jeb_" makes a sheep
+     * cycle through the dye colours, "Toast" gives a rabbit the memorial skin.
+     */
+    private static final Set<String> VANILLA_NAME_EASTER_EGGS = Set.of("Dinnerbone", "Grumm", "jeb_", "Toast");
+
+    /**
+     * The name vanilla's easter-egg checks should see.
+     *
+     * <p>All four of them compare the mob's name to a literal with {@code equals}, so a stack called
+     * "Dinnerbone x16" matches none of them and a named herd quietly loses the effect. This hands
+     * those checks the bare name back.
+     *
+     * <p>It is the one place allowed past the rule that a name is never parsed back off the label,
+     * and it stays inside it in the way that matters: nothing is derived and nothing is stored. The
+     * question asked is only "is this one of four known literals with a count after it", and every
+     * other name in the game is returned untouched, character for character. The worst it can do is
+     * render a mob somebody deliberately called "Dinnerbone x3" upside down, which is presumably
+     * what they were after.
+     *
+     * <p>Client side, and only useful there — the effects are all rendering.
+     */
+    public static Component easterEggName(LivingEntity entity) {
+        Component label = entity.getName();
+        if (!entity.hasCustomName()) {
+            return label;
+        }
+        String raw = ChatFormatting.stripFormatting(label.getString());
+        if (raw == null) {
+            return label;
+        }
+        int split = raw.lastIndexOf(" x");
+        if (split <= 0 || !VANILLA_NAME_EASTER_EGGS.contains(raw.substring(0, split))) {
+            return label;
+        }
+        String count = raw.substring(split + 2);
+        if (count.isEmpty()) {
+            return label;
+        }
+        for (int i = 0; i < count.length(); i++) {
+            if (!Character.isDigit(count.charAt(i))) {
+                return label;
+            }
+        }
+        return Component.literal(raw.substring(0, split));
     }
 
     public static void updateStackDisplay(Mob entity) {
