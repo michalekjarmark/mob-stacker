@@ -23,6 +23,8 @@
     "MobEquipmentAccessor",
     "MobMixin",
     "NameTagItemMixin",
+    "FoxAccessor",
+    "OcelotAccessor",
     "ParrotAccessor",
     "PlayerMixin",
     "ServerEntityMixin",

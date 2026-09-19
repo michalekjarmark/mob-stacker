@@ -8,6 +8,8 @@ import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
+import com.frikinjay.mobstacker.mixin.OcelotAccessor;
+import com.frikinjay.mobstacker.mixin.FoxAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -29,6 +31,8 @@ import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
+import net.minecraft.world.entity.animal.Ocelot;
+import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
@@ -285,7 +289,16 @@ public final class MobStacker {
         if (entity instanceof AbstractHorse horse && (horse.isTamed() || horse.isWearingArmor())) {
             return true;
         }
-        return entity instanceof AbstractChestedHorse chested && chested.hasChest();
+        if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
+            return true;
+        }
+        // Trust is the other way a player owns an animal without owning it. An ocelot is never tamed
+        // and a fox remembers who bred it by UUID, so neither has an owner field for the checks above
+        // to notice - and a merge would hand one wild mob's indifference to the whole stack.
+        if (entity instanceof Ocelot ocelot) {
+            return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
+        }
+        return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();
     }
 
     /**
