@@ -52,6 +52,14 @@ public final class MobLists {
 
         /** Drops the list entirely. For a region that means going back to inheriting the global one. */
         void clearList(MobListKind kind);
+
+        /**
+         * Replaces this holder's list wholesale, and for a region starts the override if there was
+         * none. Needed because a region cannot begin overriding by having entries added one at a
+         * time: the first add would produce a one-entry list where the inherited one had ten, and
+         * an override of an empty global list could not be expressed at all.
+         */
+        void setList(MobListKind kind, List<String> entries);
     }
 
     /** Whether the mob's <em>type</em> is allowed to stack where it stands. */

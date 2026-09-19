@@ -281,6 +281,19 @@ public class StackRegion implements MobLists.Holder {
         store(kind, null);
     }
 
+    @Override
+    public void setList(MobListKind kind, List<String> entries) {
+        List<String> copy = new ArrayList<>();
+        for (String entry : entries) {
+            String value = MobLists.normalise(kind, entry);
+            if (!value.isEmpty() && !copy.contains(value)) {
+                copy.add(value);
+            }
+        }
+        // Stored even when empty: that is how a region says "nothing", as opposed to saying nothing.
+        store(kind, copy);
+    }
+
     /** The ceilings set here, entity id -> size. Never null. */
     public Map<String, Integer> getMaxStackSizes() {
         return maxStackSizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(maxStackSizes);

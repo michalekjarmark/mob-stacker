@@ -2,6 +2,8 @@ package com.frikinjay.mobstacker.fabric.network;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
+import com.frikinjay.mobstacker.config.MobListKind;
+import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
@@ -59,6 +61,16 @@ public final class MobStackerNetworking {
     /** Pseudo-setting that removes the named region, with everything it carried. */
     public static final String REGION_DELETE = "@delete";
 
+    /**
+     * Pseudo-setting editing one mob list: {@code @list:<listId>:<add|remove|inherit>}, with the
+     * entry itself in the packet's value rather than in the id. Entity ids contain a colon, and an
+     * id that has to be split apart is exactly where a wire format starts guessing.
+     */
+    public static final String LIST_PREFIX = "@list:";
+
+    /** Pseudo-setting setting one type's ceiling: {@code @maxstack:<entityId>}, empty value = unset. */
+    public static final String MAXSTACK_PREFIX = "@maxstack:";
+
     /** Operator level required to change settings, matching the {@code /mobstacker} command tree. */
     private static final int EDIT_PERMISSION_LEVEL = 2;
 
@@ -90,6 +102,17 @@ public final class MobStackerNetworking {
             return;
         }
 
+        if (id.startsWith(LIST_PREFIX)) {
+            sendSync(player, applyListEdit(MobStacker.config, "globally",
+                    id.substring(LIST_PREFIX.length()), raw));
+            return;
+        }
+
+        if (id.startsWith(MAXSTACK_PREFIX)) {
+            sendSync(player, applyMaxStack(null, "globally", id.substring(MAXSTACK_PREFIX.length()), raw));
+            return;
+        }
+
         ConfigOption option = MobStackerSettings.byId(id);
         if (option == null) {
             sendSync(player, "Unknown setting: " + id);
@@ -117,7 +140,10 @@ public final class MobStackerNetworking {
      * region's priority. Values are validated exactly as a global edit would be.
      */
     private static void handleRegionEdit(ServerPlayer player, String path, String raw) {
-        int split = path.lastIndexOf(':');
+        // The FIRST colon, not the last: a region name can never contain one (RegionEdit.nameProblem
+        // allows letters, digits, _ . - only), while what follows it now can - @list:ignoredEntities:add
+        // and @maxstack:minecraft:cow both do. Splitting from the right would tear those apart.
+        int split = path.indexOf(':');
         if (split <= 0 || split == path.length() - 1) {
             sendSync(player, "Malformed region edit: " + path);
             return;
@@ -144,6 +170,19 @@ public final class MobStackerNetworking {
         StackRegion region = MobStacker.config.getRegion(regionName);
         if (region == null) {
             sendSync(player, "Unknown region: " + regionName);
+            return;
+        }
+
+        if (settingId.startsWith(LIST_PREFIX)) {
+            String message = applyListEdit(region, "in region '" + regionName + "'",
+                    settingId.substring(LIST_PREFIX.length()), raw);
+            sendSync(player, message);
+            return;
+        }
+
+        if (settingId.startsWith(MAXSTACK_PREFIX)) {
+            sendSync(player, applyMaxStack(region, "in region '" + regionName + "'",
+                    settingId.substring(MAXSTACK_PREFIX.length()), raw));
             return;
         }
 
@@ -207,6 +246,94 @@ public final class MobStackerNetworking {
     }
 
     /**
+     * Applies one mob-list edit to whichever holder asked for it, global or region.
+     *
+     * <p>Both scopes go through this one method for the same reason the command tree is built once
+     * and hung in two places: the validation, the normalising and the wording of the answer are the
+     * things that quietly come apart when there are two copies.
+     *
+     * @param spec {@code <listId>:<add|remove|inherit>}
+     * @return the status line to echo back
+     */
+    private static String applyListEdit(MobLists.Holder holder, String scope, String spec, String raw) {
+        int split = spec.lastIndexOf(':');
+        if (split <= 0 || split == spec.length() - 1) {
+            return "Malformed list edit: " + spec;
+        }
+        MobListKind kind = MobListKind.byId(spec.substring(0, split));
+        if (kind == null) {
+            return "Unknown mob list: " + spec.substring(0, split);
+        }
+        String op = spec.substring(split + 1);
+        if ("inherit".equals(op)) {
+            if (holder == MobStacker.config) {
+                return "The global lists are what everything else inherits from";
+            }
+            holder.clearList(kind);
+            MobStacker.config.save();
+            return kind.id() + " " + scope + " now follows the global list";
+        }
+        if ("override".equals(op)) {
+            if (holder == MobStacker.config) {
+                return "The global lists have nothing to override";
+            }
+            // Seeded with what was being inherited, so taking a list over does not empty it.
+            holder.setList(kind, MobStacker.config.getList(kind));
+            MobStacker.config.save();
+            return kind.id() + " " + scope + " is now this region's own";
+        }
+
+        String entry = MobLists.normalise(kind, raw);
+        if (entry.isEmpty()) {
+            return "Nothing to " + op;
+        }
+        boolean add = "add".equals(op);
+        if (!add && !"remove".equals(op)) {
+            return "Unknown list operation: " + op;
+        }
+        if (holder != MobStacker.config && !holder.hasList(kind)) {
+            // Inheriting: an add here would start an override holding only this entry and drop the
+            // global list it was showing. The screen greys the row out rather than send this, but a
+            // packet is whatever the other end chose to put in it.
+            return kind.id() + " " + scope + " follows the global list; give the region its own copy first";
+        }
+        boolean changed = add ? holder.addToList(kind, entry) : holder.removeFromList(kind, entry);
+        if (!changed) {
+            return "'" + entry + "' is " + (add ? "already on " : "not on ") + kind.id() + " " + scope;
+        }
+        MobStacker.config.save();
+        return (add ? "Added '" : "Removed '") + entry + (add ? "' to " : "' from ") + kind.id() + " " + scope;
+    }
+
+    /** Applies one per-type ceiling, globally when {@code region} is null. Empty value clears it. */
+    private static String applyMaxStack(StackRegion region, String scope, String entityId, String raw) {
+        String id = entityId.trim();
+        if (id.isEmpty()) {
+            return "Malformed ceiling edit";
+        }
+        Integer size = null;
+        if (!raw.trim().isEmpty()) {
+            try {
+                size = Integer.parseInt(raw.trim());
+            } catch (NumberFormatException e) {
+                return "A stack ceiling must be a whole number";
+            }
+            if (size < 1) {
+                return "A stack ceiling must be at least 1";
+            }
+        }
+        if (region == null) {
+            MobStacker.config.setMaxStackSize(id, size);
+        } else {
+            region.setMaxStackSize(id, size);
+            MobStacker.config.save();
+        }
+        return size == null
+                ? "'" + id + "' " + scope + " follows maxStackSize again"
+                : "'" + id + "' stacks up to " + size + " " + scope;
+    }
+
+    /**
      * Sends the full config snapshot to one player, but only if their client speaks our protocol.
      * The status line carries a short human-readable result of the last edit (or {@code ""}).
      */
@@ -224,6 +351,21 @@ public final class MobStackerNetworking {
             // As stored, not as forced: the client re-applies a lock in whatever scope it is showing,
             // so a region that turns the forcing setting off is not handed the world's locked value.
             buf.writeUtf(option.storedValue());
+        }
+
+        // The global mob lists, in MobListKind order so both ends agree without naming them.
+        for (MobListKind kind : MobListKind.values()) {
+            List<String> entries = MobStacker.config.getList(kind);
+            buf.writeVarInt(entries.size());
+            for (String entry : entries) {
+                buf.writeUtf(entry);
+            }
+        }
+        Map<String, Integer> globalCeilings = MobStacker.config.getMaxStackSizes();
+        buf.writeVarInt(globalCeilings.size());
+        for (Map.Entry<String, Integer> entry : globalCeilings.entrySet()) {
+            buf.writeUtf(entry.getKey());
+            buf.writeVarInt(entry.getValue());
         }
 
         // Regions follow the settings, so the GUI can edit each region's own values too.
@@ -250,6 +392,25 @@ public final class MobStackerNetworking {
             for (Map.Entry<String, String> entry : overrides.entrySet()) {
                 buf.writeUtf(entry.getKey());
                 buf.writeUtf(entry.getValue());
+            }
+            // A flag per list, because a region with no list of its own is not the same as one with
+            // an empty list: the first inherits, the second means "nothing".
+            for (MobListKind kind : MobListKind.values()) {
+                boolean own = region.hasList(kind);
+                buf.writeBoolean(own);
+                if (own) {
+                    List<String> entries = region.getList(kind);
+                    buf.writeVarInt(entries.size());
+                    for (String entry : entries) {
+                        buf.writeUtf(entry);
+                    }
+                }
+            }
+            Map<String, Integer> ceilings = region.getMaxStackSizes();
+            buf.writeVarInt(ceilings.size());
+            for (Map.Entry<String, Integer> entry : ceilings.entrySet()) {
+                buf.writeUtf(entry.getKey());
+                buf.writeVarInt(entry.getValue());
             }
         }
         ServerPlayNetworking.send(player, SYNC, buf);

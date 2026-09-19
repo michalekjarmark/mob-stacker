@@ -408,6 +408,19 @@ public class MobStackerConfig implements MobLists.Holder {
         }
     }
 
+    @Override
+    public void setList(MobListKind kind, List<String> entries) {
+        List<String> list = backing(kind);
+        list.clear();
+        for (String entry : entries) {
+            String value = MobLists.normalise(kind, entry);
+            if (!value.isEmpty() && !list.contains(value)) {
+                list.add(value);
+            }
+        }
+        save();
+    }
+
     public MobListMode getMobListMode() {
         return mobListMode != null ? mobListMode : MobListMode.BLACKLIST;
     }

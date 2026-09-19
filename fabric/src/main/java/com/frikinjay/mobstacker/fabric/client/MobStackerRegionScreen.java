@@ -149,13 +149,18 @@ public final class MobStackerRegionScreen extends Screen {
 
         if (editable) {
             addRenderableWidget(Button.builder(Component.literal("New region…"), b -> openEditor(null))
-                    .bounds(this.width / 2 - 154, this.height - 28, 100, 20).build());
+                    .bounds(this.width / 2 - 206, this.height - 28, 100, 20).build());
             if (showRows) {
                 addRenderableWidget(Button.builder(Component.literal("Edit area…"), b -> openEditor(currentRegion()))
-                        .bounds(this.width / 2 - 50, this.height - 28, 100, 20).build());
+                        .bounds(this.width / 2 - 102, this.height - 28, 100, 20).build());
+                addRenderableWidget(Button.builder(Component.literal("Mob lists…"), b -> {
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreen(MobStackerListScreen.forRegion(this, currentRegion().name()));
+                    }
+                }).bounds(this.width / 2 + 2, this.height - 28, 100, 20).build());
             }
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 + 54, this.height - 28, 100, 20).build());
+                    .bounds(this.width / 2 + 106, this.height - 28, 100, 20).build());
         } else {
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
                     .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());

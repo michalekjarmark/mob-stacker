@@ -537,8 +537,9 @@ public class MobStackerCommands {
                                 .executes(ctx -> editList(ctx, kind, regionArg, false))))
                 .then(literal("list").executes(ctx -> showList(ctx, kind, regionArg)));
         if (regionArg != null) {
-            // Only a region can inherit; the global list is what everything else falls back to.
-            node = node.then(literal("inherit").executes(ctx -> inheritList(ctx, kind, regionArg)));
+            // Only a region has the two states; the global list is what everything falls back to.
+            node = node.then(literal("inherit").executes(ctx -> inheritList(ctx, kind, regionArg)))
+                    .then(literal("override").executes(ctx -> overrideList(ctx, kind, regionArg)));
         }
         return node;
     }
@@ -581,6 +582,18 @@ public class MobStackerCommands {
         }
         String entry = MobLists.normalise(kind, listEntry(context, kind));
         String scope = scopeOf(context, regionArg);
+        if (regionArg != null && !holder.hasList(kind)) {
+            // The region is inheriting. Adding here would start an override holding only this one
+            // entry, quietly dropping the global list it was showing a moment ago - so say what to
+            // run instead, the same refusal the GUI makes by greying the row out.
+            String regionName = StringArgumentType.getString(context, regionArg);
+            context.getSource().sendFailure(Component.literal(
+                    kind.id() + " " + scope + " follows the global list. Run '/mobstacker region mobs "
+                            + regionName + " " + (kind.half() == MobListKind.Half.ALLOW ? "allow" : "deny")
+                            + " " + (kind.flavour() == MobListKind.Flavour.ENTITY ? "entity" : "mod")
+                            + " override' first to give the region its own copy."));
+            return 0;
+        }
         boolean changed = add ? holder.addToList(kind, entry) : holder.removeFromList(kind, entry);
         if (!changed) {
             context.getSource().sendSuccess(() -> Component.literal(
@@ -612,6 +625,25 @@ public class MobStackerCommands {
         MobStacker.config.save();
         context.getSource().sendSuccess(() -> Component.literal(
                 kind.id() + " " + scope + " now follows the global list").withStyle(ChatFormatting.GOLD), true);
+        return 1;
+    }
+
+    private static int overrideList(CommandContext<CommandSourceStack> context, MobListKind kind, String regionArg) {
+        MobLists.Holder holder = listHolder(context, regionArg);
+        if (holder == null) {
+            return 0;
+        }
+        String scope = scopeOf(context, regionArg);
+        if (holder.hasList(kind)) {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    kind.id() + " " + scope + " is already this region's own").withStyle(ChatFormatting.YELLOW), false);
+            return 1;
+        }
+        // Seeded with what was being inherited, so taking a list over does not silently empty it.
+        holder.setList(kind, MobStacker.config.getList(kind));
+        MobStacker.config.save();
+        context.getSource().sendSuccess(() -> Component.literal(
+                kind.id() + " " + scope + " is now this region's own copy").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
