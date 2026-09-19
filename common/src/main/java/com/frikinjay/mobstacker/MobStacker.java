@@ -25,20 +25,12 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.animal.Cat;
-import net.minecraft.world.entity.animal.Fox;
-import net.minecraft.world.entity.animal.MushroomCow;
-import net.minecraft.world.entity.animal.Sheep;
-import net.minecraft.world.entity.animal.axolotl.Axolotl;
+import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
+import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.monster.Creeper;
-import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.monster.Zombie;
-import net.minecraft.world.entity.monster.ZombieVillager;
-import net.minecraft.world.entity.npc.Villager;
-import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -53,9 +45,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.function.BiPredicate;
 import java.util.regex.Pattern;
 
 public final class MobStacker {
@@ -105,19 +95,6 @@ public final class MobStacker {
     public static final String KILL_HOLOGRAM_TAG = "mobstacker_kill_hologram";
 
     private record KillHologram(ArmorStand entity, long expireGameTime) {}
-
-    private static final Map<Class<? extends Mob>, BiPredicate<Mob, Mob>> VARIANT_CHECKERS = Map.of(
-            Sheep.class, (self, other) -> ((Sheep)self).getColor() == ((Sheep)other).getColor()
-                    && ((Sheep)self).isSheared() == ((Sheep)other).isSheared(),
-            Villager.class, (self, other) -> checkVillagerMatch((Villager)self, (Villager)other),
-            ZombieVillager.class, (self, other) -> checkZombieVillagerMatch((ZombieVillager)self, (ZombieVillager)other),
-            Slime.class, (self, other) -> ((Slime)self).getSize() == ((Slime)other).getSize(),
-            Frog.class, (self, other) -> ((Frog)self).getVariant() == ((Frog)other).getVariant(),
-            Axolotl.class, (self, other) -> ((Axolotl)self).getVariant() == ((Axolotl)other).getVariant(),
-            Cat.class, (self, other) -> ((Cat)self).getVariant() == ((Cat)other).getVariant(),
-            Fox.class, (self, other) -> ((Fox)self).getVariant() == ((Fox)other).getVariant(),
-            MushroomCow.class, (self, other) -> ((MushroomCow)self).getVariant() == ((MushroomCow)other).getVariant()
-    );
 
     public static void init() {
         // Load a default config up front so MobStacker.config is never null. The real,
@@ -208,6 +185,10 @@ public final class MobStacker {
             return false;
         }
 
+        if (isPlayerBound(entity)) {
+            return false;
+        }
+
         if (!isStackingAllowedAt(entity)) {
             return false;
         }
@@ -265,6 +246,42 @@ public final class MobStacker {
     }
 
     /**
+     * Mobs a player has invested something in: tamed or owned, saddled, wearing horse armor,
+     * carrying a chest, leashed, or currently carrying or being carried by someone.
+     *
+     * <p>None of that survives a merge. A horse's saddle, armor and chest live in an inventory of
+     * its own rather than in the equipment slots, so {@link #hasEquipment} never saw them and
+     * {@code stackEquippedMobs} never protected them; taming, ownership and temper are plain save
+     * keys that the mob being merged away would copy straight over the survivor. A wild horse
+     * wandering into your saddled one used to wipe it.
+     *
+     * <p>This is a hard rule with no setting behind it, because there is no version of "stack these
+     * anyway" that does not throw something of the player's away. Nothing is lost in performance
+     * either: the crowds worth stacking are wild ones, and foals are born untamed, so a breeding
+     * pen still stacks everything it produces.
+     *
+     * @return true if the mob must be left alone by stacking entirely.
+     */
+    public static boolean isPlayerBound(Mob entity) {
+        if (entity.isVehicle() || entity.isPassenger() || entity.isLeashed()) {
+            return true;
+        }
+        if (entity instanceof OwnableEntity owned && owned.getOwnerUUID() != null) {
+            return true;
+        }
+        if (entity instanceof TamableAnimal tamable && tamable.isTame()) {
+            return true;
+        }
+        if (entity instanceof Saddleable saddleable && saddleable.isSaddled()) {
+            return true;
+        }
+        if (entity instanceof AbstractHorse horse && (horse.isTamed() || horse.isWearingArmor())) {
+            return true;
+        }
+        return entity instanceof AbstractChestedHorse chested && chested.hasChest();
+    }
+
+    /**
      * @return true if the mob holds an item or wears any armor (any non-empty equipment slot).
      */
     public static boolean hasEquipment(Mob entity) {
@@ -304,24 +321,11 @@ public final class MobStacker {
             return false;
         }
 
-        BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(self.getClass());
-        if (variantChecker != null && !variantChecker.test(self, nearby)) {
+        if (!MobVariants.sameVariant(self, nearby)) {
             return false;
         }
 
         return MobStackerAPI.checkCustomMergingConditions(self, nearby);
-    }
-
-    private static boolean checkVillagerMatch(Villager self, Villager other) {
-        return self.getVariant() == other.getVariant()
-                && self.getVillagerData().getProfession() == VillagerProfession.NONE
-                && other.getVillagerData().getProfession() == VillagerProfession.NONE;
-    }
-
-    private static boolean checkZombieVillagerMatch(ZombieVillager self, ZombieVillager other) {
-        return self.getVariant() == other.getVariant()
-                && self.getVillagerData().getProfession() == VillagerProfession.NONE
-                && other.getVillagerData().getProfession() == VillagerProfession.NONE;
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {
@@ -392,42 +396,35 @@ public final class MobStacker {
     }
 
     private static void copyVariantData(Mob source, Mob target) {
-        if (source instanceof Sheep sourceSheep && target instanceof Sheep targetSheep) {
-            targetSheep.setSheared(sourceSheep.isSheared());
-            targetSheep.setColor(sourceSheep.getColor());
-        } else if (source instanceof Villager sourceVillager && target instanceof Villager targetVillager) {
-            targetVillager.setVillagerData(sourceVillager.getVillagerData());
-            targetVillager.setVariant(sourceVillager.getVariant());
-        } else if (source instanceof ZombieVillager sourceZombie && target instanceof ZombieVillager targetZombie) {
-            targetZombie.setVillagerData(sourceZombie.getVillagerData());
-            targetZombie.setVariant(sourceZombie.getVariant());
-        } else if (source instanceof Slime sourceSlime && target instanceof Slime targetSlime) {
-            targetSlime.setSize(sourceSlime.getSize(), true);
-        } else if (source instanceof Frog sourceFrog && target instanceof Frog targetFrog) {
-            targetFrog.setVariant(sourceFrog.getVariant());
-        } else if (source instanceof Axolotl sourceAxolotl && target instanceof Axolotl targetAxolotl) {
-            targetAxolotl.setVariant(sourceAxolotl.getVariant());
-        } else if (source instanceof Cat sourceCat && target instanceof Cat targetCat) {
-            targetCat.setVariant(sourceCat.getVariant());
-        } else if (source instanceof Fox sourceFox && target instanceof Fox targetFox) {
-            targetFox.setVariant(sourceFox.getVariant());
-        } else if (source instanceof MushroomCow sourceCow && target instanceof MushroomCow targetCow) {
-            targetCow.setVariant(sourceCow.getVariant());
-        }
+        MobVariants.copyVariant(source, target);
     }
 
     public static void separateEntity(Mob entity) {
-        if (entity.level().isClientSide()) return;
+        separateOne(entity, true);
+    }
+
+    /**
+     * Takes a single mob out of a stack and returns it.
+     *
+     * @param markAsSeparated whether to give the mob the "Lone ..." name. The separator item wants
+     *                        it: the player pulled that mob out deliberately and it would otherwise
+     *                        walk straight back into the stack on the next scan. A mob pulled out to
+     *                        receive an interaction (see {@code MobMixin}) does not — it is only
+     *                        standing in for the stack, and rejoining it afterwards is the point.
+     * @return the separated mob, or null if it could not be created.
+     */
+    public static Mob separateOne(Mob entity, boolean markAsSeparated) {
+        if (entity.level().isClientSide()) return null;
 
         try {
             ServerLevel serverLevel = (ServerLevel) entity.level();
             EntityType<?> entityType = entity.getType();
             Mob newEntity = (Mob) entityType.create(entity.level());
-            if (newEntity == null) return;
+            if (newEntity == null) return null;
 
             setStackSize(entity, getStackSize(entity) - 1);
 
-            copyEntityDataForSeparation(entity, newEntity, serverLevel);
+            copyEntityDataForSeparation(entity, newEntity, serverLevel, markAsSeparated);
             handleHealthOnSeparation(entity, newEntity);
             // The separated mob is one of the stored members, so it leaves wearing that member's
             // gear; the stack keeps the rest.
@@ -436,22 +433,26 @@ public final class MobStacker {
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
             entity.level().addFreshEntity(newEntity);
+            return newEntity;
 
         } catch (Exception e) {
             setStackSize(entity, getStackSize(entity) + 1);
             logger.error("Error occurred while separating entity: {}", e.getMessage());
+            return null;
         }
     }
 
-    private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel) {
+    private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
+                                                    boolean markAsSeparated) {
         target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
                 MobSpawnType.NATURAL, null, null);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
 
-        Component newName = Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString());
-        target.setCustomName(newName);
+        if (markAsSeparated) {
+            target.setCustomName(Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString()));
+        }
 
         copyVariantData(source, target);
         copyAgeData(source, target);
@@ -1095,14 +1096,13 @@ public final class MobStacker {
         int max = getMaxMobStackSize(parent);
         int remaining = count;
 
-        BiPredicate<Mob, Mob> variantChecker = VARIANT_CHECKERS.get(parent.getClass());
         for (Entity nearby : level.getEntities(parent, parent.getBoundingBox().inflate(getStackRadius(parent)),
                 e -> e != parent && e.getClass() == parent.getClass() && ((Mob) e).isBaby())) {
             if (remaining <= 0) {
                 break;
             }
             Mob existing = (Mob) nearby;
-            if (variantChecker != null && !variantChecker.test(parent, existing)) {
+            if (!MobVariants.sameVariant(parent, existing)) {
                 continue;
             }
             int room = max - getStackSize(existing);

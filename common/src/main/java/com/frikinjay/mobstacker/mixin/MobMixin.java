@@ -1,8 +1,12 @@
 package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -38,6 +42,39 @@ public class MobMixin {
             // so the label is rebuilt from the name they gave rather than dropped on the floor.
             MobStacker.copyStackNaming(instance, mob);
             MobStacker.updateStackDisplay(mob);
+        }
+    }
+
+    /**
+     * Touching a herd hands you one animal out of it.
+     *
+     * <p>A horse is an individual: it is tamed, saddled, given armor and ridden one at a time, and
+     * every one of those acts on a stack would have applied to all sixteen at once — you would
+     * climb onto a single entity carrying a whole herd. So a stacked mount steps one mob out of the
+     * stack and lets that mob take the interaction instead, for every kind of right-click there is.
+     *
+     * <p>Only mounts, deliberately. A wolf pack has the same problem — a handful of bones tames all
+     * sixteen — but an empty-handed right-click on an untamed wolf does nothing in vanilla, and
+     * peeling a wolf off the pack for it would be worse than the bug. Taming a wolf stack still
+     * tames the whole stack; what it can no longer do is lose anything, because a tamed mob stops
+     * stacking entirely (see {@link MobStacker#isPlayerBound}).
+     *
+     * <p>Server side only. The client keeps predicting the interaction against the stack exactly as
+     * vanilla would, and the server's answer — a new mob, a smaller stack — arrives right after.
+     */
+    @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$interactWithOneOfTheStack(Player player, InteractionHand hand,
+                                                      CallbackInfoReturnable<InteractionResult> cir) {
+        Mob self = (Mob) (Object) this;
+        if (self.level().isClientSide() || MobStacker.getStackSize(self) <= 1) {
+            return;
+        }
+        if (!(self instanceof AbstractHorse)) {
+            return;
+        }
+        Mob separated = MobStacker.separateOne(self, false);
+        if (separated != null) {
+            cir.setReturnValue(separated.interact(player, hand));
         }
     }
 
