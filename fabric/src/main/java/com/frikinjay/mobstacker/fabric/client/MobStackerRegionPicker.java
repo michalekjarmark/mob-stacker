@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker.fabric.client;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -53,6 +54,21 @@ public final class MobStackerRegionPicker {
             }
             onPicked(hitResult.getBlockPos());
             // FAIL rather than SUCCESS: the click is spent, and there is no arm swing to play for it.
+            return InteractionResult.FAIL;
+        });
+
+        // A mob standing in front of the block you meant is hit first, and without this the click
+        // would shear the sheep instead. It cannot pick anything - there is no block in the hit - so
+        // it is swallowed and the prompt repeated rather than quietly doing something else.
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
+            if (!isPicking() || !level.isClientSide()) {
+                return InteractionResult.PASS;
+            }
+            if (player.isShiftKeyDown()) {
+                cancel("Corner picking cancelled");
+                return InteractionResult.FAIL;
+            }
+            remind();
             return InteractionResult.FAIL;
         });
 

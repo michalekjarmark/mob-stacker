@@ -1129,6 +1129,8 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal(
                 " overlay colour: " + color.name().toLowerCase(Locale.ROOT) + colorNote).withStyle(color.format()), false);
 
+        showRegionLists(source, region);
+
         Map<String, String> overrides = region.getSettings();
         if (overrides.isEmpty()) {
             source.sendSuccess(() -> Component.literal(
@@ -1149,6 +1151,43 @@ public class MobStackerCommands {
                     .append(Component.literal("   [global " + global + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
         }
         return 1;
+    }
+
+    /**
+     * The mob lists and per-type ceilings this region carries, summarised in {@code region show}.
+     *
+     * <p>They have their own commands and their own GUI tab, but {@code show} is where people look
+     * to answer "what does this region actually do", and a region quietly running a whitelist is
+     * exactly the kind of thing that should not need a second command to notice.
+     */
+    private static void showRegionLists(CommandSourceStack source, StackRegion region) {
+        MobListMode mode = MobLists.modeIn(region);
+        boolean ownMode = region.getSetting("mobListMode") != null;
+        source.sendSuccess(() -> Component.literal(
+                        " mob lists: " + mode + (ownMode ? " (set here)" : " (from the global config)"))
+                .withStyle(ownMode ? ChatFormatting.GOLD : ChatFormatting.DARK_GRAY), false);
+
+        for (MobListKind kind : MobListKind.values()) {
+            // Only the half the mode actually reads; printing the other two every time would bury
+            // the one line that matters under three that do nothing.
+            boolean read = (mode == MobListMode.WHITELIST) == (kind.half() == MobListKind.Half.ALLOW);
+            if (!read) {
+                continue;
+            }
+            boolean own = region.hasList(kind);
+            int size = MobLists.effective(kind, region).size();
+            source.sendSuccess(() -> Component.literal(
+                            "  " + kind.id() + ": " + size + (own ? " (this region's own)" : " (inherited)"))
+                    .withStyle(own ? ChatFormatting.GOLD : ChatFormatting.DARK_GRAY), false);
+        }
+
+        Map<String, Integer> ceilings = region.getMaxStackSizes();
+        if (!ceilings.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    "  stack ceilings set here (" + ceilings.size() + "):").withStyle(ChatFormatting.GOLD), false);
+            ceilings.forEach((id, size) -> source.sendSuccess(
+                    () -> Component.literal("   " + id + " -> " + size).withStyle(ChatFormatting.GRAY), false));
+        }
     }
 
     private static CompletableFuture<Suggestions> suggestRegionSettings(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {

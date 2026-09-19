@@ -50,6 +50,7 @@ public final class ConfigSelfTest {
                 testOption(option, report);
             }
             testDependencies(report);
+            testLists(report);
         } catch (Exception e) {
             report.checks++;
             report.failures++;
@@ -201,6 +202,94 @@ public final class ConfigSelfTest {
                 "killWholeStackOnDeath stayed on after stackHealth was switched off");
         stackHealth.reset();
         killWhole.reset();
+    }
+
+    /**
+     * Round-trips the mob lists and the per-type ceilings, which the option loop above cannot reach
+     * because they are not scalar settings.
+     *
+     * <p>Worth its own pass because the interesting behaviour is not "does a value come back": it is
+     * that an entry is normalised on the way in, that a region tells inheriting apart from having an
+     * empty list of its own, and that taking a list over keeps what it was inheriting. All three are
+     * easy to get subtly wrong and impossible to notice without looking.
+     */
+    private static void testLists(Report report) {
+        for (MobListKind kind : MobListKind.values()) {
+            MobStacker.config.clearList(kind);
+            String entry = kind.flavour() == MobListKind.Flavour.ENTITY ? "minecraft:cow" : "examplemod";
+
+            check(report, MobStacker.config.addToList(kind, entry),
+                    kind.id() + ": adding '" + entry + "' to an empty list reported no change");
+            check(report, MobStacker.config.getList(kind).contains(entry),
+                    kind.id() + ": '" + entry + "' was added but is not in the list");
+            check(report, !MobStacker.config.addToList(kind, entry),
+                    kind.id() + ": adding '" + entry + "' twice reported a change");
+            check(report, MobStacker.config.getList(kind).size() == 1,
+                    kind.id() + ": adding '" + entry + "' twice stored it twice");
+            check(report, MobStacker.config.removeFromList(kind, entry),
+                    kind.id() + ": removing '" + entry + "' reported no change");
+            check(report, !MobStacker.config.removeFromList(kind, entry),
+                    kind.id() + ": removing '" + entry + "' twice reported a change");
+
+            if (kind.flavour() == MobListKind.Flavour.ENTITY) {
+                // "cow" and "minecraft:cow" have to be one entry, or a list quietly holds both.
+                MobStacker.config.addToList(kind, "cow");
+                check(report, MobStacker.config.getList(kind).contains("minecraft:cow"),
+                        kind.id() + ": 'cow' was not stored as 'minecraft:cow'");
+                check(report, !MobStacker.config.addToList(kind, "minecraft:cow"),
+                        kind.id() + ": 'cow' and 'minecraft:cow' were stored as two entries");
+                MobStacker.config.clearList(kind);
+            }
+        }
+
+        StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 0, 0, 0, 1, 1, 1);
+        MobListKind kind = MobListKind.DENY_ENTITIES;
+        MobStacker.config.clearList(kind);
+        MobStacker.config.addToList(kind, "minecraft:cow");
+
+        check(report, !region.hasList(kind),
+                "a fresh region claims to override " + kind.id());
+        check(report, MobLists.effective(kind, region).contains("minecraft:cow"),
+                "a region that overrides nothing did not inherit the global " + kind.id());
+
+        region.setList(kind, MobStacker.config.getList(kind));
+        check(report, region.hasList(kind),
+                "a region given its own " + kind.id() + " still claims to inherit");
+        check(report, region.getList(kind).contains("minecraft:cow"),
+                "taking " + kind.id() + " over lost what it was inheriting");
+
+        region.removeFromList(kind, "minecraft:cow");
+        check(report, region.hasList(kind),
+                "emptying a region's " + kind.id() + " dropped the override instead of meaning 'nothing'");
+        check(report, MobLists.effective(kind, region).isEmpty(),
+                "an emptied region list fell back to the global one");
+        check(report, MobStacker.config.getList(kind).contains("minecraft:cow"),
+                "editing a region's " + kind.id() + " changed the global list too");
+
+        region.clearList(kind);
+        check(report, !region.hasList(kind),
+                "a region told to inherit " + kind.id() + " still claims its own");
+        check(report, MobLists.effective(kind, region).contains("minecraft:cow"),
+                "a region told to inherit " + kind.id() + " did not get the global list back");
+        MobStacker.config.clearList(kind);
+
+        // Ceilings: set, read back, and unset.
+        MobStacker.config.setMaxStackSize("minecraft:cow", 64);
+        check(report, Integer.valueOf(64).equals(MobStacker.config.getMaxStackSize("minecraft:cow")),
+                "a global stack ceiling did not come back");
+        check(report, Integer.valueOf(64).equals(MobStacker.config.getMaxStackSize("cow")),
+                "a stack ceiling was not found under the un-namespaced id");
+        MobStacker.config.setMaxStackSize("minecraft:cow", null);
+        check(report, MobStacker.config.getMaxStackSize("minecraft:cow") == null,
+                "a global stack ceiling survived being unset");
+
+        region.setMaxStackSize("minecraft:cow", 8);
+        check(report, Integer.valueOf(8).equals(region.getMaxStackSize("minecraft:cow")),
+                "a region stack ceiling did not come back");
+        region.setMaxStackSize("minecraft:cow", null);
+        check(report, region.getMaxStackSize("minecraft:cow") == null,
+                "a region stack ceiling survived being unset");
     }
 
     private static void check(Report report, boolean pass, String failureMessage) {
