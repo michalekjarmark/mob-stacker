@@ -91,6 +91,10 @@ public final class ConfigOption {
     // `requires` this is not a "does nothing" hint but a hard lock: the value cannot be changed at
     // all until the other setting is off again. Also resolved where the change is made.
     private String lockedOnBy;
+    // Optional: the id of a boolean setting that, while it is on, already does what this one asks
+    // for — so this one cannot change anything. The third shape, and the mildest: nothing is forced
+    // and nothing is required, the setting is simply inert. Also resolved where it is read.
+    private String redundantWhen;
     // Optional: after a successful change, return an extra info note (e.g. a forced dependency) or null.
     private Supplier<String> appliedNote;
 
@@ -297,6 +301,28 @@ public final class ConfigOption {
     /** The setting that pins this one to "true" while it is on, or null when nothing does. */
     public String lockedOnBy() {
         return lockedOnBy;
+    }
+
+    /**
+     * Declares that this setting cannot change anything while {@code settingId} (a boolean setting)
+     * is on, because that setting already produces the same result — the way
+     * {@code killWholeStackOnDeath} already puts the whole sweep into one hit, which is all
+     * {@code sweepingEdgeSingleHit} has to offer.
+     *
+     * <p>The third dependency shape, and the mildest of the three: {@link #lockedOnBy(String)} pins a
+     * value, {@link #requires(String)} says "not yet", and this one says "no longer needed". It is
+     * treated like {@code requires} where it counts — the setting reads as its own default and the
+     * GUI greys it out with the reason — because the rule they both serve is that a switch must
+     * never sit on {@code ON} while having no effect.
+     */
+    public ConfigOption redundantWhen(String settingId) {
+        this.redundantWhen = settingId;
+        return this;
+    }
+
+    /** The setting that makes this one pointless while it is on, or null when nothing does. */
+    public String redundantWhen() {
+        return redundantWhen;
     }
 
     public ConfigOption withAppliedNote(Supplier<String> appliedNote) {

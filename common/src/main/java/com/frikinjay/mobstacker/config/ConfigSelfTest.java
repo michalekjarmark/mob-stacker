@@ -73,14 +73,14 @@ public final class ConfigSelfTest {
                 // A setting that needs another one is inert until that one is on, and refuses to be
                 // switched on - which is the point of it, not a fault. Switch its prerequisites on
                 // for the duration so the setting itself is actually exercised.
-                List<ConfigOption> prerequisites = satisfyDependencies(option);
+                List<Restore> prerequisites = satisfyDependencies(option);
                 boolean before = Boolean.parseBoolean(option.currentValue());
                 ConfigOption.Result first = option.toggle();
                 check(report, first.status == Status.CHANGED, option.id() + ": first toggle was not CHANGED (" + first.status + ")");
                 check(report, Boolean.parseBoolean(option.currentValue()) != before, option.id() + ": toggle did not flip the value");
                 option.toggle(); // restore
-                for (ConfigOption prerequisite : prerequisites) {
-                    prerequisite.reset();
+                for (Restore prerequisite : prerequisites) {
+                    prerequisite.undo();
                 }
             }
             case INT, DOUBLE -> {
@@ -115,11 +115,14 @@ public final class ConfigSelfTest {
     }
 
     /**
-     * Switches on everything {@code option} depends on, innermost first.
+     * Puts the config into the state where {@code option} actually means something: everything it
+     * depends on switched on, innermost first, and anything that would make it redundant switched
+     * off. Without this the test reports a failure for a setting that is merely inert, which is
+     * exactly what it did for every {@code requires} setting until 1.7.0.
      *
-     * @return the settings that were changed, for the caller to put back
+     * @return what was changed, for the caller to put back exactly as it was
      */
-    private static List<ConfigOption> satisfyDependencies(ConfigOption option) {
+    private static List<Restore> satisfyDependencies(ConfigOption option) {
         List<ConfigOption> chain = new ArrayList<>();
         ConfigOption current = option;
         // Guarded against a dependency loop a future setting could introduce by mistake.
@@ -137,15 +140,42 @@ public final class ConfigSelfTest {
         }
 
         // Innermost first: a setting can only be switched on once the one it needs already is.
-        List<ConfigOption> changed = new ArrayList<>();
+        List<Restore> changed = new ArrayList<>();
         for (int i = chain.size() - 1; i >= 0; i--) {
             ConfigOption required = chain.get(i);
             if (!Boolean.parseBoolean(required.currentValue())) {
+                changed.add(Restore.of(required));
                 required.apply("true");
-                changed.add(required);
             }
         }
+
+        // And the opposite direction: a setting that already does this one's job has to be off, or
+        // the option under test would correctly refuse to change and look like a failure.
+        String blockerId = option.redundantWhen();
+        ConfigOption blocker = blockerId == null ? null : MobStackerSettings.byId(blockerId);
+        if (blocker != null && blocker.type() == Type.BOOL && Boolean.parseBoolean(blocker.currentValue())) {
+            changed.add(Restore.of(blocker));
+            blocker.apply("false");
+        }
         return changed;
+    }
+
+    /**
+     * A setting and the value it had before the test touched it.
+     *
+     * <p>Putting it back with {@code reset()} would have been wrong: that restores the *default*,
+     * not what the player had. Harmless while the test only ever switched something on from its
+     * default, but the moment it has to switch something off — a setting that makes another one
+     * redundant — resetting would quietly take the player's own choice away.
+     */
+    private record Restore(ConfigOption option, String value) {
+        static Restore of(ConfigOption option) {
+            return new Restore(option, option.storedValue());
+        }
+
+        void undo() {
+            option.apply(value);
+        }
     }
 
     private static void testDependencies(Report report) {
