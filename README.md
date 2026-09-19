@@ -184,6 +184,7 @@ with several cuboids.
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
+/mobstacker region rename <name> <newname>                      # keeps its area, settings and colour
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides
@@ -283,8 +284,8 @@ separator item, take the next member's gear with them.
 ## Pets & mounts
 
 **Anything a player has put something into stays out of stacks**, with no setting to change that:
-tamed or owned mobs, saddled ones, horse armour, a donkey's or llama's chest, a leashed mob, and
-anything riding or being ridden. A horse's saddle and chest live in an inventory of its own rather
+tamed or owned mobs, saddled ones, horse armour, a donkey's or llama's chest, a leashed mob, anything
+riding or being ridden, a trusting ocelot and a fox that knows you. A horse's saddle and chest live in an inventory of its own rather
 than in its equipment slots, so a merge used to wipe them along with the taming — hence the hard rule.
 
 Wild herds still stack, which is where the performance is anyway, and foals are born untamed, so a

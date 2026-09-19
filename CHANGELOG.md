@@ -26,11 +26,24 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   seeds to parrots and exactly one animal steps out to be tamed, instead of all sixteen at once —
   the same thing 1.7.0 did for horses. Only when you are actually holding the right item, so walking
   past a pack and right-clicking it with an empty hand still does nothing at all.
+- **A region can be renamed** — `/mobstacker region rename <name> <newname>`, or just type over the
+  name in the area editor. It keeps the region's area, its settings, its priority and its colour;
+  deleting and re-adding it, which was the only way before, threw all of that away.
 
 ### Fixed
 - **A pack of wild wolves could be bred.** Vanilla lets an untamed wolf fall in love and then refuses
   to let it mate; the stack breeding code counted fed members and spawned babies without ever asking,
   so feeding meat to a stack of wild wolves produced puppies vanilla would never have given.
+- **A trusting ocelot or a fox that knows you is left out of stacks**, the way tamed animals already
+  were. Neither is tamed and neither has an owner, so nothing the mod checked could see the fish
+  spent earning that trust — and a wild one walking into the stack handed its indifference to all of
+  them.
+- **`sweepingEdgeSingleHit` no longer sits on `ON` doing nothing.** With `killWholeStackOnDeath` on
+  (or `stackHealth`, which forces it) there are no separate members left to wound, so the sweep goes
+  into one hit whatever the setting says. It is now greyed out with the reason, like every other
+  setting that cannot currently do anything.
+- **`/mobstacker selftest` puts your settings back exactly as they were**, instead of resetting the
+  ones it had to change to their defaults.
 - **Shearing gave one mob too much.** A stack was sheared its full size *on top of* the shearing
   vanilla had already done — and an unstacked mob counts as a stack of one — so **every lone sheep
   dropped double wool** and cost two points of shear durability, a stack of 16 gave 17 sheep's worth,
