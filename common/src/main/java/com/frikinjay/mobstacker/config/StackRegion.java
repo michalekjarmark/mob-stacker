@@ -62,6 +62,15 @@ public class StackRegion {
         return name;
     }
 
+    /**
+     * Renames the region in place, so everything it carries — its area, its settings, its priority
+     * and its colour — survives. Go through {@code RegionEdit.rename}, which is what checks the new
+     * name is usable and not already taken.
+     */
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public String getDimension() {
         return dimension;
     }

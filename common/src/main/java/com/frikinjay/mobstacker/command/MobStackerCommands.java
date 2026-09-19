@@ -157,6 +157,11 @@ public class MobStackerCommands {
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("priority", IntegerArgumentType.integer())
                                                 .executes(MobStackerCommands::setRegionPriority))))
+                        .then(literal("rename")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("newname", StringArgumentType.word())
+                                                .executes(MobStackerCommands::renameRegion))))
                         .then(literal("color")
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -342,7 +347,7 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
@@ -896,6 +901,12 @@ public class MobStackerCommands {
             builder.suggest(color.name().toLowerCase(Locale.ROOT));
         }
         return builder.buildFuture();
+    }
+
+    private static int renameRegion(CommandContext<CommandSourceStack> context) {
+        String from = StringArgumentType.getString(context, "name");
+        String to = StringArgumentType.getString(context, "newname");
+        return reportRegionEdit(context, RegionEdit.rename(from, to));
     }
 
     private static int setRegionColor(CommandContext<CommandSourceStack> context) {

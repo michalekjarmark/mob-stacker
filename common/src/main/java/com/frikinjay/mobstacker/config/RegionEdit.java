@@ -124,6 +124,50 @@ public final class RegionEdit {
                 definition.x2(), definition.y2(), definition.z2());
     }
 
+    /**
+     * Gives a region a different name, keeping everything else about it. Deleting and re-adding it
+     * under the new name would throw away its settings, its priority and its colour — the same trap
+     * {@code bounds} was added to get out of.
+     */
+    public static Result rename(String from, String to) {
+        String oldName = from == null ? "" : from.trim();
+        String newName = to == null ? "" : to.trim();
+        StackRegion region = MobStacker.config.getRegion(oldName);
+        if (region == null) {
+            return Result.failed("Region '" + oldName + "' does not exist");
+        }
+        if (oldName.equals(newName)) {
+            return new Result(true, "Region '" + oldName + "' is already called that");
+        }
+        String problem = nameProblem(newName);
+        if (problem != null) {
+            return Result.failed(problem);
+        }
+        if (MobStacker.config.getRegion(newName) != null) {
+            return Result.failed("A region called '" + newName + "' already exists");
+        }
+        region.setName(newName);
+        MobStacker.config.save();
+        return new Result(true, "Renamed '" + oldName + "' to '" + newName + "'");
+    }
+
+    /**
+     * Everything wrong with a region name on its own, split out so renaming and creating judge one
+     * by exactly the same rules.
+     *
+     * @return the reason it would be refused, or null when it is fine
+     */
+    public static String nameProblem(String name) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isEmpty()) {
+            return "A region needs a name.";
+        }
+        if (trimmed.length() > MAX_NAME_LENGTH || !VALID_NAME.matcher(trimmed).matches()) {
+            return "'" + trimmed + "' is not a usable region name (letters, digits, _ . - only).";
+        }
+        return null;
+    }
+
     /** Removes a region and everything it carried. */
     public static Result delete(String name) {
         String trimmed = name == null ? "" : name.trim();
@@ -143,12 +187,9 @@ public final class RegionEdit {
      */
     public static String problem(String name, StackRegion.Type type, String dimension,
                                  int x1, int y1, int z1, int x2, int y2, int z2) {
-        String trimmed = name == null ? "" : name.trim();
-        if (trimmed.isEmpty()) {
-            return "A region needs a name.";
-        }
-        if (trimmed.length() > MAX_NAME_LENGTH || !VALID_NAME.matcher(trimmed).matches()) {
-            return "'" + trimmed + "' is not a usable region name (letters, digits, _ . - only).";
+        String problem = nameProblem(name);
+        if (problem != null) {
+            return problem;
         }
         if (dimension == null || dimension.isBlank()) {
             return "A region needs a dimension.";

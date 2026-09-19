@@ -47,6 +47,9 @@ public final class MobStackerNetworking {
 
     /** Pseudo-setting naming the colour the region's overlay is drawn in. Empty value = automatic. */
     public static final String REGION_COLOR = "@color";
+
+    /** Pseudo-setting renaming the region; the value is the new name. */
+    public static final String REGION_RENAME = "@rename";
     /**
      * Pseudo-setting carrying a whole region shape ({@link RegionEdit.Definition}) instead of one of
      * its settings, so the GUI can draw a new region or redraw an existing one. The region named in
@@ -125,6 +128,11 @@ public final class MobStackerNetworking {
         if (REGION_DEFINITION.equals(settingId)) {
             RegionEdit.Result result = RegionEdit.apply(regionName, RegionEdit.Definition.decode(raw));
             sendSync(player, result.message());
+            return;
+        }
+
+        if (REGION_RENAME.equals(settingId)) {
+            sendSync(player, RegionEdit.rename(regionName, raw).message());
             return;
         }
 
