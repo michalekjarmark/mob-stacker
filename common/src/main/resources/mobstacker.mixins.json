@@ -23,8 +23,12 @@
     "MobEquipmentAccessor",
     "MobMixin",
     "NameTagItemMixin",
+    "FoxAccessor",
+    "OcelotAccessor",
+    "ParrotAccessor",
     "PlayerMixin",
     "ServerEntityMixin",
+    "mobs.MilkableMixin",
     "mobs.PigMixin",
     "mobs.VillagerMixin",
     "mobs.ZombieMixin"

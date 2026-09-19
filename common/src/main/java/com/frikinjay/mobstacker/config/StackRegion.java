@@ -37,6 +37,9 @@ public class StackRegion {
     private volatile Map<String, String> settings;
     // Decides which region wins where two overlap: higher first, then the smaller region.
     private int priority;
+    // The colour the region is drawn in when a player switches its overlay on. Null means "no colour
+    // chosen", which reads as green for an allow region and red for a deny one — see effectiveColor.
+    private StackColor color;
 
     // Required for Gson deserialization.
     public StackRegion() {
@@ -57,6 +60,15 @@ public class StackRegion {
 
     public String getName() {
         return name;
+    }
+
+    /**
+     * Renames the region in place, so everything it carries — its area, its settings, its priority
+     * and its colour — survives. Go through {@code RegionEdit.rename}, which is what checks the new
+     * name is usable and not already taken.
+     */
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getDimension() {
@@ -126,6 +138,27 @@ public class StackRegion {
                 && x >= minX && x <= maxX
                 && y >= minY && y <= maxY
                 && z >= minZ && z <= maxZ;
+    }
+
+    /** The colour explicitly set for this region, or null if none was. */
+    public StackColor getColor() {
+        return color;
+    }
+
+    public void setColor(StackColor color) {
+        this.color = color;
+    }
+
+    /**
+     * The colour the overlay actually draws this region in. A region nobody has given a colour to
+     * falls back to what its kind means — green for allow, red for deny — so switching the overlay
+     * on tells you something useful before you have coloured anything.
+     */
+    public StackColor effectiveColor() {
+        if (color != null) {
+            return color;
+        }
+        return isDeny() ? StackColor.RED : StackColor.GREEN;
     }
 
     public int getPriority() {

@@ -19,8 +19,10 @@ public class SheepMixin {
     private void mobstacker$onShearAllSheep(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         Sheep self = (Sheep) (Object) this;
         ItemStack itemStack = player.getItemInHand(interactionHand);
-        int stackSize = MobStacker.getStackSize(self);
-        for (int i = 0; i < stackSize; i++) {
+        // Vanilla has already sheared one sheep's worth by the time this runs, so only the members
+        // under it are owed anything. Looping the whole stack size gave a lone sheep double wool.
+        int extra = MobStacker.extraHarvests(self);
+        for (int i = 0; i < extra; i++) {
             self.shear(SoundSource.PLAYERS);
             if(!self.level().isClientSide) {
                 itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));

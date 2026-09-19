@@ -93,17 +93,17 @@ public final class MobStackerRegionEditScreen extends Screen {
     protected void init() {
         loadDimensions();
 
-        if (existingName == null) {
-            nameBox = new EditBox(this.font, this.width / 2 - 40, 30, 190, 20, Component.literal("name"));
-            nameBox.setValue(name);
-            nameBox.setMaxLength(32);
-            nameBox.setEditable(editable);
-            nameBox.setResponder(text -> {
-                name = text.trim();
-                nameBox.setTextColor(name.isEmpty() ? ERROR_TEXT : NORMAL_TEXT);
-            });
-            addRenderableWidget(nameBox);
-        }
+        // Editable for an existing region too: renaming keeps its area, settings, priority and
+        // colour, which deleting and re-adding it never did.
+        nameBox = new EditBox(this.font, this.width / 2 - 40, 30, 190, 20, Component.literal("name"));
+        nameBox.setValue(name);
+        nameBox.setMaxLength(32);
+        nameBox.setEditable(editable);
+        nameBox.setResponder(text -> {
+            name = text.trim();
+            nameBox.setTextColor(RegionEdit.nameProblem(name) == null ? NORMAL_TEXT : ERROR_TEXT);
+        });
+        addRenderableWidget(nameBox);
 
         Button typeButton = Button.builder(typeLabel(), b -> {
             type = type == StackRegion.Type.ALLOW ? StackRegion.Type.DENY : StackRegion.Type.ALLOW;
@@ -231,9 +231,17 @@ public final class MobStackerRegionEditScreen extends Screen {
         RegionEdit.Definition definition = new RegionEdit.Definition(type, dimension,
                 corners[0], corners[1], corners[2], corners[3], corners[4], corners[5]);
         String target = name.trim();
+        // A rename has to land before the area does, or applying the definition under the new name
+        // would create a second region beside the one being edited.
+        boolean renaming = existingName != null && !existingName.equals(target);
 
         if (remote) {
             // The server decides; its answer comes back on the status line of the region screen.
+            if (renaming) {
+                MobStackerClientNetworking.sendEdit(
+                        MobStackerNetworking.REGION_PREFIX + existingName + ":" + MobStackerNetworking.REGION_RENAME,
+                        target);
+            }
             MobStackerClientNetworking.sendEdit(
                     MobStackerNetworking.REGION_PREFIX + target + ":" + MobStackerNetworking.REGION_DEFINITION,
                     definition.encode());
@@ -245,12 +253,16 @@ public final class MobStackerRegionEditScreen extends Screen {
                 return;
             }
             server.execute(() -> {
-                RegionEdit.Result result = RegionEdit.apply(target, definition);
+                RegionEdit.Result result = renaming ? RegionEdit.rename(existingName, target) : null;
+                if (result == null || result.ok()) {
+                    result = RegionEdit.apply(target, definition);
+                }
+                RegionEdit.Result outcome = result;
                 client.execute(() -> {
-                    if (result.ok()) {
+                    if (outcome.ok()) {
                         backTo(target);
                     } else {
-                        fail(result.message());
+                        fail(outcome.message());
                     }
                 });
             });
@@ -327,15 +339,7 @@ public final class MobStackerRegionEditScreen extends Screen {
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         int labelX = this.width / 2 + LABEL_X_OFFSET;
-        if (existingName == null) {
-            drawLabel(guiGraphics, "name", labelX, 36);
-        } else {
-            guiGraphics.drawString(this.font,
-                    Component.literal("name").withStyle(ChatFormatting.DARK_GRAY), labelX, 36, NORMAL_TEXT);
-            guiGraphics.drawString(this.font,
-                    Component.literal(existingName + "  (names cannot be changed)").withStyle(ChatFormatting.GRAY),
-                    this.width / 2 - 40, 36, NORMAL_TEXT);
-        }
+        drawLabel(guiGraphics, "name", labelX, 36);
         drawLabel(guiGraphics, "type", labelX, 64);
         drawLabel(guiGraphics, "dimension", labelX, 88);
         drawLabel(guiGraphics, "corner 1", labelX, 116);
@@ -348,7 +352,7 @@ public final class MobStackerRegionEditScreen extends Screen {
                 ? Component.literal(message).withStyle(ChatFormatting.RED)
                 : Component.literal(existingName == null
                         ? "The corners are inclusive; the region covers both blocks and everything between them."
-                        : "Redrawing a region keeps its settings and its priority.")
+                        : "Redrawing or renaming a region keeps its settings, its priority and its colour.")
                 .withStyle(ChatFormatting.GRAY);
         guiGraphics.drawCenteredString(this.font, note, this.width / 2, 166, 0xFFFFFF);
 

@@ -6,6 +6,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -53,11 +54,10 @@ public class MobMixin {
      * climb onto a single entity carrying a whole herd. So a stacked mount steps one mob out of the
      * stack and lets that mob take the interaction instead, for every kind of right-click there is.
      *
-     * <p>Only mounts, deliberately. A wolf pack has the same problem — a handful of bones tames all
-     * sixteen — but an empty-handed right-click on an untamed wolf does nothing in vanilla, and
-     * peeling a wolf off the pack for it would be worse than the bug. Taming a wolf stack still
-     * tames the whole stack; what it can no longer do is lose anything, because a tamed mob stops
-     * stacking entirely (see {@link MobStacker#isPlayerBound}).
+     * <p>A wolf, cat or parrot pack does the same, but only when the player is actually holding the
+     * thing that tames it. That asymmetry is deliberate: a horse answers every right-click with
+     * something, while an untamed wolf ignores an empty hand entirely, and peeling a wolf off the
+     * pack for a click that would have done nothing would be worse than the bug being fixed.
      *
      * <p>Server side only. The client keeps predicting the interaction against the stack exactly as
      * vanilla would, and the server's answer — a new mob, a smaller stack — arrives right after.
@@ -69,11 +69,12 @@ public class MobMixin {
         if (self.level().isClientSide() || MobStacker.getStackSize(self) <= 1) {
             return;
         }
-        if (!(self instanceof AbstractHorse)) {
-            return;
-        }
-        if (MobStacker.isSeparatorInteraction(self, player.getItemInHand(hand))) {
+        ItemStack held = player.getItemInHand(hand);
+        if (MobStacker.isSeparatorInteraction(self, held)) {
             return; // PlayerMixin already took one out at interactOn; two would leave the stack
+        }
+        if (!(self instanceof AbstractHorse) && !MobStacker.isTamingInteraction(self, held)) {
+            return;
         }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {

@@ -83,7 +83,11 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("sweepingEdgeSingleHit", Category.COMBAT,
                 "Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately.",
                 () -> MobStacker.config.getSweepingEdgeSingleHit(), v -> MobStacker.config.setSweepingEdgeSingleHit(v), false)
-                .requires("sweepingEdgePerMob"));
+                .requires("sweepingEdgePerMob")
+                // With one death for the whole stack there are no separate members left to wound, so
+                // the sweep goes into the single hit whatever this says. stackHealth is covered too,
+                // since it forces killWholeStackOnDeath on.
+                .redundantWhen("killWholeStackOnDeath"));
         register(ConfigOption.ofBool("sweepingEdgeVanillaConditions", Category.COMBAT,
                 "Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand.",
                 () -> MobStacker.config.getSweepingEdgeVanillaConditions(), v -> MobStacker.config.setSweepingEdgeVanillaConditions(v), false)
@@ -141,6 +145,9 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("breedOnePerClick", Category.BREEDING,
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
+        register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
+                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would.",
+                () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
         register(ConfigOption.ofBool("enableAnimalBabyStacking", Category.BREEDING,
                 "Let baby farm animals stack together.",
                 () -> MobStacker.config.getEnableAnimalBabyStacking(), v -> MobStacker.config.setEnableAnimalBabyStacking(v), true));
@@ -208,6 +215,15 @@ public final class MobStackerSettings {
     public static String dependencyProblem(ConfigOption option,
                                            java.util.function.Function<String, String> lookup,
                                            String regionName) {
+        // Both "not yet" and "no longer needed" answer the same question — why this setting would
+        // have no effect — so they come back through one entry point and every caller gets both
+        // without having to remember there are three shapes.
+        if (isRedundant(option, lookup)) {
+            String where = regionName == null ? "here" : "in region '" + regionName + "'";
+            return "'" + option.id() + "' changes nothing " + where + " while " + option.redundantWhen()
+                    + " is on, which already does the same thing. Turn " + option.redundantWhen()
+                    + " off to use it.";
+        }
         String requiredId = option.requires();
         if (requiredId == null) {
             return null;
@@ -223,6 +239,26 @@ public final class MobStackerSettings {
                 ? "Enable it first."
                 : "Enable it in region '" + regionName + "' (or globally) first.";
         return "'" + option.id() + "' only applies while " + requiredId + " is on. " + where;
+    }
+
+    /** Whether the setting that would make this one pointless is on in the scope {@code lookup} answers for. */
+    private static boolean isRedundant(ConfigOption option,
+                                       java.util.function.Function<String, String> lookup) {
+        String otherId = option.redundantWhen();
+        if (otherId == null) {
+            return false;
+        }
+        ConfigOption other = byId(otherId);
+        if (other == null) {
+            return false;
+        }
+        String value = lookup == null ? null : lookup.apply(otherId);
+        if (value == null || value.isEmpty()) {
+            // currentValue, not storedValue: killWholeStackOnDeath is itself forced on by stackHealth,
+            // and a setting made redundant by a forced one is just as redundant.
+            value = other.currentValue();
+        }
+        return Boolean.parseBoolean(value);
     }
 
     /** Whether the setting this one needs is on in the scope {@code lookup} answers for. */
@@ -252,7 +288,9 @@ public final class MobStackerSettings {
      *   <li>a setting that pins this one on ({@link ConfigOption#lockedOnBy(String)}) — it reads as
      *       {@code true};</li>
      *   <li>a setting this one needs that is off ({@link ConfigOption#requires(String)}) — it reads
-     *       as its default, because it does nothing at all until that setting comes back on.</li>
+     *       as its default, because it does nothing at all until that setting comes back on;</li>
+     *   <li>a setting that already does this one's job ({@link ConfigOption#redundantWhen(String)}) —
+     *       it reads as its default too, for the same reason read the other way round.</li>
      * </ul>
      * Either way the stored value is left untouched and returns the moment the scope changes back,
      * so switching a master setting off and on again costs the player nothing.
@@ -262,6 +300,9 @@ public final class MobStackerSettings {
         String locked = lockedValue(option, lookup);
         if (locked != null) {
             return locked;
+        }
+        if (isRedundant(option, lookup)) {
+            return option.defaultValue();
         }
         return dependencyMet(option, lookup) ? null : option.defaultValue();
     }

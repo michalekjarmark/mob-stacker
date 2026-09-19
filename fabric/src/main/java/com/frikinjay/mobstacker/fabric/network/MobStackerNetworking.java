@@ -4,6 +4,7 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.RegionEdit;
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -12,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -42,6 +44,12 @@ public final class MobStackerNetworking {
     public static final String REGION_PREFIX = "region:";
     /** Pseudo-setting naming a region's overlap priority rather than one of its settings. */
     public static final String REGION_PRIORITY = "@priority";
+
+    /** Pseudo-setting naming the colour the region's overlay is drawn in. Empty value = automatic. */
+    public static final String REGION_COLOR = "@color";
+
+    /** Pseudo-setting renaming the region; the value is the new name. */
+    public static final String REGION_RENAME = "@rename";
     /**
      * Pseudo-setting carrying a whole region shape ({@link RegionEdit.Definition}) instead of one of
      * its settings, so the GUI can draw a new region or redraw an existing one. The region named in
@@ -123,6 +131,11 @@ public final class MobStackerNetworking {
             return;
         }
 
+        if (REGION_RENAME.equals(settingId)) {
+            sendSync(player, RegionEdit.rename(regionName, raw).message());
+            return;
+        }
+
         if (REGION_DELETE.equals(settingId)) {
             sendSync(player, RegionEdit.delete(regionName).message());
             return;
@@ -131,6 +144,23 @@ public final class MobStackerNetworking {
         StackRegion region = MobStacker.config.getRegion(regionName);
         if (region == null) {
             sendSync(player, "Unknown region: " + regionName);
+            return;
+        }
+
+        if (REGION_COLOR.equals(settingId)) {
+            String value = raw.trim();
+            if (value.isEmpty()) {
+                region.setColor(null);
+            } else {
+                try {
+                    region.setColor(StackColor.valueOf(value.toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException e) {
+                    sendSync(player, "Unknown colour: " + value);
+                    return;
+                }
+            }
+            MobStacker.config.save();
+            sendSync(player, regionName + ": overlay colour " + region.effectiveColor().name().toLowerCase(Locale.ROOT));
             return;
         }
 
@@ -212,6 +242,9 @@ public final class MobStackerNetworking {
             buf.writeInt(region.getMaxY());
             buf.writeInt(region.getMaxZ());
             buf.writeInt(region.getPriority());
+            // Empty means "nothing chosen"; the client applies the same allow/deny fallback the
+            // server does, so both ends agree on what an uncoloured region looks like.
+            buf.writeUtf(region.getColor() == null ? "" : region.getColor().name());
             Map<String, String> overrides = region.getSettings();
             buf.writeVarInt(overrides.size());
             for (Map.Entry<String, String> entry : overrides.entrySet()) {

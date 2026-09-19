@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.fabric.client;
 
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -32,10 +33,34 @@ public final class MobStackerClientNetworking {
     /** One region as the server described it, for the region editor screen. */
     public record RegionInfo(String name, String type, String dimension,
                              int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
-                             int priority, Map<String, String> settings) {
+                             int priority, String color, Map<String, String> settings) {
         /** The same corner text the server's own {@code /mobstacker region list} prints. */
         public String bounds() {
             return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+        }
+
+        /** The colour the player picked, or null when they have not picked one. */
+        public StackColor chosenColor() {
+            if (color == null || color.isEmpty()) {
+                return null;
+            }
+            try {
+                return StackColor.valueOf(color);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        /**
+         * What the overlay draws this region in — the same allow/deny fallback
+         * {@code StackRegion.effectiveColor} applies, so both ends agree.
+         */
+        public StackColor overlayColor() {
+            StackColor chosen = chosenColor();
+            if (chosen != null) {
+                return chosen;
+            }
+            return "DENY".equalsIgnoreCase(type) ? StackColor.RED : StackColor.GREEN;
         }
     }
 
@@ -66,13 +91,14 @@ public final class MobStackerClientNetworking {
                 int maxY = buf.readInt();
                 int maxZ = buf.readInt();
                 int priority = buf.readInt();
+                String color = buf.readUtf();
                 int overrideCount = buf.readVarInt();
                 Map<String, String> overrides = new LinkedHashMap<>();
                 for (int o = 0; o < overrideCount; o++) {
                     overrides.put(buf.readUtf(), buf.readUtf());
                 }
                 incomingRegions.add(new RegionInfo(name, type, dimension,
-                        minX, minY, minZ, maxX, maxY, maxZ, priority, overrides));
+                        minX, minY, minZ, maxX, maxY, maxZ, priority, color, overrides));
             }
             client.execute(() -> {
                 authorized = incomingAuth;
@@ -169,7 +195,7 @@ public final class MobStackerClientNetworking {
             }
             REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(),
                     info.minX(), info.minY(), info.minZ(), info.maxX(), info.maxY(), info.maxZ(),
-                    info.priority(), settings));
+                    info.priority(), info.color(), settings));
             return;
         }
     }
