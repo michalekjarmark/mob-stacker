@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.8.0] - unreleased
+## [1.8.0] - 2026-09-19
 ### Added
 - **Regions can be drawn in the world.** Switch a region's box on and its bounds appear as a coloured
   cuboid, so "where does this region actually reach" stops being a question you answer by walking to
