@@ -7,7 +7,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.7.0] - unreleased
+## [1.8.0] - unreleased
+### Added
+- **Regions can be drawn in the world.** Switch a region's box on and its bounds appear as a coloured
+  cuboid, so "where does this region actually reach" stops being a question you answer by walking to
+  a corner and reading coordinates off the debug screen. Each region carries a **colour of its own** —
+  `/mobstacker region color <name> <colour|auto>`, or the button beside its priority in the region
+  screen — so a sheep pen and a cow pen are told apart at a glance. A region nobody has coloured is
+  drawn green if it allows stacking and red if it denies it.
+  Which boxes are drawn, and in which of three styles (**wireframe**, **filled**, **both**), is each
+  player's own view: it is kept client-side, never sent anywhere, and available even to a player who
+  may not edit anything. There is a key binding (unbound by default) for showing and hiding them all.
+  Needs the mod on the client; without it there is simply nothing to see.
+- **Milking a stack fills as many buckets as you brought**, up to one per mob (`stackedHarvest`,
+  default on). Cows, mooshrooms and goats. Vanilla still milks the top mob out of the bucket in your
+  hand, so the sound and creative mode behave exactly as before.
+
+### Fixed
+- **Shearing gave one mob too much.** A stack was sheared its full size *on top of* the shearing
+  vanilla had already done — and an unstacked mob counts as a stack of one — so **every lone sheep
+  dropped double wool** and cost two points of shear durability, a stack of 16 gave 17 sheep's worth,
+  and a lone mooshroom dropped 10 mushrooms instead of 5. Inherited from upstream.
+
+### Changed
+- New setting **`stackedHarvest`** (default `true`, overridable per region) covers shearing and
+  milking together. Off makes a stack give what a single mob would.
+
+## [1.7.0] - 2026-09-19
 ### Added
 - **Every stacked mob keeps its own equipment** (`keepMemberEquipment`, default `true`, needs
   `stackEquippedMobs`). A stack now stores what each of its members wears and holds — item by item,

@@ -35,7 +35,7 @@ preserved — the mobs are still there, they just travel together.
   `PLAYERS` (only near players). Stacking ships **off** until you opt in.
 - 🧩 **Settings per region** — almost every setting can differ inside a region, so a cow farm and a
   grinder in the same world behave differently. Regions are created, redrawn and deleted from the
-  GUI or the commands.
+  GUI or the commands, and can be **drawn in the world** in a colour of their own.
 - 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
 - ⚔️ **Sweeping Edge support** — vanilla sweep damage applied to a stack, optionally mob by mob.
 - 🛡️ **Per-mob equipment** — every stacked mob keeps its own armour and weapons, and drops them when
@@ -115,6 +115,7 @@ given its own value inside a region.
 | Setting | Description | Default |
 |---|---|---|
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs | `true` |
+| `stackedHarvest` | Shearing and milking a stack give one mob's worth per member | `true` |
 | `breedOnePerClick` | Feed one member per click instead of as many as the food allows | `false` |
 | `enableAnimalBabyStacking` | Let loose farm-animal babies stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Let loose hostile babies (baby zombies …) stack | `true` |
@@ -182,6 +183,7 @@ with several cuboids.
 /mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15   # around where you stand
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
 /mobstacker region type <name> <allow|deny>
+/mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides
@@ -293,6 +295,25 @@ breeding pen keeps stacking everything it produces.
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
 and zombie horses.
 
+## Seeing a region
+
+Give a region a colour and switch its box on, and its bounds are drawn in the world — no more walking
+to a corner to read coordinates off F3.
+
+| | |
+|---|---|
+| Colour a region | `/mobstacker region color <name> <colour\|auto>`, or the button beside its priority in the region screen |
+| Show or hide one | the **Box** button in the region screen |
+| Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
+| How it looks | the **Style** button — `wireframe`, `filled` or `both` |
+
+`auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
+a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
+is each player's own business, kept client-side and never sent anywhere.
+
+Boxes need the mod on the client — without it there is simply nothing to see. They are hidden by
+terrain, like everything else in the world.
+
 ## Names & name tags
 
 A stack is labelled `Cow x16`, drawn in `stackNameColor`. Turn on `stackNameColorBySize` and the
@@ -318,6 +339,9 @@ are rendering, so they need the mod on the client.
   usual ~5-minute cooldown while the rest can still be bred.
 - **Babies arrive as one baby-stack** (a young `Cow x8`), grow up as a unit and then merge into the
   adult stack. Feeding a baby-stack speeds its growth, scaled to its size.
+- **Shearing and milking scale with the stack** (`stackedHarvest`) — a stack of 16 sheep gives 16
+  sheep's worth of wool for 16 points of shear durability, and 16 cows fill as many buckets as you
+  brought. Turn it off and a stack gives what a single mob would.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby
   zombies simply together (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
 - `breedOnePerClick` feeds one member per click instead of as many as the food in hand allows.
