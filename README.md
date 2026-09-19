@@ -41,7 +41,9 @@ preserved — the mobs are still there, they just travel together.
 - 🛡️ **Per-mob equipment** — every stacked mob keeps its own armour and weapons, and drops them when
   it is the one that dies, Looting and drop chances included.
 - 🏷️ **Name tags on stacks** — rename a stack and it stays a stack; rename a single mob and it stays
-  out of stacks, the way players expect.
+  out of stacks, the way players expect. Vanilla's easter-egg names still work.
+- 🐴 **Pets and mounts are left alone** — nothing you have tamed, saddled, loaded or leashed is ever
+  stacked, and touching a wild herd hands you one animal out of it.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop and a floating `-N` hologram.
 - 🐣 **Stack breeding & baby stacks** — breed a stacked animal into a single baby-stack; loose babies
   stack too.
@@ -276,6 +278,21 @@ stored exactly as the game stores them, **other mods' items and any enchantment 
 knowing anything about them**. The remainder of a killed stack, and a mob pulled out with the
 separator item, take the next member's gear with them.
 
+## Pets & mounts
+
+**Anything a player has put something into stays out of stacks**, with no setting to change that:
+tamed or owned mobs, saddled ones, horse armour, a donkey's or llama's chest, a leashed mob, and
+anything riding or being ridden. A horse's saddle and chest live in an inventory of its own rather
+than in its equipment slots, so a merge used to wipe them along with the taming — hence the hard rule.
+
+Wild herds still stack, which is where the performance is anyway, and foals are born untamed, so a
+breeding pen keeps stacking everything it produces.
+
+**Right-clicking a stacked mount hands you one animal out of the stack**, and everything you then do
+— taming, a saddle, armour, feeding, climbing on — applies to that one. It walks back into the herd
+afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
+and zombie horses.
+
 ## Names & name tags
 
 A stack is labelled `Cow x16`, drawn in `stackNameColor`. Turn on `stackNameColorBySize` and the
@@ -289,6 +306,10 @@ of stacks, which is how players protect a pet; `stackNamedMobs` opts those in to
 same name only. The count is only ever appended to the name you typed, so a cow named `Cow x5` keeps
 that name, and a stack keeps its name through kills and through conversions (zombie → drowned).
 A mob named some other way (`/data`, a dispenser) is treated as protected.
+
+Vanilla's name easter eggs survive the label: `Dinnerbone` and `Grumm` turn a stack upside down,
+`jeb_` makes a stack of sheep cycle the dye colours, `Toast` gives rabbits the memorial skin. Those
+are rendering, so they need the mod on the client.
 
 ## Breeding & baby stacks
 
@@ -321,6 +342,9 @@ every kill path.
 - 👑 Boss entities keep their custom names and health bars.
 - 🔌 An API is available for custom merging conditions, death handlers and entity data modifiers.
 - 🐑🐷🧟 Works with animals, monsters and NPCs alike.
+- 🎨 Mobs only stack with mobs that look and behave the same: wool colour and shearing for sheep,
+  markings for horses, genes for pandas, a charged creeper, a screaming goat, and so on. Jobless
+  villagers stack; employed ones do not.
 
 ## Credits & License
 

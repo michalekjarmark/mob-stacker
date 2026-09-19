@@ -34,8 +34,32 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the text afterwards, so a name tag on a *single* mob still keeps it out of stacks (that is how
   players protect a pet), and `stackNamedMobs` opts into stacking those too, with mobs of the same
   name only. A stack keeps its name through kills and through conversions (zombie → drowned).
+- **Touching a stacked mount hands you one animal out of it.** A horse is tamed, saddled, given armor
+  and ridden one at a time, so right-clicking a herd now steps a single horse out of the stack and
+  applies everything you do to that horse — including climbing onto it. It rejoins the herd afterwards
+  unless what you did was to keep it. Covers horses, donkeys, mules, llamas, camels and skeleton and
+  zombie horses.
 
 ### Fixed
+- **A tamed, saddled or loaded mob is never stacked again.** A horse's saddle, armor and chest sit in
+  an inventory of the horse's own rather than in its equipment slots, so `stackEquippedMobs` never
+  protected them, and taming, ownership and temper were copied straight off the mob being merged
+  away onto the survivor. **A wild horse wandering into your tamed, saddled, armored horse wiped all
+  of it.** Stacking now leaves alone anything a player has put something into: tamed or owned mobs,
+  saddled ones, horse armor, a donkey's or llama's chest, a leashed mob, and anything currently
+  riding or being ridden. Wild herds — and the foals a breeding pen produces, which are born
+  untamed — still stack exactly as before.
+- **Mobs of different kinds no longer merge and then change appearance.** Which mobs count as the
+  same was checked in one place and carried onto a respawned stack in another, and the two had come
+  apart; horses were in neither, so a herd merged regardless of colour and came back in a colour
+  rolled at random. Both halves now live in one table, and it covers the types that were missing:
+  **horses, llamas** (colour and strength), **rabbits, parrots, pandas** (both genes), **goats**
+  (screaming, horns), **tropical fish, charged creepers, shulkers, snow golems** and the block an
+  **enderman** is carrying. Cats keep their collar colour and mooshrooms their stewed effect.
+- **Vanilla's name easter eggs work on stacks.** `Dinnerbone` and `Grumm` hang a stack upside down,
+  `jeb_` makes a stack of sheep cycle the dye colours, and `Toast` gives a stack of rabbits the
+  memorial skin. All four compare the mob's whole name to a literal, which `Dinnerbone x16` never
+  matched. Rendering only, and it needs the mod on the client.
 - **A merge no longer overwrites the surviving stack's name or gear** with the name and gear of the
   mob being merged away. Merging a plain cow into a stack named `Bella x16` used to turn it into
   `Cow x17`.
@@ -51,6 +75,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 ### Changed
 - `/mobstacker region add` now points at `region bounds` when the name is taken, instead of only
   saying the region exists.
+- Different colours of sheep, and sheared and unsheared ones, still refuse to stack together. That
+  was already true and stays true on purpose — a stack shows one body, and it is what a per-stack
+  shearing rule will need.
 
 ## [1.6.0] - 2026-09-17
 ### Added
