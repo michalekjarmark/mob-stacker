@@ -40,6 +40,10 @@ public final class MobStackerSettings {
         register(ConfigOption.ofInt("maxStackSize", Category.STACKING,
                 "The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this.",
                 1, 100000, () -> MobStacker.config.getMaxMobStackSize(), v -> MobStacker.config.setMaxMobStackSize(v), 16));
+        register(ConfigOption.ofBool("stackOnSpawn", Category.STACKING,
+                "Merge a mob into a nearby stack on its first tick, instead of waiting for it to move "
+                        + "or for the next scan. Covers spawners, breeding and spawn eggs.",
+                () -> MobStacker.config.getStackOnSpawn(), v -> MobStacker.config.setStackOnSpawn(v), true));
         register(ConfigOption.ofEnum("mobListMode", Category.STACKING,
                 "Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or "
                         + "WHITELIST (nothing stacks except the allowed lists).",

@@ -18,10 +18,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class MobMixin {
 
     /**
-     * Gives every mob a periodic chance to join a nearby stack. Merging is otherwise only attempted
-     * when a mob crosses a block boundary, so mobs that never move - several spawn eggs used on one
-     * block, mobs with no AI, a penned-in group - would stand side by side and never stack. The
-     * timer, the staggering and the cheap early-outs live in MobStacker#tickStackScan.
+     * Gives every mob a chance to join a nearby stack: once on its first tick, and periodically
+     * after that. Merging is otherwise only attempted when a mob crosses a block boundary, so mobs
+     * that never move - several spawn eggs used on one block, mobs with no AI, a penned-in group -
+     * would stand side by side and never stack, and a spawner batch would wait out a whole scan
+     * interval first. The first tick is also the earliest point at which a mob can safely be merged,
+     * since finalizeSpawn has run and its variant and age are settled by then.
+     * <p>
+     * The timer, the staggering and the cheap early-outs live in MobStacker#tickStackScan.
      */
     @Inject(method = "tick", at = @At("TAIL"))
     private void mobstacker$periodicStackScan(CallbackInfo ci) {

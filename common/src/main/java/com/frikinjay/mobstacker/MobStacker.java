@@ -82,6 +82,10 @@ public final class MobStacker {
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
+    // Set on a mob the mod itself has just taken out of a stack, so the stack-on-spawn pass leaves
+    // it alone. Without it a mob would be handed to the player and walk straight back in on the same
+    // tick, which is exactly what separating was asked to undo.
+    private static final String JUST_SEPARATED_KEY = "JustSeparated";
     private static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
     private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
@@ -595,6 +599,7 @@ public final class MobStacker {
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
+            markJustSeparated(newEntity);
             entity.level().addFreshEntity(newEntity);
             return newEntity;
 
@@ -659,8 +664,28 @@ public final class MobStacker {
      * merge.
      */
     public static void tickStackScan(Mob mob) {
+        if (mob.level().isClientSide()) {
+            return;
+        }
+        // A mob's very first tick is the earliest moment it can safely be merged: by now finalizeSpawn
+        // has run and its variant, age and equipment are settled, which is not true while the entity
+        // is still being added to the level. Doing it here rather than on addFreshEntity is what lets
+        // a spawner batch, a bred baby and a spawn egg all be covered by one check.
+        //
+        // tickCount is not saved with the entity, so a mob coming back with its chunk takes this path
+        // too and its stack re-forms at once instead of over the next scan interval. That is the same
+        // work the scan would have done anyway, just sooner; the flag read stays inside this branch
+        // because everything here runs for every mob in the world.
+        if (mob.tickCount <= 1) {
+            boolean justSeparated = takeJustSeparated(mob);
+            if (!justSeparated && getStackOnSpawn(mob) && getCanStack(mob) && canStack(mob)
+                    && tryMergeIntoNearbyStack(mob)) {
+                return; // merged away: this mob no longer exists to be scanned
+            }
+        }
+
         int interval = getStackScanInterval(mob);
-        if (interval <= 0 || mob.level().isClientSide()) {
+        if (interval <= 0) {
             return;
         }
         if ((mob.tickCount + mob.getId()) % interval != 0) {
@@ -1137,6 +1162,32 @@ public final class MobStacker {
                     .withStyle(name.getStyle());
         }
         return name;
+    }
+
+    /** Remembers that the mod put this mob here, so stackOnSpawn does not undo it immediately. */
+    private static void markJustSeparated(Mob mob) {
+        if (mob instanceof ICustomDataHolder holder) {
+            holder.mobstacker$getCustomData().putBoolean(JUST_SEPARATED_KEY, true);
+        }
+    }
+
+    /**
+     * Whether this mob was just separated out of a stack by the mod.
+     *
+     * <p>Read once, on the mob's first tick, and cleared there — after that it is an ordinary mob
+     * and the periodic scan may merge it like any other, which is the behaviour separating always
+     * had. All this prevents is the round trip happening within the same tick.
+     */
+    private static boolean takeJustSeparated(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return false;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        if (!data.getBoolean(JUST_SEPARATED_KEY)) {
+            return false;
+        }
+        data.remove(JUST_SEPARATED_KEY);
+        return true;
     }
 
     public static boolean isPlayerNamed(Mob mob) {
@@ -1669,6 +1720,11 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static int getStackScanInterval(Entity at) {return setting("stackScanInterval", at, config.getStackScanInterval());}
+
+    public static boolean getStackOnSpawn() {return config.getStackOnSpawn();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackOnSpawn(Entity at) {return setting("stackOnSpawn", at, config.getStackOnSpawn());}
 
     /**
      * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up
