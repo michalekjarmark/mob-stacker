@@ -295,6 +295,10 @@ breeding pen keeps stacking everything it produces.
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
 and zombie horses.
 
+**Taming works the same way**: offer a bone to a stack of wolves, cod to cats or seeds to parrots and
+one animal steps out to be tamed rather than the whole pack at once. Only while you are holding the
+right item — right-clicking a pack with an empty hand does nothing, exactly as in vanilla.
+
 ## Seeing a region
 
 Give a region a colour and switch its box on, and its bounds are drawn in the world — no more walking
@@ -336,7 +340,8 @@ are rendering, so they need the mod on the client.
 
 - **Feed a stacked adult** and it breeds its members in pairs, at a fair **one food item per member**
   (16 cows fed 16 wheat give 8 babies). Partial feeds are remembered, and bred members go on the
-  usual ~5-minute cooldown while the rest can still be bred.
+  usual ~5-minute cooldown while the rest can still be bred. Animals vanilla would not let breed —
+  an untamed wolf, for one — are not bred here either.
 - **Babies arrive as one baby-stack** (a young `Cow x8`), grow up as a unit and then merge into the
   adult stack. Feeding a baby-stack speeds its growth, scaled to its size.
 - **Shearing and milking scale with the stack** (`stackedHarvest`) — a stack of 16 sheep gives 16

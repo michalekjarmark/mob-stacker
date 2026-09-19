@@ -22,8 +22,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **Milking a stack fills as many buckets as you brought**, up to one per mob (`stackedHarvest`,
   default on). Cows, mooshrooms and goats. Vanilla still milks the top mob out of the bucket in your
   hand, so the sound and creative mode behave exactly as before.
+- **Taming a pack takes one animal out of it.** Offer a bone to a stack of wolves, cod to cats or
+  seeds to parrots and exactly one animal steps out to be tamed, instead of all sixteen at once —
+  the same thing 1.7.0 did for horses. Only when you are actually holding the right item, so walking
+  past a pack and right-clicking it with an empty hand still does nothing at all.
 
 ### Fixed
+- **A pack of wild wolves could be bred.** Vanilla lets an untamed wolf fall in love and then refuses
+  to let it mate; the stack breeding code counted fed members and spawned babies without ever asking,
+  so feeding meat to a stack of wild wolves produced puppies vanilla would never have given.
 - **Shearing gave one mob too much.** A stack was sheared its full size *on top of* the shearing
   vanilla had already done — and an unstacked mob counts as a stack of one — so **every lone sheep
   dropped double wool** and cost two points of shear durability, a stack of 16 gave 17 sheep's worth,
