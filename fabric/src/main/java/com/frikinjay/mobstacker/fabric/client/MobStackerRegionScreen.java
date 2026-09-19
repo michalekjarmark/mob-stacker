@@ -4,6 +4,7 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
@@ -21,6 +22,7 @@ import net.minecraft.server.MinecraftServer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -40,13 +42,13 @@ public final class MobStackerRegionScreen extends Screen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
     private static final int ROW_HEIGHT = 24;
-    private static final int LIST_TOP = 94;
+    private static final int LIST_TOP = 118;
     private static final int LIST_BOTTOM_MARGIN = 52;
 
     private final Screen parent;
     private final List<Category> categories = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
-    private List<RegionView> regions = new ArrayList<>();
+    private List<MobStackerClientRegions.View> regions = new ArrayList<>();
 
     private int regionIndex;
     private int categoryIndex;
@@ -60,22 +62,10 @@ public final class MobStackerRegionScreen extends Screen {
     private String pendingSelection;
     /** Set while a widget is being repainted, so its own responder does not send that back as an edit. */
     private boolean repainting;
-
-    /** A region as the screen needs it, from the local config or from the server's snapshot. */
-    private record RegionView(String name, String type, String dimension,
-                              int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int priority) {
-        String bounds() {
-            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
-        }
-
-        StackRegion.Type parsedType() {
-            return "DENY".equalsIgnoreCase(type) ? StackRegion.Type.DENY : StackRegion.Type.ALLOW;
-        }
-
-        int[] corners() {
-            return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
-        }
-    }
+    private Button colorButton;
+    private Button overlayBox;
+    private Button overlayAll;
+    private Button overlayStyle;
 
     /**
      * One editable setting on screen. The override state is mutable because dropping an override
@@ -125,7 +115,7 @@ public final class MobStackerRegionScreen extends Screen {
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
         this.editable = singleplayer || (remote && MobStackerClientNetworking.authorized());
-        this.regions = loadRegions(singleplayer);
+        this.regions = MobStackerClientRegions.all();
         applyPendingSelection();
         this.showRows = !regions.isEmpty() && !categories.isEmpty()
                 && (singleplayer || (remote && MobStackerClientNetworking.hasSnapshot()));
@@ -143,6 +133,7 @@ public final class MobStackerRegionScreen extends Screen {
                     .bounds(this.width / 2 + 150, 44, 20, 20).build());
 
             addPriorityBox();
+            addOverlayRow();
 
             List<ConfigOption> options = overridableIn(categories.get(categoryIndex));
             this.visibleRows = Math.max(1, (this.height - LIST_BOTTOM_MARGIN - LIST_TOP) / ROW_HEIGHT);
@@ -174,13 +165,13 @@ public final class MobStackerRegionScreen extends Screen {
     /**
      * Opens the area editor: on the region shown here, or on a blank one drawn around the player.
      */
-    private void openEditor(RegionView view) {
+    private void openEditor(MobStackerClientRegions.View view) {
         if (this.minecraft == null) {
             return;
         }
         this.minecraft.setScreen(view == null
                 ? MobStackerRegionEditScreen.forNewRegion(this, remote, editable)
-                : MobStackerRegionEditScreen.forRegion(this, view.name(), view.parsedType(),
+                : MobStackerRegionEditScreen.forRegion(this, view.name(), view.type(),
                         view.dimension(), view.corners(), remote, editable));
     }
 
@@ -209,26 +200,7 @@ public final class MobStackerRegionScreen extends Screen {
         }
     }
 
-    private List<RegionView> loadRegions(boolean singleplayer) {
-        List<RegionView> out = new ArrayList<>();
-        if (singleplayer) {
-            for (StackRegion region : MobStacker.config.getRegions()) {
-                out.add(new RegionView(region.getName(), String.valueOf(region.getType()),
-                        region.getDimension() == null ? "?" : region.getDimension(),
-                        region.getMinX(), region.getMinY(), region.getMinZ(),
-                        region.getMaxX(), region.getMaxY(), region.getMaxZ(), region.getPriority()));
-            }
-        } else if (remote) {
-            for (MobStackerClientNetworking.RegionInfo info : MobStackerClientNetworking.regions()) {
-                out.add(new RegionView(info.name(), info.type(), info.dimension(),
-                        info.minX(), info.minY(), info.minZ(),
-                        info.maxX(), info.maxY(), info.maxZ(), info.priority()));
-            }
-        }
-        return out;
-    }
-
-    private RegionView currentRegion() {
+    private MobStackerClientRegions.View currentRegion() {
         return regions.get(regionIndex);
     }
 
@@ -253,6 +225,106 @@ public final class MobStackerRegionScreen extends Screen {
             }
         });
         addRenderableWidget(box);
+        addColorButton();
+    }
+
+    /**
+     * The colour this region's box is drawn in, cycling through "auto" and the sixteen chat
+     * colours. It sits with priority rather than with the overlay row below because it belongs to
+     * the region and everyone sees it, while whether the box is drawn at all is one player's own
+     * business. "auto" means nothing was chosen and the box takes its colour from the region's kind.
+     */
+    private void addColorButton() {
+        Button button = Button.builder(colorLabel(), b -> {
+            StackColor next = nextColor(currentRegion().colorChosen() ? currentRegion().color() : null);
+            applyEdit(MobStackerNetworking.REGION_COLOR, next == null ? "" : next.name());
+        }).bounds(this.width / 2 + 94, 68, 76, 20).build();
+        button.active = editable;
+        this.colorButton = button;
+        addRenderableWidget(button);
+    }
+
+    /** auto -> BLACK -> ... -> WHITE -> auto. */
+    private static StackColor nextColor(StackColor current) {
+        StackColor[] all = StackColor.values();
+        if (current == null) {
+            return all[0];
+        }
+        int next = current.ordinal() + 1;
+        return next >= all.length ? null : all[next];
+    }
+
+    private Component colorLabel() {
+        MobStackerClientRegions.View region = currentRegion();
+        String text = region.colorChosen() ? region.color().name().toLowerCase(Locale.ROOT) : "auto";
+        return Component.literal(text).withStyle(region.color().format());
+    }
+
+    /**
+     * The in-world overlay controls: whether this region's box is drawn, whether every region's is,
+     * and how they are drawn. All three are this player's own view of the world — none of it is
+     * config, none of it is sent anywhere — which is why they sit apart from the setting rows and
+     * stay available even to a player who may not edit anything.
+     */
+    private void addOverlayRow() {
+        int y = 92;
+        int left = this.width / 2 - 170;
+
+        Button box = Button.builder(overlayBoxLabel(), b -> {
+            MobStackerRegionOverlay.toggle(currentRegion().name());
+            rebuildOverlayRow();
+        }).bounds(left, y, 140, 20).build();
+        this.overlayBox = box;
+        addRenderableWidget(box);
+
+        Button all = Button.builder(overlayAllLabel(), b -> {
+            MobStackerRegionOverlay.toggleAll();
+            rebuildOverlayRow();
+        }).bounds(left + 144, y, 90, 20).build();
+        this.overlayAll = all;
+        addRenderableWidget(all);
+
+        Button style = Button.builder(overlayStyleLabel(), b -> {
+            MobStackerRegionOverlay.cycleStyle();
+            rebuildOverlayRow();
+        }).bounds(left + 238, y, 102, 20).build();
+        this.overlayStyle = style;
+        addRenderableWidget(style);
+    }
+
+    private void rebuildOverlayRow() {
+        if (regions.isEmpty()) {
+            return;
+        }
+        if (colorButton != null) {
+            colorButton.setMessage(colorLabel());
+        }
+        if (overlayBox != null) {
+            overlayBox.setMessage(overlayBoxLabel());
+        }
+        if (overlayAll != null) {
+            overlayAll.setMessage(overlayAllLabel());
+        }
+        if (overlayStyle != null) {
+            overlayStyle.setMessage(overlayStyleLabel());
+        }
+    }
+
+    private Component overlayBoxLabel() {
+        boolean shown = MobStackerRegionOverlay.isShown(currentRegion().name());
+        return Component.literal("Box: " + (shown ? "shown" : "hidden"))
+                .withStyle(shown ? currentRegion().color().format() : ChatFormatting.GRAY);
+    }
+
+    private Component overlayAllLabel() {
+        boolean all = MobStackerRegionOverlay.isShowingAll();
+        return Component.literal("All: " + (all ? "on" : "off"))
+                .withStyle(all ? ChatFormatting.GREEN : ChatFormatting.GRAY);
+    }
+
+    private Component overlayStyleLabel() {
+        String name = MobStackerRegionOverlay.style().name().toLowerCase(Locale.ROOT);
+        return Component.literal("Style: " + name).withStyle(ChatFormatting.AQUA);
     }
 
     private void addOptionRow(ConfigOption option, int y) {
@@ -341,6 +413,10 @@ public final class MobStackerRegionScreen extends Screen {
      * instead of waiting for the screen to be rebuilt.
      */
     private void refreshRows() {
+        // The colour lives on the region, so the server's answer can change it under us; the overlay
+        // switches are local but share the row, and repainting all of them together is cheapest.
+        this.regions = MobStackerClientRegions.all();
+        rebuildOverlayRow();
         for (Row row : rows) {
             // A setting whose dependency was just switched on (or off) in here becomes editable
             // (or stops being) without leaving the screen.
@@ -474,13 +550,22 @@ public final class MobStackerRegionScreen extends Screen {
      * Sends one change for the selected region: a setting id with a value, an empty value to drop
      * the override, or {@link MobStackerNetworking#REGION_PRIORITY} for the region's priority.
      */
+    /**
+     * Priority and colour are properties of the region itself, not settings it overrides, so they
+     * skip the "same as the global value means no override" folding and the optimistic local
+     * bookkeeping that the setting rows need.
+     */
+    private static boolean isRegionProperty(String id) {
+        return MobStackerNetworking.REGION_PRIORITY.equals(id) || MobStackerNetworking.REGION_COLOR.equals(id);
+    }
+
     private void applyEdit(String id, String raw) {
         if (!editable || repainting || regions.isEmpty()) {
             return;
         }
         String name = currentRegion().name();
         String value = raw;
-        if (!MobStackerNetworking.REGION_PRIORITY.equals(id) && !value.isEmpty()) {
+        if (!isRegionProperty(id) && !value.isEmpty()) {
             ConfigOption option = MobStackerSettings.byId(id);
             if (option != null && value.trim().equalsIgnoreCase(globalValue(option))) {
                 // Picking exactly what the global config already says is not an override: the row
@@ -491,7 +576,7 @@ public final class MobStackerRegionScreen extends Screen {
 
         final String edit = value;
         if (remote) {
-            if (!MobStackerNetworking.REGION_PRIORITY.equals(id)) {
+            if (!isRegionProperty(id)) {
                 MobStackerClientNetworking.rememberRegionLocal(name, id, edit);
             }
             MobStackerClientNetworking.sendEdit(MobStackerNetworking.REGION_PREFIX + name + ":" + id, edit);
@@ -523,6 +608,11 @@ public final class MobStackerRegionScreen extends Screen {
             } catch (NumberFormatException ignored) {
                 // The box already marks an unparseable priority red.
             }
+            return;
+        }
+        if (MobStackerNetworking.REGION_COLOR.equals(id)) {
+            region.setColor(raw.isEmpty() ? null : StackColor.valueOf(raw));
+            MobStacker.config.save();
             return;
         }
         if (raw.isEmpty()) {
@@ -632,8 +722,8 @@ public final class MobStackerRegionScreen extends Screen {
             return;
         }
 
-        RegionView region = currentRegion();
-        ChatFormatting typeColor = "DENY".equalsIgnoreCase(region.type()) ? ChatFormatting.RED : ChatFormatting.GREEN;
+        MobStackerClientRegions.View region = currentRegion();
+        ChatFormatting typeColor = region.type() == StackRegion.Type.DENY ? ChatFormatting.RED : ChatFormatting.GREEN;
         guiGraphics.drawCenteredString(this.font,
                 Component.literal(region.name() + "  [" + region.type() + "]").withStyle(typeColor),
                 this.width / 2, 26, 0xFFFFFF);
@@ -724,7 +814,7 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     private void renderFooter(GuiGraphics guiGraphics) {
-        RegionView region = currentRegion();
+        MobStackerClientRegions.View region = currentRegion();
         // Readable grey, not the dark grey that looks like a disabled line lying behind the screen.
         Component footer = Component.literal(region.dimension() + "  " + region.bounds())
                 .withStyle(ChatFormatting.GRAY)

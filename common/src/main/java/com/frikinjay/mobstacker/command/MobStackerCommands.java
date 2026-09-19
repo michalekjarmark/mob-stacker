@@ -7,6 +7,7 @@ import com.frikinjay.mobstacker.config.ConfigSelfTest;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.RegionEdit;
+import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -33,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 import static com.frikinjay.mobstacker.MobStacker.MOD_ID;
@@ -154,7 +156,13 @@ public class MobStackerCommands {
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("priority", IntegerArgumentType.integer())
-                                                .executes(MobStackerCommands::setRegionPriority)))));
+                                                .executes(MobStackerCommands::setRegionPriority))))
+                        .then(literal("color")
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .then(argument("color", StringArgumentType.word())
+                                                .suggests(MobStackerCommands::suggestRegionColors)
+                                                .executes(MobStackerCommands::setRegionColor)))));
 
         // The self-test command is an opt-in developer/testing tool: it is only registered when the
         // JVM is started with -Dmobstacker.selftest=true, so the public release never exposes it.
@@ -334,7 +342,7 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker ignore <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|remove|list|show|set|unset|priority>").withStyle(ChatFormatting.YELLOW), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
@@ -874,6 +882,51 @@ public class MobStackerCommands {
         return 1;
     }
 
+    /**
+     * The sixteen colours plus "auto", which clears the choice and lets the region fall back to what
+     * its kind means (green for allow, red for deny).
+     */
+    /** What {@code /mobstacker region color <name> auto} is spelled as. */
+    private static final String AUTO_COLOR = "auto";
+
+    private static CompletableFuture<Suggestions> suggestRegionColors(CommandContext<CommandSourceStack> context,
+                                                                      SuggestionsBuilder builder) {
+        builder.suggest(AUTO_COLOR);
+        for (StackColor color : StackColor.values()) {
+            builder.suggest(color.name().toLowerCase(Locale.ROOT));
+        }
+        return builder.buildFuture();
+    }
+
+    private static int setRegionColor(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        String raw = StringArgumentType.getString(context, "color").trim();
+        StackColor chosen;
+        if (AUTO_COLOR.equalsIgnoreCase(raw)) {
+            chosen = null;
+        } else {
+            try {
+                chosen = StackColor.valueOf(raw.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                context.getSource().sendFailure(Component.literal(
+                        "Unknown colour '" + raw + "'. Use " + AUTO_COLOR + " or one of the sixteen chat colours."));
+                return 0;
+            }
+        }
+        region.setColor(chosen);
+        MobStacker.config.save();
+        StackColor shown = region.effectiveColor();
+        String label = chosen == null
+                ? AUTO_COLOR + " (" + shown.name().toLowerCase(Locale.ROOT) + ", from its type)"
+                : shown.name().toLowerCase(Locale.ROOT);
+        context.getSource().sendSuccess(() -> Component.literal(
+                region.getName() + ": overlay colour " + label).withStyle(shown.format()), true);
+        return 1;
+    }
+
     private static int showRegion(CommandContext<CommandSourceStack> context) {
         StackRegion region = requireRegion(context);
         if (region == null) {
@@ -887,6 +940,10 @@ public class MobStackerCommands {
                 " at: " + region.getDimension() + " " + region.describeBounds()).withStyle(ChatFormatting.GRAY), false);
         source.sendSuccess(() -> Component.literal(
                 " priority: " + region.getPriority() + " (higher wins where regions overlap)").withStyle(ChatFormatting.GRAY), false);
+        StackColor color = region.effectiveColor();
+        String colorNote = region.getColor() == null ? " (from its type)" : "";
+        source.sendSuccess(() -> Component.literal(
+                " overlay colour: " + color.name().toLowerCase(Locale.ROOT) + colorNote).withStyle(color.format()), false);
 
         Map<String, String> overrides = region.getSettings();
         if (overrides.isEmpty()) {

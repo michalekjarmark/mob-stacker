@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -19,6 +20,7 @@ import org.lwjgl.glfw.GLFW;
  */
 public final class MobStackerClient implements ClientModInitializer {
     private static KeyMapping openConfigKey;
+    private static KeyMapping toggleOverlayKey;
     // Set by the client command; the screen is opened on the next tick so the chat screen (which
     // closes right after a command runs) doesn't immediately override it.
     private static boolean openRequested;
@@ -27,6 +29,9 @@ public final class MobStackerClient implements ClientModInitializer {
     public void onInitializeClient() {
         // Client side of the config-sync protocol (S2C snapshot receiver + disconnect cleanup).
         MobStackerClientNetworking.register();
+        // In-world region boxes. Purely a client-side view of the world, so nothing here is sent
+        // anywhere and a server never knows or cares whether a player has them switched on.
+        MobStackerRegionOverlay.register();
 
         openConfigKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.mobstacker.open_config",
@@ -34,9 +39,22 @@ public final class MobStackerClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_UNKNOWN, // unbound by default; the player assigns it in Controls
                 "key.categories.mobstacker"));
 
+        toggleOverlayKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+                "key.mobstacker.toggle_region_overlay",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_UNKNOWN, // unbound by default, like the config key
+                "key.categories.mobstacker"));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConfigKey.consumeClick()) {
                 client.setScreen(new MobStackerConfigScreen(client.screen));
+            }
+            while (toggleOverlayKey.consumeClick()) {
+                boolean on = MobStackerRegionOverlay.toggleAll();
+                if (client.player != null) {
+                    client.player.displayClientMessage(Component.translatable(
+                            on ? "message.mobstacker.overlay_on" : "message.mobstacker.overlay_off"), true);
+                }
             }
             if (openRequested) {
                 openRequested = false;
