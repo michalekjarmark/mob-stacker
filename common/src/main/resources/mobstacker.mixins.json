@@ -25,6 +25,7 @@
     "NameTagItemMixin",
     "PlayerMixin",
     "ServerEntityMixin",
+    "mobs.MilkableMixin",
     "mobs.PigMixin",
     "mobs.VillagerMixin",
     "mobs.ZombieMixin"

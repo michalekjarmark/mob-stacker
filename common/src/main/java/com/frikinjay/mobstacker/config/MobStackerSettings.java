@@ -141,6 +141,9 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("breedOnePerClick", Category.BREEDING,
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
+        register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
+                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would.",
+                () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
         register(ConfigOption.ofBool("enableAnimalBabyStacking", Category.BREEDING,
                 "Let baby farm animals stack together.",
                 () -> MobStacker.config.getEnableAnimalBabyStacking(), v -> MobStacker.config.setEnableAnimalBabyStacking(v), true));

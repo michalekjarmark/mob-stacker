@@ -24,9 +24,10 @@ public class MushroomCowMixin {
     private void mobstacker$onShearAllMoo(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         MushroomCow self = (MushroomCow) (Object) this;
         ItemStack itemStack = player.getItemInHand(interactionHand);
-        int stackSize = MobStacker.getStackSize(self);
+        // As in SheepMixin: vanilla's own shear already dropped five mushrooms for the top mob.
+        int extra = MobStacker.extraHarvests(self);
         if(!self.level().isClientSide) {
-            for (int i = 0; i < stackSize; i++) {
+            for (int i = 0; i < extra; i++) {
                 for (int j = 0; j < 5; ++j) {
                     self.level().addFreshEntity(new ItemEntity(self.level(), self.getX(), self.getY(1.0), self.getZ(), new ItemStack(self.getVariant().getBlockState().getBlock())));
                 }

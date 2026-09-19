@@ -39,6 +39,7 @@ public class MobStackerConfig {
     private int stackSizeMediumThreshold = 16;
     private int stackSizeLargeThreshold = 64;
     private boolean enableStackBreeding = true;
+    private boolean stackedHarvest = true;
     private boolean breedOnePerClick = false;
     private boolean enableAnimalBabyStacking = true;
     private boolean enableHostileBabyStacking = true;
@@ -143,6 +144,7 @@ public class MobStackerConfig {
     public int getStackSizeMediumThreshold() { return stackSizeMediumThreshold; }
     public int getStackSizeLargeThreshold() { return stackSizeLargeThreshold; }
     public boolean getEnableStackBreeding() { return enableStackBreeding; }
+    public boolean getStackedHarvest() { return stackedHarvest; }
     public boolean getBreedOnePerClick() { return breedOnePerClick; }
     public boolean getEnableAnimalBabyStacking() { return enableAnimalBabyStacking; }
     public boolean getEnableHostileBabyStacking() { return enableHostileBabyStacking; }
@@ -271,6 +273,10 @@ public class MobStackerConfig {
     public void setStackSizeLargeThreshold(int stackSizeLargeThreshold) {
         this.stackSizeLargeThreshold = Math.max(2, stackSizeLargeThreshold);
         save();
+    }
+
+    public void setStackedHarvest(boolean stackedHarvest) {
+        this.stackedHarvest = stackedHarvest;
     }
 
     public void setEnableStackBreeding(boolean enableStackBreeding) {

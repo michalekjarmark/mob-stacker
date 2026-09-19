@@ -32,7 +32,9 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import org.slf4j.Logger;
 
@@ -402,6 +404,90 @@ public final class MobStacker {
 
     public static void separateEntity(Mob entity) {
         separateOne(entity, true);
+    }
+
+    /**
+     * How many extra times a harvest (shearing, milking) has to be repeated for a stack.
+     *
+     * <p>Vanilla has already given the player one mob's worth by the time the mod gets involved, so
+     * this is the stack size <em>minus one</em>. Getting that wrong is not theoretical: both shear
+     * mixins looped the full stack size on top of vanilla's own, which quietly gave a lone sheep
+     * double wool and a stack of sixteen seventeen mobs' worth.
+     *
+     * @return 0 when nothing extra is owed, so a caller can skip the loop entirely.
+     */
+    public static int extraHarvests(Mob mob) {
+        if (!getStackedHarvest(mob)) {
+            return 0;
+        }
+        return Math.max(0, getStackSize(mob) - 1);
+    }
+
+    /**
+     * Fills a bucket for every member of a stack below the top one, as far as the player's buckets
+     * go. Called before vanilla milks the top mob, which is why one bucket is always left behind:
+     * taking the last one would leave vanilla with nothing to work with and swallow a milking.
+     *
+     * <p>Creative mode consumes nothing, matching what vanilla's own bucket handling does there.
+     */
+    public static void milkExtraMembers(Mob self, Player player) {
+        int extra = extraHarvests(self);
+        if (extra <= 0) {
+            return;
+        }
+        boolean creative = player.getAbilities().instabuild;
+        int take = creative ? extra : Math.min(extra, countItem(player, Items.BUCKET) - 1);
+        if (take <= 0) {
+            return;
+        }
+        if (!creative) {
+            takeItem(player, Items.BUCKET, take);
+        }
+        for (int i = 0; i < take; i++) {
+            ItemStack milk = new ItemStack(Items.MILK_BUCKET);
+            if (!player.getInventory().add(milk)) {
+                player.drop(milk, false);
+            }
+        }
+    }
+
+    private static int countItem(Player player, Item item) {
+        int found = 0;
+        for (ItemStack stack : player.getInventory().items) {
+            if (stack.is(item)) {
+                found += stack.getCount();
+            }
+        }
+        for (ItemStack stack : player.getInventory().offhand) {
+            if (stack.is(item)) {
+                found += stack.getCount();
+            }
+        }
+        return found;
+    }
+
+    private static void takeItem(Player player, Item item, int count) {
+        int left = count;
+        for (ItemStack stack : player.getInventory().items) {
+            if (left <= 0) {
+                return;
+            }
+            if (stack.is(item)) {
+                int taken = Math.min(left, stack.getCount());
+                stack.shrink(taken);
+                left -= taken;
+            }
+        }
+        for (ItemStack stack : player.getInventory().offhand) {
+            if (left <= 0) {
+                return;
+            }
+            if (stack.is(item)) {
+                int taken = Math.min(left, stack.getCount());
+                stack.shrink(taken);
+                left -= taken;
+            }
+        }
     }
 
     /**
@@ -1517,6 +1603,10 @@ public final class MobStacker {
         }
         return setting("stackNameColor", at, config.getStackNameColor()).format();
     }
+
+    public static boolean getStackedHarvest() {return config.getStackedHarvest();}
+
+    public static boolean getStackedHarvest(Entity at) {return setting("stackedHarvest", at, config.getStackedHarvest());}
 
     public static boolean getEnableStackBreeding() {return config.getEnableStackBreeding();}
 
