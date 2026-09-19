@@ -7,6 +7,7 @@ import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
+import com.frikinjay.mobstacker.mixin.ParrotAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -25,6 +26,9 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.animal.Parrot;
+import net.minecraft.world.entity.animal.Cat;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
@@ -488,6 +492,45 @@ public final class MobStacker {
                 left -= taken;
             }
         }
+    }
+
+    /**
+     * Whether this item, offered to this mob, is an attempt to tame it.
+     *
+     * <p>Asked so that a stacked pack can hand over one animal instead of being tamed sixteen at a
+     * time. It has to be this specific: unlike a horse, which answers every right-click with
+     * something, an untamed wolf ignores an empty hand entirely — peeling a wolf off the pack for a
+     * click that would have done nothing would be worse than the bug being fixed.
+     *
+     * <p>Only the three vanilla can tame. A wolf that is already angry cannot be tamed at all, and a
+     * tamed one is no longer in a stack to begin with (see {@link #isPlayerBound}).
+     */
+    public static boolean isTamingInteraction(Mob mob, ItemStack held) {
+        if (held.isEmpty()) {
+            return false;
+        }
+        if (mob instanceof Wolf wolf) {
+            return !wolf.isTame() && !wolf.isAngry() && held.is(Items.BONE);
+        }
+        if (mob instanceof Cat cat) {
+            return !cat.isTame() && cat.isFood(held);
+        }
+        if (mob instanceof Parrot parrot) {
+            return !parrot.isTame() && ParrotAccessor.mobstacker$tameFood().contains(held.getItem());
+        }
+        return false;
+    }
+
+    /**
+     * Whether this mob could actually breed if it were fed.
+     *
+     * <p>Vanilla lets an untamed wolf fall in love and then refuses to let it mate, which is a
+     * contradiction the stack breeding code could not see: it counts fed members and spawns babies
+     * without ever asking {@code canMate}. So a stack of wild wolves fed meat produced puppies that
+     * vanilla would never have given.
+     */
+    public static boolean canEverBreed(Animal animal) {
+        return !(animal instanceof TamableAnimal tamable) || tamable.isTame();
     }
 
     /**

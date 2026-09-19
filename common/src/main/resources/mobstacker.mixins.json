@@ -23,6 +23,7 @@
     "MobEquipmentAccessor",
     "MobMixin",
     "NameTagItemMixin",
+    "ParrotAccessor",
     "PlayerMixin",
     "ServerEntityMixin",
     "mobs.MilkableMixin",

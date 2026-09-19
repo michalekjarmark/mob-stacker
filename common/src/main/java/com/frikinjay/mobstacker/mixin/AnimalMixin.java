@@ -29,6 +29,11 @@ public abstract class AnimalMixin {
         if (MobStacker.getStackSize(self) <= 1) {
             return; // a lone animal breeds the normal vanilla way
         }
+        if (!MobStacker.canEverBreed(self)) {
+            // An untamed wolf may fall in love in vanilla and will still never mate. Counting fed
+            // members without asking gave a pack of wild wolves puppies vanilla would have refused.
+            return;
+        }
         ItemStack food = player.getItemInHand(hand);
         if (food.isEmpty() || !self.isFood(food)) {
             return; // not its breeding food: leave leashing/other interactions to vanilla
