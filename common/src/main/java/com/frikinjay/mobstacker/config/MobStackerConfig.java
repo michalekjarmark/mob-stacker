@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class MobStackerConfig implements MobLists.Holder {
@@ -448,12 +447,22 @@ public class MobStackerConfig implements MobLists.Holder {
         return Collections.unmodifiableMap(maxStackSizes);
     }
 
+    /**
+     * Whether any per-type ceiling is set at all.
+     *
+     * <p>Cheap on purpose: the stacking code asks this before working out a mob's type id, which
+     * costs a registry lookup and a string, on a path that runs for every mob of every scan.
+     */
+    public boolean hasMaxStackSizes() {
+        return maxStackSizes != null && !maxStackSizes.isEmpty();
+    }
+
     /** The ceiling set for this entity id, or null when it just follows {@code maxStackSize}. */
     public Integer getMaxStackSize(String entityId) {
         if (maxStackSizes == null) {
             return null;
         }
-        return maxStackSizes.get(MobLists.normalise(MobListKind.DENY_ENTITIES, entityId));
+        return maxStackSizes.get(MobLists.normaliseEntityId(entityId));
     }
 
     /** Sets a per-type ceiling, or drops it when {@code size} is null. */
@@ -461,7 +470,7 @@ public class MobStackerConfig implements MobLists.Holder {
         if (maxStackSizes == null) {
             maxStackSizes = new LinkedHashMap<>();
         }
-        String key = MobLists.normalise(MobListKind.DENY_ENTITIES, entityId);
+        String key = MobLists.normaliseEntityId(entityId);
         if (size == null) {
             maxStackSizes.remove(key);
         } else {

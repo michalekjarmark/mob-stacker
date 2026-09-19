@@ -130,6 +130,16 @@ public final class MobLists {
         return trimmed;
     }
 
+    /**
+     * The canonical form of an entity id, for the per-type stack ceilings.
+     *
+     * <p>The same rule the entity lists use — {@code cow} means {@code minecraft:cow} — kept as its
+     * own method so a ceiling lookup does not have to name a mob <em>list</em> to normalise a key.
+     */
+    public static String normaliseEntityId(String entityId) {
+        return normalise(MobListKind.DENY_ENTITIES, entityId);
+    }
+
     /** An unmodifiable view of {@code list}, treating null as empty. */
     public static List<String> view(List<String> list) {
         return list == null ? Collections.emptyList() : Collections.unmodifiableList(list);

@@ -19,6 +19,7 @@ build/
 CLAUDE.md
 ROADMAP.md
 TESTING.md
+NOTES-*.md
 
 # Local build helper (machine-specific JDK path)
 build.bat

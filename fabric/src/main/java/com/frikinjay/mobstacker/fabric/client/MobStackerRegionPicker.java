@@ -76,12 +76,15 @@ public final class MobStackerRegionPicker {
             if (!isPicking()) {
                 return;
             }
-            if (client.screen != null) {
-                return; // chat or a menu is open: picking waits rather than being thrown away
-            }
+            // World first, screen second. The other order never let go of the editor after a
+            // disconnect - the title screen counts as a screen being open, so the check that clears
+            // the reference was the one being skipped.
             if (client.player == null || client.level == null) {
                 reset(); // no world to pick in any more
                 return;
+            }
+            if (client.screen != null) {
+                return; // chat or a menu is open: picking waits rather than being thrown away
             }
             if (!client.level.dimension().equals(dimension)) {
                 // A region's corners only mean anything in one dimension, and a portal is not a

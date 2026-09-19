@@ -162,8 +162,21 @@ public final class MobStackerRegionScreen extends Screen {
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
                     .bounds(this.width / 2 + 106, this.height - 28, 100, 20).build());
         } else {
-            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+            // A player who may not edit anything can still look, the way they can at the global
+            // lists - the list screen greys its own buttons out. Leaving the button off here was an
+            // accident of which branch it landed in, not a decision.
+            if (showRows) {
+                addRenderableWidget(Button.builder(Component.literal("Mob lists…"), b -> {
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreen(MobStackerListScreen.forRegion(this, currentRegion().name()));
+                    }
+                }).bounds(this.width / 2 - 102, this.height - 28, 100, 20).build());
+                addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                        .bounds(this.width / 2 + 2, this.height - 28, 100, 20).build());
+            } else {
+                addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                        .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+            }
         }
     }
 

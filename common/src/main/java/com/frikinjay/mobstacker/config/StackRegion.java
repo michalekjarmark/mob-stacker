@@ -299,15 +299,21 @@ public class StackRegion implements MobLists.Holder {
         return maxStackSizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(maxStackSizes);
     }
 
+    /** Whether this region sets any per-type ceiling. Cheap; see the note on the global one. */
+    public boolean hasMaxStackSizes() {
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes != null && !sizes.isEmpty();
+    }
+
     /** The ceiling this region gives that entity id, or null when it does not set one. */
     public Integer getMaxStackSize(String entityId) {
         Map<String, Integer> sizes = maxStackSizes;
-        return sizes == null ? null : sizes.get(MobLists.normalise(MobListKind.DENY_ENTITIES, entityId));
+        return sizes == null ? null : sizes.get(MobLists.normaliseEntityId(entityId));
     }
 
     /** Sets a ceiling here, or drops it when {@code size} is null. @return true when something changed */
     public boolean setMaxStackSize(String entityId, Integer size) {
-        String key = MobLists.normalise(MobListKind.DENY_ENTITIES, entityId);
+        String key = MobLists.normaliseEntityId(entityId);
         if (size == null) {
             if (maxStackSizes == null) {
                 return false;

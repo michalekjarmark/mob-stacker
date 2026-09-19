@@ -2,9 +2,7 @@ package com.frikinjay.mobstacker;
 
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobLists;
-import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
-import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -1603,10 +1601,19 @@ public final class MobStacker {
      * 16" is one line each and modded mobs work without the mod knowing they exist.
      */
     public static int getMaxMobStackSize(Entity at) {
-        if (at != null) {
+        if (at == null) {
+            return config.getMaxMobStackSize();
+        }
+        // One region lookup for all four answers. Going through setting() at the end would search the
+        // region list a second time, and this runs for every mob of every scan.
+        StackRegion region = regionAt(at);
+
+        // The mob's type id costs a registry lookup and a fresh string, so it is only worked out when
+        // somebody has actually set a per-type ceiling - which on most servers is never.
+        boolean regionCeilings = region != null && region.hasMaxStackSizes();
+        if (regionCeilings || config.hasMaxStackSizes()) {
             String typeId = BuiltInRegistries.ENTITY_TYPE.getKey(at.getType()).toString();
-            StackRegion region = regionAt(at);
-            if (region != null) {
+            if (regionCeilings) {
                 Integer here = region.getMaxStackSize(typeId);
                 if (here != null) {
                     return here;
@@ -1617,7 +1624,17 @@ public final class MobStacker {
                 return globally;
             }
         }
-        return setting("maxStackSize", at, config.getMaxMobStackSize());
+
+        String override = region == null ? null : region.getSetting("maxStackSize");
+        if (override != null) {
+            try {
+                return Integer.parseInt(override.trim());
+            } catch (NumberFormatException e) {
+                // A region holding something unparseable falls back to the global value, exactly as
+                // MobStacker#setting does for every other whole-number setting.
+            }
+        }
+        return config.getMaxMobStackSize();
     }
 
     /**
