@@ -183,6 +183,11 @@ In the **Mob lists…** screen the entry box completes ids as you type, the way 
 without closing the screen. Entity tabs suggest entity ids, mod tabs suggest the namespaces that
 actually have mobs in them, and ids already on the list are left out.
 
+A `minecraft:` id that names no mob is a typo and is refused. A **modded** id is accepted whether
+the mod is installed or not — a list has to survive its mod being away for a week — but it is shown
+`(not loaded)` and says so when you add it, so an entry that currently means nothing never passes
+for one that is working.
+
 Tab-completion suggests every setting name and then the valid values for the one you picked.
 
 > 🧪 `/mobstacker selftest` round-trips every setting against a sandbox config. It only registers

@@ -41,6 +41,58 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   `list allow` for the whitelist half and `region mobs <name> …` for a region's own. **The old
   `ignore` spelling still works** and reaches exactly the same code.
 - The settings registry is now **45 settings, 36 of them overridable per region**.
+- **A list will not take a vanilla mob that does not exist.** `minecraft:cwo` is a typo and nothing
+  will ever arrive to make it mean something, so it is refused outright. A *modded* id is still
+  accepted whether the mod is installed or not — a list has to survive its mod being away for a
+  week — but it is marked `(not loaded)` in the editor and says so in chat, so an entry that means
+  nothing never looks like one that is working. The per-type stack ceilings are judged the same way.
+- **The box colour button on the region screen is labelled**, and says what "auto" means on hover.
+
+### Fixed
+
+> **Where these come from.** 1.7.0 and 1.8.0 both shipped without a test pass, so most of what is
+> fixed below is not a 1.9.0 regression — it is the first time anybody has played those two versions
+> and written down what happened. The version each bug arrived in is named, because "fixed in 1.9.0"
+> on its own would suggest 1.9.0 broke it.
+
+- **Taking one animal out of a stack no longer re-rolls it** *(older than this fork)*. A horse's
+  speed, jump and health are rolled when the entity is created, and every horse that came out of a
+  stack got a fresh roll of all three — so stacking and unstacking a horse was a re-roll button you
+  could keep pressing until the numbers came out well. Its markings were being re-rolled with them
+  *(1.7.0: it taught horses to keep their colour, but colour is only the low byte of the variant)*.
+  Both now come out of the stack exactly as they went in, at full health.
+- **Taming an animal out of a stack works** *(1.7.0 for horses, 1.8.0 for wolves, cats and parrots;
+  neither version was tested)*. The animal handed over rejoined the herd within a second, so the
+  next click peeled off a fresh one and nothing was ever tamed. It now stays out of stacks for a
+  while, and every further interaction with it renews that. A horse with any taming progress at all
+  — vanilla calls it temper — stays out for good, the way a tamed one does.
+- **Bucketing a stacked fish takes one fish** *(as old as fish stacking at all)*. It used to take
+  the whole shoal: everything but the name went into the bucket, and one fish came back out of it.
+- **The mob list editor could crash the game** *(new in 1.9.0)*. Removing entries quickly left the
+  screen rebuilding from a list the server thread had already shortened, which came out as an
+  `IndexOutOfBoundsException` on the next click.
+- **The id completion in that editor is drawn in front of the screen** *(new in 1.9.0)* instead of
+  behind the screen's own text, and a message about the last edit now has a line of its own rather
+  than landing on a row.
+- **"New region…" will not overwrite an existing region** *(1.7.0, when the area editor learned to
+  create one)*. Typing a name that was already taken moved that region onto the box around you,
+  silently, with everything it carried. It is refused now and points at the region's own editor,
+  exactly as `/mobstacker region add` always has. Creating an allow region while stacking is off
+  also *says* that it switched stacking on — in singleplayer as well as over the network, where the
+  message was being written and then thrown away.
+- **The X/Y/Z header in the area editor no longer sits on the dimension button** *(1.7.0)*.
+- **A region's wireframe is visible through another region's fill** *(1.8.0)*, and through its own
+  near face: the edges are drawn before the faces, which then do not hide them. Drawing boxes
+  through *walls* is a separate job and still to come.
+- **`keepMemberEquipment` no longer reads `ON` while greyed out** *(the greying is 1.6.0; 1.7.0's
+  setting is the first one it got wrong, being the first whose default is on)*. A setting that is
+  doing nothing reads as off, whichever way its own default points — and can always be switched
+  off, which for a setting whose default was on was being refused.
+- **`/mobstacker set killWholeStackOnDeath false` says it is forced on** *(1.6.0)* while
+  `stackHealth` holds it there, instead of answering "it is already false" because `false` is what
+  sits in the file. This was the one failure `/mobstacker selftest` had been reporting.
+- The self-test now covers everything above that can be checked without a world: settings held
+  inert by another, what a list will accept, and creating a region versus redrawing one.
 
 ## [1.8.0] - 2026-09-19
 ### Added

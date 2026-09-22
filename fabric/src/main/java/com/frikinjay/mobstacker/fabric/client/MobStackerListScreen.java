@@ -42,9 +42,9 @@ public final class MobStackerListScreen extends Screen {
     private static final int GLOBAL_LIST_TOP = 72;
     /** Where they start on a region, which carries the inherit button and the line explaining it. */
     private static final int REGION_LIST_TOP = 84;
+    /** Room under the rows for the add row and Done, before any notes are stacked on top of it. */
     private static final int LIST_BOTTOM_MARGIN = 62;
-    /** The same, with room kept for the two lines saying the list is not being read. */
-    private static final int WARNED_BOTTOM_MARGIN = 86;
+    private static final int NOTE_HEIGHT = 12;
     private static final int SUGGESTION_HEIGHT = 12;
     private static final int MAX_SUGGESTIONS = 8;
     private static final int NORMAL_TEXT = 0xE0E0E0;
@@ -53,6 +53,12 @@ public final class MobStackerListScreen extends Screen {
     private static final int SUGGESTION_TEXT = 0xAAAAAA;
     private static final int SUGGESTION_PICKED = 0xFFFF55;
     private static final int SUGGESTION_BACKGROUND = 0xF0100010;
+    /**
+     * How far in front of everything else the completion popup is drawn. Widgets render at z=0 and
+     * vanilla puts tooltips at 400, so this sits above the screen and below them - without it the
+     * popup went up behind the rows and the red mode warning, which is worse than no popup at all.
+     */
+    private static final int SUGGESTION_Z = 200;
 
     /** The tabs, in the order the {@code >} button walks them. Null kind = the ceilings tab. */
     private static final MobListKind[] TABS = MobListKind.values();
@@ -77,6 +83,20 @@ public final class MobStackerListScreen extends Screen {
     private boolean inheritArmed;
     private List<String> suggestions = List.of();
     private int suggestionIndex;
+    /**
+     * The rows this screen is showing, read once per rebuild.
+     *
+     * <p>Not read straight out of the config each time it is needed. In singleplayer the config
+     * belongs to the server thread while this screen runs on the render thread, and an edit is
+     * applied over there while the rebuild is already walking the list over here: sizing the loop
+     * from a list that then got shorter is how clicking Remove a few times in a row crashed the
+     * game with an IndexOutOfBoundsException. A copy cannot be pulled out from under the loop, and
+     * it also keeps {@link #init} and {@link #render} showing the same thing within one frame.
+     */
+    private List<String> rows = List.of();
+    /** The last thing this screen has to say about an edit - a refusal, or a remark worth making. */
+    private String message = "";
+    private boolean messageIsError;
 
     private MobStackerListScreen(Screen parent, String regionName) {
         super(Component.literal(regionName == null
@@ -132,7 +152,8 @@ public final class MobStackerListScreen extends Screen {
             addRenderableWidget(inherit);
         }
 
-        List<String> rows = rowLabels();
+        this.rows = rowLabels();
+        List<String> rows = this.rows;
         int listTop = listTop();
         this.visibleRows = Math.max(1, (this.height - listBottomMargin() - listTop) / ROW_HEIGHT);
         this.scrollOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, rows.size() - visibleRows)));
@@ -170,8 +191,29 @@ public final class MobStackerListScreen extends Screen {
         return regionName == null ? GLOBAL_LIST_TOP : REGION_LIST_TOP;
     }
 
+    /** Whatever the rows have to leave room for: the add row, Done, and each note under them. */
     private int listBottomMargin() {
-        return tabInUse() ? LIST_BOTTOM_MARGIN : WARNED_BOTTOM_MARGIN;
+        return LIST_BOTTOM_MARGIN + notes().size() * NOTE_HEIGHT;
+    }
+
+    /**
+     * The lines drawn between the last row and the add box, bottom of the screen upwards.
+     *
+     * <p>Collected in one place, and the row area is sized from how many there are, because a line
+     * of text and the widgets it sits between are laid out in two different methods here - which is
+     * exactly how the last round ended up with a button drawn over its own caption.
+     */
+    private List<Component> notes() {
+        List<Component> out = new ArrayList<>();
+        if (!tabInUse()) {
+            out.add(Component.literal(modeWarning()).withStyle(ChatFormatting.RED));
+            out.add(Component.literal(modeAdvice()).withStyle(ChatFormatting.GRAY));
+        }
+        if (!message.isEmpty()) {
+            out.add(Component.literal(message)
+                    .withStyle(messageIsError ? ChatFormatting.RED : ChatFormatting.YELLOW));
+        }
+        return out;
     }
 
     /** The "type a new entry here" row: an id box, a size box on the ceilings tab, and a button. */
@@ -219,12 +261,30 @@ public final class MobStackerListScreen extends Screen {
         scrollOffset = 0;
         inheritArmed = false;
         suggestions = List.of();
+        clearMessage();
         rebuildWidgets();
+    }
+
+    private void say(String text, boolean error) {
+        String next = text == null ? "" : text;
+        // Gaining or losing a note changes how much room the rows have, and that is worked out in
+        // init(). Rebuilding here is what keeps the two from disagreeing - the alternative is a
+        // line of text drawn over the last row, which is the bug this screen already had once.
+        boolean roomChanged = next.isEmpty() != this.message.isEmpty();
+        this.message = next;
+        this.messageIsError = error;
+        if (roomChanged) {
+            rebuildWidgets();
+        }
+    }
+
+    private void clearMessage() {
+        say("", false);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int max = Math.max(0, rowLabels().size() - visibleRows);
+        int max = Math.max(0, rows.size() - visibleRows);
         if (max > 0 && delta != 0.0) {
             int next = Math.max(0, Math.min(scrollOffset - (int) Math.signum(delta), max));
             if (next != scrollOffset) {
@@ -258,7 +318,7 @@ public final class MobStackerListScreen extends Screen {
             suggestions = List.of();
             return;
         }
-        List<String> already = tab == CEILINGS_TAB ? List.of() : entries(TABS[tab]);
+        List<String> already = tab == CEILINGS_TAB ? List.of() : rows;
         // Three buckets, best first: the id itself, then the part after the colon (people type
         // "cow"), then anything that merely contains what was typed.
         List<String> byId = new ArrayList<>();
@@ -396,14 +456,20 @@ public final class MobStackerListScreen extends Screen {
 
     // ------------------------------------------------------------------ reading
 
-    /** The rows currently on screen: list entries, or "id -> size" lines on the ceilings tab. */
+    /**
+     * The rows currently on screen: list entries, or "id -> size" lines on the ceilings tab.
+     *
+     * <p>Always a copy. {@code getList} hands back an unmodifiable <em>view</em> of the live list,
+     * which is not the same as an unmodifiable list: the server thread can still shorten it under a
+     * reader. See {@link #rows}.
+     */
     private List<String> rowLabels() {
         if (tab == CEILINGS_TAB) {
             List<String> out = new ArrayList<>();
             ceilings().forEach((id, size) -> out.add(id + " -> " + size));
-            return out;
+            return List.copyOf(out);
         }
-        return entries(TABS[tab]);
+        return List.copyOf(entries(TABS[tab]));
     }
 
     private List<String> entries(MobListKind kind) {
@@ -512,22 +578,41 @@ public final class MobStackerListScreen extends Screen {
         if (!editable || !editableHere() || entryBox == null) {
             return;
         }
-        String entry = entryBox.getValue().trim().toLowerCase(Locale.ROOT);
-        if (entry.isEmpty()) {
+        String typed = entryBox.getValue().trim().toLowerCase(Locale.ROOT);
+        if (typed.isEmpty()) {
             return;
         }
         if (tab == CEILINGS_TAB) {
+            String entry = MobLists.normaliseEntityId(typed);
             String size = sizeBox == null ? "" : sizeBox.getValue().trim();
             try {
                 if (Integer.parseInt(size) < 1) {
+                    say("A stack ceiling must be a whole number, at least 1.", true);
                     return;
                 }
             } catch (NumberFormatException e) {
-                return; // an unreadable size is not an edit worth sending
+                say("A stack ceiling must be a whole number, at least 1.", true);
+                return;
             }
+            // Refused before it is sent as well as on arrival: the server would say no anyway, and
+            // this screen has no status line from it in singleplayer to say it with.
+            String problem = MobLists.entityProblem(entry);
+            if (problem != null) {
+                say(problem, true);
+                return;
+            }
+            say(MobLists.entryNote(MobListKind.DENY_ENTITIES, entry), false);
             send(ceilingId(entry), size);
         } else {
-            send(listId(TABS[tab], "add"), entry);
+            MobListKind kind = TABS[tab];
+            String entry = MobLists.normalise(kind, typed);
+            String problem = MobLists.entryProblem(kind, entry);
+            if (problem != null) {
+                say(problem, true);
+                return;
+            }
+            say(MobLists.entryNote(kind, entry), false);
+            send(listId(kind, "add"), entry);
         }
         entryBox.setValue("");
         if (sizeBox != null) {
@@ -535,12 +620,19 @@ public final class MobStackerListScreen extends Screen {
         }
         suggestions = List.of();
         rebuildWidgets();
+        // The rebuild hands out a fresh box with nothing focused, and somebody adding ids is
+        // nearly always about to add another one.
+        if (entryBox != null) {
+            setFocused(entryBox);
+            entryBox.setFocused(true);
+        }
     }
 
     private void removeEntry(String label) {
         if (!editable || !editableHere()) {
             return;
         }
+        clearMessage();
         if (tab == CEILINGS_TAB) {
             // The row reads "id -> size"; the id is what identifies it, and an empty value unsets it.
             String id = label.contains(" -> ") ? label.substring(0, label.indexOf(" -> ")) : label;
@@ -648,29 +740,38 @@ public final class MobStackerListScreen extends Screen {
                     this.width / 2, 68, MUTED_TEXT);
         }
 
-        List<String> rows = rowLabels();
+        List<String> shown = this.rows;
         int listTop = listTop();
-        if (rows.isEmpty()) {
+        if (shown.isEmpty()) {
             graphics.drawCenteredString(this.font, Component.literal(emptyText()),
                     this.width / 2, listTop + 6, MUTED_TEXT);
         } else {
             int y = listTop + 6;
-            int last = Math.min(rows.size(), scrollOffset + visibleRows);
+            int last = Math.min(shown.size(), scrollOffset + visibleRows);
             for (int i = scrollOffset; i < last; i++) {
-                graphics.drawString(this.font, rows.get(i), this.width / 2 - 170, y, NORMAL_TEXT);
+                String label = shown.get(i);
+                boolean loaded = rowIsLoaded(label);
+                graphics.drawString(this.font, label, this.width / 2 - 170, y,
+                        loaded ? NORMAL_TEXT : MUTED_TEXT);
+                if (!loaded) {
+                    // Kept, not deleted - a list written while a mod was installed has to survive
+                    // the mod being away - but never silently: this is also what a typo looks like.
+                    graphics.drawString(this.font,
+                            Component.literal("(not loaded)").withStyle(ChatFormatting.DARK_GRAY),
+                            this.width / 2 - 166 + this.font.width(label), y, MUTED_TEXT);
+                }
                 y += ROW_HEIGHT;
             }
         }
 
-        // Say plainly when the list on screen is not the one being read, so nobody carefully fills
-        // an allow list while the world is still running a blacklist and wonders why nothing changed.
-        if (!tabInUse()) {
-            graphics.drawCenteredString(this.font,
-                    Component.literal(modeWarning()).withStyle(ChatFormatting.RED),
-                    this.width / 2, this.height - 80, WARN_TEXT);
-            graphics.drawCenteredString(this.font,
-                    Component.literal(modeAdvice()).withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height - 68, MUTED_TEXT);
+        // Everything with something to say sits here, stacked up from the add row: that the list on
+        // screen is not the one being read, which command would change that, and whatever the last
+        // edit answered. listBottomMargin() counts the same lines, so the rows always stop above them.
+        List<Component> notes = notes();
+        int noteY = this.height - LIST_BOTTOM_MARGIN - notes.size() * NOTE_HEIGHT + 2;
+        for (Component note : notes) {
+            graphics.drawCenteredString(this.font, note, this.width / 2, noteY, WARN_TEXT);
+            noteY += NOTE_HEIGHT;
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
@@ -682,6 +783,11 @@ public final class MobStackerListScreen extends Screen {
             return;
         }
         int[] area = suggestionArea();
+        // Drawing last is not enough on its own - the screen's own text is batched and comes out in
+        // front of a plain fill. Lifting the whole popup forward is how vanilla's own command
+        // suggestions do it.
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, SUGGESTION_Z);
         graphics.fill(area[0] - 1, area[1] - 1, area[0] + area[2] + 1, area[3], SUGGESTION_BACKGROUND);
         int hovered = -1;
         if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
@@ -692,6 +798,17 @@ public final class MobStackerListScreen extends Screen {
             graphics.drawString(this.font, suggestions.get(i), area[0] + 2,
                     area[1] + i * SUGGESTION_HEIGHT + 2, picked ? SUGGESTION_PICKED : SUGGESTION_TEXT);
         }
+        graphics.pose().popPose();
+    }
+
+    /** Whether the thing this row names exists in the running game. */
+    private boolean rowIsLoaded(String label) {
+        if (tab == CEILINGS_TAB) {
+            int arrow = label.indexOf(" -> ");
+            return MobLists.isLoaded(MobListKind.DENY_ENTITIES,
+                    arrow < 0 ? label : label.substring(0, arrow));
+        }
+        return MobLists.isLoaded(TABS[tab], label);
     }
 
     private String modeWarning() {

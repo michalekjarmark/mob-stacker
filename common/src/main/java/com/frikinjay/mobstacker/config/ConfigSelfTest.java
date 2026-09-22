@@ -50,7 +50,10 @@ public final class ConfigSelfTest {
                 testOption(option, report);
             }
             testDependencies(report);
+            testInertSettings(report);
             testLists(report);
+            testListValidation(report);
+            testRegionCreation(report);
         } catch (Exception e) {
             report.checks++;
             report.failures++;
@@ -66,8 +69,11 @@ public final class ConfigSelfTest {
         // Baseline: reset to default and confirm it took.
         ConfigOption.Result reset = option.reset();
         check(report, reset.status != Status.ERROR, option.id() + ": reset errored (" + reset.message + ")");
-        check(report, option.currentValue().equals(option.defaultValue()),
-                option.id() + ": value != default after reset (" + option.currentValue() + " vs " + option.defaultValue() + ")");
+        // The stored value, not the effective one: a setting held inert by another reads as off
+        // whatever its default is, and that is correct rather than a failure.
+        check(report, option.storedValue().equals(option.defaultValue()),
+                option.id() + ": stored value != default after reset ("
+                        + option.storedValue() + " vs " + option.defaultValue() + ")");
 
         switch (option.type()) {
             case BOOL -> {
@@ -202,6 +208,111 @@ public final class ConfigSelfTest {
                 "killWholeStackOnDeath stayed on after stackHealth was switched off");
         stackHealth.reset();
         killWhole.reset();
+    }
+
+    /**
+     * Every switch that another setting can hold inert, checked from both ends.
+     *
+     * <p>Two things have to be true at once and neither is obvious from the code: while the setting
+     * it needs is off, it must <b>read as OFF</b> — a greyed-out switch sitting on ON is exactly the
+     * confusion {@code requires} exists to prevent, and reading as the <em>default</em> quietly broke
+     * that for {@code keepMemberEquipment}, whose default is on — and it must still be possible to
+     * turn it <b>off</b>, since switching something off is always safe and was being refused for the
+     * same reason. Generic over the registry on purpose: the next setting with a default of true
+     * gets both checks for free.
+     */
+    private static void testInertSettings(Report report) {
+        for (ConfigOption option : MobStackerSettings.all()) {
+            String requiredId = option.requires();
+            if (requiredId == null || option.type() != Type.BOOL) {
+                continue;
+            }
+            ConfigOption required = MobStackerSettings.byId(requiredId);
+            if (required == null || required.type() != Type.BOOL) {
+                continue;
+            }
+            Restore restoreRequired = Restore.of(required);
+            Restore restoreOption = Restore.of(option);
+            required.apply("false");
+
+            check(report, "false".equals(option.currentValue()),
+                    option.id() + " reads as " + option.currentValue() + " while " + requiredId
+                            + " is off; a setting that does nothing must read as off");
+            check(report, option.apply("true").status == Status.ERROR,
+                    option.id() + " could be turned on while " + requiredId + " is off");
+            check(report, option.apply("false").status != Status.ERROR,
+                    option.id() + " could not be turned off while " + requiredId + " is off");
+
+            restoreOption.undo();
+            restoreRequired.undo();
+        }
+    }
+
+    /**
+     * What a mob list will and will not accept.
+     *
+     * <p>Lists used to take anything at all, so a typo sat in the config looking exactly like an
+     * entry that was working. The rule is not "does it exist right now" — a modded id has to
+     * survive its mod being away — it is "could it ever have meant anything", which for the
+     * {@code minecraft} namespace is a question with a definite answer.
+     */
+    private static void testListValidation(Report report) {
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "minecraft:cow") == null,
+                "a real vanilla mob was refused by an entity list");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "minecraft:not_a_mob") != null,
+                "an entity list accepted a vanilla id nothing answers to");
+        check(report, MobLists.entryProblem(MobListKind.ALLOW_ENTITIES, "somemod:whatever") == null,
+                "an entity list refused a modded id, which has to survive its mod being away");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "") != null,
+                "an entity list accepted an empty entry");
+        check(report, MobLists.entryProblem(MobListKind.DENY_MODS, "somemod") == null,
+                "a mod list refused a plain namespace");
+        check(report, MobLists.entryProblem(MobListKind.DENY_MODS, "somemod:cow") != null,
+                "a mod list accepted a whole entity id");
+        check(report, MobLists.isLoaded(MobListKind.DENY_ENTITIES, "minecraft:cow"),
+                "minecraft:cow is not reported as loaded");
+        check(report, !MobLists.isLoaded(MobListKind.DENY_ENTITIES, "somemod:whatever"),
+                "an absent modded id is reported as loaded");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "minecraft:cow") == null,
+                "a loaded id came with a 'not loaded' note");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "somemod:whatever") != null,
+                "an absent modded id was accepted without a word");
+        check(report, MobLists.entityProblem("minecraft:not_a_mob") != null,
+                "a stack ceiling accepted a vanilla id nothing answers to");
+    }
+
+    /**
+     * Creating a region and redrawing one are the same write and different intentions.
+     *
+     * <p>"New region…" with a name that was already taken used to move somebody else's region onto
+     * the box around the player, silently and with no undo. Both directions are checked here
+     * because making one of them strict is exactly how the other one breaks.
+     */
+    private static void testRegionCreation(Report report) {
+        String name = "selftest_region";
+        RegionEdit.delete(name);
+
+        RegionEdit.Result created = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 0, 0, 0, 4, 4, 4, true);
+        check(report, created.ok(), "a new region was refused: " + created.message());
+
+        RegionEdit.Result again = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 100, 0, 100, 104, 4, 104, true);
+        check(report, !again.ok(), "'New region' overwrote a region that already existed");
+        StackRegion kept = MobStacker.config.getRegion(name);
+        check(report, kept != null && kept.getMinX() == 0,
+                "the refused create moved the existing region anyway");
+
+        RegionEdit.Result reshaped = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 100, 0, 100, 104, 4, 104, false);
+        check(report, reshaped.ok(), "redrawing an existing region was refused: " + reshaped.message());
+        StackRegion moved = MobStacker.config.getRegion(name);
+        check(report, moved != null && moved.getMinX() == 100,
+                "redrawing an existing region did not move it");
+
+        RegionEdit.delete(name);
+        check(report, MobStacker.config.getRegion(name) == null,
+                "the self-test's own region survived being deleted");
     }
 
     /**

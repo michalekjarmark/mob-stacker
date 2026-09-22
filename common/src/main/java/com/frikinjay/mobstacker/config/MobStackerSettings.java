@@ -297,9 +297,9 @@ public final class MobStackerSettings {
      *   <li>a setting that pins this one on ({@link ConfigOption#lockedOnBy(String)}) — it reads as
      *       {@code true};</li>
      *   <li>a setting this one needs that is off ({@link ConfigOption#requires(String)}) — it reads
-     *       as its default, because it does nothing at all until that setting comes back on;</li>
+     *       as inert, because it does nothing at all until that setting comes back on;</li>
      *   <li>a setting that already does this one's job ({@link ConfigOption#redundantWhen(String)}) —
-     *       it reads as its default too, for the same reason read the other way round.</li>
+     *       it reads as inert too, for the same reason read the other way round.</li>
      * </ul>
      * Either way the stored value is left untouched and returns the moment the scope changes back,
      * so switching a master setting off and on again costs the player nothing.
@@ -311,9 +311,26 @@ public final class MobStackerSettings {
             return locked;
         }
         if (isRedundant(option, lookup)) {
-            return option.defaultValue();
+            return inertValue(option);
         }
-        return dependencyMet(option, lookup) ? null : option.defaultValue();
+        return dependencyMet(option, lookup) ? null : inertValue(option);
+    }
+
+    /**
+     * What a setting that currently does nothing should read as.
+     *
+     * <p>For a switch that is <b>OFF</b>, always — the whole promise of {@code requires} is that a
+     * switch can never sit on ON while having no effect, and reading as the <em>default</em> broke
+     * that for every setting whose default is on: {@code keepMemberEquipment} showed a greyed-out
+     * ON while {@code stackEquippedMobs} was off, which is exactly the "on but doing nothing" the
+     * rule exists to prevent. Anything that is not a switch has no such no-op value, so it falls
+     * back to its default.
+     *
+     * <p>Only the display and the command feedback go through here. What the game reads at a mob is
+     * the stored value gated by its master setting, so nothing about stacking changes either way.
+     */
+    public static String inertValue(ConfigOption option) {
+        return option.type() == ConfigOption.Type.BOOL ? "false" : option.defaultValue();
     }
 
     /**
@@ -371,8 +388,12 @@ public final class MobStackerSettings {
         if (lock != null) {
             return lock;
         }
-        // Going back to the default is always allowed: that is how a setting is switched off again.
-        if (canonical.equalsIgnoreCase(option.defaultValue())) {
+        // Switching it off is always allowed: that is how a dependency is stepped back out of.
+        // Both spellings of "off" count - its default, and the value that means it does nothing -
+        // because a setting whose default is ON would otherwise be refusable only in the direction
+        // that turns it off, which is the one direction that is always safe.
+        if (canonical.equalsIgnoreCase(option.defaultValue())
+                || canonical.equalsIgnoreCase(inertValue(option))) {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());

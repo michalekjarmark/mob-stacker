@@ -58,6 +58,12 @@ public final class MobStackerNetworking {
      * the path is created when it does not exist yet.
      */
     public static final String REGION_DEFINITION = "@region";
+    /**
+     * The same shape, from the "New region…" screen rather than from "Edit area…". Separate from
+     * {@link #REGION_DEFINITION} because only the sender knows which of the two it meant, and the
+     * answer decides whether a name that is already taken is a reshape or a refusal.
+     */
+    public static final String REGION_CREATE = "@newregion";
     /** Pseudo-setting that removes the named region, with everything it carried. */
     public static final String REGION_DELETE = "@delete";
 
@@ -151,8 +157,9 @@ public final class MobStackerNetworking {
         String regionName = path.substring(0, split);
         String settingId = path.substring(split + 1);
 
-        if (REGION_DEFINITION.equals(settingId)) {
-            RegionEdit.Result result = RegionEdit.apply(regionName, RegionEdit.Definition.decode(raw));
+        if (REGION_DEFINITION.equals(settingId) || REGION_CREATE.equals(settingId)) {
+            RegionEdit.Result result = RegionEdit.apply(regionName, RegionEdit.Definition.decode(raw),
+                    REGION_CREATE.equals(settingId));
             sendSync(player, result.message());
             return;
         }
@@ -291,6 +298,12 @@ public final class MobStackerNetworking {
         if (!add && !"remove".equals(op)) {
             return "Unknown list operation: " + op;
         }
+        if (add) {
+            String problem = MobLists.entryProblem(kind, entry);
+            if (problem != null) {
+                return problem;
+            }
+        }
         if (holder != MobStacker.config && !holder.hasList(kind)) {
             // Inheriting: an add here would start an override holding only this entry and drop the
             // global list it was showing. The screen greys the row out rather than send this, but a
@@ -322,15 +335,22 @@ public final class MobStackerNetworking {
                 return "A stack ceiling must be at least 1";
             }
         }
+        String canonical = MobLists.normaliseEntityId(id);
+        if (size != null) {
+            String problem = MobLists.entityProblem(canonical);
+            if (problem != null) {
+                return problem;
+            }
+        }
         if (region == null) {
-            MobStacker.config.setMaxStackSize(id, size);
+            MobStacker.config.setMaxStackSize(canonical, size);
         } else {
-            region.setMaxStackSize(id, size);
+            region.setMaxStackSize(canonical, size);
             MobStacker.config.save();
         }
         return size == null
-                ? "'" + id + "' " + scope + " follows maxStackSize again"
-                : "'" + id + "' stacks up to " + size + " " + scope;
+                ? "'" + canonical + "' " + scope + " follows maxStackSize again"
+                : "'" + canonical + "' stacks up to " + size + " " + scope;
     }
 
     /**

@@ -582,6 +582,15 @@ public class MobStackerCommands {
         }
         String entry = MobLists.normalise(kind, listEntry(context, kind));
         String scope = scopeOf(context, regionArg);
+        // Only on the way in: an entry already stored is left alone whatever it names, so a list
+        // written while a mod was installed can still be tidied up after it is gone.
+        if (add) {
+            String problem = MobLists.entryProblem(kind, entry);
+            if (problem != null) {
+                context.getSource().sendFailure(Component.literal(problem));
+                return 0;
+            }
+        }
         if (regionArg != null && !holder.hasList(kind)) {
             // The region is inheriting. Adding here would start an override holding only this one
             // entry, quietly dropping the global list it was showing a moment ago - so say what to
@@ -608,6 +617,11 @@ public class MobStackerCommands {
                         (add ? "Added '" : "Removed '") + entry + (add ? "' to " : "' from ") + kind.id() + " " + scope)
                 .withStyle(add ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
         if (add) {
+            String note = MobLists.entryNote(kind, entry);
+            if (note != null) {
+                context.getSource().sendSuccess(() -> Component.literal(" " + note)
+                        .withStyle(ChatFormatting.YELLOW), false);
+            }
             noteIfNotRead(context, kind, regionArg, scope);
         }
         return 1;
@@ -733,8 +747,14 @@ public class MobStackerCommands {
     // ============================================================ per-type stack ceilings
 
     private static int setMaxStack(CommandContext<CommandSourceStack> context, String regionArg, Integer size) {
-        String entityId = ResourceLocationArgument.getId(context, "entityId").toString();
+        String entityId = MobLists.normaliseEntityId(
+                ResourceLocationArgument.getId(context, "entityId").toString());
         String scope = scopeOf(context, regionArg);
+        String problem = size == null ? null : MobLists.entityProblem(entityId);
+        if (problem != null) {
+            context.getSource().sendFailure(Component.literal(problem));
+            return 0;
+        }
         if (regionArg == null) {
             MobStacker.config.setMaxStackSize(entityId, size);
         } else {
@@ -751,6 +771,11 @@ public class MobStackerCommands {
                         ? "'" + entityId + "' " + scope + " follows maxStackSize again"
                         : "'" + entityId + "' stacks up to " + size + " " + scope)
                 .withStyle(size == null ? ChatFormatting.GOLD : ChatFormatting.GREEN), true);
+        String note = size == null ? null : MobLists.entryNote(MobListKind.DENY_ENTITIES, entityId);
+        if (note != null) {
+            context.getSource().sendSuccess(() -> Component.literal(" " + note)
+                    .withStyle(ChatFormatting.YELLOW), false);
+        }
         return 1;
     }
 

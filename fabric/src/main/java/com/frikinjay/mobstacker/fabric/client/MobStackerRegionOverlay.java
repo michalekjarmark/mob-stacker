@@ -39,7 +39,8 @@ import java.util.Set;
  * <p>Boxes are depth-tested, so terrain hides them the way it hides everything else. Drawing them
  * through walls would need a render type with the depth test off, and vanilla keeps the shard that
  * does that package-private — so that variant is a follow-up rather than a switch that quietly does
- * nothing.
+ * nothing. One box hiding <em>another</em> is not the same question and is fixed here: see the
+ * order the two passes run in.
  */
 public final class MobStackerRegionOverlay {
 
@@ -161,6 +162,25 @@ public final class MobStackerRegionOverlay {
         // The world is drawn relative to the camera, so every box moves with it.
         pose.translate(-camera.x, -camera.y, -camera.z);
 
+        // Edges first, faces second. The order matters: vanilla's filled-box type writes depth,
+        // so a face drawn before an edge hides it outright - the far side of a box disappeared into
+        // its own near face, and a small region inside a big one vanished behind the big one's
+        // colour. Lines write no depth of their own, so drawing them first costs nothing and the
+        // 20%-alpha faces then tint them instead of swallowing them. (Drawing edges through *walls*
+        // is a different question and still a follow-up: that needs a render type with the depth
+        // test off, which vanilla keeps package-private.)
+        if (style == Style.WIREFRAME || style == Style.BOTH) {
+            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            for (MobStackerClientRegions.View view : regions) {
+                if (!isShown(view.name())) {
+                    continue;
+                }
+                float[] rgb = rgbOf(view);
+                LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
+            }
+            buffers.endBatch(RenderType.lines());
+        }
+
         if (style == Style.FILLED || style == Style.BOTH) {
             VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
             for (MobStackerClientRegions.View view : regions) {
@@ -176,31 +196,19 @@ public final class MobStackerRegionOverlay {
             buffers.endBatch(RenderType.debugFilledBox());
         }
 
-        if (style == Style.WIREFRAME || style == Style.BOTH) {
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
-            for (MobStackerClientRegions.View view : regions) {
-                if (!isShown(view.name())) {
-                    continue;
-                }
-                float[] rgb = rgbOf(view);
-                LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
-            }
-            buffers.endBatch(RenderType.lines());
-        }
-
         if (preview != null) {
             // Always both faces and edges, in white: it is a transient answer to "is this the area
             // I mean", so being unmistakable matters more than matching the chosen style.
+            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
+            buffers.endBatch(RenderType.lines());
+
             VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
             buffers.endBatch(RenderType.debugFilledBox());
-
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
-            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(RenderType.lines());
         }
 
         pose.popPose();

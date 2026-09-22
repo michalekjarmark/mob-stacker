@@ -62,7 +62,15 @@ public final class MobStackerRegionScreen extends Screen {
     private String pendingSelection;
     /** Set while a widget is being repainted, so its own responder does not send that back as an edit. */
     private boolean repainting;
+    // The priority/colour row, in the same column as the setting widgets below it.
+    private static final int PRIORITY_X = 30;
+    private static final int PRIORITY_W = 60;
+    private static final int COLOR_X = 94;
+    private static final int COLOR_W = 76;
+
     private Button colorButton;
+    /** The last local edit's answer, shown where a server's status line would be. */
+    private String localStatus = "";
     private Button overlayBox;
     private Button overlayAll;
     private Button overlayStyle;
@@ -205,6 +213,18 @@ public final class MobStackerRegionScreen extends Screen {
         }
     }
 
+    /**
+     * What the last edit made from here answered, for the line at the bottom of the screen.
+     *
+     * <p>A server sends its own answer back with the config snapshot, and that is what this screen
+     * shows over the network. Singleplayer has no packet to carry one, so the edit hands it over
+     * directly — otherwise "stackMode was OFF, switched to REGIONS so it takes effect" was written,
+     * returned, and thrown away without ever reaching a screen.
+     */
+    public void setStatus(String status) {
+        this.localStatus = status == null ? "" : status;
+    }
+
     private void applyPendingSelection() {
         if (pendingSelection == null) {
             return;
@@ -224,7 +244,8 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     private void addPriorityBox() {
-        EditBox box = new EditBox(this.font, this.width / 2 + 30, 68, 60, 20, Component.literal("priority"));
+        EditBox box = new EditBox(this.font, this.width / 2 + PRIORITY_X, 68, PRIORITY_W, 20,
+                Component.literal("priority"));
         box.setValue(String.valueOf(currentRegion().priority()));
         box.setMaxLength(11);
         box.setEditable(editable);
@@ -257,7 +278,7 @@ public final class MobStackerRegionScreen extends Screen {
         Button button = Button.builder(colorLabel(), b -> {
             StackColor next = nextColor(currentRegion().colorChosen() ? currentRegion().color() : null);
             applyEdit(MobStackerNetworking.REGION_COLOR, next == null ? "" : next.name());
-        }).bounds(this.width / 2 + 94, 68, 76, 20).build();
+        }).bounds(this.width / 2 + COLOR_X, 68, COLOR_W, 20).build();
         button.active = editable;
         this.colorButton = button;
         addRenderableWidget(button);
@@ -273,10 +294,23 @@ public final class MobStackerRegionScreen extends Screen {
         return next >= all.length ? null : all[next];
     }
 
+    /**
+     * Says what it is as well as what it is set to. A lone "auto" beside the priority box told a
+     * first-time reader nothing at all — the word is worth the pixels, and the hover text below
+     * carries the rest.
+     */
     private Component colorLabel() {
         MobStackerClientRegions.View region = currentRegion();
         String text = region.colorChosen() ? region.color().name().toLowerCase(Locale.ROOT) : "auto";
-        return Component.literal(text).withStyle(region.color().format());
+        return Component.literal("colour: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(text).withStyle(region.color().format()));
+    }
+
+    /** True over the colour button, which has a tooltip of its own. */
+    private boolean overColor(int mouseX, int mouseY) {
+        return showRows
+                && mouseX >= this.width / 2 + COLOR_X && mouseX <= this.width / 2 + COLOR_X + COLOR_W
+                && mouseY >= 68 && mouseY <= 88;
     }
 
     /**
@@ -771,6 +805,16 @@ public final class MobStackerRegionScreen extends Screen {
 
         renderFooter(guiGraphics);
 
+        if (overColor(mouseX, mouseY)) {
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
+                    Component.literal("box colour").withStyle(ChatFormatting.WHITE),
+                    Component.literal("The colour this region's box is drawn in, for everyone who shows it.")
+                            .withStyle(ChatFormatting.GRAY),
+                    Component.literal("'auto' = green for an allow region, red for a deny one.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+            return;
+        }
+
         if (overPriority(mouseX, mouseY)) {
             ScreenTooltip.render(guiGraphics, this.font, List.of(
                     Component.literal("priority").withStyle(ChatFormatting.WHITE),
@@ -808,7 +852,8 @@ public final class MobStackerRegionScreen extends Screen {
         int labelX = this.width / 2 - 170;
         boolean overLabel = mouseX >= labelX && mouseX <= labelX + this.font.width("priority")
                 && mouseY >= 74 && mouseY <= 74 + this.font.lineHeight;
-        boolean overBox = mouseX >= this.width / 2 + 30 && mouseX <= this.width / 2 + 90
+        boolean overBox = mouseX >= this.width / 2 + PRIORITY_X
+                && mouseX <= this.width / 2 + PRIORITY_X + PRIORITY_W
                 && mouseY >= 68 && mouseY <= 88;
         return overLabel || overBox;
     }
@@ -845,13 +890,13 @@ public final class MobStackerRegionScreen extends Screen {
             guiGraphics.drawCenteredString(this.font,
                     Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
                     this.width / 2, this.height - 46, 0xFFFFFF);
-        } else if (remote) {
-            String status = MobStackerClientNetworking.status();
-            if (status != null && !status.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font,
-                        Component.literal(status).withStyle(ChatFormatting.YELLOW),
-                        this.width / 2, this.height - 46, 0xFFFFFF);
-            }
+            return;
+        }
+        String status = remote ? MobStackerClientNetworking.status() : localStatus;
+        if (status != null && !status.isEmpty()) {
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal(status).withStyle(ChatFormatting.YELLOW),
+                    this.width / 2, this.height - 46, 0xFFFFFF);
         }
     }
 

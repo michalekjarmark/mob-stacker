@@ -28,6 +28,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
@@ -84,6 +85,17 @@ public final class MobStacker {
     // it alone. Without it a mob would be handed to the player and walk straight back in on the same
     // tick, which is exactly what separating was asked to undo.
     private static final String JUST_SEPARATED_KEY = "JustSeparated";
+    /** Ticks left before a mob the mod handed to a player may walk back into a stack. */
+    private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
+    /**
+     * How long that is: fifteen seconds, refreshed by every further interaction with the mob.
+     *
+     * <p>One tick was not enough. A horse that bucks the player off, a wolf that shrugs off a bone -
+     * the animal went straight back into the herd on the next scan, and the next click peeled a
+     * fresh one out, so taming never got anywhere. Long enough to keep at one animal, short enough
+     * that one you fed and walked away from still rejoins the herd on its own.
+     */
+    private static final int SEPARATION_GRACE_TICKS = 300;
     private static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
     private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
@@ -204,6 +216,13 @@ public final class MobStacker {
             return false;
         }
 
+        // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
+        // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
+        // halfway through taming is the same bug seen from the other side.
+        if (separationGrace(entity) > 0) {
+            return false;
+        }
+
         if (!isStackingAllowedAt(entity)) {
             return false;
         }
@@ -292,7 +311,10 @@ public final class MobStacker {
         if (entity instanceof Saddleable saddleable && saddleable.isSaddled()) {
             return true;
         }
-        if (entity instanceof AbstractHorse horse && (horse.isTamed() || horse.isWearingArmor())) {
+        // Temper is taming progress, and it is per horse: a half-tamed horse that merges back into
+        // the herd takes every attempt spent on it with it, and the next one out starts at zero.
+        if (entity instanceof AbstractHorse horse
+                && (horse.isTamed() || horse.isWearingArmor() || horse.getTemper() > 0)) {
             return true;
         }
         if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
@@ -541,6 +563,18 @@ public final class MobStacker {
     }
 
     /**
+     * Whether this is somebody scooping one mob into a bucket.
+     *
+     * <p>Bucketing destroys the entity and hands back an item holding it, which on a stack meant
+     * sixteen fish going into one bucket and only the label coming out the other side. So it joins
+     * the "hand one animal over" rule: the stack gives up a single fish, vanilla buckets that one,
+     * and the rest stay where they are.
+     */
+    public static boolean isBucketingInteraction(Mob mob, ItemStack held) {
+        return mob instanceof Bucketable && held.is(Items.WATER_BUCKET);
+    }
+
+    /**
      * Whether this mob could actually breed if it were fed.
      *
      * <p>Vanilla lets an untamed wolf fall in love and then refuses to let it mate, which is a
@@ -681,6 +715,10 @@ public final class MobStacker {
                 return; // merged away: this mob no longer exists to be scanned
             }
         }
+
+        // Cheap: an int out of a tag the mob already carries, and it short-circuits to nothing for
+        // every mob that was never separated, which is very nearly all of them.
+        tickSeparationGrace(mob);
 
         int interval = getStackScanInterval(mob);
         if (interval <= 0) {
@@ -1162,19 +1200,24 @@ public final class MobStacker {
         return name;
     }
 
-    /** Remembers that the mod put this mob here, so stackOnSpawn does not undo it immediately. */
+    /**
+     * Remembers that the mod put this mob here, so nothing merges it away again while the player is
+     * still busy with it. See {@link #SEPARATION_GRACE_TICKS}.
+     */
     private static void markJustSeparated(Mob mob) {
         if (mob instanceof ICustomDataHolder holder) {
-            holder.mobstacker$getCustomData().putBoolean(JUST_SEPARATED_KEY, true);
+            CompoundTag data = holder.mobstacker$getCustomData();
+            data.putBoolean(JUST_SEPARATED_KEY, true);
+            data.putInt(SEPARATION_GRACE_KEY, SEPARATION_GRACE_TICKS);
         }
     }
 
     /**
-     * Whether this mob was just separated out of a stack by the mod.
+     * Whether this mob was just separated out of a stack by the mod, read on its first tick.
      *
-     * <p>Read once, on the mob's first tick, and cleared there — after that it is an ordinary mob
-     * and the periodic scan may merge it like any other, which is the behaviour separating always
-     * had. All this prevents is the round trip happening within the same tick.
+     * <p>Kept alongside the grace countdown because they answer different questions: this one stops
+     * the stack-on-spawn pass undoing a separation within the same tick, the countdown stops the
+     * periodic scan undoing it over the next few seconds.
      */
     private static boolean takeJustSeparated(Mob mob) {
         if (!(mob instanceof ICustomDataHolder holder)) {
@@ -1186,6 +1229,44 @@ public final class MobStacker {
         }
         data.remove(JUST_SEPARATED_KEY);
         return true;
+    }
+
+    /** Ticks still owed to the player who was handed this mob, or 0. */
+    public static int separationGrace(Mob mob) {
+        return mob instanceof ICustomDataHolder holder
+                ? holder.mobstacker$getCustomData().getInt(SEPARATION_GRACE_KEY)
+                : 0;
+    }
+
+    /** Counts the grace down by one tick and clears the key once it runs out. */
+    private static void tickSeparationGrace(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        int left = data.getInt(SEPARATION_GRACE_KEY);
+        if (left <= 0) {
+            return;
+        }
+        if (left <= 1) {
+            data.remove(SEPARATION_GRACE_KEY);
+        } else {
+            data.putInt(SEPARATION_GRACE_KEY, left - 1);
+        }
+    }
+
+    /**
+     * Starts the grace again on a mob that already had one, because the player is still working on
+     * it. Never starts one on a mob that did not come out of a stack: an animal nobody separated is
+     * nobody's business but the scan's.
+     */
+    public static void refreshSeparationGrace(Mob mob) {
+        if (mob instanceof ICustomDataHolder holder) {
+            CompoundTag data = holder.mobstacker$getCustomData();
+            if (data.getInt(SEPARATION_GRACE_KEY) > 0) {
+                data.putInt(SEPARATION_GRACE_KEY, SEPARATION_GRACE_TICKS);
+            }
+        }
     }
 
     public static boolean isPlayerNamed(Mob mob) {

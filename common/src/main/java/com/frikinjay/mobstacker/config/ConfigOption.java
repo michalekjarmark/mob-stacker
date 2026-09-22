@@ -205,19 +205,29 @@ public final class ConfigOption {
         // its default by a dependency must still be resettable, and `set` changes the stored value.
         String oldValue = storedValue();
         String newValue = String.valueOf(parsed);
+
+        // A locked setting cannot be changed at all while whatever pins it is on - and that is
+        // judged before the "nothing to do" shortcut below, against what the setting READS AS.
+        // stackHealth holds killWholeStackOnDeath on while false is still what sits in the file, so
+        // comparing stored values first answered "it is already false" to a player looking at a
+        // switch that says ON. A request that matches what it reads as really is a no-op and still
+        // passes through as unchanged.
+        String lock = MobStackerSettings.lockProblem(this, null, null);
+        if (lock != null) {
+            return newValue.equalsIgnoreCase(currentValue())
+                    ? Result.unchanged(currentValue())
+                    : Result.error(lock);
+        }
+
         if (oldValue.equals(newValue)) {
             return Result.unchanged(oldValue);
         }
 
-        // A locked setting cannot be changed at all while whatever pins it is on.
-        String lock = MobStackerSettings.lockProblem(this, null, null);
-        if (lock != null) {
-            return Result.error(lock);
-        }
-
-        // A setting that depends on another one may always go back to its default (so it can be
-        // switched off again), but only turn on once the setting it needs is on.
-        if (!newValue.equalsIgnoreCase(defaultValue())) {
+        // A setting that depends on another one may always be switched off - its default, or the
+        // value that means it does nothing, whichever way round they are - but only turned on once
+        // the setting it needs is on.
+        if (!newValue.equalsIgnoreCase(defaultValue())
+                && !newValue.equalsIgnoreCase(MobStackerSettings.inertValue(this))) {
             String problem = MobStackerSettings.dependencyProblem(this, null, null);
             if (problem != null) {
                 return Result.error(problem);

@@ -140,6 +140,79 @@ public final class MobLists {
         return normalise(MobListKind.DENY_ENTITIES, entityId);
     }
 
+    /**
+     * Why {@code normalised} cannot go on a list of this kind, or null when it may.
+     *
+     * <p>The rule is not "does this mob exist right now", because a server that lists a mod's mob
+     * and then takes the mod out for a week has to get its list back when it comes home. It is
+     * <em>"could this ever have meant anything"</em>: a {@code minecraft:} id no entity type answers
+     * to can only be a typo, since vanilla is always fully loaded, while any other namespace is
+     * taken on trust. {@link #entryNote} then says out loud when a trusted entry is not loaded, so
+     * accepting one is never silent.
+     *
+     * <p>One method, called by the commands, the GUI and the network handler alike — a packet is
+     * whatever the other end put in it, and a second copy of this rule is how the two would drift.
+     */
+    public static String entryProblem(MobListKind kind, String normalised) {
+        if (normalised == null || normalised.isEmpty()) {
+            return "An entry cannot be empty.";
+        }
+        if (kind.flavour() == MobListKind.Flavour.MOD) {
+            return normalised.indexOf(':') >= 0
+                    ? "'" + normalised + "' names one mob, not a mod. Use just the part before the colon."
+                    : null;
+        }
+        return entityProblem(normalised);
+    }
+
+    /**
+     * The same judgement for a bare entity id, which the per-type stack ceilings also need and
+     * which names no list to ask about.
+     */
+    public static String entityProblem(String normalised) {
+        if (normalised == null || normalised.isEmpty()) {
+            return "An entry cannot be empty.";
+        }
+        ResourceLocation id = ResourceLocation.tryParse(normalised);
+        if (id == null) {
+            return "'" + normalised + "' is not a usable entity id.";
+        }
+        if ("minecraft".equals(id.getNamespace()) && !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
+            return "There is no mob called '" + normalised + "'.";
+        }
+        return null;
+    }
+
+    /**
+     * A remark worth printing beside an entry that was accepted but means nothing in this game, or
+     * null when it names something that is loaded. Not a refusal: see {@link #entryProblem}.
+     */
+    public static String entryNote(MobListKind kind, String normalised) {
+        if (isLoaded(kind, normalised)) {
+            return null;
+        }
+        return kind.flavour() == MobListKind.Flavour.ENTITY
+                ? "Nothing in this game is called '" + normalised + "' — kept, in case the mod that adds it comes back."
+                : "No mob in this game comes from '" + normalised + "' — kept, in case the mod that adds them comes back.";
+    }
+
+    /** Whether this entry names something the running game actually has. */
+    public static boolean isLoaded(MobListKind kind, String normalised) {
+        if (normalised == null || normalised.isEmpty()) {
+            return false;
+        }
+        if (kind.flavour() == MobListKind.Flavour.MOD) {
+            for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+                if (id.getNamespace().equalsIgnoreCase(normalised)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(normalised);
+        return id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id);
+    }
+
     /** An unmodifiable view of {@code list}, treating null as empty. */
     public static List<String> view(List<String> list) {
         return list == null ? Collections.emptyList() : Collections.unmodifiableList(list);
