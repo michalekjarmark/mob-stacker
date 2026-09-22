@@ -1,6 +1,8 @@
 package com.frikinjay.mobstacker;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.Cat;
@@ -210,8 +212,11 @@ public final class MobVariants {
      *
      * <p>This is deliberately <em>not</em> a {@link #RULES} row. Those say "two mobs that differ
      * here must not merge", and applied to a continuous random roll that would stop wild horses
-     * stacking with each other at all. The trade this keeps instead is the ordinary one every stack
-     * makes: sixteen mobs show one body, and one body has one set of numbers.
+     * stacking with each other at all.
+     *
+     * <p>What this copies is only the fallback, since 1.9.1: the numbers of the mob on top. A stack
+     * of horses now remembers every member's own numbers ({@link #MEMBER_ROLLS_KEY}), and the
+     * member that comes out - or takes over the top when the top one dies - gets its own back.
      */
     private static void copyRolledAttributes(Mob source, Mob target) {
         if (!(source instanceof AbstractHorse) || !(target instanceof AbstractHorse)) {
@@ -233,6 +238,158 @@ public final class MobVariants {
     /** Exactly the three {@code AbstractHorse.randomizeAttributes} rolls, and nothing else. */
     private static final List<Attribute> ROLLED_HORSE_ATTRIBUTES =
             List.of(Attributes.MAX_HEALTH, Attributes.MOVEMENT_SPEED, Attributes.JUMP_STRENGTH);
+
+    // --- Each member's own rolls ----------------------------------------------------------------
+    // Until 1.9.1 a stack of horses had one set of numbers, the top horse's, and every horse that
+    // came out of it got those. That lost a good horse merged into a herd of poor ones, and - the
+    // worse half - turned one good horse on top of a herd into a herd of good horses, one separation
+    // at a time. Each member's numbers now travel with the stack, the way each member's equipment
+    // does, in the same order: the member next in line first.
+
+    /** Key in a stack's custom data: the rolls of the members under the top horse, next first. */
+    public static final String MEMBER_ROLLS_KEY = "MemberRolls";
+
+    /** A horse's three rolls, keyed by attribute id. Null for anything that is not a horse. */
+    private static CompoundTag captureRolls(Mob mob) {
+        if (!(mob instanceof AbstractHorse)) {
+            return null;
+        }
+        CompoundTag rolls = new CompoundTag();
+        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
+            AttributeInstance instance = mob.getAttribute(attribute);
+            if (instance != null) {
+                rolls.putDouble(attributeKey(attribute), instance.getBaseValue());
+            }
+        }
+        return rolls;
+    }
+
+    /** Gives a horse a member's rolls back, at full health - a mob comes out of a stack whole. */
+    private static void applyRolls(Mob mob, CompoundTag rolls) {
+        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
+            AttributeInstance instance = mob.getAttribute(attribute);
+            String key = attributeKey(attribute);
+            if (instance != null && rolls.contains(key)) {
+                instance.setBaseValue(rolls.getDouble(key));
+            }
+        }
+        mob.setHealth(mob.getMaxHealth());
+    }
+
+    private static String attributeKey(Attribute attribute) {
+        return String.valueOf(BuiltInRegistries.ATTRIBUTE.getKey(attribute));
+    }
+
+    /** The rolls stored on a stack, exactly as stored. A copy; never null. */
+    private static ListTag storedRolls(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return new ListTag();
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        return data.contains(MEMBER_ROLLS_KEY, Tag.TAG_LIST)
+                ? data.getList(MEMBER_ROLLS_KEY, Tag.TAG_COMPOUND).copy() : new ListTag();
+    }
+
+    private static void storeRolls(Mob mob, ListTag rolls, int stackSize) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        while (rolls.size() > Math.max(0, stackSize - 1)) {
+            rolls.remove(rolls.size() - 1);
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        if (rolls.isEmpty()) {
+            data.remove(MEMBER_ROLLS_KEY);
+        } else {
+            data.put(MEMBER_ROLLS_KEY, rolls);
+        }
+    }
+
+    /**
+     * The rolls of every member under the top, one per member. A stack that formed before 1.9.1
+     * recorded none, and its members are filled in with the top horse's numbers - which is exactly
+     * what every one of them would have come out with before, so nothing changes for it.
+     */
+    private static ListTag memberRolls(Mob mob) {
+        ListTag rolls = storedRolls(mob);
+        int members = Math.max(0, MobStacker.getStackSize(mob) - 1);
+        CompoundTag own = captureRolls(mob);
+        while (rolls.size() < members && own != null) {
+            rolls.add(own.copy());
+        }
+        while (rolls.size() > members) {
+            rolls.remove(rolls.size() - 1);
+        }
+        return rolls;
+    }
+
+    /**
+     * Before a merge: the list the merged stack should carry - the target's members, then the
+     * source's top horse, then the source's members. Taken before the target is reloaded from its
+     * snapshot, which puts its own custom data back. Null when these are not horses.
+     */
+    public static ListTag mergedMemberRolls(Mob target, Mob source) {
+        if (!(target instanceof AbstractHorse) || !(source instanceof AbstractHorse)) {
+            return null;
+        }
+        ListTag merged = memberRolls(target);
+        merged.add(captureRolls(source));
+        merged.addAll(memberRolls(source));
+        return merged;
+    }
+
+    /** After a merge: see {@link #mergedMemberRolls}. */
+    public static void setMergedMemberRolls(Mob target, ListTag merged, int newStackSize) {
+        if (merged != null) {
+            storeRolls(target, merged, newStackSize);
+        }
+    }
+
+    /**
+     * The horse taken out of a stack is the member next in line, with that member's own numbers.
+     * A stack that recorded none (formed before 1.9.1) hands out the top horse's, as it always did.
+     * Called once the stack is already one smaller.
+     */
+    public static void takeMemberRollsFor(Mob stack, Mob separated) {
+        if (!(stack instanceof AbstractHorse) || !(separated instanceof AbstractHorse)) {
+            return;
+        }
+        ListTag rolls = storedRolls(stack);
+        if (rolls.isEmpty()) {
+            return;
+        }
+        applyRolls(separated, rolls.getCompound(0));
+        rolls.remove(0);
+        storeRolls(stack, rolls, MobStacker.getStackSize(stack));
+    }
+
+    /**
+     * After the top of a stack was killed: the new top horse is the member next in line after
+     * every one that died, with its own numbers, and the rest keep theirs. The dead are the front of
+     * the list (the top first, then the next in line), so with {@code n} rolls recorded the new top
+     * is the one at {@code n - newStackSize}.
+     */
+    public static void handOverMemberRolls(Mob dead, Mob survivor, int newStackSize) {
+        if (!(dead instanceof AbstractHorse) || !(survivor instanceof AbstractHorse)) {
+            return;
+        }
+        ListTag rolls = storedRolls(dead);
+        if (rolls.isEmpty()) {
+            return; // nothing recorded: the survivor keeps the numbers it was copied, as before
+        }
+        int top = rolls.size() - newStackSize;
+        ListTag rest = new ListTag();
+        if (top >= 0) {
+            applyRolls(survivor, rolls.getCompound(top));
+            for (int i = top + 1; i < rolls.size(); i++) {
+                rest.add(rolls.getCompound(i).copy());
+            }
+        } else {
+            // Fewer recorded than survived (the stack size was set by hand): keep what there is.
+            rest.addAll(rolls);
+        }
+        storeRolls(survivor, rest, newStackSize);
+    }
 
     /**
      * Moves a handful of save keys from one entity to another, for state vanilla exposes no setter

@@ -19,6 +19,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,6 +75,9 @@ public final class MobStackerRegionScreen extends Screen {
     private Button overlayBox;
     private Button overlayAll;
     private Button overlayStyle;
+    private Button overlayWalls;
+    // A region can set its own separatorItem; completed the way the config screen completes it.
+    private final IdCompletion itemCompletion = new IdCompletion(IdCompletion::itemIds);
 
     /**
      * One editable setting on screen. The override state is mutable because dropping an override
@@ -119,6 +123,7 @@ public final class MobStackerRegionScreen extends Screen {
     @Override
     protected void init() {
         rows.clear();
+        itemCompletion.attach(null);
 
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
@@ -309,7 +314,24 @@ public final class MobStackerRegionScreen extends Screen {
      * a vanilla button only ever answers the left button, so the screen catches the right one itself.
      */
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        boolean inItemBox = itemCompletion.isFor(this.getFocused());
+        if (itemCompletion.handleKey(keyCode, inItemBox)) {
+            return true;
+        }
+        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+                && inItemBox && itemCompletion.shouldEnterComplete()) {
+            itemCompletion.accept();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (itemCompletion.mouseClicked(mouseX, mouseY, this.height)) {
+            return true;
+        }
         if (button == 1 && colorButton != null && colorButton.active && colorButton.visible
                 && overColor((int) mouseX, (int) mouseY)) {
             StackColor previous = previousColor(currentRegion().colorChosen() ? currentRegion().color() : null);
@@ -343,9 +365,13 @@ public final class MobStackerRegionScreen extends Screen {
 
     /**
      * The in-world overlay controls: whether this region's box is drawn, whether every region's is,
-     * and how they are drawn. All three are this player's own view of the world — none of it is
-     * config, none of it is sent anywhere — which is why they sit apart from the setting rows and
-     * stay available even to a player who may not edit anything.
+     * how they are drawn, and whether terrain hides them. All four are this player's own view of the
+     * world — none of it is config, none of it is sent anywhere — which is why they sit apart from
+     * the setting rows and stay available even to a player who may not edit anything.
+     *
+     * <p>Four buttons in the 340 pixels three used to have: 86 + 64 + 104 + 74 plus three 4-pixel
+     * gaps. The widths follow the longest label each one can show ("Box: hidden", "All: off",
+     * "Style: wireframe", "X-ray: off").
      */
     private void addOverlayRow() {
         int y = 92;
@@ -354,23 +380,46 @@ public final class MobStackerRegionScreen extends Screen {
         Button box = Button.builder(overlayBoxLabel(), b -> {
             MobStackerRegionOverlay.toggle(currentRegion().name());
             rebuildOverlayRow();
-        }).bounds(left, y, 140, 20).build();
+        }).bounds(left, y, OVERLAY_BOX_W, 20).build();
         this.overlayBox = box;
         addRenderableWidget(box);
 
         Button all = Button.builder(overlayAllLabel(), b -> {
             MobStackerRegionOverlay.toggleAll();
             rebuildOverlayRow();
-        }).bounds(left + 144, y, 90, 20).build();
+        }).bounds(left + OVERLAY_BOX_W + 4, y, OVERLAY_ALL_W, 20).build();
         this.overlayAll = all;
         addRenderableWidget(all);
 
         Button style = Button.builder(overlayStyleLabel(), b -> {
             MobStackerRegionOverlay.cycleStyle();
             rebuildOverlayRow();
-        }).bounds(left + 238, y, 102, 20).build();
+        }).bounds(left + OVERLAY_BOX_W + OVERLAY_ALL_W + 8, y, OVERLAY_STYLE_W, 20).build();
         this.overlayStyle = style;
         addRenderableWidget(style);
+
+        Button walls = Button.builder(overlayWallsLabel(), b -> {
+            MobStackerRegionOverlay.toggleThroughWalls();
+            rebuildOverlayRow();
+        }).bounds(this.width / 2 + OVERLAY_WALLS_X, y, OVERLAY_WALLS_W, 20).build();
+        this.overlayWalls = walls;
+        addRenderableWidget(walls);
+    }
+
+    private static final int OVERLAY_BOX_W = 86;
+    private static final int OVERLAY_ALL_W = 64;
+    private static final int OVERLAY_STYLE_W = 104;
+    private static final int OVERLAY_WALLS_W = 74;
+    /** Where the x-ray button starts, relative to the centre: the row's right edge (170) minus it. */
+    private static final int OVERLAY_WALLS_X = 170 - OVERLAY_WALLS_W;
+
+    /** True over the x-ray button, which says in a tooltip what "x-ray" means here. */
+    private boolean overWalls(int mouseX, int mouseY) {
+        // showRows, like overColor: the field outlives a rebuild that had no regions to show.
+        return showRows
+                && mouseX >= this.width / 2 + OVERLAY_WALLS_X
+                && mouseX <= this.width / 2 + OVERLAY_WALLS_X + OVERLAY_WALLS_W
+                && mouseY >= 92 && mouseY <= 112;
     }
 
     private void rebuildOverlayRow() {
@@ -389,6 +438,9 @@ public final class MobStackerRegionScreen extends Screen {
         if (overlayStyle != null) {
             overlayStyle.setMessage(overlayStyleLabel());
         }
+        if (overlayWalls != null) {
+            overlayWalls.setMessage(overlayWallsLabel());
+        }
     }
 
     private Component overlayBoxLabel() {
@@ -406,6 +458,12 @@ public final class MobStackerRegionScreen extends Screen {
     private Component overlayStyleLabel() {
         String name = MobStackerRegionOverlay.style().name().toLowerCase(Locale.ROOT);
         return Component.literal("Style: " + name).withStyle(ChatFormatting.AQUA);
+    }
+
+    private Component overlayWallsLabel() {
+        boolean on = MobStackerRegionOverlay.throughWalls();
+        return Component.literal("X-ray: " + (on ? "on" : "off"))
+                .withStyle(on ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GRAY);
     }
 
     private void addOptionRow(ConfigOption option, int y) {
@@ -467,12 +525,21 @@ public final class MobStackerRegionScreen extends Screen {
                 box.setValue(valueOf(option));
                 box.setMaxLength(64);
                 box.setEditable(allowed);
+                boolean item = option.type() == ConfigOption.Type.ITEM;
+                if (item) {
+                    itemCompletion.attach(box);
+                }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
                         box.setTextColor(NORMAL_TEXT);
                         applyEdit(option.id(), text);
                     } else {
                         box.setTextColor(ERROR_TEXT);
+                    }
+                    // Only for what somebody typed: a repaint from the config is not a question, and a
+                    // box that may not be edited never gets typed into.
+                    if (item && !repainting) {
+                        itemCompletion.update(text);
                     }
                 });
                 addRenderableWidget(box);
@@ -805,6 +872,9 @@ public final class MobStackerRegionScreen extends Screen {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+        // Lifted in front of everything but tooltips, so drawing it before the labels is fine - and
+        // it has to come before them here, because the tooltip branches below return early.
+        itemCompletion.render(guiGraphics, this.height, mouseX, mouseY);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         if (!showRows) {
@@ -850,6 +920,16 @@ public final class MobStackerRegionScreen extends Screen {
                     Component.literal("'auto' = green for an allow region, red for a deny one.")
                             .withStyle(ChatFormatting.DARK_GRAY),
                     Component.literal("Right-click to go back one.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+            return;
+        }
+
+        if (overWalls(mouseX, mouseY)) {
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
+                    Component.literal("x-ray").withStyle(ChatFormatting.WHITE),
+                    Component.literal("Draw region boxes through walls and terrain, so a region can be seen from anywhere around it.")
+                            .withStyle(ChatFormatting.GRAY),
+                    Component.literal("Your own view, the same in every world. Never sent to the server.")
                             .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
             return;
         }

@@ -43,11 +43,11 @@ import java.util.Set;
  * <p>The colour comes from the region (see {@code StackRegion.effectiveColor}), so it is shared by
  * everyone looking at the same region; only the decision to look is per player.
  *
- * <p>Boxes are depth-tested, so terrain hides them the way it hides everything else. Drawing them
- * through walls is a follow-up (1.9.1): it needs a render type with the depth test off, which
- * {@link MobStackerRenderTypes} can now build the same way it builds the faces. One box hiding
- * <em>another</em> is not the same question and is fixed here: faces write no depth, so nothing
- * this overlay draws can hide anything else it draws.
+ * <p>Boxes are depth-tested by default, so terrain hides them the way it hides everything else.
+ * <b>Through walls</b> is a switch of its own: it draws the same boxes with render types whose depth
+ * test is off ({@link MobStackerRenderTypes}), so a region can be seen from anywhere in it or around
+ * it. One box hiding <em>another</em> is a different question, answered either way: faces write no
+ * depth, so nothing this overlay draws can hide anything else it draws.
  */
 public final class MobStackerRegionOverlay {
 
@@ -81,6 +81,12 @@ public final class MobStackerRegionOverlay {
         Map<String, WorldView> worlds = new LinkedHashMap<>();
         /** Global on purpose: how a box is drawn is a taste, not a fact about a world. */
         Style style = Style.BOTH;
+        /**
+         * Whether terrain hides a box. Global for the same reason as {@link #style}. Off by default:
+         * a box seen through a mountain is exactly what somebody laying out regions wants, and
+         * exactly what somebody who switched boxes on to glance at one farm does not.
+         */
+        boolean throughWalls = false;
     }
 
     /** What one world's or server's boxes look like to this player. */
@@ -209,6 +215,17 @@ public final class MobStackerRegionOverlay {
         return state.style;
     }
 
+    public static boolean throughWalls() {
+        return state.throughWalls;
+    }
+
+    /** @return true if boxes are drawn through walls afterwards. */
+    public static boolean toggleThroughWalls() {
+        state.throughWalls = !state.throughWalls;
+        save();
+        return state.throughWalls;
+    }
+
     /** True when at least one box would be drawn, so the render hook can leave early. */
     public static boolean anythingShowing() {
         WorldView view = here();
@@ -235,6 +252,12 @@ public final class MobStackerRegionOverlay {
         PoseStack pose = context.matrixStack();
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         Style style = state.style;
+        // Through walls changes only which types draw the boxes, never what is drawn: the same
+        // faces and edges, with the depth test off.
+        RenderType faceType = state.throughWalls
+                ? MobStackerRenderTypes.REGION_FACES_XRAY : MobStackerRenderTypes.REGION_FACES;
+        RenderType edgeType = state.throughWalls
+                ? MobStackerRenderTypes.REGION_EDGES_XRAY : RenderType.lines();
 
         pose.pushPose();
         // The world is drawn relative to the camera, so every box moves with it.
@@ -248,7 +271,7 @@ public final class MobStackerRegionOverlay {
         // them when the frame was put together. Now faces go first and edges on top, so an edge is
         // never tinted over and nothing here can hide anything else here.
         if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            VertexConsumer faces = buffers.getBuffer(faceType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -259,11 +282,11 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+            buffers.endBatch(faceType);
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            VertexConsumer edges = buffers.getBuffer(edgeType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -271,22 +294,24 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
-            buffers.endBatch(RenderType.lines());
+            buffers.endBatch(edgeType);
         }
 
         if (preview != null) {
             // Always both faces and edges, in white: it is a transient answer to "is this the area
-            // I mean", so being unmistakable matters more than matching the chosen style.
-            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            // I mean", so being unmistakable matters more than matching the chosen style. It does
+            // follow "through walls", which is at its most useful exactly while a corner is being
+            // looked for on the far side of a hill.
+            VertexConsumer faces = buffers.getBuffer(faceType);
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+            buffers.endBatch(faceType);
 
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            VertexConsumer edges = buffers.getBuffer(edgeType);
             LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(RenderType.lines());
+            buffers.endBatch(edgeType);
         }
 
         pose.popPose();

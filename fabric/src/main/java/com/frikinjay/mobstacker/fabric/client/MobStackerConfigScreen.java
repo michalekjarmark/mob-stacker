@@ -15,6 +15,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +62,9 @@ public final class MobStackerConfigScreen extends Screen {
     private boolean syncRequested;
     // Set while a widget is being repainted, so its own responder does not send that back as an edit.
     private boolean repainting;
+    // Item ids for separatorItem, the way the mob list editor completes entity ids. At most one item
+    // box is on a page, so one completion is enough; it is pointed at nothing on the other pages.
+    private final IdCompletion itemCompletion = new IdCompletion(IdCompletion::itemIds);
 
     public MobStackerConfigScreen(Screen parent) {
         super(Component.literal("MobStacker: Restacked"));
@@ -75,6 +79,7 @@ public final class MobStackerConfigScreen extends Screen {
     @Override
     protected void init() {
         rows.clear();
+        itemCompletion.attach(null);
 
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
@@ -224,12 +229,21 @@ public final class MobStackerConfigScreen extends Screen {
                 box.setValue(valueOf(option));
                 box.setMaxLength(64);
                 box.setEditable(allowed);
+                boolean item = option.type() == ConfigOption.Type.ITEM;
+                if (item) {
+                    itemCompletion.attach(box);
+                }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
                         box.setTextColor(NORMAL_TEXT);
                         applyOption(option, text);
                     } else {
                         box.setTextColor(ERROR_TEXT);
+                    }
+                    // Only for what somebody typed: a repaint from the config is not a question, and a
+                    // box that may not be edited never gets typed into.
+                    if (item && !repainting) {
+                        itemCompletion.update(text);
                     }
                 });
                 addRenderableWidget(box);
@@ -325,7 +339,15 @@ public final class MobStackerConfigScreen extends Screen {
         }
         if (remote) {
             // Optimistically keep the typed value across a rebuild; the server echo confirms/corrects.
-            MobStackerClientNetworking.rememberLocal(option.id(), raw);
+            // Kept as the value it means, so "max" or "default" is shown as a number meanwhile
+            // rather than as the word, just as the server will store it.
+            String meant;
+            try {
+                meant = option.canonicalize(raw);
+            } catch (IllegalArgumentException e) {
+                meant = raw;
+            }
+            MobStackerClientNetworking.rememberLocal(option.id(), meant);
             MobStackerClientNetworking.sendEdit(option.id(), raw);
             refreshRows();
         } else if (this.minecraft != null) {
@@ -381,9 +403,33 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        boolean inItemBox = itemCompletion.isFor(this.getFocused());
+        if (itemCompletion.handleKey(keyCode, inItemBox)) {
+            return true;
+        }
+        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+                && inItemBox && itemCompletion.shouldEnterComplete()) {
+            itemCompletion.accept();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (itemCompletion.mouseClicked(mouseX, mouseY, this.height)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+        // Lifted in front of everything but tooltips, so drawing it before the labels is fine.
+        itemCompletion.render(guiGraphics, this.height, mouseX, mouseY);
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 

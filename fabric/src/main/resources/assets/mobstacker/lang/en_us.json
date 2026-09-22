@@ -2,6 +2,9 @@
   "key.categories.mobstacker": "MobStacker: Restacked",
   "key.mobstacker.open_config": "Open Config GUI",
   "key.mobstacker.toggle_region_overlay": "Show/hide all region boxes",
+  "key.mobstacker.toggle_region_xray": "Region boxes through walls on/off",
   "message.mobstacker.overlay_on": "Region boxes: showing all",
-  "message.mobstacker.overlay_off": "Region boxes: hidden"
+  "message.mobstacker.overlay_off": "Region boxes: hidden",
+  "message.mobstacker.xray_on": "Region boxes: drawn through walls",
+  "message.mobstacker.xray_off": "Region boxes: hidden by terrain"
 }

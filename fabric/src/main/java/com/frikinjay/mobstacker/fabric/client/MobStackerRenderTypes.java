@@ -6,6 +6,7 @@ import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 
 import java.util.List;
+import java.util.OptionalDouble;
 
 /**
  * The render types the region overlay needs and vanilla does not have.
@@ -13,7 +14,7 @@ import java.util.List;
  * <p>Extends {@link RenderStateShard} only to reach its shards, which are {@code protected}; it is
  * never instantiated. {@code RenderType.create} is not public, so a type is put together here from
  * the public constructor and the shards themselves, set up and cleared in the same order a vanilla
- * composite type uses.
+ * composite type uses (shader, transparency, depth test, cull, layering, output, write mask, line).
  */
 final class MobStackerRenderTypes extends RenderStateShard {
 
@@ -31,17 +32,53 @@ final class MobStackerRenderTypes extends RenderStateShard {
      * drawn - terrain still hides it, because the depth test is still on.
      */
     static final RenderType REGION_FACES = composite("mobstacker_region_faces",
-            DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP,
+            DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP, true,
             List.of(POSITION_COLOR_SHADER, TRANSLUCENT_TRANSPARENCY, LEQUAL_DEPTH_TEST,
                     VIEW_OFFSET_Z_LAYERING, COLOR_WRITE));
+
+    /**
+     * {@link #REGION_FACES} with the depth test off as well, so terrain no longer hides a region:
+     * the "through walls" view. Nothing else about it differs, so switching it on changes what hides
+     * a box and nothing about how the box looks.
+     *
+     * <p>Wrapping the vanilla type in {@code RenderSystem.disableDepthTest()} does not do this - a
+     * render type sets its own depth test up when its batch is drawn, which overwrites whatever was
+     * set before. It has to be a type whose own depth-test shard is off, which is why this exists.
+     */
+    static final RenderType REGION_FACES_XRAY = composite("mobstacker_region_faces_xray",
+            DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP, true,
+            List.of(POSITION_COLOR_SHADER, TRANSLUCENT_TRANSPARENCY, NO_DEPTH_TEST,
+                    VIEW_OFFSET_Z_LAYERING, COLOR_WRITE));
+
+    /**
+     * Vanilla's {@code lines()} with the depth test off, for the same view: the same shader, line
+     * width, layering and output buffer, so an edge looks exactly as it does without it.
+     *
+     * <p>It also writes no depth ({@code COLOR_WRITE}, where vanilla's writes both): with the test
+     * off there is nothing depth would be good for, and writing it would let a box's edges hide
+     * whatever the game draws after the overlay. Under "Fabulous" graphics the lines still go into
+     * the item-entity buffer like vanilla's. That buffer's depth starts out as a copy of the
+     * terrain's, and an edge writes none of its own, so when the frame is put together an edge
+     * behind a wall sits at the wall's depth and is laid over it. (Something drawn into the main
+     * buffer after that copy, such as a mob in front, can still cover an edge there. Cosmetic.)
+     */
+    static final RenderType REGION_EDGES_XRAY = composite("mobstacker_region_edges_xray",
+            DefaultVertexFormat.POSITION_COLOR_NORMAL, VertexFormat.Mode.LINES, false,
+            List.of(RENDERTYPE_LINES_SHADER, TRANSLUCENT_TRANSPARENCY, NO_DEPTH_TEST, NO_CULL,
+                    VIEW_OFFSET_Z_LAYERING, ITEM_ENTITY_TARGET, COLOR_WRITE,
+                    new LineStateShard(OptionalDouble.empty())));
 
     private MobStackerRenderTypes() {
         super("mobstacker_render_types", () -> { }, () -> { });
     }
 
+    /**
+     * @param sortOnUpload what vanilla passes for the type this one is modelled on: true for the
+     *                     filled box, false for lines
+     */
     private static RenderType composite(String name, VertexFormat format, VertexFormat.Mode mode,
-                                        List<RenderStateShard> shards) {
-        return new RenderType(name, format, mode, RenderType.SMALL_BUFFER_SIZE, false, true,
+                                        boolean sortOnUpload, List<RenderStateShard> shards) {
+        return new RenderType(name, format, mode, RenderType.SMALL_BUFFER_SIZE, false, sortOnUpload,
                 () -> shards.forEach(RenderStateShard::setupRenderState),
                 () -> shards.forEach(RenderStateShard::clearRenderState)) {
         };
