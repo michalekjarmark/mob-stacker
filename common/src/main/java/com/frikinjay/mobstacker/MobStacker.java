@@ -341,39 +341,48 @@ public final class MobStacker {
         return false;
     }
 
-    public static boolean canMerge(Mob self, Mob nearby) {
-        if (self.getClass() != nearby.getClass() || !getCanStack(nearby)) {
+    /**
+     * Whether {@code source} may be merged away into {@code target}.
+     *
+     * <p>The two mobs are interchangeable in nearly everything this asks, but not quite: the ceiling
+     * that counts is the one where the <em>survivor</em> stands, and a player-given name only has to
+     * be protected on the mob being merged away, because the survivor keeps its own either way.
+     * Which of the two is which is decided by {@link #tryMergeIntoNearbyStack}, not by which one
+     * happened to move.
+     */
+    public static boolean canMerge(Mob source, Mob target) {
+        if (source.getClass() != target.getClass() || !getCanStack(source) || !getCanStack(target)) {
             return false;
         }
 
         // Never merge into / from a dying or removed mob (see canStack) — guards the
         // destructive mergeEntities call against the death-animation loop.
-        if (self.isDeadOrDying() || nearby.isDeadOrDying() || self.isRemoved() || nearby.isRemoved()) {
+        if (source.isDeadOrDying() || target.isDeadOrDying() || source.isRemoved() || target.isRemoved()) {
             return false;
         }
 
-        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize(self)) {
+        if ((getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
             return false;
         }
 
         // Never mix a baby with an adult (they carry different growth state). Two babies may
         // merge freely; mergeEntities keeps the youngest age so none grows up early.
-        if (self.isBaby() != nearby.isBaby()) {
+        if (source.isBaby() != target.isBaby()) {
             return false;
         }
 
         // The stack shows one name, and the survivor keeps its own, so a mob carrying a different
         // player-given name must not be merged away into it - that name would simply vanish.
-        Component ownName = playerGivenName(self);
-        if (ownName != null && !ownName.equals(playerGivenName(nearby))) {
+        Component ownName = playerGivenName(source);
+        if (ownName != null && !ownName.equals(playerGivenName(target))) {
             return false;
         }
 
-        if (!MobVariants.sameVariant(self, nearby)) {
+        if (!MobVariants.sameVariant(source, target)) {
             return false;
         }
 
-        return MobStackerAPI.checkCustomMergingConditions(self, nearby);
+        return MobStackerAPI.checkCustomMergingConditions(source, target);
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {
@@ -665,18 +674,28 @@ public final class MobStacker {
     }
 
     /**
-     * Looks for a nearby stack this mob can join and merges into it. The nearby mob is kept as the
-     * stack and this one is discarded, so callers must not touch {@code self} afterwards.
+     * Looks for a mob standing near this one that the two of them may merge into, and merges them.
      *
-     * @return true when the mob was merged away
+     * <p><strong>The bigger stack always survives</strong>, whichever of the two set the merge off.
+     * A merge is driven by whichever mob moved or scanned first, and the survivor keeps its own
+     * position — so when a stack wandered into a lone cow, the cow won and the stack appeared to
+     * teleport a block or two sideways. Equal sizes keep the mob that was found, which is what a mob
+     * walking into a stack has always done.
+     *
+     * @return true when {@code self} was merged away and no longer exists
      */
     public static boolean tryMergeIntoNearbyStack(Mob self) {
-        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
-                entity -> entity instanceof Mob && canStack((Mob) entity))) {
-            if (canMerge(self, (Mob) nearby)) {
-                mergeEntities((Mob) nearby, self);
-                return true;
+        for (Entity entity : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
+                candidate -> candidate instanceof Mob && canStack((Mob) candidate))) {
+            Mob nearby = (Mob) entity;
+            boolean keepSelf = getStackSize(self) > getStackSize(nearby);
+            Mob target = keepSelf ? self : nearby;
+            Mob source = keepSelf ? nearby : self;
+            if (!canMerge(source, target)) {
+                continue;
             }
+            mergeEntities(target, source);
+            return !keepSelf;
         }
         return false;
     }

@@ -91,6 +91,21 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **`/mobstacker set killWholeStackOnDeath false` says it is forced on** *(1.6.0)* while
   `stackHealth` holds it there, instead of answering "it is already false" because `false` is what
   sits in the file. This was the one failure `/mobstacker selftest` had been reporting.
+- **A stack no longer jumps sideways when it swallows a passing mob** *(as old as this fork)*.
+  Whichever of the two mobs moved or scanned first was the one that survived the merge, and the
+  survivor keeps its own position — so roughly one merge in twenty was a stack of thirty cows
+  teleporting a block or two to stand where a single cow had been. The **bigger stack always
+  survives** now, whoever set the merge off. Two side effects worth knowing: a mob you named is no
+  longer merged away into a bigger unnamed stack, because its name would vanish, and the per-type
+  ceiling that decides whether a merge fits is now the one where the **survivor** stands rather than
+  the one where the mob that moved happened to be.
+- **Which region boxes you are looking at is remembered per world** *(1.8.0)*. It was one list for
+  the whole game, so "show all" switched on in a test world came along to the next world and onto
+  the server, drawing boxes nobody had asked for — and a region called `farm` in one world decided
+  what `farm` looked like in another. The style (wireframe, filled, both) is still one choice for
+  everywhere, because that one really is a preference rather than a fact about a world. Existing
+  `config/mobstacker-overlay.json` files are read as before; the old blanket switch is dropped once,
+  which costs one click to set again.
 - The self-test now covers everything above that can be checked without a world: settings held
   inert by another, what a list will accept, and creating a region versus redrawing one.
 
