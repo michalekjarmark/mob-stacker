@@ -51,7 +51,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 ### Fixed
 
 > **Where these come from.** 1.7.0 and 1.8.0 both shipped without a test pass, so most of what is
-> fixed below is not a 1.9.0 regression — it is the first time anybody has played those two versions
+> fixed below is not a 1.9.0 regression — it is the first time developers had tested those two versions
 > and written down what happened. The version each bug arrived in is named, because "fixed in 1.9.0"
 > on its own would suggest 1.9.0 broke it.
 
