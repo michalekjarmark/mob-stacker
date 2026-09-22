@@ -217,6 +217,17 @@ public final class ConfigOption {
      * {@link Result.Status#ERROR}. Unchanged values report {@link Result.Status#UNCHANGED}.
      */
     public Result apply(String raw) {
+        return apply(raw, false);
+    }
+
+    /**
+     * @param restoring true when this puts back a value that was stored before - a reset, or the
+     *                  self-test undoing itself - rather than a player asking for a new one. Such a
+     *                  write is not asked whether the setting would currently do anything: it only
+     *                  touches what is stored, and what the setting reads as is still decided by its
+     *                  dependencies exactly as before.
+     */
+    private Result apply(String raw, boolean restoring) {
         Object parsed;
         try {
             parsed = parser.apply(raw);
@@ -249,19 +260,24 @@ public final class ConfigOption {
                     : Result.error(lock);
         }
 
-        if (oldValue.equals(newValue)) {
-            return Result.unchanged(oldValue);
-        }
-
-        // A setting that depends on another one may always be switched off - its default, or the
-        // value that means it does nothing, whichever way round they are - but only turned on once
-        // the setting it needs is on.
-        if (!newValue.equalsIgnoreCase(defaultValue())
-                && !newValue.equalsIgnoreCase(MobStackerSettings.inertValue(this))) {
+        // A setting that depends on another one may always be switched off, but only turned on once
+        // the setting it needs is on. "Off" is the value that means it does nothing, and only that:
+        // exempting the default as well let keepMemberEquipment, whose default is ON, be switched on
+        // while stackEquippedMobs was off. A reset goes back to the default without asking - it is
+        // a write to the stored value, not a request for the setting to start doing something.
+        //
+        // Judged before the "nothing to do" shortcut, for the same reason as the lock above: with
+        // ON already stored underneath, `set keepMemberEquipment true` answered "already true" to a
+        // player looking at a greyed switch that says OFF - and would still say OFF afterwards.
+        if (!restoring && !newValue.equalsIgnoreCase(MobStackerSettings.inertValue(this))) {
             String problem = MobStackerSettings.dependencyProblem(this, null, null);
             if (problem != null) {
                 return Result.error(problem);
             }
+        }
+
+        if (oldValue.equals(newValue)) {
+            return Result.unchanged(oldValue);
         }
 
         setter.accept(parsed);
@@ -293,13 +309,29 @@ public final class ConfigOption {
         if (type != Type.BOOL) {
             return Result.error("'" + id + "' is not a toggle (it is a " + type + " setting)");
         }
-        boolean current = (Boolean) getter.get();
+        // Flips what the switch READS AS, which is what the player is looking at: a greyed-out
+        // switch reading OFF is asked to go ON (and says why it cannot), rather than quietly having
+        // the ON stored underneath it turned off.
+        boolean current = Boolean.parseBoolean(currentValue());
         return apply(String.valueOf(!current));
     }
 
-    /** Restores the option to its default value. */
+    /**
+     * Restores the option to its default value. Always allowed where {@link #apply} would allow the
+     * same value, and also where a dependency would refuse it: the default is stored, and whether it
+     * does anything is decided when the setting is read, as it always is.
+     */
     public Result reset() {
-        return apply(String.valueOf(defaultValue));
+        return apply(String.valueOf(defaultValue), true);
+    }
+
+    /**
+     * Puts back a value this option had before, the way {@link #reset} puts back the default - for
+     * code that changed a setting temporarily and has to leave the stored value exactly as it found
+     * it, whether or not that value would be accepted from a player right now.
+     */
+    public Result restore(String storedValue) {
+        return apply(storedValue, true);
     }
 
     // --- Optional wiring ---

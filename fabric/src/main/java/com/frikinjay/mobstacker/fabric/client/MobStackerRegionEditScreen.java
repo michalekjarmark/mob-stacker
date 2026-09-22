@@ -200,19 +200,21 @@ public final class MobStackerRegionEditScreen extends Screen {
 
     /**
      * Takes the two corners the player clicked in the world and drops them into the coordinate
-     * boxes, sorted into a minimum and a maximum so either click may come first.
+     * boxes as they were clicked: the first block is corner 1, the second is corner 2. Sorting them
+     * into a minimum and a maximum described the same box, but with coordinates matching neither
+     * block that was clicked - which reads as the editor having got them wrong.
      *
      * <p>Nothing is saved: this fills the same fields somebody could have typed, and Save still has
      * to be pressed. That is deliberate — the picker is a nicer way to answer the question, not a
      * second way to change a region.
      */
     void applyPickedCorners(BlockPos a, BlockPos b) {
-        corners[0] = Math.min(a.getX(), b.getX());
-        corners[1] = Math.min(a.getY(), b.getY());
-        corners[2] = Math.min(a.getZ(), b.getZ());
-        corners[3] = Math.max(a.getX(), b.getX());
-        corners[4] = Math.max(a.getY(), b.getY());
-        corners[5] = Math.max(a.getZ(), b.getZ());
+        corners[0] = a.getX();
+        corners[1] = a.getY();
+        corners[2] = a.getZ();
+        corners[3] = b.getX();
+        corners[4] = b.getY();
+        corners[5] = b.getZ();
         // The dimension the corners were clicked in is the only one they mean anything in.
         if (this.minecraft != null && this.minecraft.level != null) {
             String here = this.minecraft.level.dimension().location().toString();
@@ -412,9 +414,10 @@ public final class MobStackerRegionEditScreen extends Screen {
         drawLabel(guiGraphics, "dimension", labelX, DIMENSION_Y + LABEL_INSET);
         drawLabel(guiGraphics, "corner 1", labelX, CORNER1_Y + LABEL_INSET);
         drawLabel(guiGraphics, "corner 2", labelX, CORNER2_Y + LABEL_INSET);
-        // In the gap between the dimension button and the first corner row, not across either.
+        // In the gap between the dimension button and the first corner row, not across either. The
+        // same grey as the labels beside it: dark grey disappeared into the dirt background.
         guiGraphics.drawString(this.font,
-                Component.literal("X            Y            Z").withStyle(ChatFormatting.DARK_GRAY),
+                Component.literal("X            Y            Z").withStyle(ChatFormatting.GRAY),
                 this.width / 2 - 86, AXIS_HEADER_Y, NORMAL_TEXT);
 
         // Below the pick button, not across it. A message always wins over the standing hint,

@@ -396,12 +396,10 @@ public final class MobStackerNetworking {
             buf.writeUtf(region.getDimension() == null ? "" : region.getDimension());
             // The corners themselves, not a pretty string: the region editor puts them straight into
             // its coordinate boxes, and the client formats the label the same way the server would.
-            buf.writeInt(region.getMinX());
-            buf.writeInt(region.getMinY());
-            buf.writeInt(region.getMinZ());
-            buf.writeInt(region.getMaxX());
-            buf.writeInt(region.getMaxY());
-            buf.writeInt(region.getMaxZ());
+            // As they were given, not sorted - the client works out the box's extent for itself.
+            for (int corner : region.getCorners()) {
+                buf.writeInt(corner);
+            }
             buf.writeInt(region.getPriority());
             // Empty means "nothing chosen"; the client applies the same allow/deny fallback the
             // server does, so both ends agree on what an uncoloured region looks like.

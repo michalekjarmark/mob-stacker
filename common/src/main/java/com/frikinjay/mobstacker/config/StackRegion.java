@@ -33,6 +33,13 @@ public class StackRegion implements MobLists.Holder {
     private int maxX;
     private int maxY;
     private int maxZ;
+    // The two corners exactly as they were given - x1, y1, z1, x2, y2, z2, in the order somebody
+    // clicked or typed them. Only what the editor shows and what the commands print: whether a block
+    // is inside is decided by min/max above, which is also all an older version of the mod reads, so
+    // a world taken back to one still has every region exactly where it was. Null in a config
+    // written before this existed, and ignored if it no longer describes the same box as min/max
+    // (somebody edited those by hand), so it can only ever add information, never contradict it.
+    private int[] corners;
     // Settings that differ inside this region, keyed by the same ids the commands and the GUI use.
     // Volatile because in singleplayer the config screen reads this from the client thread while the
     // integrated server writes it, and a stale reference would leave the screen showing old state.
@@ -62,12 +69,7 @@ public class StackRegion implements MobLists.Holder {
         this.name = name;
         this.dimension = dimension;
         this.type = type;
-        this.minX = Math.min(x1, x2);
-        this.minY = Math.min(y1, y2);
-        this.minZ = Math.min(z1, z2);
-        this.maxX = Math.max(x1, x2);
-        this.maxY = Math.max(y1, y2);
-        this.maxZ = Math.max(z1, z2);
+        setBounds(x1, y1, z1, x2, y2, z2);
     }
 
     public String getName() {
@@ -135,6 +137,24 @@ public class StackRegion implements MobLists.Holder {
         this.maxX = Math.max(x1, x2);
         this.maxY = Math.max(y1, y2);
         this.maxZ = Math.max(z1, z2);
+        this.corners = new int[]{x1, y1, z1, x2, y2, z2};
+    }
+
+    /**
+     * The two corners as they were given: {@code {x1, y1, z1, x2, y2, z2}}, corner 1 first. Two
+     * blocks somebody clicked are shown back as those two blocks - sorting them into a minimum and a
+     * maximum described the same box, but with coordinates matching neither block, which read as the
+     * editor having got them wrong. A region from before this was kept falls back to min and max.
+     */
+    public int[] getCorners() {
+        int[] given = corners;
+        if (given != null && given.length == 6
+                && Math.min(given[0], given[3]) == minX && Math.max(given[0], given[3]) == maxX
+                && Math.min(given[1], given[4]) == minY && Math.max(given[1], given[4]) == maxY
+                && Math.min(given[2], given[5]) == minZ && Math.max(given[2], given[5]) == maxZ) {
+            return given.clone();
+        }
+        return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
     }
 
     public void setType(Type type) {
@@ -331,6 +351,7 @@ public class StackRegion implements MobLists.Holder {
     }
 
     public String describeBounds() {
-        return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+        int[] c = getCorners();
+        return "[" + c[0] + ", " + c[1] + ", " + c[2] + "] -> [" + c[3] + ", " + c[4] + ", " + c[5] + "]";
     }
 }

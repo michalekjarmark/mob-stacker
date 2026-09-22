@@ -47,6 +47,20 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   week — but it is marked `(not loaded)` in the editor and says so in chat, so an entry that means
   nothing never looks like one that is working. The per-type stack ceilings are judged the same way.
 - **The box colour button on the region screen is labelled**, and says what "auto" means on hover.
+  **Right-click steps it backwards**, so going back one colour is not sixteen clicks forward.
+- **A region remembers its two corners the way you gave them.** Picking two blocks and reopening the
+  editor used to show two *other* blocks — the same box, sorted into a minimum and a maximum corner,
+  but with coordinates matching neither block you clicked. Corner 1 is now the first block and
+  corner 2 the second, in the editor, in `region list` and in `region show`. The config file keeps
+  the minimum and maximum it always had, so what is inside a region is decided exactly as before and
+  a world taken back to an older version still has every region where it was; a region saved before
+  this simply shows its corners sorted, as it always did, until it is next redrawn.
+- **With `stackedHarvest` off, shears take one animal out of the stack and shear that one.** "Off"
+  was meant to make a stack give what a single mob would, but shearing changes the mob and the stack
+  is one mob — so one click left all sixteen sheep sheared for one sheep's wool, and a stack of
+  mooshrooms turned into a stack of cows. Now each click shears one sheep, the rest keep their wool,
+  and a sheared sheep never merges back into an unsheared stack. With the setting on, nothing changed:
+  one click still shears the whole stack for the whole stack's wool.
 - **`maxStackSize` accepts anything from 1 to 2147483647 again.** The mod this one is forked from
   took any whole number from 1 upwards; this fork had quietly capped it at 100000, which was its own
   invention and had nothing behind it. The per-type ceilings go as high, and so do the three settings
@@ -82,6 +96,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   — vanilla calls it temper — stays out for good, the way a tamed one does.
 - **Bucketing a stacked fish takes one fish** *(as old as fish stacking at all)*. It used to take
   the whole shoal: everything but the name went into the bucket, and one fish came back out of it.
+- **…and the shoal it came out of stays visible** *(new in 1.9.0's fix for the above)*. The game
+  removes a bucketed mob on your screen the moment you click, before the server has answered; the
+  server then kept the rest of the stack, and nothing ever told your client it was still there. The
+  stack went on existing out of sight — it still merged, still swallowed fish poured back next to it,
+  and came back into view only when something re-sent it. It is re-sent the moment the bucket is
+  filled now. The same went for axolotls and tadpoles.
+- **A fish poured out of a bucket stays out of the stacks for a few seconds**, like any mob the mod
+  hands you, instead of vanishing into the shoal beside it on its very first tick.
 - **The mob list editor could crash the game** *(new in 1.9.0)*. Removing entries quickly left the
   screen rebuilding from a list the server thread had already shortened, which came out as an
   `IndexOutOfBoundsException` on the next click.
@@ -94,14 +116,29 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   exactly as `/mobstacker region add` always has. Creating an allow region while stacking is off
   also *says* that it switched stacking on — in singleplayer as well as over the network, where the
   message was being written and then thrown away.
-- **The X/Y/Z header in the area editor no longer sits on the dimension button** *(1.7.0)*.
+- **The X/Y/Z header in the area editor no longer sits on the dimension button** *(1.7.0)*, and is
+  drawn in the same grey as the labels beside it rather than one that disappeared into the background.
 - **A region's wireframe is visible through another region's fill** *(1.8.0)*, and through its own
-  near face: the edges are drawn before the faces, which then do not hide them. Drawing boxes
-  through *walls* is a separate job and still to come.
+  near face. The faces are drawn with a render type of the mod's own that writes no depth, so nothing
+  the overlay draws can hide anything else it draws. Drawing the edges first had been tried and was
+  not enough: with *Fabulous* graphics the edges go into a buffer of their own, and a face that had
+  written its depth still covered them when the frame was put together — which is also why stepping
+  inside a box made everything reappear. Drawing boxes through *walls* is a separate job and still
+  to come.
+- **The mob list editor keeps the cursor in the entry box after Add** *(new in 1.9.0)*, so a run of
+  ids can be typed one after another. It used to be taken away twice: by the Add button taking focus
+  once it had been clicked, and by the screen repainting when the edit came back from the server.
+  That repaint now also keeps whatever you had started typing, so a new row is shown straight away
+  instead of waiting until the box lost focus.
 - **`keepMemberEquipment` no longer reads `ON` while greyed out** *(the greying is 1.6.0; 1.7.0's
   setting is the first one it got wrong, being the first whose default is on)*. A setting that is
   doing nothing reads as off, whichever way its own default points — and can always be switched
-  off, which for a setting whose default was on was being refused.
+  off, which for a setting whose default was on was being refused. It also **cannot be switched on**
+  while `stackEquippedMobs` is off, in either of the two ways that slipped through: asking for its
+  default, which counted as "switching it off", or asking for `true` while `true` was what sat in the
+  file, which answered "already true" to a switch that reads OFF. That second one was what
+  `/mobstacker selftest` kept reporting. `toggle` flips what a switch reads as, and `reset` may always
+  put the default back — that is a write to the file, not a request for the setting to do anything.
 - **`/mobstacker set killWholeStackOnDeath false` says it is forced on** *(1.6.0)* while
   `stackHealth` holds it there, instead of answering "it is already false" because `false` is what
   sits in the file. This was the one failure `/mobstacker selftest` had been reporting.
@@ -116,12 +153,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **Which region boxes you are looking at is remembered per world** *(1.8.0)*. It was one list for
   the whole game, so "show all" switched on in a test world came along to the next world and onto
   the server, drawing boxes nobody had asked for — and a region called `farm` in one world decided
-  what `farm` looked like in another. The style (wireframe, filled, both) is still one choice for
-  everywhere, because that one really is a preference rather than a fact about a world. Existing
-  `config/mobstacker-overlay.json` files are read as before; the old blanket switch is dropped once,
-  which costs one click to set again.
+  what `farm` looked like in another. A singleplayer world is known by its **save folder**, not the
+  name on the world list, so two worlds both called "New World" are two worlds. The style (wireframe,
+  filled, both) is still one choice for everywhere, because that one really is a preference rather
+  than a fact about a world. Existing `config/mobstacker-overlay.json` files are read as before; the
+  old blanket switch is dropped once, which costs one click to set again.
 - The self-test now covers everything above that can be checked without a world: settings held
-  inert by another, what a list will accept, and creating a region versus redrawing one.
+  inert by another (globally and inside a region), what a list will accept, creating a region versus
+  redrawing one, and a region keeping its corners as given.
 
 ## [1.8.0] - 2026-09-19
 ### Added

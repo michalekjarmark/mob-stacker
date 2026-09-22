@@ -28,6 +28,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
@@ -583,6 +584,42 @@ public final class MobStacker {
      */
     public static boolean isBucketingInteraction(Mob mob, ItemStack held) {
         return mob instanceof Bucketable && held.is(Items.WATER_BUCKET);
+    }
+
+    /**
+     * Whether this is shears on a stack that is harvested one mob at a time.
+     *
+     * <p>With {@code stackedHarvest} off a stack gives what a single mob would, and for milking that
+     * is the whole story. Shearing is different: it changes the mob, and the stack is one mob - so
+     * after one click all sixteen sheep stood there sheared, having given one sheep's wool between
+     * them. A stacked mooshroom was worse, turning into sixteen cows. So with the setting off the
+     * stack hands one animal over and that one is sheared, like taming and bucketing; the rest keep
+     * their wool for the next click. A sheared sheep never merges back into an unsheared stack
+     * (see {@code MobVariants}), so the two stay apart until the wool grows back.
+     */
+    public static boolean isShearingOneInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.SHEARS) && mob instanceof Shearable shearable && shearable.readyForShearing()
+                && !getStackedHarvest(mob);
+    }
+
+    /**
+     * Has every client that can see this mob forget it and be sent it afresh, the way the server
+     * sends a mob to a player walking into range.
+     *
+     * <p>For the one interaction a client acts out before the server has answered and cannot take
+     * back: filling a bucket. Vanilla discards the mob on the client the moment it is clicked,
+     * trusting the server to do the same. On a stack the server does not - it hands one fish over and
+     * keeps the shoal - and nothing ever told the client the shoal was still there. It went on
+     * existing out of sight: it merged, swallowed the fish poured back next to it, and reappeared
+     * only when something sent it again - a relog, the chunk reloading, or a {@code /kill} that
+     * left survivors to respawn.
+     */
+    public static void resendToClients(Mob mob) {
+        if (mob.isRemoved() || !(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+        level.getChunkSource().removeEntity(mob);
+        level.getChunkSource().addEntity(mob);
     }
 
     /**
@@ -1251,6 +1288,16 @@ public final class MobStacker {
         }
         data.remove(JUST_SEPARATED_KEY);
         return true;
+    }
+
+    /**
+     * Keeps a mob that was just poured out of a bucket out of the stacks for a while, the way one the
+     * mod handed over is. The player has just put that particular fish somewhere on purpose; with
+     * {@code stackOnSpawn} on it vanished into the shoal beside it on its very first tick, which
+     * looked exactly like the bucket having eaten it. It joins a stack once the grace runs out.
+     */
+    public static void markPouredFromBucket(Mob mob) {
+        markJustSeparated(mob);
     }
 
     /** Ticks still owed to the player who was handed this mob, or 0. */

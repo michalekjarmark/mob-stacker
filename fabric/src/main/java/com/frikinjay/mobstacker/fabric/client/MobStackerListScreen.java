@@ -79,6 +79,10 @@ public final class MobStackerListScreen extends Screen {
     private boolean remote;
     private boolean editable;
     private EditBox entryBox;
+    // Set by addEntry and honoured on the next tick, not straight away: when "Add" is clicked, the
+    // screen hands focus to the button that was clicked *after* its action has run, so focusing the
+    // entry box from inside that action is undone before anybody sees it.
+    private boolean focusEntrySoon;
     private EditBox sizeBox;
     /** Set after the first click on the button that would drop this region's own list. */
     private boolean inheritArmed;
@@ -258,6 +262,13 @@ public final class MobStackerListScreen extends Screen {
     }
 
     private void switchTab(int delta) {
+        // What was typed belonged to the tab being left - an entity id means nothing on a mod tab.
+        if (entryBox != null) {
+            entryBox.setValue("");
+        }
+        if (sizeBox != null) {
+            sizeBox.setValue("");
+        }
         tab = Math.floorMod(tab + delta, TABS.length + 1);
         scrollOffset = 0;
         inheritArmed = false;
@@ -297,11 +308,12 @@ public final class MobStackerListScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
-    /** Called on the client thread when a fresh config snapshot arrives from the server. */
+    /**
+     * Called on the client thread when a fresh config snapshot arrives from the server. Always
+     * repaints: {@link #rebuildWidgets} carries the boxes' text and focus across, so nobody loses a
+     * half-typed id to it.
+     */
     public void onConfigSynced() {
-        if (this.getFocused() instanceof EditBox) {
-            return; // don't yank a box out from under somebody mid-word
-        }
         rebuildWidgets();
     }
 
@@ -618,11 +630,56 @@ public final class MobStackerListScreen extends Screen {
         }
         suggestions = List.of();
         rebuildWidgets();
-        // The rebuild hands out a fresh box with nothing focused, and somebody adding ids is
-        // nearly always about to add another one.
+        // Somebody adding ids is nearly always about to add another one.
+        focusEntrySoon = true;
+    }
+
+    /**
+     * Keeps what is being typed - and where the cursor is - across a rebuild. A rebuild hands out
+     * fresh, empty boxes with nothing focused, and one arrives a moment after every edit: once the
+     * integrated server has stored it, or once the server's new snapshot comes back. Without this
+     * the cursor left the box every time an entry was added, and a snapshot arriving mid-word would
+     * have thrown the word away - which is why a synced snapshot used to be ignored while a box had
+     * focus, leaving a freshly added entry missing from the rows until something else redrew them.
+     */
+    @Override
+    protected void rebuildWidgets() {
+        boolean typing = entryBox != null && this.getFocused() == entryBox;
+        boolean sizing = sizeBox != null && this.getFocused() == sizeBox;
+        String typed = entryBox == null ? "" : entryBox.getValue();
+        String size = sizeBox == null ? "" : sizeBox.getValue();
+        super.rebuildWidgets();
         if (entryBox != null) {
+            if (!typed.isEmpty()) {
+                entryBox.setValue(typed);
+            }
+            if (typing) {
+                setFocused(entryBox);
+            }
+        }
+        if (sizeBox != null) {
+            if (!size.isEmpty()) {
+                sizeBox.setValue(size);
+            }
+            if (sizing) {
+                setFocused(sizeBox);
+            }
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (focusEntrySoon && entryBox != null) {
+            focusEntrySoon = false;
             setFocused(entryBox);
-            entryBox.setFocused(true);
+        }
+        // The cursor only blinks in a box that is ticked.
+        if (entryBox != null) {
+            entryBox.tick();
+        }
+        if (sizeBox != null) {
+            sizeBox.tick();
         }
     }
 

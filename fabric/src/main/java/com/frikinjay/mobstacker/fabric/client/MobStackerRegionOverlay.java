@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -19,6 +20,7 @@ import com.mojang.logging.LogUtils;
 
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,10 +44,10 @@ import java.util.Set;
  * everyone looking at the same region; only the decision to look is per player.
  *
  * <p>Boxes are depth-tested, so terrain hides them the way it hides everything else. Drawing them
- * through walls would need a render type with the depth test off, and vanilla keeps the shard that
- * does that package-private — so that variant is a follow-up rather than a switch that quietly does
- * nothing. One box hiding <em>another</em> is not the same question and is fixed here: see the
- * order the two passes run in.
+ * through walls is a follow-up (1.9.1): it needs a render type with the depth test off, which
+ * {@link MobStackerRenderTypes} can now build the same way it builds the faces. One box hiding
+ * <em>another</em> is not the same question and is fixed here: faces write no depth, so nothing
+ * this overlay draws can hide anything else it draws.
  */
 public final class MobStackerRegionOverlay {
 
@@ -92,6 +94,10 @@ public final class MobStackerRegionOverlay {
 
     private static State state = new State();
     private static Path file;
+    // worldKey() is asked every frame; the folder name only changes when the world does. Weak, so
+    // a world the player has left is not kept alive by the one thing that remembers its name.
+    private static WeakReference<IntegratedServer> keyedServer = new WeakReference<>(null);
+    private static String keyedFolder;
 
     private MobStackerRegionOverlay() {
     }
@@ -159,7 +165,7 @@ public final class MobStackerRegionOverlay {
     }
 
     /**
-     * What this player is looking at right now: the name of the singleplayer world, or the address
+     * What this player is looking at right now: the singleplayer world's save folder, or the address
      * of the server. A region name only means anything inside one of those, so that is the scope
      * the choice of what to show is remembered at.
      */
@@ -167,7 +173,7 @@ public final class MobStackerRegionOverlay {
         Minecraft client = Minecraft.getInstance();
         IntegratedServer local = client.getSingleplayerServer();
         if (local != null) {
-            return "world:" + local.getWorldData().getLevelName();
+            return "world:" + worldFolder(local);
         }
         ServerData server = client.getCurrentServer();
         if (server != null && server.ip != null && !server.ip.isEmpty()) {
@@ -176,6 +182,20 @@ public final class MobStackerRegionOverlay {
         // Connected to something that did not say what it was. One shared key is still better than
         // none: the switches keep working, they just cannot tell that server from another.
         return "server:unknown";
+    }
+
+    /**
+     * The folder the world is saved in, which is what actually tells two worlds apart. The name on
+     * the world list does not: two worlds both called "New World" are saved as {@code New World} and
+     * {@code New World (1)}, and keyed by the name they shared one set of switches.
+     */
+    private static String worldFolder(IntegratedServer server) {
+        if (server != keyedServer.get()) {
+            Path folder = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName();
+            keyedFolder = folder != null ? folder.toString() : server.getWorldData().getLevelName();
+            keyedServer = new WeakReference<>(server);
+        }
+        return keyedFolder;
     }
 
     public static Style style() {
@@ -220,13 +240,28 @@ public final class MobStackerRegionOverlay {
         // The world is drawn relative to the camera, so every box moves with it.
         pose.translate(-camera.x, -camera.y, -camera.z);
 
-        // Edges first, faces second. The order matters: vanilla's filled-box type writes depth,
-        // so a face drawn before an edge hides it outright - the far side of a box disappeared into
-        // its own near face, and a small region inside a big one vanished behind the big one's
-        // colour. Lines write no depth of their own, so drawing them first costs nothing and the
-        // 20%-alpha faces then tint them instead of swallowing them. (Drawing edges through *walls*
-        // is a different question and still a follow-up: that needs a render type with the depth
-        // test off, which vanilla keeps package-private.)
+        // Faces are drawn with a type of our own that writes no depth (see
+        // MobStackerRenderTypes.REGION_FACES). Vanilla's filled box does write it, and that is what
+        // swallowed every edge behind a face - the far side of a box, and a whole region standing
+        // inside another. Drawing the edges first was tried in round 2 and was not enough: with
+        // "Fabulous" graphics the edges go into a buffer of their own and the faces still covered
+        // them when the frame was put together. Now faces go first and edges on top, so an edge is
+        // never tinted over and nothing here can hide anything else here.
+        if (style == Style.FILLED || style == Style.BOTH) {
+            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            for (MobStackerClientRegions.View view : regions) {
+                if (!isShown(view.name())) {
+                    continue;
+                }
+                AABB box = boxOf(view);
+                float[] rgb = rgbOf(view);
+                LevelRenderer.addChainedFilledBoxVertices(pose, faces,
+                        box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
+                        rgb[0], rgb[1], rgb[2], FACE_ALPHA);
+            }
+            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+        }
+
         if (style == Style.WIREFRAME || style == Style.BOTH) {
             VertexConsumer edges = buffers.getBuffer(RenderType.lines());
             for (MobStackerClientRegions.View view : regions) {
@@ -239,34 +274,19 @@ public final class MobStackerRegionOverlay {
             buffers.endBatch(RenderType.lines());
         }
 
-        if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
-            for (MobStackerClientRegions.View view : regions) {
-                if (!isShown(view.name())) {
-                    continue;
-                }
-                AABB box = boxOf(view);
-                float[] rgb = rgbOf(view);
-                LevelRenderer.addChainedFilledBoxVertices(pose, faces,
-                        box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
-                        rgb[0], rgb[1], rgb[2], FACE_ALPHA);
-            }
-            buffers.endBatch(RenderType.debugFilledBox());
-        }
-
         if (preview != null) {
             // Always both faces and edges, in white: it is a transient answer to "is this the area
             // I mean", so being unmistakable matters more than matching the chosen style.
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
-            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(RenderType.lines());
-
-            VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
+            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            buffers.endBatch(RenderType.debugFilledBox());
+            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+
+            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
+            buffers.endBatch(RenderType.lines());
         }
 
         pose.popPose();

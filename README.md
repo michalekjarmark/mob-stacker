@@ -120,7 +120,7 @@ given its own value inside a region.
 | Setting | Description | Default |
 |---|---|---|
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs | `true` |
-| `stackedHarvest` | Shearing and milking a stack give one mob's worth per member | `true` |
+| `stackedHarvest` | Shearing and milking a stack give one mob's worth per member; off shears one animal at a time | `true` |
 | `breedOnePerClick` | Feed one member per click instead of as many as the food allows | `false` |
 | `enableAnimalBabyStacking` | Let loose farm-animal babies stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Let loose hostile babies (baby zombies …) stack | `true` |
@@ -248,6 +248,8 @@ Regions can also be **drawn rather than typed**: open the area editor, press **P
 right-click two blocks. While you are picking, the box from the first corner to the block under your
 crosshair is drawn live, so the reach is visible before anything is saved. Sneak and click to cancel.
 Nothing is saved until you press Save — the picker fills in the same six numbers you could have typed.
+A region remembers its corners the way you gave them: the first block you click is corner 1, the
+second is corner 2, and that is what the editor and `region show` give back.
 
 ### Settings per region
 
@@ -403,7 +405,8 @@ are rendering, so they need the mod on the client.
   adult stack. Feeding a baby-stack speeds its growth, scaled to its size.
 - **Shearing and milking scale with the stack** (`stackedHarvest`) — a stack of 16 sheep gives 16
   sheep's worth of wool for 16 points of shear durability, and 16 cows fill as many buckets as you
-  brought. Turn it off and a stack gives what a single mob would.
+  brought. Turn it off and a stack gives what a single mob would: shears then take one animal out of
+  the stack and shear that one, so the rest keep their wool for the next click.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby
   zombies simply together (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
 - `breedOnePerClick` feeds one member per click instead of as many as the food in hand allows.

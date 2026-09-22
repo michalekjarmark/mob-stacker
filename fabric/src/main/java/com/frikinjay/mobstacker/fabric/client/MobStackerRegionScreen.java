@@ -294,6 +294,34 @@ public final class MobStackerRegionScreen extends Screen {
         return next >= all.length ? null : all[next];
     }
 
+    /** The same ring the other way round: auto -> WHITE -> ... -> BLACK -> auto. */
+    private static StackColor previousColor(StackColor current) {
+        StackColor[] all = StackColor.values();
+        if (current == null) {
+            return all[all.length - 1];
+        }
+        int previous = current.ordinal() - 1;
+        return previous < 0 ? null : all[previous];
+    }
+
+    /**
+     * Right-click steps the colour backwards. Seventeen stops is a long way round to go back one, and
+     * a vanilla button only ever answers the left button, so the screen catches the right one itself.
+     */
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 1 && colorButton != null && colorButton.active && colorButton.visible
+                && overColor((int) mouseX, (int) mouseY)) {
+            StackColor previous = previousColor(currentRegion().colorChosen() ? currentRegion().color() : null);
+            if (this.minecraft != null) {
+                colorButton.playDownSound(this.minecraft.getSoundManager());
+            }
+            applyEdit(MobStackerNetworking.REGION_COLOR, previous == null ? "" : previous.name());
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
     /**
      * Says what it is as well as what it is set to. A lone "auto" beside the priority box told a
      * first-time reader nothing at all — the word is worth the pixels, and the hover text below
@@ -816,6 +844,8 @@ public final class MobStackerRegionScreen extends Screen {
                     Component.literal("The colour this region's box is drawn in, for everyone who shows it.")
                             .withStyle(ChatFormatting.GRAY),
                     Component.literal("'auto' = green for an allow region, red for a deny one.")
+                            .withStyle(ChatFormatting.DARK_GRAY),
+                    Component.literal("Right-click to go back one.")
                             .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
             return;
         }

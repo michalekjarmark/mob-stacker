@@ -953,9 +953,10 @@ public class MobStackerCommands {
                     "Region '" + name + "' is already " + type).withStyle(ChatFormatting.YELLOW), false);
             return 0;
         }
+        // The corners as they were given, so changing the type does not quietly sort them.
+        int[] c = region.getCorners();
         RegionEdit.Result result = RegionEdit.apply(name, type, region.getDimension(),
-                region.getMinX(), region.getMinY(), region.getMinZ(),
-                region.getMaxX(), region.getMaxY(), region.getMaxZ());
+                c[0], c[1], c[2], c[3], c[4], c[5]);
         if (!result.ok()) {
             context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
             return 0;

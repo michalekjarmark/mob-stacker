@@ -160,7 +160,7 @@ public final class MobStackerSettings {
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
         register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
-                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would.",
+                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool.",
                 () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
         register(ConfigOption.ofBool("enableAnimalBabyStacking", Category.BREEDING,
                 "Let baby farm animals stack together.",
@@ -393,12 +393,11 @@ public final class MobStackerSettings {
         if (lock != null) {
             return lock;
         }
-        // Switching it off is always allowed: that is how a dependency is stepped back out of.
-        // Both spellings of "off" count - its default, and the value that means it does nothing -
-        // because a setting whose default is ON would otherwise be refusable only in the direction
-        // that turns it off, which is the one direction that is always safe.
-        if (canonical.equalsIgnoreCase(option.defaultValue())
-                || canonical.equalsIgnoreCase(inertValue(option))) {
+        // Switching it off is always allowed: that is how a dependency is stepped back out of. Only
+        // the value that means "does nothing" counts as off - the default did too, until it turned
+        // out that for keepMemberEquipment, whose default is ON, that exempted switching it on.
+        // Going back to the default is what unsetting the override is for.
+        if (canonical.equalsIgnoreCase(inertValue(option))) {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());

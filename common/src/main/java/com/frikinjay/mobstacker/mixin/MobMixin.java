@@ -60,7 +60,9 @@ public class MobMixin {
      *
      * <p>A bucket does the same, for the opposite reason: bucketing takes the entity out of the
      * world and puts it in an item, so on a stack of fish the whole shoal went into one bucket and
-     * a single fish came back out of it.
+     * a single fish came back out of it. Shears do too while {@code stackedHarvest} is off, because
+     * shearing changes the mob and the stack is one mob (see
+     * {@link MobStacker#isShearingOneInteraction}).
      *
      * <p>A wolf, cat or parrot pack does the same, but only when the player is actually holding the
      * thing that tames it. That asymmetry is deliberate: a horse answers every right-click with
@@ -69,6 +71,8 @@ public class MobMixin {
      *
      * <p>Server side only. The client keeps predicting the interaction against the stack exactly as
      * vanilla would, and the server's answer — a new mob, a smaller stack — arrives right after.
+     * That is harmless for everything except a bucket, whose prediction throws the client's copy of
+     * the stack away; the stack is sent to the client again once the bucket is filled.
      */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void mobstacker$interactWithOneOfTheStack(Player player, InteractionHand hand,
@@ -88,14 +92,20 @@ public class MobMixin {
         if (MobStacker.isSeparatorInteraction(self, held)) {
             return; // PlayerMixin already took one out at interactOn; two would leave the stack
         }
+        boolean bucketing = MobStacker.isBucketingInteraction(self, held);
         if (!(self instanceof AbstractHorse)
                 && !MobStacker.isTamingInteraction(self, held)
-                && !MobStacker.isBucketingInteraction(self, held)) {
+                && !bucketing
+                && !MobStacker.isShearingOneInteraction(self, held)) {
             return;
         }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
-            cir.setReturnValue(separated.interact(player, hand));
+            InteractionResult result = separated.interact(player, hand);
+            if (bucketing) {
+                MobStacker.resendToClients(self);
+            }
+            cir.setReturnValue(result);
         }
     }
 

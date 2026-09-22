@@ -36,9 +36,9 @@ public final class MobStackerClientNetworking {
     private static boolean authorized;
     private static String status = "";
 
-    /** One region as the server described it, for the region editor screen. */
+    /** One region as the server described it, for the region editor screen. Corners as given. */
     public record RegionInfo(String name, String type, String dimension,
-                             int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
+                             int x1, int y1, int z1, int x2, int y2, int z2,
                              int priority, String color, Map<String, String> settings,
                              Map<MobListKind, List<String>> lists, Map<String, Integer> ceilings) {
         /** Whether this region overrides that list, as opposed to inheriting the global one. */
@@ -54,7 +54,7 @@ public final class MobStackerClientNetworking {
 
         /** The same corner text the server's own {@code /mobstacker region list} prints. */
         public String bounds() {
-            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+            return "[" + x1 + ", " + y1 + ", " + z1 + "] -> [" + x2 + ", " + y2 + ", " + z2 + "]";
         }
 
         /** The colour the player picked, or null when they have not picked one. */
@@ -116,12 +116,12 @@ public final class MobStackerClientNetworking {
                 String name = buf.readUtf();
                 String type = buf.readUtf();
                 String dimension = buf.readUtf();
-                int minX = buf.readInt();
-                int minY = buf.readInt();
-                int minZ = buf.readInt();
-                int maxX = buf.readInt();
-                int maxY = buf.readInt();
-                int maxZ = buf.readInt();
+                int x1 = buf.readInt();
+                int y1 = buf.readInt();
+                int z1 = buf.readInt();
+                int x2 = buf.readInt();
+                int y2 = buf.readInt();
+                int z2 = buf.readInt();
                 int priority = buf.readInt();
                 String color = buf.readUtf();
                 int overrideCount = buf.readVarInt();
@@ -148,7 +148,7 @@ public final class MobStackerClientNetworking {
                     regionCeilings.put(buf.readUtf(), buf.readVarInt());
                 }
                 incomingRegions.add(new RegionInfo(name, type, dimension,
-                        minX, minY, minZ, maxX, maxY, maxZ, priority, color, overrides,
+                        x1, y1, z1, x2, y2, z2, priority, color, overrides,
                         regionLists, regionCeilings));
             }
             client.execute(() -> {
@@ -262,7 +262,7 @@ public final class MobStackerClientNetworking {
                 settings.put(id, value);
             }
             REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(),
-                    info.minX(), info.minY(), info.minZ(), info.maxX(), info.maxY(), info.maxZ(),
+                    info.x1(), info.y1(), info.z1(), info.x2(), info.y2(), info.z2(),
                     info.priority(), info.color(), settings, info.lists(), info.ceilings()));
             return;
         }

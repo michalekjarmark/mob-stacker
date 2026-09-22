@@ -191,7 +191,9 @@ public final class ConfigSelfTest {
         }
 
         void undo() {
-            option.apply(value);
+            // restore, not apply: the value being put back may be one a player could not set right
+            // now - keepMemberEquipment's own default, with stackEquippedMobs still off.
+            option.restore(value);
         }
     }
 
@@ -252,6 +254,19 @@ public final class ConfigSelfTest {
                     option.id() + " could be turned on while " + requiredId + " is off");
             check(report, option.apply("false").status != Status.ERROR,
                     option.id() + " could not be turned off while " + requiredId + " is off");
+            // Putting the default back is a reset, not a request, and must never be refused - that
+            // is what "reset all" does to every setting in turn, in whatever state it finds them.
+            check(report, option.reset().status != Status.ERROR,
+                    option.id() + " could not be reset while " + requiredId + " is off");
+
+            // The same two answers for a region's own override, judged against that region.
+            StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                    StackRegion.Type.ALLOW, 0, 0, 0, 1, 1, 1);
+            region.setSetting(requiredId, "false");
+            check(report, MobStackerSettings.regionEditProblem(option, region, "true") != null,
+                    option.id() + " could be turned on in a region whose " + requiredId + " is off");
+            check(report, MobStackerSettings.regionEditProblem(option, region, "false") == null,
+                    option.id() + " could not be turned off in a region whose " + requiredId + " is off");
 
             restoreOption.undo();
             restoreRequired.undo();
@@ -323,6 +338,39 @@ public final class ConfigSelfTest {
         RegionEdit.delete(name);
         check(report, MobStacker.config.getRegion(name) == null,
                 "the self-test's own region survived being deleted");
+
+        testRegionCorners(report);
+    }
+
+    /**
+     * A region keeps its two corners the way they were given, and still covers the same blocks.
+     *
+     * <p>The corners used to be sorted into a minimum and a maximum on the way in, so the editor
+     * showed back two blocks nobody had clicked. Min and max are still what decides containment -
+     * and what an older version of the mod reads - so both halves are checked, plus a region saved
+     * before the corners were kept, which has to fall back rather than come back empty.
+     */
+    private static void testRegionCorners(Report report) {
+        StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 5, 1, 9, 2, 7, 3);
+        check(report, java.util.Arrays.equals(region.getCorners(), new int[]{5, 1, 9, 2, 7, 3}),
+                "a region did not keep its corners as given: " + java.util.Arrays.toString(region.getCorners()));
+        check(report, region.getMinX() == 2 && region.getMaxX() == 5
+                        && region.getMinY() == 1 && region.getMaxY() == 7
+                        && region.getMinZ() == 3 && region.getMaxZ() == 9,
+                "a region given its corners in reverse got the wrong extent");
+        check(report, region.contains("minecraft:overworld", 3, 4, 5)
+                        && !region.contains("minecraft:overworld", 6, 4, 5),
+                "a region given its corners in reverse does not cover the right blocks");
+        check(report, region.describeBounds().equals("[5, 1, 9] -> [2, 7, 3]"),
+                "a region describes its corners sorted: " + region.describeBounds());
+
+        StackRegion legacy = new com.google.gson.Gson().fromJson(
+                "{\"name\":\"old\",\"dimension\":\"minecraft:overworld\",\"type\":\"ALLOW\","
+                        + "\"minX\":0,\"minY\":1,\"minZ\":2,\"maxX\":3,\"maxY\":4,\"maxZ\":5}",
+                StackRegion.class);
+        check(report, java.util.Arrays.equals(legacy.getCorners(), new int[]{0, 1, 2, 3, 4, 5}),
+                "a region saved before corners were kept did not fall back to min and max");
     }
 
     /**
