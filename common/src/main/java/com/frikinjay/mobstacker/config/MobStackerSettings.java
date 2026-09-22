@@ -191,6 +191,11 @@ public final class MobStackerSettings {
                     ResourceLocation id = ResourceLocation.tryParse((String) value);
                     return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
                 }));
+        register(ConfigOption.ofInt("separationCooldown", Category.SEPARATOR,
+                "Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) "
+                        + "or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan.",
+                0, 3600, () -> MobStacker.config.getSeparationCooldown(),
+                v -> MobStacker.config.setSeparationCooldown(v), 0));
 
         // --- Mob caps (vanilla spawn caps per category) ---
         register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Vanilla spawn cap for the monster category.",

@@ -239,7 +239,8 @@ public final class MobStackerListScreen extends Screen {
         if (ceilings) {
             EditBox size = new EditBox(this.font, this.width / 2 - 170 + boxWidth + 4, y, 60, 20,
                     Component.literal("size"));
-            size.setMaxLength(6);
+            // Ten characters: the largest ceiling there is (2147483647), and room for "default".
+            size.setMaxLength(10);
             size.setHint(Component.literal("16"));
             size.setEditable(editable);
             this.sizeBox = size;
@@ -411,6 +412,22 @@ public final class MobStackerListScreen extends Screen {
         suggestions = List.of();
     }
 
+    /**
+     * Whether Enter should take the highlighted suggestion before adding. The last test round
+     * pressed Enter where Tab was meant, got no completion, and reasonably called that a bug: with
+     * the list open, the highlighted line is what the screen is offering. The one exception is text
+     * that is already a whole id on its own - "minecraft:pig" must not become the "minecraft:piglin"
+     * listed under it just because the list is open.
+     */
+    private boolean shouldEnterComplete() {
+        if (suggestions.isEmpty() || entryBox == null) {
+            return false;
+        }
+        String typed = entryBox.getValue().trim().toLowerCase(Locale.ROOT);
+        List<String> known = candidates();
+        return !known.contains(typed) && !known.contains("minecraft:" + typed);
+    }
+
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         boolean inEntry = this.getFocused() == entryBox && entryBox != null;
@@ -439,6 +456,9 @@ public final class MobStackerListScreen extends Screen {
             }
         }
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (inEntry && shouldEnterComplete()) {
+                acceptSuggestion();
+            }
             if (inEntry && tab == CEILINGS_TAB && sizeBox != null && sizeBox.getValue().trim().isEmpty()) {
                 setFocused(sizeBox); // a ceiling needs a number too, so go and ask for it
                 return true;
@@ -598,21 +618,29 @@ public final class MobStackerListScreen extends Screen {
         if (tab == CEILINGS_TAB) {
             String entry = MobLists.normaliseEntityId(typed);
             String size = sizeBox == null ? "" : sizeBox.getValue().trim();
-            Integer parsed = ConfigOption.parseSize(size);
-            if (parsed == null || parsed < 1) {
-                say("A stack ceiling must be a whole number, at least 1 — or '"
-                        + ConfigOption.MAX_KEYWORD + "'.", true);
-                return;
+            if (ConfigOption.isDefaultKeyword(size)) {
+                // The same word `maxstack <entity> default` takes: no ceiling of its own, so the mob
+                // goes back to maxStackSize. Sent as the empty value the Remove button sends.
+                clearMessage();
+                send(ceilingId(entry), "");
+            } else {
+                Integer parsed = ConfigOption.parseSize(size);
+                if (parsed == null || parsed < 1) {
+                    say("A stack ceiling must be a whole number, at least 1 — or '"
+                            + ConfigOption.MAX_KEYWORD + "', or '" + ConfigOption.DEFAULT_KEYWORD
+                            + "' to remove it.", true);
+                    return;
+                }
+                // Refused before it is sent as well as on arrival: the server would say no anyway,
+                // and this screen has no status line from it in singleplayer to say it with.
+                String problem = MobLists.entityProblem(entry);
+                if (problem != null) {
+                    say(problem, true);
+                    return;
+                }
+                say(MobLists.entryNote(MobListKind.DENY_ENTITIES, entry), false);
+                send(ceilingId(entry), size);
             }
-            // Refused before it is sent as well as on arrival: the server would say no anyway, and
-            // this screen has no status line from it in singleplayer to say it with.
-            String problem = MobLists.entityProblem(entry);
-            if (problem != null) {
-                say(problem, true);
-                return;
-            }
-            say(MobLists.entryNote(MobListKind.DENY_ENTITIES, entry), false);
-            send(ceilingId(entry), size);
         } else {
             MobListKind kind = TABS[tab];
             String entry = MobLists.normalise(kind, typed);

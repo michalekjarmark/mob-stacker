@@ -55,6 +55,9 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
+    // Seconds a mob the mod handed to a player stays out of stacks. 0 (the default) lets it rejoin on
+    // the next scan; see MobStacker#SEPARATION_GRACE_KEY for why that is safe.
+    private int separationCooldown = 0;
 
     private List<String> ignoredEntities = new ArrayList<>(Arrays.asList(
             "minecraft:ender_dragon",
@@ -423,6 +426,15 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public boolean getStackOnSpawn() {
         return stackOnSpawn;
+    }
+
+    public int getSeparationCooldown() {
+        return Math.max(0, separationCooldown);
+    }
+
+    public void setSeparationCooldown(int separationCooldown) {
+        this.separationCooldown = separationCooldown;
+        save();
     }
 
     public void setStackOnSpawn(boolean stackOnSpawn) {

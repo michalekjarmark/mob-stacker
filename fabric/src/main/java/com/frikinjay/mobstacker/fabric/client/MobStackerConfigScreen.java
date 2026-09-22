@@ -108,20 +108,23 @@ public final class MobStackerConfigScreen extends Screen {
             }
         }
 
-        // The sub-screens are only worth offering where there is config to show at all.
+        // The sub-screens are only worth offering where there is config to show at all. The button
+        // that leaves is always the last one in the row, on every screen of the mod: here it used to
+        // be the first, and on the region screen the last, which the last test round rightly called
+        // inconsistent. "Mob lists…" sits next to it on both screens.
         if (showRows) {
             addRenderableWidget(Button.builder(Component.literal("Regions…"), b -> {
                 if (this.minecraft != null) {
                     this.minecraft.setScreen(new MobStackerRegionScreen(this));
                 }
-            }).bounds(this.width / 2 + 52, this.height - 28, 98, 20).build());
+            }).bounds(this.width / 2 - 152, this.height - 28, 98, 20).build());
             addRenderableWidget(Button.builder(Component.literal("Mob lists…"), b -> {
                 if (this.minecraft != null) {
                     this.minecraft.setScreen(MobStackerListScreen.global(this));
                 }
             }).bounds(this.width / 2 - 50, this.height - 28, 98, 20).build());
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 - 152, this.height - 28, 98, 20).build());
+                    .bounds(this.width / 2 + 52, this.height - 28, 98, 20).build());
         } else {
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
                     .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
@@ -341,7 +344,11 @@ public final class MobStackerConfigScreen extends Screen {
 
     private boolean isValid(ConfigOption option, String text) {
         String value = text.trim();
-        // "max" is a value like any other here, so the box does not go red while somebody types it.
+        // "max" and "default" are values like any other here, so the box does not go red while
+        // somebody types one.
+        if (ConfigOption.isDefaultKeyword(value)) {
+            return true;
+        }
         if (ConfigOption.MAX_KEYWORD.equalsIgnoreCase(value)
                 && (option.type() == ConfigOption.Type.INT || option.type() == ConfigOption.Type.DOUBLE)) {
             return true;

@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.9.0] - unreleased
+## [1.9.0] - 2026-09-23
 ### Added
 - **Whitelists.** Until now the only mob filter was a blacklist — "everything stacks except these".
   The other half now exists: set `mobListMode` to `WHITELIST` and *nothing* stacks except what is on
@@ -21,8 +21,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   One screen covers all eight lists and the ceilings below, with tabs, add and remove, and a note
   when the list you are looking at is not the one `mobListMode` is currently reading — with the
   command that would change that, so the answer is not "go and find the setting". The entry box
-  **completes ids as you type**, the way the command line does: Tab or a click takes the highlighted
-  one, the arrows walk the list, Esc closes it. Handing a region's list back to the global one asks
+  **completes ids as you type**, the way the command line does: Tab, Enter or a click takes the
+  highlighted one, the arrows walk the list, Esc closes it. (Enter leaves an id that is already whole
+  alone — `minecraft:pig` stays a pig, whatever is listed under it.) Handing a region's list back to the global one asks
   once before it discards what the region had.
 - **A stack ceiling per mob type** — `/mobstacker maxstack minecraft:cow 64`, globally or inside one
   region. Anything not named follows `maxStackSize` as before. Looked up by entity id, so modded
@@ -35,12 +36,20 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   live from the first corner to whatever you are looking at, so you can see the reach before you
   commit to it. Sneak and click to cancel. Nothing is saved until you press Save — the picker fills
   in the same six numbers you could have typed, and every rule about it is still the server's.
+- **`separationCooldown`** (seconds, default `0`, per region): how long a mob taken out of a stack
+  for you — by taming, riding, a bucket, shears or the separator — or poured out of a bucket stays
+  out of the stacks before it may merge again. It used to be a fixed fifteen seconds; the last test
+  round found the wait was all anyone noticed of it, so it is off unless you want it. A horse you
+  have started taming stays out for good regardless (see Fixed).
 
 ### Changed
 - `/mobstacker ignore <entity|mod> …` is now `/mobstacker list deny <entity|mod> …`, with
   `list allow` for the whitelist half and `region mobs <name> …` for a region's own. **The old
   `ignore` spelling still works** and reaches exactly the same code.
-- The settings registry is now **45 settings, 36 of them overridable per region**.
+- The settings registry is now **46 settings, 37 of them overridable per region**.
+- **The button that leaves a screen is always the last one in its row.** The config screen had Done
+  on the left and the region screen on the right; both have it on the right now, with **Mob lists…**
+  beside it on both, and the area editor's Cancel moved to the end of its row for the same reason.
 - **A list will not take a vanilla mob that does not exist.** `minecraft:cwo` is a typo and nothing
   will ever arrive to make it mean something, so it is refused outright. A *modded* id is still
   accepted whether the mod is installed or not — a list has to survive its mod being away for a
@@ -75,6 +84,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   offered by tab-completion beside `default`) and in the GUI's own boxes. It is **stored as the
   number it means**, so the config file stays plain and `get` never answers with a word you would
   then have to look up.
+- **`default` can be typed the same way**, for every setting: `/mobstacker set maxStackSize default`
+  is `reset maxStackSize` under the word `maxstack <entity> default` already used, and tab-completion
+  offers it. It works in `region set`, in the GUI's boxes, and in the ceilings tab's size box, where
+  — as in the command — it removes that mob's ceiling. The size box there also takes all ten digits a
+  ceiling can have now; it stopped at six.
 
 ### Fixed
 
@@ -91,9 +105,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   Both now come out of the stack exactly as they went in, at full health.
 - **Taming an animal out of a stack works** *(1.7.0 for horses, 1.8.0 for wolves, cats and parrots;
   neither version was tested)*. The animal handed over rejoined the herd within a second, so the
-  next click peeled off a fresh one and nothing was ever tamed. It now stays out of stacks for a
-  while, and every further interaction with it renews that. A horse with any taming progress at all
-  — vanilla calls it temper — stays out for good, the way a tamed one does.
+  next click peeled off a fresh one with its progress lost, and a horse was never tamed. A horse with
+  any taming progress at all — vanilla calls it temper — now stays out of stacks for good, the way a
+  tamed one does. A wolf, cat or parrot has no progress to lose (every bone or fish is a fresh roll),
+  so one that shrugs off a bone may rejoin the pack; `separationCooldown` keeps it out for as long as
+  you like.
 - **Bucketing a stacked fish takes one fish** *(as old as fish stacking at all)*. It used to take
   the whole shoal: everything but the name went into the bucket, and one fish came back out of it.
 - **…and the shoal it came out of stays visible** *(new in 1.9.0's fix for the above)*. The game
@@ -102,8 +118,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   stack went on existing out of sight — it still merged, still swallowed fish poured back next to it,
   and came back into view only when something re-sent it. It is re-sent the moment the bucket is
   filled now. The same went for axolotls and tadpoles.
-- **A fish poured out of a bucket stays out of the stacks for a few seconds**, like any mob the mod
-  hands you, instead of vanishing into the shoal beside it on its very first tick.
+- **A fish poured out of a bucket is seen before it joins the shoal** instead of vanishing into the
+  shoal beside it on its very first tick, which looked exactly like the bucket having eaten it. It
+  joins on the next scan, or once `separationCooldown` runs out if that is set.
 - **The mob list editor could crash the game** *(new in 1.9.0)*. Removing entries quickly left the
   screen rebuilding from a list the server thread had already shortened, which came out as an
   `IndexOutOfBoundsException` on the next click.
@@ -125,6 +142,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   written its depth still covered them when the frame was put together — which is also why stepping
   inside a box made everything reappear. Drawing boxes through *walls* is a separate job and still
   to come.
+- **Shearing a stack makes one snip, not one per sheep** *(1.8.0)*. With `stackedHarvest` on, every
+  sheep under the top one was sheared with its own sound, all on the same tick — a stack of sixty-four
+  was sixty-four snips at once. The wool is unchanged.
 - **The mob list editor keeps the cursor in the entry box after Add** *(new in 1.9.0)*, so a run of
   ids can be typed one after another. It used to be taken away twice: by the Add button taking focus
   once it had been clicked, and by the screen repainting when the edit came back from the server.

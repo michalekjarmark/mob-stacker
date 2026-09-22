@@ -86,17 +86,21 @@ public final class MobStacker {
     // it alone. Without it a mob would be handed to the player and walk straight back in on the same
     // tick, which is exactly what separating was asked to undo.
     private static final String JUST_SEPARATED_KEY = "JustSeparated";
-    /** Ticks left before a mob the mod handed to a player may walk back into a stack. */
-    private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
     /**
-     * How long that is: fifteen seconds, refreshed by every further interaction with the mob.
+     * Ticks left before a mob the mod handed to a player may walk back into a stack. How long that
+     * is comes from {@code separationCooldown} (seconds, default 0), refreshed by every further
+     * interaction with the mob.
      *
-     * <p>One tick was not enough. A horse that bucks the player off, a wolf that shrugs off a bone -
-     * the animal went straight back into the herd on the next scan, and the next click peeled a
-     * fresh one out, so taming never got anywhere. Long enough to keep at one animal, short enough
-     * that one you fed and walked away from still rejoins the herd on its own.
+     * <p>It was a fixed fifteen seconds, put in when taming a horse out of a herd never landed: the
+     * horse bucked the player off, went straight back in on the next scan, and the next click peeled
+     * a fresh one out with its temper back at zero. That is covered for good by a different rule now -
+     * a horse with any temper is {@link #isPlayerBound}, so it cannot merge at all - and nothing else
+     * handed over keeps progress a merge could lose: a bone or a fish is a fresh roll every time, a
+     * sheared sheep cannot merge into a woolly stack anyway, a bucketed fish is in the bucket. The
+     * last test round found the wait itself was the only thing left to notice, so it is a setting,
+     * off by default.
      */
-    private static final int SEPARATION_GRACE_TICKS = 300;
+    private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
     private static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
     private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
@@ -1260,14 +1264,25 @@ public final class MobStacker {
     }
 
     /**
-     * Remembers that the mod put this mob here, so nothing merges it away again while the player is
-     * still busy with it. See {@link #SEPARATION_GRACE_TICKS}.
+     * Remembers that the mod put this mob here, so the stack-on-spawn pass does not merge it away on
+     * the tick it appears, and - if {@code separationCooldown} asks for it - the scan leaves it alone
+     * for a while after that. See {@link #SEPARATION_GRACE_KEY}.
      */
     private static void markJustSeparated(Mob mob) {
         if (mob instanceof ICustomDataHolder holder) {
             CompoundTag data = holder.mobstacker$getCustomData();
             data.putBoolean(JUST_SEPARATED_KEY, true);
-            data.putInt(SEPARATION_GRACE_KEY, SEPARATION_GRACE_TICKS);
+            putSeparationGrace(mob, data);
+        }
+    }
+
+    /** Starts the grace from the setting where the mob stands, or clears it when that is 0. */
+    private static void putSeparationGrace(Mob mob, CompoundTag data) {
+        int ticks = getSeparationCooldown(mob) * 20;
+        if (ticks > 0) {
+            data.putInt(SEPARATION_GRACE_KEY, ticks);
+        } else {
+            data.remove(SEPARATION_GRACE_KEY);
         }
     }
 
@@ -1291,10 +1306,11 @@ public final class MobStacker {
     }
 
     /**
-     * Keeps a mob that was just poured out of a bucket out of the stacks for a while, the way one the
-     * mod handed over is. The player has just put that particular fish somewhere on purpose; with
-     * {@code stackOnSpawn} on it vanished into the shoal beside it on its very first tick, which
-     * looked exactly like the bucket having eaten it. It joins a stack once the grace runs out.
+     * Treats a mob that was just poured out of a bucket the way one the mod handed over is. The
+     * player has just put that particular fish somewhere on purpose; with {@code stackOnSpawn} on it
+     * vanished into the shoal beside it on its very first tick, which looked exactly like the bucket
+     * having eaten it. So it is always seen for a moment, and joins a stack on the next scan - or
+     * once {@code separationCooldown} runs out, if that is set.
      */
     public static void markPouredFromBucket(Mob mob) {
         markJustSeparated(mob);
@@ -1333,7 +1349,7 @@ public final class MobStacker {
         if (mob instanceof ICustomDataHolder holder) {
             CompoundTag data = holder.mobstacker$getCustomData();
             if (data.getInt(SEPARATION_GRACE_KEY) > 0) {
-                data.putInt(SEPARATION_GRACE_KEY, SEPARATION_GRACE_TICKS);
+                putSeparationGrace(mob, data);
             }
         }
     }
@@ -2202,6 +2218,11 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static String getSeparatorItem(Entity at) {return setting("separatorItem", at, config.getSeparatorItem());}
+
+    public static int getSeparationCooldown() {return config.getSeparationCooldown();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getSeparationCooldown(Entity at) {return Math.max(0, setting("separationCooldown", at, config.getSeparationCooldown()));}
 
     public static int getMonsterMobCap() {return config.getMonsterMobCap();}
     public static int getCreatureMobCap() {return config.getCreatureMobCap();}

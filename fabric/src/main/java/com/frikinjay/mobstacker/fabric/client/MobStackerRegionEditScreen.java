@@ -145,7 +145,8 @@ public final class MobStackerRegionEditScreen extends Screen {
         addRenderableWidget(pick);
 
         // Two buttons on a new region, three on an existing one - centred either way, so the row
-        // never looks like it is missing the one that is not there.
+        // never looks like it is missing the one that is not there. The button that leaves (Cancel
+        // here) is the last one, as it is on every other screen of the mod.
         int buttons = existingName == null ? 2 : 3;
         int left = this.width / 2 - (buttons * 104 - 4) / 2;
 
@@ -154,7 +155,7 @@ public final class MobStackerRegionEditScreen extends Screen {
         save.active = editable;
         addRenderableWidget(save);
         addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, b -> onClose())
-                .bounds(left + 104, this.height - 28, 100, 20).build());
+                .bounds(left + 104 * (buttons - 1), this.height - 28, 100, 20).build());
 
         if (existingName != null) {
             Button delete = Button.builder(deleteLabel(), b -> {
@@ -166,7 +167,7 @@ public final class MobStackerRegionEditScreen extends Screen {
                     deleteArmed = true;
                     b.setMessage(deleteLabel());
                 }
-            }).bounds(left + 208, this.height - 28, 100, 20).build();
+            }).bounds(left + 104, this.height - 28, 100, 20).build();
             delete.active = editable;
             addRenderableWidget(delete);
         }

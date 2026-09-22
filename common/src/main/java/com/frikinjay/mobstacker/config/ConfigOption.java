@@ -165,6 +165,19 @@ public final class ConfigOption {
     public static final String MAX_KEYWORD = "max";
 
     /**
+     * The other word a player types instead of a value: {@code set maxStackSize default} puts the
+     * default back, exactly as {@code reset maxStackSize} does. {@code maxstack <entity> default}
+     * already said it that way, and the last test round asked why {@code set} did not. Like
+     * {@link #MAX_KEYWORD} it is never stored - it becomes the value it stands for.
+     */
+    public static final String DEFAULT_KEYWORD = "default";
+
+    /** Whether {@code raw} is {@link #DEFAULT_KEYWORD}, ignoring case and surrounding spaces. */
+    public static boolean isDefaultKeyword(String raw) {
+        return raw != null && DEFAULT_KEYWORD.equalsIgnoreCase(raw.trim());
+    }
+
+    /**
      * Reads a size somebody typed, accepting {@link #MAX_KEYWORD}. For the per-type stack ceilings,
      * which are not settings and so never pass through {@link #apply} - the word has to mean the
      * same thing there as it does everywhere else.
@@ -200,13 +213,16 @@ public final class ConfigOption {
             }
             case INT, DOUBLE -> {
                 out.add(currentValue());
-                out.add(defaultValue());
+                if (!out.contains(defaultValue())) {
+                    out.add(defaultValue());
+                }
                 out.add(MAX_KEYWORD);
             }
             default -> {
                 // STRING / ITEM: no fixed set here.
             }
         }
+        out.add(DEFAULT_KEYWORD);
         return out;
     }
 
@@ -217,6 +233,9 @@ public final class ConfigOption {
      * {@link Result.Status#ERROR}. Unchanged values report {@link Result.Status#UNCHANGED}.
      */
     public Result apply(String raw) {
+        if (isDefaultKeyword(raw)) {
+            return reset();
+        }
         return apply(raw, false);
     }
 
@@ -294,6 +313,9 @@ public final class ConfigOption {
      * @throws IllegalArgumentException with a message fit for a player, when the value is not usable
      */
     public String canonicalize(String raw) {
+        if (isDefaultKeyword(raw)) {
+            return String.valueOf(defaultValue);
+        }
         Object parsed = parser.apply(raw);
         if (validator != null) {
             String problem = validator.apply(parsed);

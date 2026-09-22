@@ -129,6 +129,7 @@ given its own value inside a region.
 | `enableSeparator` | Allow splitting a stack with an item | `false` |
 | `consumeSeparator` | Consume that item on use | `true` |
 | `separatorItem` | Which item splits a stack | `minecraft:diamond` |
+| `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
 The vanilla per-category spawn caps are settings too (category `mobcaps`, global only):
 `/mobstacker set monsterMobCap <0-128>`, and `/mobstacker help mobcaps` lists them all.
@@ -156,7 +157,9 @@ All of these need operator permission (level 2).
 
 Anywhere a whole number is asked for, **`max`** means as high as that setting goes —
 `/mobstacker set maxStackSize max` is 2147483647 without having to remember it. It is stored as the
-number it means, so `get` always answers with something unambiguous.
+number it means, so `get` always answers with something unambiguous. **`default`** works the same
+way for every setting: `/mobstacker set maxStackSize default` is `reset maxStackSize`, and in the
+ceilings tab's size box it removes that mob's ceiling, as `maxstack <entity> default` does.
 
 ### Which mobs may stack
 
@@ -183,8 +186,9 @@ override — the ten entries you were looking at would have gone. Handing a regi
 global one asks once before it goes, for the same reason.
 
 In the **Mob lists…** screen the entry box completes ids as you type, the way the command line does:
-**Tab** or a click takes the highlighted one, the arrow keys walk the list and **Esc** closes it
-without closing the screen. Entity tabs suggest entity ids, mod tabs suggest the namespaces that
+**Tab**, **Enter** or a click takes the highlighted one, the arrow keys walk the list and **Esc**
+closes it without closing the screen. Enter leaves an id that is already whole alone, so
+`minecraft:pig` is not turned into the `minecraft:piglin` listed under it. Entity tabs suggest entity ids, mod tabs suggest the namespaces that
 actually have mobs in them, and ids already on the list are left out.
 
 A `minecraft:` id that names no mob is a typo and is refused. A **modded** id is accepted whether
@@ -205,8 +209,11 @@ Bind *"Open Config GUI"* (category *MobStacker: Restacked*) in **Options → Con
 `/mobstackerconfig`. The screen is driven by the same registry as the commands: booleans flip,
 `stackMode` cycles, numbers and item ids are typed and validated, one category at a time. On a
 **remote server with the mod** it shows the server's live config and saves operators' edits;
-non-operators see it read-only. The networking uses optional channels, so vanilla clients are never
-sent anything. Needs **Fabric API** on the client.
+non-operators see it read-only. In **singleplayer** (and on a LAN host) it edits your own world's
+config whether cheats are on or not: it is the mod's settings screen, and the file it writes sits in
+your own save folder anyway. The `/mobstacker` commands follow vanilla's rule instead and need cheats
+(operator level 2). The networking uses optional channels, so vanilla clients are never sent
+anything. Needs **Fabric API** on the client.
 
 ## Regions & modes
 

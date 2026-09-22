@@ -110,7 +110,8 @@ public final class ConfigSelfTest {
                 check(report, numeric(option.currentValue()) == option.max().doubleValue(),
                         option.id() + ": '" + ConfigOption.MAX_KEYWORD + "' gave " + option.currentValue()
                                 + " instead of " + option.max());
-                option.reset();
+                // ...and "default" has to bring it back from there, which is the reset below.
+                option.apply(ConfigOption.DEFAULT_KEYWORD);
             }
             case ENUM -> {
                 for (String value : option.enumValues()) {
@@ -129,6 +130,20 @@ public final class ConfigSelfTest {
                 // Free-form; nothing to assert beyond the reset baseline above.
             }
         }
+
+        // "default" is reset under another name, for every kind of setting, and is never stored as
+        // the word. Checked on the stored value for the same reason as the baseline above. For a
+        // number it has just been used to come back from "max"; everything else checks the word is
+        // taken at all. A region takes it through canonicalize, which has to agree.
+        ConfigOption.Result asDefault = option.apply(" Default ");
+        check(report, asDefault.status != Status.ERROR,
+                option.id() + ": refused '" + ConfigOption.DEFAULT_KEYWORD + "' (" + asDefault.message + ")");
+        check(report, option.storedValue().equals(option.defaultValue()),
+                option.id() + ": '" + ConfigOption.DEFAULT_KEYWORD + "' left " + option.storedValue()
+                        + " instead of " + option.defaultValue());
+        check(report, option.canonicalize(ConfigOption.DEFAULT_KEYWORD).equals(option.defaultValue()),
+                option.id() + ": a region's '" + ConfigOption.DEFAULT_KEYWORD + "' reads as "
+                        + option.canonicalize(ConfigOption.DEFAULT_KEYWORD) + " instead of " + option.defaultValue());
     }
 
     /**
