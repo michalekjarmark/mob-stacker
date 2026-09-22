@@ -15,6 +15,10 @@ import net.minecraft.world.entity.animal.TropicalFish;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.animal.goat.Goat;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.animal.horse.Horse;
 import net.minecraft.world.entity.animal.horse.Llama;
 import net.minecraft.world.entity.monster.Creeper;
@@ -111,8 +115,13 @@ public final class MobVariants {
                         copyNbtKeys(from, to, "EffectId", "EffectDuration");
                     }),
             rule(Horse.class,
+                    // Colour only, which is what a herd looks like from a distance and what the
+                    // testers asked to keep stacking. Markings are copied rather than matched:
+                    // setVariant writes the low byte only, so the markings on anything created out
+                    // of a stack used to be whatever finalizeSpawn had just rolled. The packed
+                    // Variant tag carries both, so the herd's markings are the ones that come out.
                     (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (from, to) -> copyNbtKeys(from, to, "Variant")),
             rule(Llama.class,
                     // Strength is the llama's inventory size, so it is as much a variant as colour.
                     (a, b) -> a.getVariant() == b.getVariant() && a.getStrength() == b.getStrength(),
@@ -187,7 +196,43 @@ public final class MobVariants {
                 rule.copy().accept(source, target);
             }
         }
+        copyRolledAttributes(source, target);
     }
+
+    /**
+     * Attributes {@code finalizeSpawn} rolls at random, carried over rather than rolled again.
+     *
+     * <p>A horse's speed, jump and health are its whole point, and every horse that came out of a
+     * stack was getting a fresh roll of all three — so stacking a horse and taking it out again was
+     * a re-roll button, and a good horse could be turned into a better one by trying often enough.
+     * Copying them makes the answer the same every time: whatever the stack has is what comes out
+     * of it.
+     *
+     * <p>This is deliberately <em>not</em> a {@link #RULES} row. Those say "two mobs that differ
+     * here must not merge", and applied to a continuous random roll that would stop wild horses
+     * stacking with each other at all. The trade this keeps instead is the ordinary one every stack
+     * makes: sixteen mobs show one body, and one body has one set of numbers.
+     */
+    private static void copyRolledAttributes(Mob source, Mob target) {
+        if (!(source instanceof AbstractHorse) || !(target instanceof AbstractHorse)) {
+            return;
+        }
+        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
+            AttributeInstance from = source.getAttribute(attribute);
+            AttributeInstance to = target.getAttribute(attribute);
+            if (from != null && to != null) {
+                to.setBaseValue(from.getBaseValue());
+            }
+        }
+        // Max health was just moved under it, and a mob that comes out of a stack comes out whole -
+        // leaving the number where it was would hand back a horse that is wounded or bursting,
+        // depending on which way the roll happened to go.
+        target.setHealth(target.getMaxHealth());
+    }
+
+    /** Exactly the three {@code AbstractHorse.randomizeAttributes} rolls, and nothing else. */
+    private static final List<Attribute> ROLLED_HORSE_ATTRIBUTES =
+            List.of(Attributes.MAX_HEALTH, Attributes.MOVEMENT_SPEED, Attributes.JUMP_STRENGTH);
 
     /**
      * Moves a handful of save keys from one entity to another, for state vanilla exposes no setter

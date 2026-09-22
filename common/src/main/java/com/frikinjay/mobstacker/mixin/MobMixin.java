@@ -18,10 +18,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class MobMixin {
 
     /**
-     * Gives every mob a periodic chance to join a nearby stack. Merging is otherwise only attempted
-     * when a mob crosses a block boundary, so mobs that never move - several spawn eggs used on one
-     * block, mobs with no AI, a penned-in group - would stand side by side and never stack. The
-     * timer, the staggering and the cheap early-outs live in MobStacker#tickStackScan.
+     * Gives every mob a chance to join a nearby stack: once on its first tick, and periodically
+     * after that. Merging is otherwise only attempted when a mob crosses a block boundary, so mobs
+     * that never move - several spawn eggs used on one block, mobs with no AI, a penned-in group -
+     * would stand side by side and never stack, and a spawner batch would wait out a whole scan
+     * interval first. The first tick is also the earliest point at which a mob can safely be merged,
+     * since finalizeSpawn has run and its variant and age are settled by then.
+     * <p>
+     * The timer, the staggering and the cheap early-outs live in MobStacker#tickStackScan.
      */
     @Inject(method = "tick", at = @At("TAIL"))
     private void mobstacker$periodicStackScan(CallbackInfo ci) {
@@ -54,6 +58,12 @@ public class MobMixin {
      * climb onto a single entity carrying a whole herd. So a stacked mount steps one mob out of the
      * stack and lets that mob take the interaction instead, for every kind of right-click there is.
      *
+     * <p>A bucket does the same, for the opposite reason: bucketing takes the entity out of the
+     * world and puts it in an item, so on a stack of fish the whole shoal went into one bucket and
+     * a single fish came back out of it. Shears do too while {@code stackedHarvest} is off, because
+     * shearing changes the mob and the stack is one mob (see
+     * {@link MobStacker#isShearingOneInteraction}).
+     *
      * <p>A wolf, cat or parrot pack does the same, but only when the player is actually holding the
      * thing that tames it. That asymmetry is deliberate: a horse answers every right-click with
      * something, while an untamed wolf ignores an empty hand entirely, and peeling a wolf off the
@@ -61,24 +71,41 @@ public class MobMixin {
      *
      * <p>Server side only. The client keeps predicting the interaction against the stack exactly as
      * vanilla would, and the server's answer — a new mob, a smaller stack — arrives right after.
+     * That is harmless for everything except a bucket, whose prediction throws the client's copy of
+     * the stack away; the stack is sent to the client again once the bucket is filled.
      */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void mobstacker$interactWithOneOfTheStack(Player player, InteractionHand hand,
                                                       CallbackInfoReturnable<InteractionResult> cir) {
         Mob self = (Mob) (Object) this;
-        if (self.level().isClientSide() || MobStacker.getStackSize(self) <= 1) {
+        if (self.level().isClientSide()) {
+            return;
+        }
+        // Still working on the animal the stack handed over a moment ago: hold it out of the herd
+        // for another while. Without this the taming attempts run out of time rather than out of
+        // bones - the mob rejoins mid-session and the next click peels off a fresh one.
+        MobStacker.refreshSeparationGrace(self);
+        if (MobStacker.getStackSize(self) <= 1) {
             return;
         }
         ItemStack held = player.getItemInHand(hand);
         if (MobStacker.isSeparatorInteraction(self, held)) {
             return; // PlayerMixin already took one out at interactOn; two would leave the stack
         }
-        if (!(self instanceof AbstractHorse) && !MobStacker.isTamingInteraction(self, held)) {
+        boolean bucketing = MobStacker.isBucketingInteraction(self, held);
+        if (!(self instanceof AbstractHorse)
+                && !MobStacker.isTamingInteraction(self, held)
+                && !bucketing
+                && !MobStacker.isShearingOneInteraction(self, held)) {
             return;
         }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
-            cir.setReturnValue(separated.interact(player, hand));
+            InteractionResult result = separated.interact(player, hand);
+            if (bucketing) {
+                MobStacker.resendToClients(self);
+            }
+            cir.setReturnValue(result);
         }
     }
 

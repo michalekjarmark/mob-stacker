@@ -18,17 +18,27 @@ import java.util.List;
  */
 public final class MobStackerClientRegions {
 
-    /** A region reduced to what a client does anything with. */
+    /**
+     * A region reduced to what a client does anything with. The corners are kept as they were given,
+     * which is what the editor shows; the box's extent is worked out from them for the overlay.
+     */
     public record View(String name, StackRegion.Type type, String dimension,
-                       int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
+                       int x1, int y1, int z1, int x2, int y2, int z2,
                        int priority, StackColor color, boolean colorChosen) {
 
+        public int minX() { return Math.min(x1, x2); }
+        public int minY() { return Math.min(y1, y2); }
+        public int minZ() { return Math.min(z1, z2); }
+        public int maxX() { return Math.max(x1, x2); }
+        public int maxY() { return Math.max(y1, y2); }
+        public int maxZ() { return Math.max(z1, z2); }
+
         public String bounds() {
-            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+            return "[" + x1 + ", " + y1 + ", " + z1 + "] -> [" + x2 + ", " + y2 + ", " + z2 + "]";
         }
 
         public int[] corners() {
-            return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
+            return new int[]{x1, y1, z1, x2, y2, z2};
         }
     }
 
@@ -40,10 +50,10 @@ public final class MobStackerClientRegions {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.hasSingleplayerServer()) {
             for (StackRegion region : MobStacker.config.getRegions()) {
+                int[] c = region.getCorners();
                 out.add(new View(region.getName(), region.getType(),
                         region.getDimension() == null ? "?" : region.getDimension(),
-                        region.getMinX(), region.getMinY(), region.getMinZ(),
-                        region.getMaxX(), region.getMaxY(), region.getMaxZ(),
+                        c[0], c[1], c[2], c[3], c[4], c[5],
                         region.getPriority(), region.effectiveColor(), region.getColor() != null));
             }
             return out;
@@ -52,8 +62,8 @@ public final class MobStackerClientRegions {
             out.add(new View(info.name(),
                     "DENY".equalsIgnoreCase(info.type()) ? StackRegion.Type.DENY : StackRegion.Type.ALLOW,
                     info.dimension(),
-                    info.minX(), info.minY(), info.minZ(),
-                    info.maxX(), info.maxY(), info.maxZ(),
+                    info.x1(), info.y1(), info.z1(),
+                    info.x2(), info.y2(), info.z2(),
                     info.priority(), info.overlayColor(), info.chosenColor() != null));
         }
         return out;

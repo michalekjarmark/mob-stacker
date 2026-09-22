@@ -7,6 +7,181 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.9.0] - 2026-09-23
+### Added
+- **Whitelists.** Until now the only mob filter was a blacklist — "everything stacks except these".
+  The other half now exists: set `mobListMode` to `WHITELIST` and *nothing* stacks except what is on
+  the allow lists. The two halves keep separate lists, so switching the mode to have a look does not
+  invert the meaning of a list you spent an evening building; switch it back and your list is intact.
+- **Mob lists per region.** A region can carry its own "these never stack here" or "only these stack
+  here", instead of every region sharing one global pair. A region that sets nothing inherits the
+  global list, exactly like every other per-region setting; a region that sets one means that list
+  and no other. Entity lists and mod lists inherit independently.
+- **A list editor in the GUI**, reached from **Mob lists…** on the config screen and on each region.
+  One screen covers all eight lists and the ceilings below, with tabs, add and remove, and a note
+  when the list you are looking at is not the one `mobListMode` is currently reading — with the
+  command that would change that, so the answer is not "go and find the setting". The entry box
+  **completes ids as you type**, the way the command line does: Tab, Enter or a click takes the
+  highlighted one, the arrows walk the list, Esc closes it. (Enter leaves an id that is already whole
+  alone — `minecraft:pig` stays a pig, whatever is listed under it.) Handing a region's list back to the global one asks
+  once before it discards what the region had.
+- **A stack ceiling per mob type** — `/mobstacker maxstack minecraft:cow 64`, globally or inside one
+  region. Anything not named follows `maxStackSize` as before. Looked up by entity id, so modded
+  mobs work without the mod knowing they exist.
+- **Mobs stack the moment they appear** (`stackOnSpawn`, default on, per region). A spawner batch, a
+  bred baby or a handful of spawn eggs used on one block no longer wait out a scan interval standing
+  around as separate entities.
+- **Draw a region by clicking two blocks.** The area editor has a **Pick in world…** button: the
+  screen steps aside and the next two blocks you right-click become the corners, with the box drawn
+  live from the first corner to whatever you are looking at, so you can see the reach before you
+  commit to it. Sneak and click to cancel. Nothing is saved until you press Save — the picker fills
+  in the same six numbers you could have typed, and every rule about it is still the server's.
+- **`separationCooldown`** (seconds, default `0`, per region): how long a mob taken out of a stack
+  for you — by taming, riding, a bucket, shears or the separator — or poured out of a bucket stays
+  out of the stacks before it may merge again. It used to be a fixed fifteen seconds; the last test
+  round found the wait was all anyone noticed of it, so it is off unless you want it. A horse you
+  have started taming stays out for good regardless (see Fixed).
+
+### Changed
+- `/mobstacker ignore <entity|mod> …` is now `/mobstacker list deny <entity|mod> …`, with
+  `list allow` for the whitelist half and `region mobs <name> …` for a region's own. **The old
+  `ignore` spelling still works** and reaches exactly the same code.
+- The settings registry is now **46 settings, 37 of them overridable per region**.
+- **The button that leaves a screen is always the last one in its row.** The config screen had Done
+  on the left and the region screen on the right; both have it on the right now, with **Mob lists…**
+  beside it on both, and the area editor's Cancel moved to the end of its row for the same reason.
+- **A list will not take a vanilla mob that does not exist.** `minecraft:cwo` is a typo and nothing
+  will ever arrive to make it mean something, so it is refused outright. A *modded* id is still
+  accepted whether the mod is installed or not — a list has to survive its mod being away for a
+  week — but it is marked `(not loaded)` in the editor and says so in chat, so an entry that means
+  nothing never looks like one that is working. The per-type stack ceilings are judged the same way.
+- **The box colour button on the region screen is labelled**, and says what "auto" means on hover.
+  **Right-click steps it backwards**, so going back one colour is not sixteen clicks forward.
+- **A region remembers its two corners the way you gave them.** Picking two blocks and reopening the
+  editor used to show two *other* blocks — the same box, sorted into a minimum and a maximum corner,
+  but with coordinates matching neither block you clicked. Corner 1 is now the first block and
+  corner 2 the second, in the editor, in `region list` and in `region show`. The config file keeps
+  the minimum and maximum it always had, so what is inside a region is decided exactly as before and
+  a world taken back to an older version still has every region where it was; a region saved before
+  this simply shows its corners sorted, as it always did, until it is next redrawn.
+- **With `stackedHarvest` off, shears take one animal out of the stack and shear that one.** "Off"
+  was meant to make a stack give what a single mob would, but shearing changes the mob and the stack
+  is one mob — so one click left all sixteen sheep sheared for one sheep's wool, and a stack of
+  mooshrooms turned into a stack of cows. Now each click shears one sheep, the rest keep their wool,
+  and a sheared sheep never merges back into an unsheared stack. With the setting on, nothing changed:
+  one click still shears the whole stack for the whole stack's wool.
+- **`maxStackSize` accepts anything from 1 to 2147483647 again.** The mod this one is forked from
+  took any whole number from 1 upwards; this fork had quietly capped it at 100000, which was its own
+  invention and had nothing behind it. The per-type ceilings go as high, and so do the three settings
+  that are shaped by a stack size — `stackSizeMediumThreshold`, `stackSizeLargeThreshold` and
+  `sweepingEdgeMaxKills` — which were capped at the same number and would have left a name unable to
+  change colour on a stack the new ceiling allows. The one sum that could have overflowed past a
+  ceiling that large — "would these two stacks together fit?" — is done in long, so a count can never
+  wrap round to a negative.
+- **`max` can be typed wherever a whole number or a decimal is asked for**, and means as high as that
+  setting goes: `/mobstacker set maxStackSize max` rather than remembering 2147483647. It works for
+  every numeric setting, for the per-type ceilings (`/mobstacker maxstack minecraft:cow max`,
+  offered by tab-completion beside `default`) and in the GUI's own boxes. It is **stored as the
+  number it means**, so the config file stays plain and `get` never answers with a word you would
+  then have to look up.
+- **`default` can be typed the same way**, for every setting: `/mobstacker set maxStackSize default`
+  is `reset maxStackSize` under the word `maxstack <entity> default` already used, and tab-completion
+  offers it. It works in `region set`, in the GUI's boxes, and in the ceilings tab's size box, where
+  — as in the command — it removes that mob's ceiling. The size box there also takes all ten digits a
+  ceiling can have now; it stopped at six.
+
+### Fixed
+
+> **Where these come from.** 1.7.0 and 1.8.0 both shipped without a test pass, so most of what is
+> fixed below is not a 1.9.0 regression — it is the first time developers had tested those two versions
+> and written down what happened. The version each bug arrived in is named, because "fixed in 1.9.0"
+> on its own would suggest 1.9.0 broke it.
+
+- **Taking one animal out of a stack no longer re-rolls it** *(older than this fork)*. A horse's
+  speed, jump and health are rolled when the entity is created, and every horse that came out of a
+  stack got a fresh roll of all three — so stacking and unstacking a horse was a re-roll button you
+  could keep pressing until the numbers came out well. Its markings were being re-rolled with them
+  *(1.7.0: it taught horses to keep their colour, but colour is only the low byte of the variant)*.
+  Both now come out of the stack exactly as they went in, at full health.
+- **Taming an animal out of a stack works** *(1.7.0 for horses, 1.8.0 for wolves, cats and parrots;
+  neither version was tested)*. The animal handed over rejoined the herd within a second, so the
+  next click peeled off a fresh one with its progress lost, and a horse was never tamed. A horse with
+  any taming progress at all — vanilla calls it temper — now stays out of stacks for good, the way a
+  tamed one does. A wolf, cat or parrot has no progress to lose (every bone or fish is a fresh roll),
+  so one that shrugs off a bone may rejoin the pack; `separationCooldown` keeps it out for as long as
+  you like.
+- **Bucketing a stacked fish takes one fish** *(as old as fish stacking at all)*. It used to take
+  the whole shoal: everything but the name went into the bucket, and one fish came back out of it.
+- **…and the shoal it came out of stays visible** *(new in 1.9.0's fix for the above)*. The game
+  removes a bucketed mob on your screen the moment you click, before the server has answered; the
+  server then kept the rest of the stack, and nothing ever told your client it was still there. The
+  stack went on existing out of sight — it still merged, still swallowed fish poured back next to it,
+  and came back into view only when something re-sent it. It is re-sent the moment the bucket is
+  filled now. The same went for axolotls and tadpoles.
+- **A fish poured out of a bucket is seen before it joins the shoal** instead of vanishing into the
+  shoal beside it on its very first tick, which looked exactly like the bucket having eaten it. It
+  joins on the next scan, or once `separationCooldown` runs out if that is set.
+- **The mob list editor could crash the game** *(new in 1.9.0)*. Removing entries quickly left the
+  screen rebuilding from a list the server thread had already shortened, which came out as an
+  `IndexOutOfBoundsException` on the next click.
+- **The id completion in that editor is drawn in front of the screen** *(new in 1.9.0)* instead of
+  behind the screen's own text, and a message about the last edit now has a line of its own rather
+  than landing on a row.
+- **"New region…" will not overwrite an existing region** *(1.7.0, when the area editor learned to
+  create one)*. Typing a name that was already taken moved that region onto the box around you,
+  silently, with everything it carried. It is refused now and points at the region's own editor,
+  exactly as `/mobstacker region add` always has. Creating an allow region while stacking is off
+  also *says* that it switched stacking on — in singleplayer as well as over the network, where the
+  message was being written and then thrown away.
+- **The X/Y/Z header in the area editor no longer sits on the dimension button** *(1.7.0)*, and is
+  drawn in the same grey as the labels beside it rather than one that disappeared into the background.
+- **A region's wireframe is visible through another region's fill** *(1.8.0)*, and through its own
+  near face. The faces are drawn with a render type of the mod's own that writes no depth, so nothing
+  the overlay draws can hide anything else it draws. Drawing the edges first had been tried and was
+  not enough: with *Fabulous* graphics the edges go into a buffer of their own, and a face that had
+  written its depth still covered them when the frame was put together — which is also why stepping
+  inside a box made everything reappear. Drawing boxes through *walls* is a separate job and still
+  to come.
+- **Shearing a stack makes one snip, not one per sheep** *(1.8.0)*. With `stackedHarvest` on, every
+  sheep under the top one was sheared with its own sound, all on the same tick — a stack of sixty-four
+  was sixty-four snips at once. The wool is unchanged.
+- **The mob list editor keeps the cursor in the entry box after Add** *(new in 1.9.0)*, so a run of
+  ids can be typed one after another. It used to be taken away twice: by the Add button taking focus
+  once it had been clicked, and by the screen repainting when the edit came back from the server.
+  That repaint now also keeps whatever you had started typing, so a new row is shown straight away
+  instead of waiting until the box lost focus.
+- **`keepMemberEquipment` no longer reads `ON` while greyed out** *(the greying is 1.6.0; 1.7.0's
+  setting is the first one it got wrong, being the first whose default is on)*. A setting that is
+  doing nothing reads as off, whichever way its own default points — and can always be switched
+  off, which for a setting whose default was on was being refused. It also **cannot be switched on**
+  while `stackEquippedMobs` is off, in either of the two ways that slipped through: asking for its
+  default, which counted as "switching it off", or asking for `true` while `true` was what sat in the
+  file, which answered "already true" to a switch that reads OFF. That second one was what
+  `/mobstacker selftest` kept reporting. `toggle` flips what a switch reads as, and `reset` may always
+  put the default back — that is a write to the file, not a request for the setting to do anything.
+- **`/mobstacker set killWholeStackOnDeath false` says it is forced on** *(1.6.0)* while
+  `stackHealth` holds it there, instead of answering "it is already false" because `false` is what
+  sits in the file. This was the one failure `/mobstacker selftest` had been reporting.
+- **A stack no longer jumps sideways when it swallows a passing mob** *(as old as this fork)*.
+  Whichever of the two mobs moved or scanned first was the one that survived the merge, and the
+  survivor keeps its own position — so roughly one merge in twenty was a stack of thirty cows
+  teleporting a block or two to stand where a single cow had been. The **bigger stack always
+  survives** now, whoever set the merge off. Two side effects worth knowing: a mob you named is no
+  longer merged away into a bigger unnamed stack, because its name would vanish, and the per-type
+  ceiling that decides whether a merge fits is now the one where the **survivor** stands rather than
+  the one where the mob that moved happened to be.
+- **Which region boxes you are looking at is remembered per world** *(1.8.0)*. It was one list for
+  the whole game, so "show all" switched on in a test world came along to the next world and onto
+  the server, drawing boxes nobody had asked for — and a region called `farm` in one world decided
+  what `farm` looked like in another. A singleplayer world is known by its **save folder**, not the
+  name on the world list, so two worlds both called "New World" are two worlds. The style (wireframe,
+  filled, both) is still one choice for everywhere, because that one really is a preference rather
+  than a fact about a world. Existing `config/mobstacker-overlay.json` files are read as before; the
+  old blanket switch is dropped once, which costs one click to set again.
+- The self-test now covers everything above that can be checked without a world: settings held
+  inert by another (globally and inside a region), what a list will accept, creating a region versus
+  redrawing one, and a region keeping its corners as given.
+
 ## [1.8.0] - 2026-09-19
 ### Added
 - **Regions can be drawn in the world.** Switch a region's box on and its bounds appear as a coloured

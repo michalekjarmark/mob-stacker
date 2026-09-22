@@ -32,6 +32,7 @@ public final class MobStackerClient implements ClientModInitializer {
         // In-world region boxes. Purely a client-side view of the world, so nothing here is sent
         // anywhere and a server never knows or cares whether a player has them switched on.
         MobStackerRegionOverlay.register();
+        MobStackerRegionPicker.register();
 
         openConfigKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.mobstacker.open_config",

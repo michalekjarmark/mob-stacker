@@ -50,6 +50,10 @@ public final class ConfigSelfTest {
                 testOption(option, report);
             }
             testDependencies(report);
+            testInertSettings(report);
+            testLists(report);
+            testListValidation(report);
+            testRegionCreation(report);
         } catch (Exception e) {
             report.checks++;
             report.failures++;
@@ -65,8 +69,11 @@ public final class ConfigSelfTest {
         // Baseline: reset to default and confirm it took.
         ConfigOption.Result reset = option.reset();
         check(report, reset.status != Status.ERROR, option.id() + ": reset errored (" + reset.message + ")");
-        check(report, option.currentValue().equals(option.defaultValue()),
-                option.id() + ": value != default after reset (" + option.currentValue() + " vs " + option.defaultValue() + ")");
+        // The stored value, not the effective one: a setting held inert by another reads as off
+        // whatever its default is, and that is correct rather than a failure.
+        check(report, option.storedValue().equals(option.defaultValue()),
+                option.id() + ": stored value != default after reset ("
+                        + option.storedValue() + " vs " + option.defaultValue() + ")");
 
         switch (option.type()) {
             case BOOL -> {
@@ -93,7 +100,18 @@ public final class ConfigSelfTest {
                     check(report, applied.status == Status.CHANGED,
                             option.id() + ": valid value " + valid + " not applied (" + applied.status + " " + applied.message + ")");
                 }
-                option.reset();
+                // "max" is the top of this setting's own range, whatever that is, and is stored as
+                // the number it means - so nothing downstream ever has to know the word.
+                ConfigOption.Result asMax = option.apply(ConfigOption.MAX_KEYWORD);
+                check(report, asMax.status != Status.ERROR,
+                        option.id() + ": refused '" + ConfigOption.MAX_KEYWORD + "' (" + asMax.message + ")");
+                check(report, !option.currentValue().equalsIgnoreCase(ConfigOption.MAX_KEYWORD),
+                        option.id() + ": stored the word '" + ConfigOption.MAX_KEYWORD + "' rather than a number");
+                check(report, numeric(option.currentValue()) == option.max().doubleValue(),
+                        option.id() + ": '" + ConfigOption.MAX_KEYWORD + "' gave " + option.currentValue()
+                                + " instead of " + option.max());
+                // ...and "default" has to bring it back from there, which is the reset below.
+                option.apply(ConfigOption.DEFAULT_KEYWORD);
             }
             case ENUM -> {
                 for (String value : option.enumValues()) {
@@ -112,6 +130,20 @@ public final class ConfigSelfTest {
                 // Free-form; nothing to assert beyond the reset baseline above.
             }
         }
+
+        // "default" is reset under another name, for every kind of setting, and is never stored as
+        // the word. Checked on the stored value for the same reason as the baseline above. For a
+        // number it has just been used to come back from "max"; everything else checks the word is
+        // taken at all. A region takes it through canonicalize, which has to agree.
+        ConfigOption.Result asDefault = option.apply(" Default ");
+        check(report, asDefault.status != Status.ERROR,
+                option.id() + ": refused '" + ConfigOption.DEFAULT_KEYWORD + "' (" + asDefault.message + ")");
+        check(report, option.storedValue().equals(option.defaultValue()),
+                option.id() + ": '" + ConfigOption.DEFAULT_KEYWORD + "' left " + option.storedValue()
+                        + " instead of " + option.defaultValue());
+        check(report, option.canonicalize(ConfigOption.DEFAULT_KEYWORD).equals(option.defaultValue()),
+                option.id() + ": a region's '" + ConfigOption.DEFAULT_KEYWORD + "' reads as "
+                        + option.canonicalize(ConfigOption.DEFAULT_KEYWORD) + " instead of " + option.defaultValue());
     }
 
     /**
@@ -174,7 +206,9 @@ public final class ConfigSelfTest {
         }
 
         void undo() {
-            option.apply(value);
+            // restore, not apply: the value being put back may be one a player could not set right
+            // now - keepMemberEquipment's own default, with stackEquippedMobs still off.
+            option.restore(value);
         }
     }
 
@@ -203,11 +237,259 @@ public final class ConfigSelfTest {
         killWhole.reset();
     }
 
+    /**
+     * Every switch that another setting can hold inert, checked from both ends.
+     *
+     * <p>Two things have to be true at once and neither is obvious from the code: while the setting
+     * it needs is off, it must <b>read as OFF</b> — a greyed-out switch sitting on ON is exactly the
+     * confusion {@code requires} exists to prevent, and reading as the <em>default</em> quietly broke
+     * that for {@code keepMemberEquipment}, whose default is on — and it must still be possible to
+     * turn it <b>off</b>, since switching something off is always safe and was being refused for the
+     * same reason. Generic over the registry on purpose: the next setting with a default of true
+     * gets both checks for free.
+     */
+    private static void testInertSettings(Report report) {
+        for (ConfigOption option : MobStackerSettings.all()) {
+            String requiredId = option.requires();
+            if (requiredId == null || option.type() != Type.BOOL) {
+                continue;
+            }
+            ConfigOption required = MobStackerSettings.byId(requiredId);
+            if (required == null || required.type() != Type.BOOL) {
+                continue;
+            }
+            Restore restoreRequired = Restore.of(required);
+            Restore restoreOption = Restore.of(option);
+            required.apply("false");
+
+            check(report, "false".equals(option.currentValue()),
+                    option.id() + " reads as " + option.currentValue() + " while " + requiredId
+                            + " is off; a setting that does nothing must read as off");
+            check(report, option.apply("true").status == Status.ERROR,
+                    option.id() + " could be turned on while " + requiredId + " is off");
+            check(report, option.apply("false").status != Status.ERROR,
+                    option.id() + " could not be turned off while " + requiredId + " is off");
+            // Putting the default back is a reset, not a request, and must never be refused - that
+            // is what "reset all" does to every setting in turn, in whatever state it finds them.
+            check(report, option.reset().status != Status.ERROR,
+                    option.id() + " could not be reset while " + requiredId + " is off");
+
+            // The same two answers for a region's own override, judged against that region.
+            StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                    StackRegion.Type.ALLOW, 0, 0, 0, 1, 1, 1);
+            region.setSetting(requiredId, "false");
+            check(report, MobStackerSettings.regionEditProblem(option, region, "true") != null,
+                    option.id() + " could be turned on in a region whose " + requiredId + " is off");
+            check(report, MobStackerSettings.regionEditProblem(option, region, "false") == null,
+                    option.id() + " could not be turned off in a region whose " + requiredId + " is off");
+
+            restoreOption.undo();
+            restoreRequired.undo();
+        }
+    }
+
+    /**
+     * What a mob list will and will not accept.
+     *
+     * <p>Lists used to take anything at all, so a typo sat in the config looking exactly like an
+     * entry that was working. The rule is not "does it exist right now" — a modded id has to
+     * survive its mod being away — it is "could it ever have meant anything", which for the
+     * {@code minecraft} namespace is a question with a definite answer.
+     */
+    private static void testListValidation(Report report) {
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "minecraft:cow") == null,
+                "a real vanilla mob was refused by an entity list");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "minecraft:not_a_mob") != null,
+                "an entity list accepted a vanilla id nothing answers to");
+        check(report, MobLists.entryProblem(MobListKind.ALLOW_ENTITIES, "somemod:whatever") == null,
+                "an entity list refused a modded id, which has to survive its mod being away");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "") != null,
+                "an entity list accepted an empty entry");
+        check(report, MobLists.entryProblem(MobListKind.DENY_MODS, "somemod") == null,
+                "a mod list refused a plain namespace");
+        check(report, MobLists.entryProblem(MobListKind.DENY_MODS, "somemod:cow") != null,
+                "a mod list accepted a whole entity id");
+        check(report, MobLists.isLoaded(MobListKind.DENY_ENTITIES, "minecraft:cow"),
+                "minecraft:cow is not reported as loaded");
+        check(report, !MobLists.isLoaded(MobListKind.DENY_ENTITIES, "somemod:whatever"),
+                "an absent modded id is reported as loaded");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "minecraft:cow") == null,
+                "a loaded id came with a 'not loaded' note");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "somemod:whatever") != null,
+                "an absent modded id was accepted without a word");
+        check(report, MobLists.entityProblem("minecraft:not_a_mob") != null,
+                "a stack ceiling accepted a vanilla id nothing answers to");
+    }
+
+    /**
+     * Creating a region and redrawing one are the same write and different intentions.
+     *
+     * <p>"New region…" with a name that was already taken used to move somebody else's region onto
+     * the box around the player, silently and with no undo. Both directions are checked here
+     * because making one of them strict is exactly how the other one breaks.
+     */
+    private static void testRegionCreation(Report report) {
+        String name = "selftest_region";
+        RegionEdit.delete(name);
+
+        RegionEdit.Result created = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 0, 0, 0, 4, 4, 4, true);
+        check(report, created.ok(), "a new region was refused: " + created.message());
+
+        RegionEdit.Result again = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 100, 0, 100, 104, 4, 104, true);
+        check(report, !again.ok(), "'New region' overwrote a region that already existed");
+        StackRegion kept = MobStacker.config.getRegion(name);
+        check(report, kept != null && kept.getMinX() == 0,
+                "the refused create moved the existing region anyway");
+
+        RegionEdit.Result reshaped = RegionEdit.apply(name, StackRegion.Type.ALLOW,
+                "minecraft:overworld", 100, 0, 100, 104, 4, 104, false);
+        check(report, reshaped.ok(), "redrawing an existing region was refused: " + reshaped.message());
+        StackRegion moved = MobStacker.config.getRegion(name);
+        check(report, moved != null && moved.getMinX() == 100,
+                "redrawing an existing region did not move it");
+
+        RegionEdit.delete(name);
+        check(report, MobStacker.config.getRegion(name) == null,
+                "the self-test's own region survived being deleted");
+
+        testRegionCorners(report);
+    }
+
+    /**
+     * A region keeps its two corners the way they were given, and still covers the same blocks.
+     *
+     * <p>The corners used to be sorted into a minimum and a maximum on the way in, so the editor
+     * showed back two blocks nobody had clicked. Min and max are still what decides containment -
+     * and what an older version of the mod reads - so both halves are checked, plus a region saved
+     * before the corners were kept, which has to fall back rather than come back empty.
+     */
+    private static void testRegionCorners(Report report) {
+        StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 5, 1, 9, 2, 7, 3);
+        check(report, java.util.Arrays.equals(region.getCorners(), new int[]{5, 1, 9, 2, 7, 3}),
+                "a region did not keep its corners as given: " + java.util.Arrays.toString(region.getCorners()));
+        check(report, region.getMinX() == 2 && region.getMaxX() == 5
+                        && region.getMinY() == 1 && region.getMaxY() == 7
+                        && region.getMinZ() == 3 && region.getMaxZ() == 9,
+                "a region given its corners in reverse got the wrong extent");
+        check(report, region.contains("minecraft:overworld", 3, 4, 5)
+                        && !region.contains("minecraft:overworld", 6, 4, 5),
+                "a region given its corners in reverse does not cover the right blocks");
+        check(report, region.describeBounds().equals("[5, 1, 9] -> [2, 7, 3]"),
+                "a region describes its corners sorted: " + region.describeBounds());
+
+        StackRegion legacy = new com.google.gson.Gson().fromJson(
+                "{\"name\":\"old\",\"dimension\":\"minecraft:overworld\",\"type\":\"ALLOW\","
+                        + "\"minX\":0,\"minY\":1,\"minZ\":2,\"maxX\":3,\"maxY\":4,\"maxZ\":5}",
+                StackRegion.class);
+        check(report, java.util.Arrays.equals(legacy.getCorners(), new int[]{0, 1, 2, 3, 4, 5}),
+                "a region saved before corners were kept did not fall back to min and max");
+    }
+
+    /**
+     * Round-trips the mob lists and the per-type ceilings, which the option loop above cannot reach
+     * because they are not scalar settings.
+     *
+     * <p>Worth its own pass because the interesting behaviour is not "does a value come back": it is
+     * that an entry is normalised on the way in, that a region tells inheriting apart from having an
+     * empty list of its own, and that taking a list over keeps what it was inheriting. All three are
+     * easy to get subtly wrong and impossible to notice without looking.
+     */
+    private static void testLists(Report report) {
+        for (MobListKind kind : MobListKind.values()) {
+            MobStacker.config.clearList(kind);
+            String entry = kind.flavour() == MobListKind.Flavour.ENTITY ? "minecraft:cow" : "examplemod";
+
+            check(report, MobStacker.config.addToList(kind, entry),
+                    kind.id() + ": adding '" + entry + "' to an empty list reported no change");
+            check(report, MobStacker.config.getList(kind).contains(entry),
+                    kind.id() + ": '" + entry + "' was added but is not in the list");
+            check(report, !MobStacker.config.addToList(kind, entry),
+                    kind.id() + ": adding '" + entry + "' twice reported a change");
+            check(report, MobStacker.config.getList(kind).size() == 1,
+                    kind.id() + ": adding '" + entry + "' twice stored it twice");
+            check(report, MobStacker.config.removeFromList(kind, entry),
+                    kind.id() + ": removing '" + entry + "' reported no change");
+            check(report, !MobStacker.config.removeFromList(kind, entry),
+                    kind.id() + ": removing '" + entry + "' twice reported a change");
+
+            if (kind.flavour() == MobListKind.Flavour.ENTITY) {
+                // "cow" and "minecraft:cow" have to be one entry, or a list quietly holds both.
+                MobStacker.config.addToList(kind, "cow");
+                check(report, MobStacker.config.getList(kind).contains("minecraft:cow"),
+                        kind.id() + ": 'cow' was not stored as 'minecraft:cow'");
+                check(report, !MobStacker.config.addToList(kind, "minecraft:cow"),
+                        kind.id() + ": 'cow' and 'minecraft:cow' were stored as two entries");
+                MobStacker.config.clearList(kind);
+            }
+        }
+
+        StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 0, 0, 0, 1, 1, 1);
+        MobListKind kind = MobListKind.DENY_ENTITIES;
+        MobStacker.config.clearList(kind);
+        MobStacker.config.addToList(kind, "minecraft:cow");
+
+        check(report, !region.hasList(kind),
+                "a fresh region claims to override " + kind.id());
+        check(report, MobLists.effective(kind, region).contains("minecraft:cow"),
+                "a region that overrides nothing did not inherit the global " + kind.id());
+
+        region.setList(kind, MobStacker.config.getList(kind));
+        check(report, region.hasList(kind),
+                "a region given its own " + kind.id() + " still claims to inherit");
+        check(report, region.getList(kind).contains("minecraft:cow"),
+                "taking " + kind.id() + " over lost what it was inheriting");
+
+        region.removeFromList(kind, "minecraft:cow");
+        check(report, region.hasList(kind),
+                "emptying a region's " + kind.id() + " dropped the override instead of meaning 'nothing'");
+        check(report, MobLists.effective(kind, region).isEmpty(),
+                "an emptied region list fell back to the global one");
+        check(report, MobStacker.config.getList(kind).contains("minecraft:cow"),
+                "editing a region's " + kind.id() + " changed the global list too");
+
+        region.clearList(kind);
+        check(report, !region.hasList(kind),
+                "a region told to inherit " + kind.id() + " still claims its own");
+        check(report, MobLists.effective(kind, region).contains("minecraft:cow"),
+                "a region told to inherit " + kind.id() + " did not get the global list back");
+        MobStacker.config.clearList(kind);
+
+        // Ceilings: set, read back, and unset.
+        MobStacker.config.setMaxStackSize("minecraft:cow", 64);
+        check(report, Integer.valueOf(64).equals(MobStacker.config.getMaxStackSize("minecraft:cow")),
+                "a global stack ceiling did not come back");
+        check(report, Integer.valueOf(64).equals(MobStacker.config.getMaxStackSize("cow")),
+                "a stack ceiling was not found under the un-namespaced id");
+        MobStacker.config.setMaxStackSize("minecraft:cow", null);
+        check(report, MobStacker.config.getMaxStackSize("minecraft:cow") == null,
+                "a global stack ceiling survived being unset");
+
+        region.setMaxStackSize("minecraft:cow", 8);
+        check(report, Integer.valueOf(8).equals(region.getMaxStackSize("minecraft:cow")),
+                "a region stack ceiling did not come back");
+        region.setMaxStackSize("minecraft:cow", null);
+        check(report, region.getMaxStackSize("minecraft:cow") == null,
+                "a region stack ceiling survived being unset");
+    }
+
     private static void check(Report report, boolean pass, String failureMessage) {
         report.checks++;
         if (!pass) {
             report.failures++;
             report.messages.add(failureMessage);
+        }
+    }
+
+    /** The value as a number, or NaN - which fails any comparison, which is the right answer here. */
+    private static double numeric(String value) {
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return Double.NaN;
         }
     }
 

@@ -19,6 +19,7 @@
     "LivingEntityCustomNameMixin",
     "LivingEntityMixin",
     "MinecraftServerMixin",
+    "MobBucketItemMixin",
     "MobCategoryMixin",
     "MobEquipmentAccessor",
     "MobMixin",

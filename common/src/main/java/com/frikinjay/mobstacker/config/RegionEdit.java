@@ -80,6 +80,23 @@ public final class RegionEdit {
      */
     public static Result apply(String name, StackRegion.Type type, String dimension,
                                int x1, int y1, int z1, int x2, int y2, int z2) {
+        return apply(name, type, dimension, x1, y1, z1, x2, y2, z2, false);
+    }
+
+    /**
+     * The same, told whether the caller believes it is making a <em>new</em> region.
+     *
+     * <p>Reshaping an existing region and creating one are the same edit to this method but not to
+     * the person asking for it. "New region…" filled in with a name that is already taken used to
+     * quietly move somebody else's region onto the box around the player — no warning, no undo, and
+     * the settings it carried now belonged to an area on the other side of the world.
+     * {@code /mobstacker region add} has always refused that and pointed at {@code region bounds};
+     * the GUI now goes through the same door.
+     *
+     * @param mustBeNew refuse rather than reshape when the name is taken
+     */
+    public static Result apply(String name, StackRegion.Type type, String dimension,
+                               int x1, int y1, int z1, int x2, int y2, int z2, boolean mustBeNew) {
         String problem = problem(name, type, dimension, x1, y1, z1, x2, y2, z2);
         if (problem != null) {
             return Result.failed(problem);
@@ -88,6 +105,10 @@ public final class RegionEdit {
 
         StackRegion region = MobStacker.config.getRegion(trimmed);
         boolean created = region == null;
+        if (mustBeNew && !created) {
+            return Result.failed("A region called '" + trimmed
+                    + "' already exists. Open it from the list to redraw it, or pick another name.");
+        }
         if (created) {
             region = new StackRegion(trimmed, dimension, type, x1, y1, z1, x2, y2, z2);
             MobStacker.config.addRegion(region);
@@ -116,12 +137,17 @@ public final class RegionEdit {
 
     /** Same as {@link #apply}, from a {@link Definition} the GUI sent over the wire. */
     public static Result apply(String name, Definition definition) {
+        return apply(name, definition, false);
+    }
+
+    /** Same as {@link #apply(String, Definition)}, refusing a name that is already taken. */
+    public static Result apply(String name, Definition definition, boolean mustBeNew) {
         if (definition == null) {
             return Result.failed("Malformed region definition.");
         }
         return apply(name, definition.type(), definition.dimension(),
                 definition.x1(), definition.y1(), definition.z1(),
-                definition.x2(), definition.y2(), definition.z2());
+                definition.x2(), definition.y2(), definition.z2(), mustBeNew);
     }
 
     /**

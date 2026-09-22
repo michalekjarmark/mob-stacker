@@ -157,6 +157,48 @@ public final class ConfigOption {
      * Values worth suggesting for this option's argument. Empty for free-form numeric/string types
      * (item ids are suggested separately from the live registry by the command layer).
      */
+    /**
+     * What a player types instead of looking a number up: {@code set maxStackSize max} is the
+     * largest that setting goes, whatever that happens to be. It is stored as the number it means,
+     * so what comes back out of {@code get} is unambiguous and the config file stays plain.
+     */
+    public static final String MAX_KEYWORD = "max";
+
+    /**
+     * The other word a player types instead of a value: {@code set maxStackSize default} puts the
+     * default back, exactly as {@code reset maxStackSize} does. {@code maxstack <entity> default}
+     * already said it that way, and the last test round asked why {@code set} did not. Like
+     * {@link #MAX_KEYWORD} it is never stored - it becomes the value it stands for.
+     */
+    public static final String DEFAULT_KEYWORD = "default";
+
+    /** Whether {@code raw} is {@link #DEFAULT_KEYWORD}, ignoring case and surrounding spaces. */
+    public static boolean isDefaultKeyword(String raw) {
+        return raw != null && DEFAULT_KEYWORD.equalsIgnoreCase(raw.trim());
+    }
+
+    /**
+     * Reads a size somebody typed, accepting {@link #MAX_KEYWORD}. For the per-type stack ceilings,
+     * which are not settings and so never pass through {@link #apply} - the word has to mean the
+     * same thing there as it does everywhere else.
+     *
+     * @return the number, or null when it is neither a whole number nor {@code max}
+     */
+    public static Integer parseSize(String raw) {
+        String text = raw == null ? "" : raw.trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        if (MAX_KEYWORD.equalsIgnoreCase(text)) {
+            return Integer.MAX_VALUE;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     public List<String> valueSuggestions() {
         List<String> out = new ArrayList<>();
         switch (type) {
@@ -171,12 +213,16 @@ public final class ConfigOption {
             }
             case INT, DOUBLE -> {
                 out.add(currentValue());
-                out.add(defaultValue());
+                if (!out.contains(defaultValue())) {
+                    out.add(defaultValue());
+                }
+                out.add(MAX_KEYWORD);
             }
             default -> {
                 // STRING / ITEM: no fixed set here.
             }
         }
+        out.add(DEFAULT_KEYWORD);
         return out;
     }
 
@@ -187,6 +233,20 @@ public final class ConfigOption {
      * {@link Result.Status#ERROR}. Unchanged values report {@link Result.Status#UNCHANGED}.
      */
     public Result apply(String raw) {
+        if (isDefaultKeyword(raw)) {
+            return reset();
+        }
+        return apply(raw, false);
+    }
+
+    /**
+     * @param restoring true when this puts back a value that was stored before - a reset, or the
+     *                  self-test undoing itself - rather than a player asking for a new one. Such a
+     *                  write is not asked whether the setting would currently do anything: it only
+     *                  touches what is stored, and what the setting reads as is still decided by its
+     *                  dependencies exactly as before.
+     */
+    private Result apply(String raw, boolean restoring) {
         Object parsed;
         try {
             parsed = parser.apply(raw);
@@ -205,23 +265,38 @@ public final class ConfigOption {
         // its default by a dependency must still be resettable, and `set` changes the stored value.
         String oldValue = storedValue();
         String newValue = String.valueOf(parsed);
-        if (oldValue.equals(newValue)) {
-            return Result.unchanged(oldValue);
-        }
 
-        // A locked setting cannot be changed at all while whatever pins it is on.
+        // A locked setting cannot be changed at all while whatever pins it is on - and that is
+        // judged before the "nothing to do" shortcut below, against what the setting READS AS.
+        // stackHealth holds killWholeStackOnDeath on while false is still what sits in the file, so
+        // comparing stored values first answered "it is already false" to a player looking at a
+        // switch that says ON. A request that matches what it reads as really is a no-op and still
+        // passes through as unchanged.
         String lock = MobStackerSettings.lockProblem(this, null, null);
         if (lock != null) {
-            return Result.error(lock);
+            return newValue.equalsIgnoreCase(currentValue())
+                    ? Result.unchanged(currentValue())
+                    : Result.error(lock);
         }
 
-        // A setting that depends on another one may always go back to its default (so it can be
-        // switched off again), but only turn on once the setting it needs is on.
-        if (!newValue.equalsIgnoreCase(defaultValue())) {
+        // A setting that depends on another one may always be switched off, but only turned on once
+        // the setting it needs is on. "Off" is the value that means it does nothing, and only that:
+        // exempting the default as well let keepMemberEquipment, whose default is ON, be switched on
+        // while stackEquippedMobs was off. A reset goes back to the default without asking - it is
+        // a write to the stored value, not a request for the setting to start doing something.
+        //
+        // Judged before the "nothing to do" shortcut, for the same reason as the lock above: with
+        // ON already stored underneath, `set keepMemberEquipment true` answered "already true" to a
+        // player looking at a greyed switch that says OFF - and would still say OFF afterwards.
+        if (!restoring && !newValue.equalsIgnoreCase(MobStackerSettings.inertValue(this))) {
             String problem = MobStackerSettings.dependencyProblem(this, null, null);
             if (problem != null) {
                 return Result.error(problem);
             }
+        }
+
+        if (oldValue.equals(newValue)) {
+            return Result.unchanged(oldValue);
         }
 
         setter.accept(parsed);
@@ -238,6 +313,9 @@ public final class ConfigOption {
      * @throws IllegalArgumentException with a message fit for a player, when the value is not usable
      */
     public String canonicalize(String raw) {
+        if (isDefaultKeyword(raw)) {
+            return String.valueOf(defaultValue);
+        }
         Object parsed = parser.apply(raw);
         if (validator != null) {
             String problem = validator.apply(parsed);
@@ -253,13 +331,29 @@ public final class ConfigOption {
         if (type != Type.BOOL) {
             return Result.error("'" + id + "' is not a toggle (it is a " + type + " setting)");
         }
-        boolean current = (Boolean) getter.get();
+        // Flips what the switch READS AS, which is what the player is looking at: a greyed-out
+        // switch reading OFF is asked to go ON (and says why it cannot), rather than quietly having
+        // the ON stored underneath it turned off.
+        boolean current = Boolean.parseBoolean(currentValue());
         return apply(String.valueOf(!current));
     }
 
-    /** Restores the option to its default value. */
+    /**
+     * Restores the option to its default value. Always allowed where {@link #apply} would allow the
+     * same value, and also where a dependency would refuse it: the default is stored, and whether it
+     * does anything is decided when the setting is read, as it always is.
+     */
     public Result reset() {
-        return apply(String.valueOf(defaultValue));
+        return apply(String.valueOf(defaultValue), true);
+    }
+
+    /**
+     * Puts back a value this option had before, the way {@link #reset} puts back the default - for
+     * code that changed a setting temporarily and has to leave the stored value exactly as it found
+     * it, whether or not that value would be accepted from a player right now.
+     */
+    public Result restore(String storedValue) {
+        return apply(storedValue, true);
     }
 
     // --- Optional wiring ---
@@ -400,10 +494,14 @@ public final class ConfigOption {
 
     private static Object parseInt(String raw, String id, int min, int max) {
         int value;
+        if (MAX_KEYWORD.equalsIgnoreCase(raw.trim())) {
+            return max;
+        }
         try {
             value = Integer.parseInt(raw.trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("'" + raw + "' is not a whole number");
+            throw new IllegalArgumentException("'" + raw + "' is not a whole number (or '"
+                    + MAX_KEYWORD + "')");
         }
         if (value < min || value > max) {
             throw new IllegalArgumentException(id + " must be between " + min + " and " + max);
@@ -413,10 +511,14 @@ public final class ConfigOption {
 
     private static Object parseDouble(String raw, String id, double min, double max) {
         double value;
+        if (MAX_KEYWORD.equalsIgnoreCase(raw.trim())) {
+            return max;
+        }
         try {
             value = Double.parseDouble(raw.trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("'" + raw + "' is not a number");
+            throw new IllegalArgumentException("'" + raw + "' is not a number (or '"
+                    + MAX_KEYWORD + "')");
         }
         if (value < min || value > max) {
             throw new IllegalArgumentException(id + " must be between " + min + " and " + max);

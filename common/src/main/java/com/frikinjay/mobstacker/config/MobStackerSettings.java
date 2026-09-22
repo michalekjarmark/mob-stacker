@@ -37,9 +37,22 @@ public final class MobStackerSettings {
         register(ConfigOption.ofEnum("stackMode", Category.STACKING,
                 "Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE.",
                 StackMode.class, () -> MobStacker.config.getStackMode(), v -> MobStacker.config.setStackMode(v), StackMode.OFF));
+        // Up to the whole int range, which is what the mod this one is forked from allowed. The
+        // 100000 that stood here was this fork's own invention and had nothing behind it; the sums
+        // that could have overflowed past it are done in long (see MobStacker#canMerge).
         register(ConfigOption.ofInt("maxStackSize", Category.STACKING,
-                "The largest a stack is allowed to grow to.",
-                1, 100000, () -> MobStacker.config.getMaxMobStackSize(), v -> MobStacker.config.setMaxMobStackSize(v), 16));
+                "The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this.",
+                1, Integer.MAX_VALUE, () -> MobStacker.config.getMaxMobStackSize(),
+                v -> MobStacker.config.setMaxMobStackSize(v), 16));
+        register(ConfigOption.ofBool("stackOnSpawn", Category.STACKING,
+                "Merge a mob into a nearby stack on its first tick, instead of waiting for it to move "
+                        + "or for the next scan. Covers spawners, breeding and spawn eggs.",
+                () -> MobStacker.config.getStackOnSpawn(), v -> MobStacker.config.setStackOnSpawn(v), true));
+        register(ConfigOption.ofEnum("mobListMode", Category.STACKING,
+                "Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or "
+                        + "WHITELIST (nothing stacks except the allowed lists).",
+                MobListMode.class, () -> MobStacker.config.getMobListMode(),
+                v -> MobStacker.config.setMobListMode(v), MobListMode.BLACKLIST));
         register(ConfigOption.ofDouble("stackRadius", Category.STACKING,
                 "How far apart (in blocks) mobs can be and still merge into the same stack.",
                 0.1, 42000.0, () -> MobStacker.config.getStackRadius(), v -> MobStacker.config.setStackRadius(v), 6.0));
@@ -94,7 +107,8 @@ public final class MobStackerSettings {
                 .requires("sweepingEdgeOverflow"));
         register(ConfigOption.ofInt("sweepingEdgeMaxKills", Category.COMBAT,
                 "Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob.",
-                0, 100000, () -> MobStacker.config.getSweepingEdgeMaxKills(), v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
+                0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
+                v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
 
         // --- Kill feedback ---
@@ -131,11 +145,11 @@ public final class MobStackerSettings {
                 v -> MobStacker.config.setStackNameColorLarge(v), StackColor.RED));
         register(ConfigOption.ofInt("stackSizeMediumThreshold", Category.DISPLAY,
                 "Stack size at which the name switches to stackNameColorMedium.",
-                2, 100000, () -> MobStacker.config.getStackSizeMediumThreshold(),
+                2, Integer.MAX_VALUE, () -> MobStacker.config.getStackSizeMediumThreshold(),
                 v -> MobStacker.config.setStackSizeMediumThreshold(v), 16));
         register(ConfigOption.ofInt("stackSizeLargeThreshold", Category.DISPLAY,
                 "Stack size at which the name switches to stackNameColorLarge.",
-                2, 100000, () -> MobStacker.config.getStackSizeLargeThreshold(),
+                2, Integer.MAX_VALUE, () -> MobStacker.config.getStackSizeLargeThreshold(),
                 v -> MobStacker.config.setStackSizeLargeThreshold(v), 64));
 
         // --- Breeding ---
@@ -146,7 +160,7 @@ public final class MobStackerSettings {
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
         register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
-                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would.",
+                "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool.",
                 () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
         register(ConfigOption.ofBool("enableAnimalBabyStacking", Category.BREEDING,
                 "Let baby farm animals stack together.",
@@ -177,6 +191,11 @@ public final class MobStackerSettings {
                     ResourceLocation id = ResourceLocation.tryParse((String) value);
                     return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
                 }));
+        register(ConfigOption.ofInt("separationCooldown", Category.SEPARATOR,
+                "Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) "
+                        + "or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan.",
+                0, 3600, () -> MobStacker.config.getSeparationCooldown(),
+                v -> MobStacker.config.setSeparationCooldown(v), 0));
 
         // --- Mob caps (vanilla spawn caps per category) ---
         register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Vanilla spawn cap for the monster category.",
@@ -288,9 +307,9 @@ public final class MobStackerSettings {
      *   <li>a setting that pins this one on ({@link ConfigOption#lockedOnBy(String)}) — it reads as
      *       {@code true};</li>
      *   <li>a setting this one needs that is off ({@link ConfigOption#requires(String)}) — it reads
-     *       as its default, because it does nothing at all until that setting comes back on;</li>
+     *       as inert, because it does nothing at all until that setting comes back on;</li>
      *   <li>a setting that already does this one's job ({@link ConfigOption#redundantWhen(String)}) —
-     *       it reads as its default too, for the same reason read the other way round.</li>
+     *       it reads as inert too, for the same reason read the other way round.</li>
      * </ul>
      * Either way the stored value is left untouched and returns the moment the scope changes back,
      * so switching a master setting off and on again costs the player nothing.
@@ -302,9 +321,26 @@ public final class MobStackerSettings {
             return locked;
         }
         if (isRedundant(option, lookup)) {
-            return option.defaultValue();
+            return inertValue(option);
         }
-        return dependencyMet(option, lookup) ? null : option.defaultValue();
+        return dependencyMet(option, lookup) ? null : inertValue(option);
+    }
+
+    /**
+     * What a setting that currently does nothing should read as.
+     *
+     * <p>For a switch that is <b>OFF</b>, always — the whole promise of {@code requires} is that a
+     * switch can never sit on ON while having no effect, and reading as the <em>default</em> broke
+     * that for every setting whose default is on: {@code keepMemberEquipment} showed a greyed-out
+     * ON while {@code stackEquippedMobs} was off, which is exactly the "on but doing nothing" the
+     * rule exists to prevent. Anything that is not a switch has no such no-op value, so it falls
+     * back to its default.
+     *
+     * <p>Only the display and the command feedback go through here. What the game reads at a mob is
+     * the stored value gated by its master setting, so nothing about stacking changes either way.
+     */
+    public static String inertValue(ConfigOption option) {
+        return option.type() == ConfigOption.Type.BOOL ? "false" : option.defaultValue();
     }
 
     /**
@@ -362,8 +398,11 @@ public final class MobStackerSettings {
         if (lock != null) {
             return lock;
         }
-        // Going back to the default is always allowed: that is how a setting is switched off again.
-        if (canonical.equalsIgnoreCase(option.defaultValue())) {
+        // Switching it off is always allowed: that is how a dependency is stepped back out of. Only
+        // the value that means "does nothing" counts as off - the default did too, until it turned
+        // out that for keepMemberEquipment, whose default is ON, that exempted switching it on.
+        // Going back to the default is what unsetting the override is for.
+        if (canonical.equalsIgnoreCase(inertValue(option))) {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());

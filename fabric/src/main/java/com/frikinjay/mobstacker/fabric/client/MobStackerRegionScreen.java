@@ -62,7 +62,15 @@ public final class MobStackerRegionScreen extends Screen {
     private String pendingSelection;
     /** Set while a widget is being repainted, so its own responder does not send that back as an edit. */
     private boolean repainting;
+    // The priority/colour row, in the same column as the setting widgets below it.
+    private static final int PRIORITY_X = 30;
+    private static final int PRIORITY_W = 60;
+    private static final int COLOR_X = 94;
+    private static final int COLOR_W = 76;
+
     private Button colorButton;
+    /** The last local edit's answer, shown where a server's status line would be. */
+    private String localStatus = "";
     private Button overlayBox;
     private Button overlayAll;
     private Button overlayStyle;
@@ -148,17 +156,36 @@ public final class MobStackerRegionScreen extends Screen {
         }
 
         if (editable) {
+            int left = showRows ? this.width / 2 - 206 : this.width / 2 - 102;
             addRenderableWidget(Button.builder(Component.literal("New region…"), b -> openEditor(null))
-                    .bounds(this.width / 2 - 154, this.height - 28, 100, 20).build());
+                    .bounds(left, this.height - 28, 100, 20).build());
             if (showRows) {
                 addRenderableWidget(Button.builder(Component.literal("Edit area…"), b -> openEditor(currentRegion()))
-                        .bounds(this.width / 2 - 50, this.height - 28, 100, 20).build());
+                        .bounds(this.width / 2 - 102, this.height - 28, 100, 20).build());
+                addRenderableWidget(Button.builder(Component.literal("Mob lists…"), b -> {
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreen(MobStackerListScreen.forRegion(this, currentRegion().name()));
+                    }
+                }).bounds(this.width / 2 + 2, this.height - 28, 100, 20).build());
             }
             addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 + 54, this.height - 28, 100, 20).build());
+                    .bounds(left + 104 * (showRows ? 3 : 1), this.height - 28, 100, 20).build());
         } else {
-            addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                    .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+            // A player who may not edit anything can still look, the way they can at the global
+            // lists - the list screen greys its own buttons out. Leaving the button off here was an
+            // accident of which branch it landed in, not a decision.
+            if (showRows) {
+                addRenderableWidget(Button.builder(Component.literal("Mob lists…"), b -> {
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreen(MobStackerListScreen.forRegion(this, currentRegion().name()));
+                    }
+                }).bounds(this.width / 2 - 102, this.height - 28, 100, 20).build());
+                addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                        .bounds(this.width / 2 + 2, this.height - 28, 100, 20).build());
+            } else {
+                addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                        .bounds(this.width / 2 - 100, this.height - 28, 200, 20).build());
+            }
         }
     }
 
@@ -186,6 +213,18 @@ public final class MobStackerRegionScreen extends Screen {
         }
     }
 
+    /**
+     * What the last edit made from here answered, for the line at the bottom of the screen.
+     *
+     * <p>A server sends its own answer back with the config snapshot, and that is what this screen
+     * shows over the network. Singleplayer has no packet to carry one, so the edit hands it over
+     * directly — otherwise "stackMode was OFF, switched to REGIONS so it takes effect" was written,
+     * returned, and thrown away without ever reaching a screen.
+     */
+    public void setStatus(String status) {
+        this.localStatus = status == null ? "" : status;
+    }
+
     private void applyPendingSelection() {
         if (pendingSelection == null) {
             return;
@@ -205,7 +244,8 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     private void addPriorityBox() {
-        EditBox box = new EditBox(this.font, this.width / 2 + 30, 68, 60, 20, Component.literal("priority"));
+        EditBox box = new EditBox(this.font, this.width / 2 + PRIORITY_X, 68, PRIORITY_W, 20,
+                Component.literal("priority"));
         box.setValue(String.valueOf(currentRegion().priority()));
         box.setMaxLength(11);
         box.setEditable(editable);
@@ -238,7 +278,7 @@ public final class MobStackerRegionScreen extends Screen {
         Button button = Button.builder(colorLabel(), b -> {
             StackColor next = nextColor(currentRegion().colorChosen() ? currentRegion().color() : null);
             applyEdit(MobStackerNetworking.REGION_COLOR, next == null ? "" : next.name());
-        }).bounds(this.width / 2 + 94, 68, 76, 20).build();
+        }).bounds(this.width / 2 + COLOR_X, 68, COLOR_W, 20).build();
         button.active = editable;
         this.colorButton = button;
         addRenderableWidget(button);
@@ -254,10 +294,51 @@ public final class MobStackerRegionScreen extends Screen {
         return next >= all.length ? null : all[next];
     }
 
+    /** The same ring the other way round: auto -> WHITE -> ... -> BLACK -> auto. */
+    private static StackColor previousColor(StackColor current) {
+        StackColor[] all = StackColor.values();
+        if (current == null) {
+            return all[all.length - 1];
+        }
+        int previous = current.ordinal() - 1;
+        return previous < 0 ? null : all[previous];
+    }
+
+    /**
+     * Right-click steps the colour backwards. Seventeen stops is a long way round to go back one, and
+     * a vanilla button only ever answers the left button, so the screen catches the right one itself.
+     */
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 1 && colorButton != null && colorButton.active && colorButton.visible
+                && overColor((int) mouseX, (int) mouseY)) {
+            StackColor previous = previousColor(currentRegion().colorChosen() ? currentRegion().color() : null);
+            if (this.minecraft != null) {
+                colorButton.playDownSound(this.minecraft.getSoundManager());
+            }
+            applyEdit(MobStackerNetworking.REGION_COLOR, previous == null ? "" : previous.name());
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /**
+     * Says what it is as well as what it is set to. A lone "auto" beside the priority box told a
+     * first-time reader nothing at all — the word is worth the pixels, and the hover text below
+     * carries the rest.
+     */
     private Component colorLabel() {
         MobStackerClientRegions.View region = currentRegion();
         String text = region.colorChosen() ? region.color().name().toLowerCase(Locale.ROOT) : "auto";
-        return Component.literal(text).withStyle(region.color().format());
+        return Component.literal("colour: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(text).withStyle(region.color().format()));
+    }
+
+    /** True over the colour button, which has a tooltip of its own. */
+    private boolean overColor(int mouseX, int mouseY) {
+        return showRows
+                && mouseX >= this.width / 2 + COLOR_X && mouseX <= this.width / 2 + COLOR_X + COLOR_W
+                && mouseY >= 68 && mouseY <= 88;
     }
 
     /**
@@ -641,6 +722,15 @@ public final class MobStackerRegionScreen extends Screen {
 
     private boolean isValid(ConfigOption option, String text) {
         String value = text.trim();
+        // "max" and "default" are values like any other here, so the box does not go red while
+        // somebody types one.
+        if (ConfigOption.isDefaultKeyword(value)) {
+            return true;
+        }
+        if (ConfigOption.MAX_KEYWORD.equalsIgnoreCase(value)
+                && (option.type() == ConfigOption.Type.INT || option.type() == ConfigOption.Type.DOUBLE)) {
+            return true;
+        }
         switch (option.type()) {
             case INT -> {
                 try {
@@ -727,21 +817,20 @@ public final class MobStackerRegionScreen extends Screen {
         guiGraphics.drawCenteredString(this.font,
                 Component.literal(region.name() + "  [" + region.type() + "]").withStyle(typeColor),
                 this.width / 2, 26, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(categories.get(categoryIndex).display()
-                        + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")").withStyle(ChatFormatting.GOLD),
-                this.width / 2, 50, 0xFFFFFF);
+        // The scroll range rides along with the category, because the only gap below it belongs
+        // to the priority box and the overlay row.
+        Component header = Component.literal(categories.get(categoryIndex).display()
+                + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")").withStyle(ChatFormatting.GOLD);
+        if (maxScrollOffset() > 0) {
+            int total = overridableIn(categories.get(categoryIndex)).size();
+            header = header.copy().append(Component.literal("   \u2195 " + (scrollOffset + 1) + "-"
+                            + Math.min(total, scrollOffset + visibleRows) + " of " + total)
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        guiGraphics.drawCenteredString(this.font, header, this.width / 2, 50, 0xFFFFFF);
         guiGraphics.drawString(this.font,
                 Component.literal("priority").withStyle(ChatFormatting.GRAY),
                 this.width / 2 - 170, 74, NORMAL_TEXT);
-
-        if (maxScrollOffset() > 0) {
-            int total = overridableIn(categories.get(categoryIndex)).size();
-            guiGraphics.drawCenteredString(this.font, Component.literal("scroll for more  ("
-                            + (scrollOffset + 1) + "-" + Math.min(total, scrollOffset + visibleRows)
-                            + " of " + total + ")").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, 84, 0xFFFFFF);
-        }
 
         // Gold means the region has its own value for that setting; grey means it follows the
         // global config. Keeping it on the label avoids a second column that long ids would run into.
@@ -752,6 +841,18 @@ public final class MobStackerRegionScreen extends Screen {
         }
 
         renderFooter(guiGraphics);
+
+        if (overColor(mouseX, mouseY)) {
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
+                    Component.literal("box colour").withStyle(ChatFormatting.WHITE),
+                    Component.literal("The colour this region's box is drawn in, for everyone who shows it.")
+                            .withStyle(ChatFormatting.GRAY),
+                    Component.literal("'auto' = green for an allow region, red for a deny one.")
+                            .withStyle(ChatFormatting.DARK_GRAY),
+                    Component.literal("Right-click to go back one.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+            return;
+        }
 
         if (overPriority(mouseX, mouseY)) {
             ScreenTooltip.render(guiGraphics, this.font, List.of(
@@ -790,7 +891,8 @@ public final class MobStackerRegionScreen extends Screen {
         int labelX = this.width / 2 - 170;
         boolean overLabel = mouseX >= labelX && mouseX <= labelX + this.font.width("priority")
                 && mouseY >= 74 && mouseY <= 74 + this.font.lineHeight;
-        boolean overBox = mouseX >= this.width / 2 + 30 && mouseX <= this.width / 2 + 90
+        boolean overBox = mouseX >= this.width / 2 + PRIORITY_X
+                && mouseX <= this.width / 2 + PRIORITY_X + PRIORITY_W
                 && mouseY >= 68 && mouseY <= 88;
         return overLabel || overBox;
     }
@@ -827,13 +929,13 @@ public final class MobStackerRegionScreen extends Screen {
             guiGraphics.drawCenteredString(this.font,
                     Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
                     this.width / 2, this.height - 46, 0xFFFFFF);
-        } else if (remote) {
-            String status = MobStackerClientNetworking.status();
-            if (status != null && !status.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font,
-                        Component.literal(status).withStyle(ChatFormatting.YELLOW),
-                        this.width / 2, this.height - 46, 0xFFFFFF);
-            }
+            return;
+        }
+        String status = remote ? MobStackerClientNetworking.status() : localStatus;
+        if (status != null && !status.isEmpty()) {
+            guiGraphics.drawCenteredString(this.font,
+                    Component.literal(status).withStyle(ChatFormatting.YELLOW),
+                    this.width / 2, this.height - 46, 0xFFFFFF);
         }
     }
 

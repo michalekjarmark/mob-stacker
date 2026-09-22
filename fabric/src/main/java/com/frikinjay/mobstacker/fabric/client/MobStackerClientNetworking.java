@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.fabric.client;
 
+import com.frikinjay.mobstacker.config.MobListKind;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.EnumMap;
 import java.util.Map;
 
 /**
@@ -27,16 +29,32 @@ public final class MobStackerClientNetworking {
     private static final Map<String, String> SNAPSHOT = new LinkedHashMap<>();
     // The server's regions, with whatever settings each one overrides.
     private static final List<RegionInfo> REGIONS = new ArrayList<>();
+    // The global mob lists and per-type ceilings, so the list screen shows the server's own values
+    // rather than this client's local config - which on a server is not what is in force at all.
+    private static final Map<MobListKind, List<String>> LISTS = new EnumMap<>(MobListKind.class);
+    private static final Map<String, Integer> CEILINGS = new LinkedHashMap<>();
     private static boolean authorized;
     private static String status = "";
 
-    /** One region as the server described it, for the region editor screen. */
+    /** One region as the server described it, for the region editor screen. Corners as given. */
     public record RegionInfo(String name, String type, String dimension,
-                             int minX, int minY, int minZ, int maxX, int maxY, int maxZ,
-                             int priority, String color, Map<String, String> settings) {
+                             int x1, int y1, int z1, int x2, int y2, int z2,
+                             int priority, String color, Map<String, String> settings,
+                             Map<MobListKind, List<String>> lists, Map<String, Integer> ceilings) {
+        /** Whether this region overrides that list, as opposed to inheriting the global one. */
+        public boolean hasList(MobListKind kind) {
+            return lists.containsKey(kind);
+        }
+
+        /** The list in force here: this region's own when it has one, the global one otherwise. */
+        public List<String> effectiveList(MobListKind kind) {
+            List<String> own = lists.get(kind);
+            return own != null ? own : globalList(kind);
+        }
+
         /** The same corner text the server's own {@code /mobstacker region list} prints. */
         public String bounds() {
-            return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+            return "[" + x1 + ", " + y1 + ", " + z1 + "] -> [" + x2 + ", " + y2 + ", " + z2 + "]";
         }
 
         /** The colour the player picked, or null when they have not picked one. */
@@ -78,18 +96,32 @@ public final class MobStackerClientNetworking {
                 String value = buf.readUtf();
                 incoming.put(id, value);
             }
+            Map<MobListKind, List<String>> incomingLists = new EnumMap<>(MobListKind.class);
+            for (MobListKind kind : MobListKind.values()) {
+                int listSize = buf.readVarInt();
+                List<String> entries = new ArrayList<>(listSize);
+                for (int e = 0; e < listSize; e++) {
+                    entries.add(buf.readUtf());
+                }
+                incomingLists.put(kind, entries);
+            }
+            int ceilingCount = buf.readVarInt();
+            Map<String, Integer> incomingCeilings = new LinkedHashMap<>();
+            for (int c = 0; c < ceilingCount; c++) {
+                incomingCeilings.put(buf.readUtf(), buf.readVarInt());
+            }
             int regionCount = buf.readVarInt();
             List<RegionInfo> incomingRegions = new ArrayList<>();
             for (int i = 0; i < regionCount; i++) {
                 String name = buf.readUtf();
                 String type = buf.readUtf();
                 String dimension = buf.readUtf();
-                int minX = buf.readInt();
-                int minY = buf.readInt();
-                int minZ = buf.readInt();
-                int maxX = buf.readInt();
-                int maxY = buf.readInt();
-                int maxZ = buf.readInt();
+                int x1 = buf.readInt();
+                int y1 = buf.readInt();
+                int z1 = buf.readInt();
+                int x2 = buf.readInt();
+                int y2 = buf.readInt();
+                int z2 = buf.readInt();
                 int priority = buf.readInt();
                 String color = buf.readUtf();
                 int overrideCount = buf.readVarInt();
@@ -97,8 +129,27 @@ public final class MobStackerClientNetworking {
                 for (int o = 0; o < overrideCount; o++) {
                     overrides.put(buf.readUtf(), buf.readUtf());
                 }
+                // Absent from the map means "inherits"; present-but-empty means "nothing stacks".
+                Map<MobListKind, List<String>> regionLists = new EnumMap<>(MobListKind.class);
+                for (MobListKind kind : MobListKind.values()) {
+                    if (!buf.readBoolean()) {
+                        continue;
+                    }
+                    int listSize = buf.readVarInt();
+                    List<String> entries = new ArrayList<>(listSize);
+                    for (int e = 0; e < listSize; e++) {
+                        entries.add(buf.readUtf());
+                    }
+                    regionLists.put(kind, entries);
+                }
+                int regionCeilingCount = buf.readVarInt();
+                Map<String, Integer> regionCeilings = new LinkedHashMap<>();
+                for (int c = 0; c < regionCeilingCount; c++) {
+                    regionCeilings.put(buf.readUtf(), buf.readVarInt());
+                }
                 incomingRegions.add(new RegionInfo(name, type, dimension,
-                        minX, minY, minZ, maxX, maxY, maxZ, priority, color, overrides));
+                        x1, y1, z1, x2, y2, z2, priority, color, overrides,
+                        regionLists, regionCeilings));
             }
             client.execute(() -> {
                 authorized = incomingAuth;
@@ -107,9 +158,15 @@ public final class MobStackerClientNetworking {
                 SNAPSHOT.putAll(incoming);
                 REGIONS.clear();
                 REGIONS.addAll(incomingRegions);
+                LISTS.clear();
+                LISTS.putAll(incomingLists);
+                CEILINGS.clear();
+                CEILINGS.putAll(incomingCeilings);
                 if (client.screen instanceof MobStackerConfigScreen screen) {
                     screen.onConfigSynced();
                 } else if (client.screen instanceof MobStackerRegionScreen screen) {
+                    screen.onConfigSynced();
+                } else if (client.screen instanceof MobStackerListScreen screen) {
                     screen.onConfigSynced();
                 }
             });
@@ -117,6 +174,17 @@ public final class MobStackerClientNetworking {
 
         // Don't carry one server's config over to the next connection.
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clear());
+    }
+
+    /** The server's copy of one global mob list. Empty until the first snapshot arrives. */
+    public static List<String> globalList(MobListKind kind) {
+        List<String> entries = LISTS.get(kind);
+        return entries == null ? Collections.emptyList() : Collections.unmodifiableList(entries);
+    }
+
+    /** The server's global per-type ceilings, entity id -> size. */
+    public static Map<String, Integer> globalCeilings() {
+        return Collections.unmodifiableMap(CEILINGS);
     }
 
     /** True when the connected server registered our protocol, i.e. it has the mod installed. */
@@ -194,8 +262,8 @@ public final class MobStackerClientNetworking {
                 settings.put(id, value);
             }
             REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(),
-                    info.minX(), info.minY(), info.minZ(), info.maxX(), info.maxY(), info.maxZ(),
-                    info.priority(), info.color(), settings));
+                    info.x1(), info.y1(), info.z1(), info.x2(), info.y2(), info.z2(),
+                    info.priority(), info.color(), settings, info.lists(), info.ceilings()));
             return;
         }
     }
@@ -203,6 +271,8 @@ public final class MobStackerClientNetworking {
     private static void clear() {
         SNAPSHOT.clear();
         REGIONS.clear();
+        LISTS.clear();
+        CEILINGS.clear();
         authorized = false;
         status = "";
     }

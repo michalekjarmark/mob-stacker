@@ -1,7 +1,9 @@
 package com.frikinjay.mobstacker.config;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,7 +17,7 @@ import java.util.Map;
  * setting that is not listed simply follows the global config — so regions stay small in the config
  * file and only differ where you asked them to.
  */
-public class StackRegion {
+public class StackRegion implements MobLists.Holder {
 
     public enum Type {
         ALLOW,
@@ -31,6 +33,13 @@ public class StackRegion {
     private int maxX;
     private int maxY;
     private int maxZ;
+    // The two corners exactly as they were given - x1, y1, z1, x2, y2, z2, in the order somebody
+    // clicked or typed them. Only what the editor shows and what the commands print: whether a block
+    // is inside is decided by min/max above, which is also all an older version of the mod reads, so
+    // a world taken back to one still has every region exactly where it was. Null in a config
+    // written before this existed, and ignored if it no longer describes the same box as min/max
+    // (somebody edited those by hand), so it can only ever add information, never contradict it.
+    private int[] corners;
     // Settings that differ inside this region, keyed by the same ids the commands and the GUI use.
     // Volatile because in singleplayer the config screen reads this from the client thread while the
     // integrated server writes it, and a stale reference would leave the screen showing old state.
@@ -40,6 +49,16 @@ public class StackRegion {
     // The colour the region is drawn in when a player switches its overlay on. Null means "no colour
     // chosen", which reads as green for an allow region and red for a deny one — see effectiveColor.
     private StackColor color;
+    // The region's own mob lists. Null means "not overridden here" and is NOT the same as an empty
+    // list, which means "nothing"; that difference is the whole point of hasList. Volatile for the
+    // same reason as settings — the singleplayer config screen reads them off the client thread.
+    private volatile List<String> ignoredEntities;
+    private volatile List<String> ignoredMods;
+    private volatile List<String> allowedEntities;
+    private volatile List<String> allowedMods;
+    // Per-type ceilings that apply only here, entity id -> size. Sparse like settings: a type that
+    // is not named follows the region's own maxStackSize, and failing that the global one.
+    private volatile Map<String, Integer> maxStackSizes;
 
     // Required for Gson deserialization.
     public StackRegion() {
@@ -50,12 +69,7 @@ public class StackRegion {
         this.name = name;
         this.dimension = dimension;
         this.type = type;
-        this.minX = Math.min(x1, x2);
-        this.minY = Math.min(y1, y2);
-        this.minZ = Math.min(z1, z2);
-        this.maxX = Math.max(x1, x2);
-        this.maxY = Math.max(y1, y2);
-        this.maxZ = Math.max(z1, z2);
+        setBounds(x1, y1, z1, x2, y2, z2);
     }
 
     public String getName() {
@@ -123,6 +137,24 @@ public class StackRegion {
         this.maxX = Math.max(x1, x2);
         this.maxY = Math.max(y1, y2);
         this.maxZ = Math.max(z1, z2);
+        this.corners = new int[]{x1, y1, z1, x2, y2, z2};
+    }
+
+    /**
+     * The two corners as they were given: {@code {x1, y1, z1, x2, y2, z2}}, corner 1 first. Two
+     * blocks somebody clicked are shown back as those two blocks - sorting them into a minimum and a
+     * maximum described the same box, but with coordinates matching neither block, which read as the
+     * editor having got them wrong. A region from before this was kept falls back to min and max.
+     */
+    public int[] getCorners() {
+        int[] given = corners;
+        if (given != null && given.length == 6
+                && Math.min(given[0], given[3]) == minX && Math.max(given[0], given[3]) == maxX
+                && Math.min(given[1], given[4]) == minY && Math.max(given[1], given[4]) == maxY
+                && Math.min(given[2], given[5]) == minZ && Math.max(given[2], given[5]) == maxZ) {
+            return given.clone();
+        }
+        return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
     }
 
     public void setType(Type type) {
@@ -204,7 +236,122 @@ public class StackRegion {
         return removed;
     }
 
+    /** The backing list, or null when this region does not override it. */
+    private List<String> backing(MobListKind kind) {
+        switch (kind) {
+            case DENY_ENTITIES:
+                return ignoredEntities;
+            case DENY_MODS:
+                return ignoredMods;
+            case ALLOW_ENTITIES:
+                return allowedEntities;
+            case ALLOW_MODS:
+            default:
+                return allowedMods;
+        }
+    }
+
+    private void store(MobListKind kind, List<String> list) {
+        switch (kind) {
+            case DENY_ENTITIES -> ignoredEntities = list;
+            case DENY_MODS -> ignoredMods = list;
+            case ALLOW_ENTITIES -> allowedEntities = list;
+            case ALLOW_MODS -> allowedMods = list;
+        }
+    }
+
+    @Override
+    public List<String> getList(MobListKind kind) {
+        return MobLists.view(backing(kind));
+    }
+
+    @Override
+    public boolean hasList(MobListKind kind) {
+        return backing(kind) != null;
+    }
+
+    @Override
+    public boolean addToList(MobListKind kind, String entry) {
+        String value = MobLists.normalise(kind, entry);
+        if (value.isEmpty()) {
+            return false;
+        }
+        List<String> list = backing(kind);
+        if (list == null) {
+            // The first entry is also what turns the override on: until now this region inherited.
+            list = new ArrayList<>();
+            store(kind, list);
+        } else if (list.contains(value)) {
+            return false;
+        }
+        list.add(value);
+        return true;
+    }
+
+    @Override
+    public boolean removeFromList(MobListKind kind, String entry) {
+        List<String> list = backing(kind);
+        // An emptied list is kept, not dropped: "nothing stacks here" is a thing a region can mean,
+        // and silently falling back to the global list instead would be the opposite of what was asked.
+        return list != null && list.remove(MobLists.normalise(kind, entry));
+    }
+
+    @Override
+    public void clearList(MobListKind kind) {
+        store(kind, null);
+    }
+
+    @Override
+    public void setList(MobListKind kind, List<String> entries) {
+        List<String> copy = new ArrayList<>();
+        for (String entry : entries) {
+            String value = MobLists.normalise(kind, entry);
+            if (!value.isEmpty() && !copy.contains(value)) {
+                copy.add(value);
+            }
+        }
+        // Stored even when empty: that is how a region says "nothing", as opposed to saying nothing.
+        store(kind, copy);
+    }
+
+    /** The ceilings set here, entity id -> size. Never null. */
+    public Map<String, Integer> getMaxStackSizes() {
+        return maxStackSizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(maxStackSizes);
+    }
+
+    /** Whether this region sets any per-type ceiling. Cheap; see the note on the global one. */
+    public boolean hasMaxStackSizes() {
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes != null && !sizes.isEmpty();
+    }
+
+    /** The ceiling this region gives that entity id, or null when it does not set one. */
+    public Integer getMaxStackSize(String entityId) {
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes == null ? null : sizes.get(MobLists.normaliseEntityId(entityId));
+    }
+
+    /** Sets a ceiling here, or drops it when {@code size} is null. @return true when something changed */
+    public boolean setMaxStackSize(String entityId, Integer size) {
+        String key = MobLists.normaliseEntityId(entityId);
+        if (size == null) {
+            if (maxStackSizes == null) {
+                return false;
+            }
+            boolean removed = maxStackSizes.remove(key) != null;
+            if (maxStackSizes.isEmpty()) {
+                maxStackSizes = null;
+            }
+            return removed;
+        }
+        if (maxStackSizes == null) {
+            maxStackSizes = new LinkedHashMap<>();
+        }
+        return !Integer.valueOf(Math.max(1, size)).equals(maxStackSizes.put(key, Math.max(1, size)));
+    }
+
     public String describeBounds() {
-        return "[" + minX + ", " + minY + ", " + minZ + "] -> [" + maxX + ", " + maxY + ", " + maxZ + "]";
+        int[] c = getCorners();
+        return "[" + c[0] + ", " + c[1] + ", " + c[2] + "] -> [" + c[3] + ", " + c[4] + ", " + c[5] + "]";
     }
 }

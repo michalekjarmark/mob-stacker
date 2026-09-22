@@ -7,9 +7,12 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -17,11 +20,15 @@ import com.mojang.logging.LogUtils;
 
 import java.io.Reader;
 import java.io.Writer;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,9 +44,10 @@ import java.util.Set;
  * everyone looking at the same region; only the decision to look is per player.
  *
  * <p>Boxes are depth-tested, so terrain hides them the way it hides everything else. Drawing them
- * through walls would need a render type with the depth test off, and vanilla keeps the shard that
- * does that package-private — so that variant is a follow-up rather than a switch that quietly does
- * nothing.
+ * through walls is a follow-up (1.9.1): it needs a render type with the depth test off, which
+ * {@link MobStackerRenderTypes} can now build the same way it builds the faces. One box hiding
+ * <em>another</em> is not the same question and is fixed here: faces write no depth, so nothing
+ * this overlay draws can hide anything else it draws.
  */
 public final class MobStackerRegionOverlay {
 
@@ -62,13 +70,34 @@ public final class MobStackerRegionOverlay {
 
     /** What gets written to disk, as one object so the file stays readable and easy to hand-edit. */
     private static final class State {
-        Set<String> shown = new LinkedHashSet<>();
-        boolean showAll = false;
+        /**
+         * One entry per world or server, keyed by {@link #worldKey()}. Regions belong to the world
+         * they were drawn in, and so does the decision to look at them: "show all" switched on in a
+         * test world used to follow the player onto the server and light up boxes there they had
+         * never asked to see. A file written before this was split carries {@code shown} and
+         * {@code showAll} at the top level; Gson ignores them and they are dropped the next time
+         * this is saved, which costs one switch nobody can mistake for a bug.
+         */
+        Map<String, WorldView> worlds = new LinkedHashMap<>();
+        /** Global on purpose: how a box is drawn is a taste, not a fact about a world. */
         Style style = Style.BOTH;
     }
 
+    /** What one world's or server's boxes look like to this player. */
+    private static final class WorldView {
+        Set<String> shown = new LinkedHashSet<>();
+        boolean showAll = false;
+    }
+
+    /** Handed back for a world nothing has been chosen in yet. Read from, never written to. */
+    private static final WorldView NOTHING_SHOWN = new WorldView();
+
     private static State state = new State();
     private static Path file;
+    // worldKey() is asked every frame; the folder name only changes when the world does. Weak, so
+    // a world the player has left is not kept alive by the one thing that remembers its name.
+    private static WeakReference<IntegratedServer> keyedServer = new WeakReference<>(null);
+    private static String keyedFolder;
 
     private MobStackerRegionOverlay() {
     }
@@ -82,23 +111,25 @@ public final class MobStackerRegionOverlay {
     // ------------------------------------------------------------------ what is showing
 
     public static boolean isShowingAll() {
-        return state.showAll;
+        return here().showAll;
     }
 
     public static boolean isShown(String region) {
-        return state.showAll || state.shown.contains(region);
+        WorldView view = here();
+        return view.showAll || view.shown.contains(region);
     }
 
     /** @return true if the region is showing afterwards. */
     public static boolean toggle(String region) {
+        WorldView view = mine();
         // Turning one region on while "show all" is active is the player narrowing down to that one,
         // so the blanket switch gives way rather than fighting the per-region list.
-        if (state.showAll) {
-            state.showAll = false;
-            state.shown.clear();
-            state.shown.add(region);
-        } else if (!state.shown.remove(region)) {
-            state.shown.add(region);
+        if (view.showAll) {
+            view.showAll = false;
+            view.shown.clear();
+            view.shown.add(region);
+        } else if (!view.shown.remove(region)) {
+            view.shown.add(region);
         }
         save();
         return isShown(region);
@@ -106,18 +137,65 @@ public final class MobStackerRegionOverlay {
 
     /** @return true if everything is showing afterwards. */
     public static boolean toggleAll() {
-        state.showAll = !state.showAll;
-        if (!state.showAll) {
-            state.shown.clear();
+        WorldView view = mine();
+        view.showAll = !view.showAll;
+        if (!view.showAll) {
+            view.shown.clear();
         }
         save();
-        return state.showAll;
+        return view.showAll;
     }
 
     public static void hideEverything() {
-        state.showAll = false;
-        state.shown.clear();
+        WorldView view = mine();
+        view.showAll = false;
+        view.shown.clear();
         save();
+    }
+
+    /** This world's view, for reading. Never creates an entry, so looking costs nothing. */
+    private static WorldView here() {
+        WorldView view = state.worlds.get(worldKey());
+        return view == null ? NOTHING_SHOWN : view;
+    }
+
+    /** This world's view, for changing: the entry is created the first time something is shown. */
+    private static WorldView mine() {
+        return state.worlds.computeIfAbsent(worldKey(), key -> new WorldView());
+    }
+
+    /**
+     * What this player is looking at right now: the singleplayer world's save folder, or the address
+     * of the server. A region name only means anything inside one of those, so that is the scope
+     * the choice of what to show is remembered at.
+     */
+    private static String worldKey() {
+        Minecraft client = Minecraft.getInstance();
+        IntegratedServer local = client.getSingleplayerServer();
+        if (local != null) {
+            return "world:" + worldFolder(local);
+        }
+        ServerData server = client.getCurrentServer();
+        if (server != null && server.ip != null && !server.ip.isEmpty()) {
+            return "server:" + server.ip.toLowerCase(Locale.ROOT);
+        }
+        // Connected to something that did not say what it was. One shared key is still better than
+        // none: the switches keep working, they just cannot tell that server from another.
+        return "server:unknown";
+    }
+
+    /**
+     * The folder the world is saved in, which is what actually tells two worlds apart. The name on
+     * the world list does not: two worlds both called "New World" are saved as {@code New World} and
+     * {@code New World (1)}, and keyed by the name they shared one set of switches.
+     */
+    private static String worldFolder(IntegratedServer server) {
+        if (server != keyedServer.get()) {
+            Path folder = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName();
+            keyedFolder = folder != null ? folder.toString() : server.getWorldData().getLevelName();
+            keyedServer = new WeakReference<>(server);
+        }
+        return keyedFolder;
     }
 
     public static Style style() {
@@ -133,17 +211,23 @@ public final class MobStackerRegionOverlay {
 
     /** True when at least one box would be drawn, so the render hook can leave early. */
     public static boolean anythingShowing() {
-        return state.showAll || !state.shown.isEmpty();
+        WorldView view = here();
+        return view.showAll || !view.shown.isEmpty();
     }
 
     // ------------------------------------------------------------------ drawing
 
     private static void render(WorldRenderContext context) {
-        if (!anythingShowing() || Minecraft.getInstance().level == null) {
+        if (Minecraft.getInstance().level == null) {
             return;
         }
-        List<MobStackerClientRegions.View> regions = MobStackerClientRegions.inCurrentDimension();
-        if (regions.isEmpty()) {
+        List<MobStackerClientRegions.View> regions = anythingShowing()
+                ? MobStackerClientRegions.inCurrentDimension()
+                : List.of();
+        // The box being picked right now is drawn whatever the player's overlay settings say: they
+        // asked for it by starting to pick, and it disappears again the moment they stop.
+        AABB preview = MobStackerRegionPicker.previewBox();
+        if (regions.isEmpty() && preview == null) {
             return;
         }
 
@@ -156,8 +240,15 @@ public final class MobStackerRegionOverlay {
         // The world is drawn relative to the camera, so every box moves with it.
         pose.translate(-camera.x, -camera.y, -camera.z);
 
+        // Faces are drawn with a type of our own that writes no depth (see
+        // MobStackerRenderTypes.REGION_FACES). Vanilla's filled box does write it, and that is what
+        // swallowed every edge behind a face - the far side of a box, and a whole region standing
+        // inside another. Drawing the edges first was tried in round 2 and was not enough: with
+        // "Fabulous" graphics the edges go into a buffer of their own and the faces still covered
+        // them when the frame was put together. Now faces go first and edges on top, so an edge is
+        // never tinted over and nothing here can hide anything else here.
         if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(RenderType.debugFilledBox());
+            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -168,7 +259,7 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            buffers.endBatch(RenderType.debugFilledBox());
+            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
@@ -180,6 +271,21 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
+            buffers.endBatch(RenderType.lines());
+        }
+
+        if (preview != null) {
+            // Always both faces and edges, in white: it is a transient answer to "is this the area
+            // I mean", so being unmistakable matters more than matching the chosen style.
+            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            LevelRenderer.addChainedFilledBoxVertices(pose, faces,
+                    preview.minX, preview.minY, preview.minZ,
+                    preview.maxX, preview.maxY, preview.maxZ,
+                    1.0F, 1.0F, 1.0F, FACE_ALPHA);
+            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+
+            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
             buffers.endBatch(RenderType.lines());
         }
 
@@ -215,8 +321,14 @@ public final class MobStackerRegionOverlay {
             State loaded = GSON.fromJson(reader, State.class);
             if (loaded != null) {
                 state = loaded;
-                if (state.shown == null) {
-                    state.shown = new LinkedHashSet<>();
+                if (state.worlds == null) {
+                    state.worlds = new LinkedHashMap<>();
+                }
+                state.worlds.values().removeIf(view -> view == null);
+                for (WorldView view : state.worlds.values()) {
+                    if (view.shown == null) {
+                        view.shown = new LinkedHashSet<>();
+                    }
                 }
                 if (state.style == null) {
                     state.style = Style.BOTH;

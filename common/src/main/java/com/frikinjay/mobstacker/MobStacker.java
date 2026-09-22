@@ -1,8 +1,8 @@
 package com.frikinjay.mobstacker;
 
 import com.frikinjay.mobstacker.api.MobStackerAPI;
+import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
-import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -28,6 +28,8 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.Shearable;
+import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
@@ -80,6 +82,25 @@ public final class MobStacker {
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
+    // Set on a mob the mod itself has just taken out of a stack, so the stack-on-spawn pass leaves
+    // it alone. Without it a mob would be handed to the player and walk straight back in on the same
+    // tick, which is exactly what separating was asked to undo.
+    private static final String JUST_SEPARATED_KEY = "JustSeparated";
+    /**
+     * Ticks left before a mob the mod handed to a player may walk back into a stack. How long that
+     * is comes from {@code separationCooldown} (seconds, default 0), refreshed by every further
+     * interaction with the mob.
+     *
+     * <p>It was a fixed fifteen seconds, put in when taming a horse out of a herd never landed: the
+     * horse bucked the player off, went straight back in on the next scan, and the next click peeled
+     * a fresh one out with its temper back at zero. That is covered for good by a different rule now -
+     * a horse with any temper is {@link #isPlayerBound}, so it cannot merge at all - and nothing else
+     * handed over keeps progress a merge could lose: a bone or a fish is a fresh roll every time, a
+     * sheared sheep cannot merge into a woolly stack anyway, a bucketed fish is in the bucket. The
+     * last test round found the wait itself was the only thing left to notice, so it is a setting,
+     * off by default.
+     */
+    private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
     private static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
     private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
@@ -200,13 +221,22 @@ public final class MobStacker {
             return false;
         }
 
+        // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
+        // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
+        // halfway through taming is the same bug seen from the other side.
+        if (separationGrace(entity) > 0) {
+            return false;
+        }
+
         if (!isStackingAllowedAt(entity)) {
             return false;
         }
 
-        ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        if (config.getIgnoredEntities().contains(entityId.toString()) ||
-                config.getIgnoredMods().contains(entityId.getNamespace())) {
+        // Whether this kind of mob may stack at all here: a blacklist or a whitelist, global or
+        // the region's own. MobLists is the single place that decides, because the answer now
+        // depends on three things (the mode in force, which lists it consults, and whether the
+        // region overrides them) and working any of them out twice is how tables drift apart.
+        if (!MobLists.allows(entity)) {
             return false;
         }
 
@@ -286,7 +316,10 @@ public final class MobStacker {
         if (entity instanceof Saddleable saddleable && saddleable.isSaddled()) {
             return true;
         }
-        if (entity instanceof AbstractHorse horse && (horse.isTamed() || horse.isWearingArmor())) {
+        // Temper is taming progress, and it is per horse: a half-tamed horse that merges back into
+        // the herd takes every attempt spent on it with it, and the next one out starts at zero.
+        if (entity instanceof AbstractHorse horse
+                && (horse.isTamed() || horse.isWearingArmor() || horse.getTemper() > 0)) {
             return true;
         }
         if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
@@ -313,39 +346,50 @@ public final class MobStacker {
         return false;
     }
 
-    public static boolean canMerge(Mob self, Mob nearby) {
-        if (self.getClass() != nearby.getClass() || !getCanStack(nearby)) {
+    /**
+     * Whether {@code source} may be merged away into {@code target}.
+     *
+     * <p>The two mobs are interchangeable in nearly everything this asks, but not quite: the ceiling
+     * that counts is the one where the <em>survivor</em> stands, and a player-given name only has to
+     * be protected on the mob being merged away, because the survivor keeps its own either way.
+     * Which of the two is which is decided by {@link #tryMergeIntoNearbyStack}, not by which one
+     * happened to move.
+     */
+    public static boolean canMerge(Mob source, Mob target) {
+        if (source.getClass() != target.getClass() || !getCanStack(source) || !getCanStack(target)) {
             return false;
         }
 
         // Never merge into / from a dying or removed mob (see canStack) — guards the
         // destructive mergeEntities call against the death-animation loop.
-        if (self.isDeadOrDying() || nearby.isDeadOrDying() || self.isRemoved() || nearby.isRemoved()) {
+        if (source.isDeadOrDying() || target.isDeadOrDying() || source.isRemoved() || target.isRemoved()) {
             return false;
         }
 
-        if ((getStackSize(self) + getStackSize(nearby)) > getMaxMobStackSize(self)) {
+        // In long: a ceiling may be as large as an int goes, and two stacks near it would overflow
+        // to a negative and read as "plenty of room".
+        if (((long) getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
             return false;
         }
 
         // Never mix a baby with an adult (they carry different growth state). Two babies may
         // merge freely; mergeEntities keeps the youngest age so none grows up early.
-        if (self.isBaby() != nearby.isBaby()) {
+        if (source.isBaby() != target.isBaby()) {
             return false;
         }
 
         // The stack shows one name, and the survivor keeps its own, so a mob carrying a different
         // player-given name must not be merged away into it - that name would simply vanish.
-        Component ownName = playerGivenName(self);
-        if (ownName != null && !ownName.equals(playerGivenName(nearby))) {
+        Component ownName = playerGivenName(source);
+        if (ownName != null && !ownName.equals(playerGivenName(target))) {
             return false;
         }
 
-        if (!MobVariants.sameVariant(self, nearby)) {
+        if (!MobVariants.sameVariant(source, target)) {
             return false;
         }
 
-        return MobStackerAPI.checkCustomMergingConditions(self, nearby);
+        return MobStackerAPI.checkCustomMergingConditions(source, target);
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {
@@ -535,6 +579,54 @@ public final class MobStacker {
     }
 
     /**
+     * Whether this is somebody scooping one mob into a bucket.
+     *
+     * <p>Bucketing destroys the entity and hands back an item holding it, which on a stack meant
+     * sixteen fish going into one bucket and only the label coming out the other side. So it joins
+     * the "hand one animal over" rule: the stack gives up a single fish, vanilla buckets that one,
+     * and the rest stay where they are.
+     */
+    public static boolean isBucketingInteraction(Mob mob, ItemStack held) {
+        return mob instanceof Bucketable && held.is(Items.WATER_BUCKET);
+    }
+
+    /**
+     * Whether this is shears on a stack that is harvested one mob at a time.
+     *
+     * <p>With {@code stackedHarvest} off a stack gives what a single mob would, and for milking that
+     * is the whole story. Shearing is different: it changes the mob, and the stack is one mob - so
+     * after one click all sixteen sheep stood there sheared, having given one sheep's wool between
+     * them. A stacked mooshroom was worse, turning into sixteen cows. So with the setting off the
+     * stack hands one animal over and that one is sheared, like taming and bucketing; the rest keep
+     * their wool for the next click. A sheared sheep never merges back into an unsheared stack
+     * (see {@code MobVariants}), so the two stay apart until the wool grows back.
+     */
+    public static boolean isShearingOneInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.SHEARS) && mob instanceof Shearable shearable && shearable.readyForShearing()
+                && !getStackedHarvest(mob);
+    }
+
+    /**
+     * Has every client that can see this mob forget it and be sent it afresh, the way the server
+     * sends a mob to a player walking into range.
+     *
+     * <p>For the one interaction a client acts out before the server has answered and cannot take
+     * back: filling a bucket. Vanilla discards the mob on the client the moment it is clicked,
+     * trusting the server to do the same. On a stack the server does not - it hands one fish over and
+     * keeps the shoal - and nothing ever told the client the shoal was still there. It went on
+     * existing out of sight: it merged, swallowed the fish poured back next to it, and reappeared
+     * only when something sent it again - a relog, the chunk reloading, or a {@code /kill} that
+     * left survivors to respawn.
+     */
+    public static void resendToClients(Mob mob) {
+        if (mob.isRemoved() || !(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+        level.getChunkSource().removeEntity(mob);
+        level.getChunkSource().addEntity(mob);
+    }
+
+    /**
      * Whether this mob could actually breed if it were fed.
      *
      * <p>Vanilla lets an untamed wolf fall in love and then refuses to let it mate, which is a
@@ -591,6 +683,7 @@ public final class MobStacker {
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
+            markJustSeparated(newEntity);
             entity.level().addFreshEntity(newEntity);
             return newEntity;
 
@@ -624,18 +717,28 @@ public final class MobStacker {
     }
 
     /**
-     * Looks for a nearby stack this mob can join and merges into it. The nearby mob is kept as the
-     * stack and this one is discarded, so callers must not touch {@code self} afterwards.
+     * Looks for a mob standing near this one that the two of them may merge into, and merges them.
      *
-     * @return true when the mob was merged away
+     * <p><strong>The bigger stack always survives</strong>, whichever of the two set the merge off.
+     * A merge is driven by whichever mob moved or scanned first, and the survivor keeps its own
+     * position — so when a stack wandered into a lone cow, the cow won and the stack appeared to
+     * teleport a block or two sideways. Equal sizes keep the mob that was found, which is what a mob
+     * walking into a stack has always done.
+     *
+     * @return true when {@code self} was merged away and no longer exists
      */
     public static boolean tryMergeIntoNearbyStack(Mob self) {
-        for (Entity nearby : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
-                entity -> entity instanceof Mob && canStack((Mob) entity))) {
-            if (canMerge(self, (Mob) nearby)) {
-                mergeEntities((Mob) nearby, self);
-                return true;
+        for (Entity entity : self.level().getEntities(self, self.getBoundingBox().inflate(getStackRadius(self)),
+                candidate -> candidate instanceof Mob && canStack((Mob) candidate))) {
+            Mob nearby = (Mob) entity;
+            boolean keepSelf = getStackSize(self) > getStackSize(nearby);
+            Mob target = keepSelf ? self : nearby;
+            Mob source = keepSelf ? nearby : self;
+            if (!canMerge(source, target)) {
+                continue;
             }
+            mergeEntities(target, source);
+            return !keepSelf;
         }
         return false;
     }
@@ -655,8 +758,32 @@ public final class MobStacker {
      * merge.
      */
     public static void tickStackScan(Mob mob) {
+        if (mob.level().isClientSide()) {
+            return;
+        }
+        // A mob's very first tick is the earliest moment it can safely be merged: by now finalizeSpawn
+        // has run and its variant, age and equipment are settled, which is not true while the entity
+        // is still being added to the level. Doing it here rather than on addFreshEntity is what lets
+        // a spawner batch, a bred baby and a spawn egg all be covered by one check.
+        //
+        // tickCount is not saved with the entity, so a mob coming back with its chunk takes this path
+        // too and its stack re-forms at once instead of over the next scan interval. That is the same
+        // work the scan would have done anyway, just sooner; the flag read stays inside this branch
+        // because everything here runs for every mob in the world.
+        if (mob.tickCount <= 1) {
+            boolean justSeparated = takeJustSeparated(mob);
+            if (!justSeparated && getStackOnSpawn(mob) && getCanStack(mob) && canStack(mob)
+                    && tryMergeIntoNearbyStack(mob)) {
+                return; // merged away: this mob no longer exists to be scanned
+            }
+        }
+
+        // Cheap: an int out of a tag the mob already carries, and it short-circuits to nothing for
+        // every mob that was never separated, which is very nearly all of them.
+        tickSeparationGrace(mob);
+
         int interval = getStackScanInterval(mob);
-        if (interval <= 0 || mob.level().isClientSide()) {
+        if (interval <= 0) {
             return;
         }
         if ((mob.tickCount + mob.getId()) % interval != 0) {
@@ -678,7 +805,8 @@ public final class MobStacker {
     }
 
     public static void mergeEntities(Mob target, Mob source) {
-        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize(target));
+        int newStackSize = (int) Math.min((long) getStackSize(target) + getStackSize(source),
+                getMaxMobStackSize(target));
 
         // When two babies merge, keep the youngest (most negative) age so no member ever grows up
         // early — this replaces a strict age-band gate and lets baby-stacks freely consolidate.
@@ -1135,6 +1263,97 @@ public final class MobStacker {
         return name;
     }
 
+    /**
+     * Remembers that the mod put this mob here, so the stack-on-spawn pass does not merge it away on
+     * the tick it appears, and - if {@code separationCooldown} asks for it - the scan leaves it alone
+     * for a while after that. See {@link #SEPARATION_GRACE_KEY}.
+     */
+    private static void markJustSeparated(Mob mob) {
+        if (mob instanceof ICustomDataHolder holder) {
+            CompoundTag data = holder.mobstacker$getCustomData();
+            data.putBoolean(JUST_SEPARATED_KEY, true);
+            putSeparationGrace(mob, data);
+        }
+    }
+
+    /** Starts the grace from the setting where the mob stands, or clears it when that is 0. */
+    private static void putSeparationGrace(Mob mob, CompoundTag data) {
+        int ticks = getSeparationCooldown(mob) * 20;
+        if (ticks > 0) {
+            data.putInt(SEPARATION_GRACE_KEY, ticks);
+        } else {
+            data.remove(SEPARATION_GRACE_KEY);
+        }
+    }
+
+    /**
+     * Whether this mob was just separated out of a stack by the mod, read on its first tick.
+     *
+     * <p>Kept alongside the grace countdown because they answer different questions: this one stops
+     * the stack-on-spawn pass undoing a separation within the same tick, the countdown stops the
+     * periodic scan undoing it over the next few seconds.
+     */
+    private static boolean takeJustSeparated(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return false;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        if (!data.getBoolean(JUST_SEPARATED_KEY)) {
+            return false;
+        }
+        data.remove(JUST_SEPARATED_KEY);
+        return true;
+    }
+
+    /**
+     * Treats a mob that was just poured out of a bucket the way one the mod handed over is. The
+     * player has just put that particular fish somewhere on purpose; with {@code stackOnSpawn} on it
+     * vanished into the shoal beside it on its very first tick, which looked exactly like the bucket
+     * having eaten it. So it is always seen for a moment, and joins a stack on the next scan - or
+     * once {@code separationCooldown} runs out, if that is set.
+     */
+    public static void markPouredFromBucket(Mob mob) {
+        markJustSeparated(mob);
+    }
+
+    /** Ticks still owed to the player who was handed this mob, or 0. */
+    public static int separationGrace(Mob mob) {
+        return mob instanceof ICustomDataHolder holder
+                ? holder.mobstacker$getCustomData().getInt(SEPARATION_GRACE_KEY)
+                : 0;
+    }
+
+    /** Counts the grace down by one tick and clears the key once it runs out. */
+    private static void tickSeparationGrace(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        int left = data.getInt(SEPARATION_GRACE_KEY);
+        if (left <= 0) {
+            return;
+        }
+        if (left <= 1) {
+            data.remove(SEPARATION_GRACE_KEY);
+        } else {
+            data.putInt(SEPARATION_GRACE_KEY, left - 1);
+        }
+    }
+
+    /**
+     * Starts the grace again on a mob that already had one, because the player is still working on
+     * it. Never starts one on a mob that did not come out of a stack: an animal nobody separated is
+     * nobody's business but the scan's.
+     */
+    public static void refreshSeparationGrace(Mob mob) {
+        if (mob instanceof ICustomDataHolder holder) {
+            CompoundTag data = holder.mobstacker$getCustomData();
+            if (data.getInt(SEPARATION_GRACE_KEY) > 0) {
+                putSeparationGrace(mob, data);
+            }
+        }
+    }
+
     public static boolean isPlayerNamed(Mob mob) {
         return mob instanceof ICustomDataHolder holder
                 && holder.mobstacker$getCustomData().getBoolean(PLAYER_NAMED_KEY);
@@ -1539,8 +1758,50 @@ public final class MobStacker {
 
     public static int getMaxMobStackSize() {return config.getMaxMobStackSize();}
 
-    /** As above, but for where {@code at} is standing: a region may set its own value. */
-    public static int getMaxMobStackSize(Entity at) {return setting("maxStackSize", at, config.getMaxMobStackSize());}
+    /**
+     * The largest a stack of <em>this</em> mob may grow where it is standing.
+     *
+     * <p>Four answers, most specific first: a ceiling this region sets for this mob's type, one the
+     * global config sets for that type, this region's own {@code maxStackSize}, and the global
+     * {@code maxStackSize}. The per-type ceilings are looked up by entity id, so "cows 64, zombies
+     * 16" is one line each and modded mobs work without the mod knowing they exist.
+     */
+    public static int getMaxMobStackSize(Entity at) {
+        if (at == null) {
+            return config.getMaxMobStackSize();
+        }
+        // One region lookup for all four answers. Going through setting() at the end would search the
+        // region list a second time, and this runs for every mob of every scan.
+        StackRegion region = regionAt(at);
+
+        // The mob's type id costs a registry lookup and a fresh string, so it is only worked out when
+        // somebody has actually set a per-type ceiling - which on most servers is never.
+        boolean regionCeilings = region != null && region.hasMaxStackSizes();
+        if (regionCeilings || config.hasMaxStackSizes()) {
+            String typeId = BuiltInRegistries.ENTITY_TYPE.getKey(at.getType()).toString();
+            if (regionCeilings) {
+                Integer here = region.getMaxStackSize(typeId);
+                if (here != null) {
+                    return here;
+                }
+            }
+            Integer globally = config.getMaxStackSize(typeId);
+            if (globally != null) {
+                return globally;
+            }
+        }
+
+        String override = region == null ? null : region.getSetting("maxStackSize");
+        if (override != null) {
+            try {
+                return Integer.parseInt(override.trim());
+            } catch (NumberFormatException e) {
+                // A region holding something unparseable falls back to the global value, exactly as
+                // MobStacker#setting does for every other whole-number setting.
+            }
+        }
+        return config.getMaxMobStackSize();
+    }
 
     /**
      * Whether killing the top mob takes the whole stack with it. {@code stackHealth} pools the
@@ -1642,6 +1903,11 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static int getStackScanInterval(Entity at) {return setting("stackScanInterval", at, config.getStackScanInterval());}
+
+    public static boolean getStackOnSpawn() {return config.getStackOnSpawn();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getStackOnSpawn(Entity at) {return setting("stackOnSpawn", at, config.getStackOnSpawn());}
 
     /**
      * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up
@@ -1952,6 +2218,11 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static String getSeparatorItem(Entity at) {return setting("separatorItem", at, config.getSeparatorItem());}
+
+    public static int getSeparationCooldown() {return config.getSeparationCooldown();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static int getSeparationCooldown(Entity at) {return Math.max(0, setting("separationCooldown", at, config.getSeparationCooldown()));}
 
     public static int getMonsterMobCap() {return config.getMonsterMobCap();}
     public static int getCreatureMobCap() {return config.getCreatureMobCap();}

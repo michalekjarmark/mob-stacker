@@ -10,9 +10,11 @@ import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class MobStackerConfig {
+public class MobStackerConfig implements MobLists.Holder {
     private static final int MAX_CAP_VALUE = 128;
     private static final double MAX_RADIUS = 42000.0;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -49,9 +51,13 @@ public class MobStackerConfig {
     private double stackRadius = 6.0;
     private double playerStackRadius = 12.0;
     private int stackScanInterval = 20;
+    private boolean stackOnSpawn = true;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
+    // Seconds a mob the mod handed to a player stays out of stacks. 0 (the default) lets it rejoin on
+    // the next scan; see MobStacker#SEPARATION_GRACE_KEY for why that is safe.
+    private int separationCooldown = 0;
 
     private List<String> ignoredEntities = new ArrayList<>(Arrays.asList(
             "minecraft:ender_dragon",
@@ -60,6 +66,17 @@ public class MobStackerConfig {
     private List<String> ignoredMods = new ArrayList<>(Arrays.asList(
             "corpse"
     ));
+    // The other half, consulted only while mobListMode is WHITELIST. Empty by default, which is why
+    // switching a fresh config to WHITELIST stacks nothing until something is added - deliberate:
+    // "only these stack" with nothing listed can only honestly mean nothing.
+    private List<String> allowedEntities = new ArrayList<>();
+    private List<String> allowedMods = new ArrayList<>();
+    private MobListMode mobListMode = MobListMode.BLACKLIST;
+
+    // Per-type stack ceilings: "minecraft:cow" -> 64. Anything not named here uses maxStackSize.
+    // A map rather than 7 more scalar settings because the interesting keys are whatever mobs this
+    // particular server has, including modded ones nobody can enumerate in advance.
+    private Map<String, Integer> maxStackSizes = new LinkedHashMap<>();
 
     // Off by default: a freshly installed mod stacks nothing until an operator opts in (see the
     // first-run notice logged by MobStacker.loadWorldConfig). Existing configs keep their saved mode.
@@ -330,44 +347,148 @@ public class MobStackerConfig {
     }
 
     public List<String> getIgnoredEntities() {
-        return Collections.unmodifiableList(ignoredEntities);
+        return getList(MobListKind.DENY_ENTITIES);
     }
 
     public List<String> getIgnoredMods() {
-        return Collections.unmodifiableList(ignoredMods);
+        return getList(MobListKind.DENY_MODS);
     }
 
-    public boolean addIgnoredEntity(String entityId) {
-        return addToList(entityId, ignoredEntities);
+    /**
+     * The backing list, created on demand. Global lists always exist - "not set" is a distinction
+     * only a region needs, since the global config is what a region falls back <em>to</em>.
+     */
+    private List<String> backing(MobListKind kind) {
+        switch (kind) {
+            case DENY_ENTITIES:
+                return ignoredEntities == null ? (ignoredEntities = new ArrayList<>()) : ignoredEntities;
+            case DENY_MODS:
+                return ignoredMods == null ? (ignoredMods = new ArrayList<>()) : ignoredMods;
+            case ALLOW_ENTITIES:
+                return allowedEntities == null ? (allowedEntities = new ArrayList<>()) : allowedEntities;
+            case ALLOW_MODS:
+            default:
+                return allowedMods == null ? (allowedMods = new ArrayList<>()) : allowedMods;
+        }
     }
 
-    public boolean removeIgnoredEntity(String entityId) {
-        return removeFromList(entityId, ignoredEntities);
+    @Override
+    public List<String> getList(MobListKind kind) {
+        return Collections.unmodifiableList(backing(kind));
     }
 
-    public boolean addIgnoredMod(String modId) {
-        return addToList(modId, ignoredMods);
+    @Override
+    public boolean hasList(MobListKind kind) {
+        return true; // the global config is the fallback; it never inherits from anywhere
     }
 
-    public boolean removeIgnoredMod(String modId) {
-        return removeFromList(modId, ignoredMods);
+    @Override
+    public boolean addToList(MobListKind kind, String entry) {
+        String value = MobLists.normalise(kind, entry);
+        List<String> list = backing(kind);
+        if (value.isEmpty() || list.contains(value)) {
+            return false;
+        }
+        list.add(value);
+        save();
+        return true;
     }
 
-    private boolean addToList(String item, List<String> list) {
-        if (!list.contains(item)) {
-            list.add(item);
+    @Override
+    public boolean removeFromList(MobListKind kind, String entry) {
+        if (backing(kind).remove(MobLists.normalise(kind, entry))) {
             save();
             return true;
         }
         return false;
     }
 
-    private boolean removeFromList(String item, List<String> list) {
-        if (list.remove(item)) {
+    @Override
+    public void clearList(MobListKind kind) {
+        if (!backing(kind).isEmpty()) {
+            backing(kind).clear();
             save();
-            return true;
         }
-        return false;
+    }
+
+    @Override
+    public void setList(MobListKind kind, List<String> entries) {
+        List<String> list = backing(kind);
+        list.clear();
+        for (String entry : entries) {
+            String value = MobLists.normalise(kind, entry);
+            if (!value.isEmpty() && !list.contains(value)) {
+                list.add(value);
+            }
+        }
+        save();
+    }
+
+    public boolean getStackOnSpawn() {
+        return stackOnSpawn;
+    }
+
+    public int getSeparationCooldown() {
+        return Math.max(0, separationCooldown);
+    }
+
+    public void setSeparationCooldown(int separationCooldown) {
+        this.separationCooldown = separationCooldown;
+        save();
+    }
+
+    public void setStackOnSpawn(boolean stackOnSpawn) {
+        this.stackOnSpawn = stackOnSpawn;
+        save();
+    }
+
+    public MobListMode getMobListMode() {
+        return mobListMode != null ? mobListMode : MobListMode.BLACKLIST;
+    }
+
+    public void setMobListMode(MobListMode mobListMode) {
+        this.mobListMode = mobListMode != null ? mobListMode : MobListMode.BLACKLIST;
+        save();
+    }
+
+    /** Every per-type ceiling, as entity id -> size. Never null. */
+    public Map<String, Integer> getMaxStackSizes() {
+        if (maxStackSizes == null) {
+            maxStackSizes = new LinkedHashMap<>();
+        }
+        return Collections.unmodifiableMap(maxStackSizes);
+    }
+
+    /**
+     * Whether any per-type ceiling is set at all.
+     *
+     * <p>Cheap on purpose: the stacking code asks this before working out a mob's type id, which
+     * costs a registry lookup and a string, on a path that runs for every mob of every scan.
+     */
+    public boolean hasMaxStackSizes() {
+        return maxStackSizes != null && !maxStackSizes.isEmpty();
+    }
+
+    /** The ceiling set for this entity id, or null when it just follows {@code maxStackSize}. */
+    public Integer getMaxStackSize(String entityId) {
+        if (maxStackSizes == null) {
+            return null;
+        }
+        return maxStackSizes.get(MobLists.normaliseEntityId(entityId));
+    }
+
+    /** Sets a per-type ceiling, or drops it when {@code size} is null. */
+    public void setMaxStackSize(String entityId, Integer size) {
+        if (maxStackSizes == null) {
+            maxStackSizes = new LinkedHashMap<>();
+        }
+        String key = MobLists.normaliseEntityId(entityId);
+        if (size == null) {
+            maxStackSizes.remove(key);
+        } else {
+            maxStackSizes.put(key, Math.max(1, size));
+        }
+        save();
     }
 
     public StackMode getStackMode() {

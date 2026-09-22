@@ -77,13 +77,18 @@ given its own value inside a region.
 | `maxStackSize` | Largest a stack may grow to | `16` |
 | `stackRadius` | How far apart mobs can be and still merge | `6.0` |
 | `stackScanInterval` | How often (ticks) a mob re-checks for a stack to join, so mobs that never move still merge. `0` = only when crossing a block boundary | `20` |
+| `stackOnSpawn` | Merge a mob into a nearby stack on its first tick, so spawners, breeding and spawn eggs stack at once instead of after a scan | `true` |
 | `stackEquippedMobs` | Let mobs holding or wearing items stack at all | `false` |
 | `keepMemberEquipment` | Remember each member's gear so it drops when *that* mob dies. Needs `stackEquippedMobs` | `true` |
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |
 | `stackHealth` | The stack shares one health bar, scaled to its size. Forces `killWholeStackOnDeath` on | `false` |
-| `ignoredEntities` | Entity ids that never stack | `["minecraft:ender_dragon", "minecraft:vex"]` |
-| `ignoredMods` | Mod ids whose entities never stack | `["corpse"]` |
+| `mobListMode` | `BLACKLIST` (everything stacks except the ignored lists) or `WHITELIST` (nothing stacks except the allowed lists) | `BLACKLIST` |
+| `ignoredEntities` | Entity ids that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
+| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse"]` |
+| `allowedEntities` | The only entity ids that stack, in `WHITELIST` mode | `[]` |
+| `allowedMods` | Mod ids whose entities stack, in `WHITELIST` mode | `[]` |
+| `maxStackSizes` | A ceiling for one mob type, e.g. `{"minecraft:cow": 64}`. Anything unlisted follows `maxStackSize` | `{}` |
 | `regions` | Allow/deny cuboids — see [Regions](#regions--modes) | `[]` |
 
 ### Combat
@@ -115,7 +120,7 @@ given its own value inside a region.
 | Setting | Description | Default |
 |---|---|---|
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs | `true` |
-| `stackedHarvest` | Shearing and milking a stack give one mob's worth per member | `true` |
+| `stackedHarvest` | Shearing and milking a stack give one mob's worth per member; off shears one animal at a time | `true` |
 | `breedOnePerClick` | Feed one member per click instead of as many as the food allows | `false` |
 | `enableAnimalBabyStacking` | Let loose farm-animal babies stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Let loose hostile babies (baby zombies …) stack | `true` |
@@ -124,6 +129,7 @@ given its own value inside a region.
 | `enableSeparator` | Allow splitting a stack with an item | `false` |
 | `consumeSeparator` | Consume that item on use | `true` |
 | `separatorItem` | Which item splits a stack | `minecraft:diamond` |
+| `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
 The vanilla per-category spawn caps are settings too (category `mobcaps`, global only):
 `/mobstacker set monsterMobCap <0-128>`, and `/mobstacker help mobcaps` lists them all.
@@ -141,9 +147,54 @@ All of these need operator permission (level 2).
 /mobstacker reset <setting> | all
 /mobstacker reload                   # re-read the JSON after editing it by hand
 
-/mobstacker ignore entity|mod add|remove|list <id>
+/mobstacker list deny|allow entity|mod add|remove|list <id>
+/mobstacker maxstack <entity> <n|max|default>   # a ceiling for one mob type
+/mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
 ```
+
+`/mobstacker ignore …` still works as the old name for `list deny …`.
+
+Anywhere a whole number is asked for, **`max`** means as high as that setting goes —
+`/mobstacker set maxStackSize max` is 2147483647 without having to remember it. It is stored as the
+number it means, so `get` always answers with something unambiguous. **`default`** works the same
+way for every setting: `/mobstacker set maxStackSize default` is `reset maxStackSize`, and in the
+ceilings tab's size box it removes that mob's ceiling, as `maxstack <entity> default` does.
+
+### Which mobs may stack
+
+Two questions, answered separately. **`mobListMode`** picks which lists are read: `BLACKLIST`
+(the default, and how the mod has always worked) reads `ignoredEntities` / `ignoredMods` and stacks
+everything else; `WHITELIST` reads `allowedEntities` / `allowedMods` and stacks nothing else. The two
+halves keep their own lists, so flipping the mode to have a look never rewrites a list you built.
+
+Every one of these can also be set **per region** — `/mobstacker region mobs <name> …`, or the
+**Mob lists…** button on the region screen. A region that sets nothing follows the global list. A
+region that sets one means that list and no other, which is the same rule every per-region setting
+has followed since 1.6.0; entity lists and mod lists are inherited independently.
+
+Because inheriting and overriding are different states, a region takes a list over explicitly:
+
+```
+/mobstacker region mobs sheep_pen allow entity override   # its own copy, seeded with the global one
+/mobstacker region mobs sheep_pen allow entity add minecraft:sheep
+/mobstacker region mobs sheep_pen allow entity inherit    # back to following the global list
+```
+
+Adding straight to an inherited list is refused rather than silently turned into a one-entry
+override — the ten entries you were looking at would have gone. Handing a region's list back to the
+global one asks once before it goes, for the same reason.
+
+In the **Mob lists…** screen the entry box completes ids as you type, the way the command line does:
+**Tab**, **Enter** or a click takes the highlighted one, the arrow keys walk the list and **Esc**
+closes it without closing the screen. Enter leaves an id that is already whole alone, so
+`minecraft:pig` is not turned into the `minecraft:piglin` listed under it. Entity tabs suggest entity ids, mod tabs suggest the namespaces that
+actually have mobs in them, and ids already on the list are left out.
+
+A `minecraft:` id that names no mob is a typo and is refused. A **modded** id is accepted whether
+the mod is installed or not — a list has to survive its mod being away for a week — but it is shown
+`(not loaded)` and says so when you add it, so an entry that currently means nothing never passes
+for one that is working.
 
 Tab-completion suggests every setting name and then the valid values for the one you picked.
 
@@ -158,8 +209,11 @@ Bind *"Open Config GUI"* (category *MobStacker: Restacked*) in **Options → Con
 `/mobstackerconfig`. The screen is driven by the same registry as the commands: booleans flip,
 `stackMode` cycles, numbers and item ids are typed and validated, one category at a time. On a
 **remote server with the mod** it shows the server's live config and saves operators' edits;
-non-operators see it read-only. The networking uses optional channels, so vanilla clients are never
-sent anything. Needs **Fabric API** on the client.
+non-operators see it read-only. In **singleplayer** (and on a LAN host) it edits your own world's
+config whether cheats are on or not: it is the mod's settings screen, and the file it writes sits in
+your own save folder anyway. The `/mobstacker` commands follow vanilla's rule instead and need cheats
+(operator level 2). The networking uses optional channels, so vanilla clients are never sent
+anything. Needs **Fabric API** on the client.
 
 ## Regions & modes
 
@@ -184,7 +238,11 @@ with several cuboids.
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
+/mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit>
+/mobstacker region maxstack <name> <entity> <n|max|default>      # a ceiling just for this region
 /mobstacker region rename <name> <newname>                      # keeps its area, settings and colour
+/mobstacker list <deny|allow> <entity|mod> <add|remove|list>    # which mobs may stack at all
+/mobstacker maxstack <entity> <n|max|default> | maxstack list   # a ceiling for one mob type
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides
@@ -192,6 +250,13 @@ with several cuboids.
 
 > **Getting started:** stacking is `off` on a fresh install. Adding an `allow` region while it is
 > still off **switches it to `regions`** so the region works right away.
+
+Regions can also be **drawn rather than typed**: open the area editor, press **Pick in world…**, and
+right-click two blocks. While you are picking, the box from the first corner to the block under your
+crosshair is drawn live, so the reach is visible before anything is saved. Sneak and click to cancel.
+Nothing is saved until you press Save — the picker fills in the same six numbers you could have typed.
+A region remembers its corners the way you gave them: the first block you click is corner 1, the
+second is corner 2, and that is what the editor and `region show` give back.
 
 ### Settings per region
 
@@ -310,7 +375,7 @@ to a corner to read coordinates off F3.
 | Colour a region | `/mobstacker region color <name> <colour\|auto>`, or the button beside its priority in the region screen |
 | Show or hide one | the **Box** button in the region screen |
 | Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
-| How it looks | the **Style** button — `wireframe`, `filled` or `both` |
+| How it looks | the **Style** button — `wireframe`, `filled` or `both` *(the default)* |
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
@@ -347,7 +412,8 @@ are rendering, so they need the mod on the client.
   adult stack. Feeding a baby-stack speeds its growth, scaled to its size.
 - **Shearing and milking scale with the stack** (`stackedHarvest`) — a stack of 16 sheep gives 16
   sheep's worth of wool for 16 points of shear durability, and 16 cows fill as many buckets as you
-  brought. Turn it off and a stack gives what a single mob would.
+  brought. Turn it off and a stack gives what a single mob would: shears then take one animal out of
+  the stack and shear that one, so the rest keep their wool for the next click.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby
   zombies simply together (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
 - `breedOnePerClick` feeds one member per click instead of as many as the food in hand allows.
