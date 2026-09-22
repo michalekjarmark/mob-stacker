@@ -361,7 +361,9 @@ public final class MobStacker {
             return false;
         }
 
-        if ((getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
+        // In long: a ceiling may be as large as an int goes, and two stacks near it would overflow
+        // to a negative and read as "plenty of room".
+        if (((long) getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
             return false;
         }
 
@@ -762,7 +764,8 @@ public final class MobStacker {
     }
 
     public static void mergeEntities(Mob target, Mob source) {
-        int newStackSize = Math.min(getStackSize(target) + getStackSize(source), getMaxMobStackSize(target));
+        int newStackSize = (int) Math.min((long) getStackSize(target) + getStackSize(source),
+                getMaxMobStackSize(target));
 
         // When two babies merge, keep the youngest (most negative) age so no member ever grows up
         // early — this replaces a strict age-band gate and lets baby-stacks freely consolidate.

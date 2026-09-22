@@ -47,6 +47,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   week — but it is marked `(not loaded)` in the editor and says so in chat, so an entry that means
   nothing never looks like one that is working. The per-type stack ceilings are judged the same way.
 - **The box colour button on the region screen is labelled**, and says what "auto" means on hover.
+- **`maxStackSize` accepts anything from 1 to 2147483647 again.** The mod this one is forked from
+  took any whole number from 1 upwards; this fork had quietly capped it at 100000, which was its own
+  invention and had nothing behind it. The per-type ceilings go as high. The one sum that could have
+  overflowed past a ceiling that large — "would these two stacks together fit?" — is done in long,
+  so a count can never wrap round to a negative.
 
 ### Fixed
 

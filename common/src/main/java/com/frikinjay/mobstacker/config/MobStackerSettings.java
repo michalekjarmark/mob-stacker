@@ -37,9 +37,13 @@ public final class MobStackerSettings {
         register(ConfigOption.ofEnum("stackMode", Category.STACKING,
                 "Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE.",
                 StackMode.class, () -> MobStacker.config.getStackMode(), v -> MobStacker.config.setStackMode(v), StackMode.OFF));
+        // Up to the whole int range, which is what the mod this one is forked from allowed. The
+        // 100000 that stood here was this fork's own invention and had nothing behind it; the sums
+        // that could have overflowed past it are done in long (see MobStacker#canMerge).
         register(ConfigOption.ofInt("maxStackSize", Category.STACKING,
                 "The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this.",
-                1, 100000, () -> MobStacker.config.getMaxMobStackSize(), v -> MobStacker.config.setMaxMobStackSize(v), 16));
+                1, Integer.MAX_VALUE, () -> MobStacker.config.getMaxMobStackSize(),
+                v -> MobStacker.config.setMaxMobStackSize(v), 16));
         register(ConfigOption.ofBool("stackOnSpawn", Category.STACKING,
                 "Merge a mob into a nearby stack on its first tick, instead of waiting for it to move "
                         + "or for the next scan. Covers spawners, breeding and spawn eggs.",

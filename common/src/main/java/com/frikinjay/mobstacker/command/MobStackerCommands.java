@@ -99,7 +99,7 @@ public class MobStackerCommands {
                         .then(argument("entityId", ResourceLocationArgument.id())
                                 .suggests(MobStackerCommands::suggestEntities)
                                 .then(literal("default").executes(ctx -> setMaxStack(ctx, null, null)))
-                                .then(argument("size", IntegerArgumentType.integer(1, 100000))
+                                .then(argument("size", IntegerArgumentType.integer(1))
                                         .executes(ctx -> setMaxStack(ctx, null,
                                                 IntegerArgumentType.getInteger(ctx, "size"))))))
                 .then(literal("region")
@@ -173,7 +173,7 @@ public class MobStackerCommands {
                                         .then(argument("entityId", ResourceLocationArgument.id())
                                                 .suggests(MobStackerCommands::suggestEntities)
                                                 .then(literal("default").executes(ctx -> setMaxStack(ctx, "name", null)))
-                                                .then(argument("size", IntegerArgumentType.integer(1, 100000))
+                                                .then(argument("size", IntegerArgumentType.integer(1))
                                                         .executes(ctx -> setMaxStack(ctx, "name",
                                                                 IntegerArgumentType.getInteger(ctx, "size")))))))
                         .then(literal("color")
