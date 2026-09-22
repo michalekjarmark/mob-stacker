@@ -107,7 +107,8 @@ public final class MobStackerSettings {
                 .requires("sweepingEdgeOverflow"));
         register(ConfigOption.ofInt("sweepingEdgeMaxKills", Category.COMBAT,
                 "Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob.",
-                0, 100000, () -> MobStacker.config.getSweepingEdgeMaxKills(), v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
+                0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
+                v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
 
         // --- Kill feedback ---
@@ -144,11 +145,11 @@ public final class MobStackerSettings {
                 v -> MobStacker.config.setStackNameColorLarge(v), StackColor.RED));
         register(ConfigOption.ofInt("stackSizeMediumThreshold", Category.DISPLAY,
                 "Stack size at which the name switches to stackNameColorMedium.",
-                2, 100000, () -> MobStacker.config.getStackSizeMediumThreshold(),
+                2, Integer.MAX_VALUE, () -> MobStacker.config.getStackSizeMediumThreshold(),
                 v -> MobStacker.config.setStackSizeMediumThreshold(v), 16));
         register(ConfigOption.ofInt("stackSizeLargeThreshold", Category.DISPLAY,
                 "Stack size at which the name switches to stackNameColorLarge.",
-                2, 100000, () -> MobStacker.config.getStackSizeLargeThreshold(),
+                2, Integer.MAX_VALUE, () -> MobStacker.config.getStackSizeLargeThreshold(),
                 v -> MobStacker.config.setStackSizeLargeThreshold(v), 64));
 
         // --- Breeding ---

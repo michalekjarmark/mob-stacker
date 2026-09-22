@@ -49,9 +49,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **The box colour button on the region screen is labelled**, and says what "auto" means on hover.
 - **`maxStackSize` accepts anything from 1 to 2147483647 again.** The mod this one is forked from
   took any whole number from 1 upwards; this fork had quietly capped it at 100000, which was its own
-  invention and had nothing behind it. The per-type ceilings go as high. The one sum that could have
-  overflowed past a ceiling that large — "would these two stacks together fit?" — is done in long,
-  so a count can never wrap round to a negative.
+  invention and had nothing behind it. The per-type ceilings go as high, and so do the three settings
+  that are shaped by a stack size — `stackSizeMediumThreshold`, `stackSizeLargeThreshold` and
+  `sweepingEdgeMaxKills` — which were capped at the same number and would have left a name unable to
+  change colour on a stack the new ceiling allows. The one sum that could have overflowed past a
+  ceiling that large — "would these two stacks together fit?" — is done in long, so a count can never
+  wrap round to a negative.
 
 ### Fixed
 
