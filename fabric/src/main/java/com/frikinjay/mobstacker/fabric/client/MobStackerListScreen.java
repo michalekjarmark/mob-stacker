@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.fabric.client;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobListKind;
 import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobLists;
@@ -585,13 +586,10 @@ public final class MobStackerListScreen extends Screen {
         if (tab == CEILINGS_TAB) {
             String entry = MobLists.normaliseEntityId(typed);
             String size = sizeBox == null ? "" : sizeBox.getValue().trim();
-            try {
-                if (Integer.parseInt(size) < 1) {
-                    say("A stack ceiling must be a whole number, at least 1.", true);
-                    return;
-                }
-            } catch (NumberFormatException e) {
-                say("A stack ceiling must be a whole number, at least 1.", true);
+            Integer parsed = ConfigOption.parseSize(size);
+            if (parsed == null || parsed < 1) {
+                say("A stack ceiling must be a whole number, at least 1 — or '"
+                        + ConfigOption.MAX_KEYWORD + "'.", true);
                 return;
             }
             // Refused before it is sent as well as on arrival: the server would say no anyway, and
@@ -689,9 +687,8 @@ public final class MobStackerListScreen extends Screen {
             String entityId = id.substring(MobStackerNetworking.MAXSTACK_PREFIX.length());
             Integer size = null;
             if (!value.isEmpty()) {
-                try {
-                    size = Integer.parseInt(value);
-                } catch (NumberFormatException e) {
+                size = ConfigOption.parseSize(value);
+                if (size == null) {
                     return;
                 }
             }

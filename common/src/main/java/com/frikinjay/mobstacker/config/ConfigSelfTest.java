@@ -100,6 +100,16 @@ public final class ConfigSelfTest {
                     check(report, applied.status == Status.CHANGED,
                             option.id() + ": valid value " + valid + " not applied (" + applied.status + " " + applied.message + ")");
                 }
+                // "max" is the top of this setting's own range, whatever that is, and is stored as
+                // the number it means - so nothing downstream ever has to know the word.
+                ConfigOption.Result asMax = option.apply(ConfigOption.MAX_KEYWORD);
+                check(report, asMax.status != Status.ERROR,
+                        option.id() + ": refused '" + ConfigOption.MAX_KEYWORD + "' (" + asMax.message + ")");
+                check(report, !option.currentValue().equalsIgnoreCase(ConfigOption.MAX_KEYWORD),
+                        option.id() + ": stored the word '" + ConfigOption.MAX_KEYWORD + "' rather than a number");
+                check(report, numeric(option.currentValue()) == option.max().doubleValue(),
+                        option.id() + ": '" + ConfigOption.MAX_KEYWORD + "' gave " + option.currentValue()
+                                + " instead of " + option.max());
                 option.reset();
             }
             case ENUM -> {
@@ -408,6 +418,15 @@ public final class ConfigSelfTest {
         if (!pass) {
             report.failures++;
             report.messages.add(failureMessage);
+        }
+    }
+
+    /** The value as a number, or NaN - which fails any comparison, which is the right answer here. */
+    private static double numeric(String value) {
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return Double.NaN;
         }
     }
 

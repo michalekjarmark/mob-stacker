@@ -341,6 +341,11 @@ public final class MobStackerConfigScreen extends Screen {
 
     private boolean isValid(ConfigOption option, String text) {
         String value = text.trim();
+        // "max" is a value like any other here, so the box does not go red while somebody types it.
+        if (ConfigOption.MAX_KEYWORD.equalsIgnoreCase(value)
+                && (option.type() == ConfigOption.Type.INT || option.type() == ConfigOption.Type.DOUBLE)) {
+            return true;
+        }
         switch (option.type()) {
             case INT -> {
                 try {

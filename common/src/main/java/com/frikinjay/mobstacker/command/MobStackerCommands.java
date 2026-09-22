@@ -99,6 +99,10 @@ public class MobStackerCommands {
                         .then(argument("entityId", ResourceLocationArgument.id())
                                 .suggests(MobStackerCommands::suggestEntities)
                                 .then(literal("default").executes(ctx -> setMaxStack(ctx, null, null)))
+                                // Brigadier wants a number where a number is declared, so "max" is a
+                                // branch of its own beside it - the same shape "default" already uses.
+                                .then(literal(ConfigOption.MAX_KEYWORD)
+                                        .executes(ctx -> setMaxStack(ctx, null, Integer.MAX_VALUE)))
                                 .then(argument("size", IntegerArgumentType.integer(1))
                                         .executes(ctx -> setMaxStack(ctx, null,
                                                 IntegerArgumentType.getInteger(ctx, "size"))))))
@@ -173,6 +177,8 @@ public class MobStackerCommands {
                                         .then(argument("entityId", ResourceLocationArgument.id())
                                                 .suggests(MobStackerCommands::suggestEntities)
                                                 .then(literal("default").executes(ctx -> setMaxStack(ctx, "name", null)))
+                                                .then(literal(ConfigOption.MAX_KEYWORD)
+                                                        .executes(ctx -> setMaxStack(ctx, "name", Integer.MAX_VALUE)))
                                                 .then(argument("size", IntegerArgumentType.integer(1))
                                                         .executes(ctx -> setMaxStack(ctx, "name",
                                                                 IntegerArgumentType.getInteger(ctx, "size")))))))

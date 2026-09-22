@@ -326,10 +326,9 @@ public final class MobStackerNetworking {
         }
         Integer size = null;
         if (!raw.trim().isEmpty()) {
-            try {
-                size = Integer.parseInt(raw.trim());
-            } catch (NumberFormatException e) {
-                return "A stack ceiling must be a whole number";
+            size = ConfigOption.parseSize(raw);
+            if (size == null) {
+                return "A stack ceiling must be a whole number, or '" + ConfigOption.MAX_KEYWORD + "'";
             }
             if (size < 1) {
                 return "A stack ceiling must be at least 1";

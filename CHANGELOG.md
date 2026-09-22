@@ -55,6 +55,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   change colour on a stack the new ceiling allows. The one sum that could have overflowed past a
   ceiling that large — "would these two stacks together fit?" — is done in long, so a count can never
   wrap round to a negative.
+- **`max` can be typed wherever a whole number or a decimal is asked for**, and means as high as that
+  setting goes: `/mobstacker set maxStackSize max` rather than remembering 2147483647. It works for
+  every numeric setting, for the per-type ceilings (`/mobstacker maxstack minecraft:cow max`,
+  offered by tab-completion beside `default`) and in the GUI's own boxes. It is **stored as the
+  number it means**, so the config file stays plain and `get` never answers with a word you would
+  then have to look up.
 
 ### Fixed
 

@@ -157,6 +157,35 @@ public final class ConfigOption {
      * Values worth suggesting for this option's argument. Empty for free-form numeric/string types
      * (item ids are suggested separately from the live registry by the command layer).
      */
+    /**
+     * What a player types instead of looking a number up: {@code set maxStackSize max} is the
+     * largest that setting goes, whatever that happens to be. It is stored as the number it means,
+     * so what comes back out of {@code get} is unambiguous and the config file stays plain.
+     */
+    public static final String MAX_KEYWORD = "max";
+
+    /**
+     * Reads a size somebody typed, accepting {@link #MAX_KEYWORD}. For the per-type stack ceilings,
+     * which are not settings and so never pass through {@link #apply} - the word has to mean the
+     * same thing there as it does everywhere else.
+     *
+     * @return the number, or null when it is neither a whole number nor {@code max}
+     */
+    public static Integer parseSize(String raw) {
+        String text = raw == null ? "" : raw.trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        if (MAX_KEYWORD.equalsIgnoreCase(text)) {
+            return Integer.MAX_VALUE;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     public List<String> valueSuggestions() {
         List<String> out = new ArrayList<>();
         switch (type) {
@@ -172,6 +201,7 @@ public final class ConfigOption {
             case INT, DOUBLE -> {
                 out.add(currentValue());
                 out.add(defaultValue());
+                out.add(MAX_KEYWORD);
             }
             default -> {
                 // STRING / ITEM: no fixed set here.
@@ -410,10 +440,14 @@ public final class ConfigOption {
 
     private static Object parseInt(String raw, String id, int min, int max) {
         int value;
+        if (MAX_KEYWORD.equalsIgnoreCase(raw.trim())) {
+            return max;
+        }
         try {
             value = Integer.parseInt(raw.trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("'" + raw + "' is not a whole number");
+            throw new IllegalArgumentException("'" + raw + "' is not a whole number (or '"
+                    + MAX_KEYWORD + "')");
         }
         if (value < min || value > max) {
             throw new IllegalArgumentException(id + " must be between " + min + " and " + max);
@@ -423,10 +457,14 @@ public final class ConfigOption {
 
     private static Object parseDouble(String raw, String id, double min, double max) {
         double value;
+        if (MAX_KEYWORD.equalsIgnoreCase(raw.trim())) {
+            return max;
+        }
         try {
             value = Double.parseDouble(raw.trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("'" + raw + "' is not a number");
+            throw new IllegalArgumentException("'" + raw + "' is not a number (or '"
+                    + MAX_KEYWORD + "')");
         }
         if (value < min || value > max) {
             throw new IllegalArgumentException(id + " must be between " + min + " and " + max);

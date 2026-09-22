@@ -147,12 +147,16 @@ All of these need operator permission (level 2).
 /mobstacker reload                   # re-read the JSON after editing it by hand
 
 /mobstacker list deny|allow entity|mod add|remove|list <id>
-/mobstacker maxstack <entity> <n|default>   # a ceiling for one mob type
+/mobstacker maxstack <entity> <n|max|default>   # a ceiling for one mob type
 /mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
 ```
 
 `/mobstacker ignore …` still works as the old name for `list deny …`.
+
+Anywhere a whole number is asked for, **`max`** means as high as that setting goes —
+`/mobstacker set maxStackSize max` is 2147483647 without having to remember it. It is stored as the
+number it means, so `get` always answers with something unambiguous.
 
 ### Which mobs may stack
 
@@ -228,10 +232,10 @@ with several cuboids.
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
 /mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit>
-/mobstacker region maxstack <name> <entity> <n|default>         # a ceiling just for this region
+/mobstacker region maxstack <name> <entity> <n|max|default>      # a ceiling just for this region
 /mobstacker region rename <name> <newname>                      # keeps its area, settings and colour
 /mobstacker list <deny|allow> <entity|mod> <add|remove|list>    # which mobs may stack at all
-/mobstacker maxstack <entity> <n|default> | maxstack list       # a ceiling for one mob type
+/mobstacker maxstack <entity> <n|max|default> | maxstack list   # a ceiling for one mob type
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides
