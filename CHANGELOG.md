@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.9.2] - unreleased
+## [1.9.2] - 2026-09-23
 ### Added
 - **`-Dmobstacker.overlayDebug=true`**, a Java argument that has the region boxes write to the log,
   every few seconds, what they find when they are drawn: which graphics mode, which buffer, what state
@@ -47,7 +47,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   sheep's wool; it now takes one animal out of the stack and shears only that one, as a player's
   shears do.
 
-## [1.9.1] - unreleased
+## [1.9.1] - not released on its own
+Everything below shipped as part of **1.9.2**; 1.9.1 was the development line it was built on.
+
 ### Added
 - **Region boxes through walls — where the server allows it.** An **X-ray** button on the region
   screen (and a key binding, unbound by default) draws every box through walls and terrain, so a
@@ -59,7 +61,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   hosts a LAN game, the game itself is the server, so the argument goes in the launcher). Without it
   the button is greyed out and says how to allow it, and the key binding says it is not allowed here.
   The server says yes or no in the config snapshot; a client's own flag counts for nothing on
-  somebody else's server, and a server older than 1.9.1 says no.
+  somebody else's server, and a server older than 1.9.2 says no.
   Where it is allowed, whether it is on is your own view, one choice for every world, kept in
   `config/mobstacker-overlay.json`; off by default. Built from render types of the mod's own that
   switch the depth test off themselves — vanilla's "no depth test" only assumes the test is already
