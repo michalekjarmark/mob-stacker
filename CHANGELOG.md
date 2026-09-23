@@ -8,7 +8,27 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
 ## [1.9.2] - unreleased
+### Added
+- **`-Dmobstacker.overlayDebug=true`**, a Java argument that has the region boxes write to the log,
+  every few seconds, what they find when they are drawn: which graphics mode, which buffer, what state
+  the rest of the game left behind. For a modpack in which the boxes do not show; silent without it.
+
+### Changed
+- **The ceilings tab's size box takes the number it shows.** Its grey hint is now the `maxStackSize`
+  in force there (the region's own, or the global one) rather than a fixed 16, and **Set** with the box
+  left empty uses it — it used to refuse, as if there were no number at all.
+- **Enter on an id typed without its namespace** (`cow`) writes the whole id into the box
+  (`minecraft:cow`) before it is used, so the box shows what is stored. There was nothing to complete —
+  `cow` already is an id — and a list that did not open read as Enter not working.
+
 ### Fixed
+- **With "Fabulous" graphics, water and clouds showed through a region box standing in front of them**
+  *(1.9.0)*. Fabulous puts the frame together from separate buffers by depth, and a box — which writes
+  no depth, so it can never hide another box — sat at the depth of whatever was behind it. Every box is
+  now drawn at the very end, into the finished frame, tested against the depth of the solid world
+  (kept aside for it before Fabulous wipes it). Clouds, water, leaves and mobs are now in front of a
+  box or behind it as they really are; the one thing that does not tint a box any more is water it is
+  under, which it is now drawn over. Fast and Fancy draw the boxes at the end too.
 - **Removing a per-type ceiling in the mob list screen crashed the game** *(1.9.0)*. In singleplayer
   the screen reads the config while the game's own server changes it, and a list or map being read
   while the other side changed it threw an error. Every list and map in the config — the mob lists,

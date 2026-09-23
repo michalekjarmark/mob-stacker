@@ -399,6 +399,11 @@ mobs either; only your hand and the HUD. Like the style, X-ray is one choice for
 > launcher's Java arguments. Elsewhere the button is greyed out and tells you why; a client's own flag
 > does not count on somebody else's server.
 
+> 🔎 **Boxes not showing in a modpack?** Start the game with the Java argument
+> `-Dmobstacker.overlayDebug=true`: every few seconds the log (`logs/latest.log`) gets a line starting
+> `[MobStacker overlay debug]` saying what the boxes found when they were drawn. That line is what a
+> bug report about it needs.
+
 > 🎨 **Shader packs** (Iris) draw the boxes their own way, and some of them barely at all — against the
 > sky in particular: with a pack loaded, the pack decides how every line and translucent face in the
 > world is lit and blended, the boxes included. In testing, Complementary Reimagined showed them nearly
