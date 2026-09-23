@@ -437,7 +437,8 @@ are rendering, so they need the mod on the client.
   adult stack. Feeding a baby-stack speeds its growth, scaled to its size.
 - **Shearing and milking scale with the stack** (`stackedHarvest`) — a stack of 16 sheep gives 16
   sheep's worth of wool for 16 points of shear durability, and 16 cows fill as many buckets as you
-  brought. Turn it off and a stack gives what a single mob would: shears then take one animal out of
+  brought (and a stack of snow golems a carved pumpkin each). Turn it off and a stack gives what a
+  single mob would: shears then take one animal out of
   the stack and shear that one, so the rest keep their wool for the next click. A dispenser with
   shears does exactly what a player's shears do, either way.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby

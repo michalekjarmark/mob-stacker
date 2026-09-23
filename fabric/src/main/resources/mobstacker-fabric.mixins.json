@@ -8,7 +8,8 @@
   "mixins": [
     "ShearsDispenseItemBehaviorMixin",
     "mobs.MushroomCowMixin",
-    "mobs.SheepMixin"
+    "mobs.SheepMixin",
+    "mobs.SnowGolemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

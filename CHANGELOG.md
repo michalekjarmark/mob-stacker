@@ -14,6 +14,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the rest of the game left behind. For a modpack in which the boxes do not show; silent without it.
 
 ### Changed
+- **A stack of snow golems gives a carved pumpkin for every golem** when it is sheared with
+  `stackedHarvest` on — a player's shears or a dispenser's — and the shears wear down once per golem,
+  as they do for sheep. It gave one pumpkin for the whole stack, while the whole stack lost its
+  pumpkins. With `stackedHarvest` off, one golem is still taken out and sheared on its own.
 - **The ceilings tab's size box takes the number it shows.** Its grey hint is now the `maxStackSize`
   in force there (the region's own, or the global one) rather than a fixed 16, and **Set** with the box
   left empty uses it — it used to refuse, as if there were no number at all.
