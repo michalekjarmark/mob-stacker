@@ -7,6 +7,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.9.2] - unreleased
+### Fixed
+- **Removing a per-type ceiling in the mob list screen crashed the game** *(1.9.0)*. In singleplayer
+  the screen reads the config while the game's own server changes it, and a list or map being read
+  while the other side changed it threw an error. Every list and map in the config — the mob lists,
+  the ceilings, the regions and each region's own settings, lists and ceilings — is now replaced
+  whole when it changes rather than changed in place, so whatever a screen (or the region boxes,
+  drawn every frame) is reading stays as it was until it is done with it.
+- **A dispenser with shears treats a stack the way a player does** *(stackedHarvest, 1.8.0)*. With
+  `stackedHarvest` on it sheared one sheep's worth of wool off a whole stack; it now shears every
+  member (and a stack of mooshrooms gives five mushrooms for each), with one snip, and the shears wear
+  down once per animal as a player's do. With `stackedHarvest` off it sheared the whole stack for one
+  sheep's wool; it now takes one animal out of the stack and shears only that one, as a player's
+  shears do.
+
 ## [1.9.1] - unreleased
 ### Added
 - **Region boxes through walls — where the server allows it.** An **X-ray** button on the region

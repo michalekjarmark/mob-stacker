@@ -59,29 +59,37 @@ public class MobStackerConfig implements MobLists.Holder {
     // the next scan; see MobStacker#SEPARATION_GRACE_KEY for why that is safe.
     private int separationCooldown = 0;
 
-    private List<String> ignoredEntities = new ArrayList<>(Arrays.asList(
+    // Every collection below is COPY-ON-WRITE: a change builds a new list or map and swaps it in,
+    // and nothing ever changes one in place once it has been stored. In singleplayer the screens
+    // read these from the render thread while the integrated server changes them, and iterating a
+    // collection the other thread is changing threw ConcurrentModificationException (round 5: one
+    // click on Remove in the ceilings tab crashed the game). A reader now always holds a collection
+    // nobody will touch again. Volatile so it sees the newest one. Changes are rare and the
+    // collections small, so the copy costs nothing worth measuring.
+    private volatile List<String> ignoredEntities = new ArrayList<>(Arrays.asList(
             "minecraft:ender_dragon",
             "minecraft:vex"
     ));
-    private List<String> ignoredMods = new ArrayList<>(Arrays.asList(
+    private volatile List<String> ignoredMods = new ArrayList<>(Arrays.asList(
             "corpse"
     ));
     // The other half, consulted only while mobListMode is WHITELIST. Empty by default, which is why
     // switching a fresh config to WHITELIST stacks nothing until something is added - deliberate:
     // "only these stack" with nothing listed can only honestly mean nothing.
-    private List<String> allowedEntities = new ArrayList<>();
-    private List<String> allowedMods = new ArrayList<>();
+    private volatile List<String> allowedEntities = new ArrayList<>();
+    private volatile List<String> allowedMods = new ArrayList<>();
     private MobListMode mobListMode = MobListMode.BLACKLIST;
 
     // Per-type stack ceilings: "minecraft:cow" -> 64. Anything not named here uses maxStackSize.
     // A map rather than 7 more scalar settings because the interesting keys are whatever mobs this
     // particular server has, including modded ones nobody can enumerate in advance.
-    private Map<String, Integer> maxStackSizes = new LinkedHashMap<>();
+    private volatile Map<String, Integer> maxStackSizes = new LinkedHashMap<>();
 
     // Off by default: a freshly installed mod stacks nothing until an operator opts in (see the
     // first-run notice logged by MobStacker.loadWorldConfig). Existing configs keep their saved mode.
     private StackMode stackMode = StackMode.OFF;
-    private List<StackRegion> regions = new ArrayList<>();
+    // Copy-on-write like the lists above: the overlay walks this every frame from the render thread.
+    private volatile List<StackRegion> regions = new ArrayList<>();
 
     private final MobCaps mobCaps = new MobCaps();
 
@@ -123,10 +131,11 @@ public class MobStackerConfig implements MobLists.Holder {
      * value being changed to the region's - from the commands and both GUIs alike.
      */
     private void pruneRedundantRegionOverrides() {
-        if (MobStacker.config != this || regions == null || regions.isEmpty()) {
+        List<StackRegion> all = getRegions();
+        if (MobStacker.config != this || all.isEmpty()) {
             return; // not the live config: its values are not what these regions differ from
         }
-        for (StackRegion region : regions) {
+        for (StackRegion region : all) {
             for (String id : new ArrayList<>(region.getSettings().keySet())) {
                 ConfigOption option = MobStackerSettings.byId(id);
                 if (option != null && option.storedValue().equalsIgnoreCase(region.getSetting(id))) {
@@ -372,6 +381,16 @@ public class MobStackerConfig implements MobLists.Holder {
         }
     }
 
+    /** Swaps in a new list. Never hand this one a list that is still going to change. */
+    private void store(MobListKind kind, List<String> list) {
+        switch (kind) {
+            case DENY_ENTITIES -> ignoredEntities = list;
+            case DENY_MODS -> ignoredMods = list;
+            case ALLOW_ENTITIES -> allowedEntities = list;
+            case ALLOW_MODS -> allowedMods = list;
+        }
+    }
+
     @Override
     public List<String> getList(MobListKind kind) {
         return Collections.unmodifiableList(backing(kind));
@@ -389,38 +408,45 @@ public class MobStackerConfig implements MobLists.Holder {
         if (value.isEmpty() || list.contains(value)) {
             return false;
         }
-        list.add(value);
+        List<String> next = new ArrayList<>(list);
+        next.add(value);
+        store(kind, next);
         save();
         return true;
     }
 
     @Override
     public boolean removeFromList(MobListKind kind, String entry) {
-        if (backing(kind).remove(MobLists.normalise(kind, entry))) {
-            save();
-            return true;
+        String value = MobLists.normalise(kind, entry);
+        List<String> list = backing(kind);
+        if (!list.contains(value)) {
+            return false;
         }
-        return false;
+        List<String> next = new ArrayList<>(list);
+        next.remove(value);
+        store(kind, next);
+        save();
+        return true;
     }
 
     @Override
     public void clearList(MobListKind kind) {
         if (!backing(kind).isEmpty()) {
-            backing(kind).clear();
+            store(kind, new ArrayList<>());
             save();
         }
     }
 
     @Override
     public void setList(MobListKind kind, List<String> entries) {
-        List<String> list = backing(kind);
-        list.clear();
+        List<String> next = new ArrayList<>();
         for (String entry : entries) {
             String value = MobLists.normalise(kind, entry);
-            if (!value.isEmpty() && !list.contains(value)) {
-                list.add(value);
+            if (!value.isEmpty() && !next.contains(value)) {
+                next.add(value);
             }
         }
+        store(kind, next);
         save();
     }
 
@@ -453,10 +479,8 @@ public class MobStackerConfig implements MobLists.Holder {
 
     /** Every per-type ceiling, as entity id -> size. Never null. */
     public Map<String, Integer> getMaxStackSizes() {
-        if (maxStackSizes == null) {
-            maxStackSizes = new LinkedHashMap<>();
-        }
-        return Collections.unmodifiableMap(maxStackSizes);
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(sizes);
     }
 
     /**
@@ -466,28 +490,27 @@ public class MobStackerConfig implements MobLists.Holder {
      * costs a registry lookup and a string, on a path that runs for every mob of every scan.
      */
     public boolean hasMaxStackSizes() {
-        return maxStackSizes != null && !maxStackSizes.isEmpty();
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes != null && !sizes.isEmpty();
     }
 
     /** The ceiling set for this entity id, or null when it just follows {@code maxStackSize}. */
     public Integer getMaxStackSize(String entityId) {
-        if (maxStackSizes == null) {
-            return null;
-        }
-        return maxStackSizes.get(MobLists.normaliseEntityId(entityId));
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes == null ? null : sizes.get(MobLists.normaliseEntityId(entityId));
     }
 
     /** Sets a per-type ceiling, or drops it when {@code size} is null. */
     public void setMaxStackSize(String entityId, Integer size) {
-        if (maxStackSizes == null) {
-            maxStackSizes = new LinkedHashMap<>();
-        }
+        Map<String, Integer> sizes = maxStackSizes;
+        Map<String, Integer> next = sizes == null ? new LinkedHashMap<>() : new LinkedHashMap<>(sizes);
         String key = MobLists.normaliseEntityId(entityId);
         if (size == null) {
-            maxStackSizes.remove(key);
+            next.remove(key);
         } else {
-            maxStackSizes.put(key, Math.max(1, size));
+            next.put(key, Math.max(1, size));
         }
+        maxStackSizes = next;
         save();
     }
 
@@ -501,11 +524,12 @@ public class MobStackerConfig implements MobLists.Holder {
     }
 
     public List<StackRegion> getRegions() {
-        return Collections.unmodifiableList(regions);
+        List<StackRegion> all = regions;
+        return all == null ? Collections.emptyList() : Collections.unmodifiableList(all);
     }
 
     public StackRegion getRegion(String name) {
-        return regions.stream()
+        return getRegions().stream()
                 .filter(region -> region.getName().equalsIgnoreCase(name))
                 .findFirst()
                 .orElse(null);
@@ -515,13 +539,17 @@ public class MobStackerConfig implements MobLists.Holder {
         if (getRegion(region.getName()) != null) {
             return false;
         }
-        regions.add(region);
+        List<StackRegion> next = new ArrayList<>(getRegions());
+        next.add(region);
+        regions = next;
         save();
         return true;
     }
 
     public boolean removeRegion(String name) {
-        if (regions.removeIf(region -> region.getName().equalsIgnoreCase(name))) {
+        List<StackRegion> next = new ArrayList<>(getRegions());
+        if (next.removeIf(region -> region.getName().equalsIgnoreCase(name))) {
+            regions = next;
             save();
             return true;
         }

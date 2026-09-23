@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.fabric.mixin.mobs;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.StackShearable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -19,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Sheep.class)
-public class SheepMixin {
+public class SheepMixin implements StackShearable {
     /**
      * True while the loop below shears the members under the top sheep. {@code Sheep.shear} plays
      * the snip every time it runs, and all of them landed on the same tick at the same spot - so a
@@ -35,13 +36,22 @@ public class SheepMixin {
         // Vanilla has already sheared one sheep's worth by the time this runs, so only the members
         // under it are owed anything. Looping the whole stack size gave a lone sheep double wool.
         int extra = MobStacker.extraHarvests(self);
+        mobstacker$shearMembers(SoundSource.PLAYERS, extra);
+        if (!self.level().isClientSide) {
+            for (int i = 0; i < extra; i++) {
+                itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));
+            }
+        }
+    }
+
+    /** Shears the members under the top sheep, quietly. A player's shears and a dispenser's both. */
+    @Override
+    public void mobstacker$shearMembers(SoundSource source, int count) {
+        Sheep self = (Sheep) (Object) this;
         mobstacker$shearingQuietly = true;
         try {
-            for (int i = 0; i < extra; i++) {
-                self.shear(SoundSource.PLAYERS);
-                if(!self.level().isClientSide) {
-                    itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));
-                }
+            for (int i = 0; i < count; i++) {
+                self.shear(source);
             }
         } finally {
             mobstacker$shearingQuietly = false;
