@@ -5,6 +5,7 @@ import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobListKind;
 import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobLists;
+import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
@@ -223,7 +224,9 @@ public final class MobStackerListScreen extends Screen {
                     Component.literal("size"));
             // Ten characters: the largest ceiling there is (2147483647), and room for "default".
             size.setMaxLength(10);
-            size.setHint(Component.literal("16"));
+            // What a type with no ceiling of its own stacks to here - and what Set takes when the box
+            // is left empty (round 6: the hint looked like a value, so Set refused to add anything).
+            size.setHint(Component.literal(maxStackSizeHere()));
             size.setEditable(editable);
             this.sizeBox = size;
             addRenderableWidget(size);
@@ -235,6 +238,54 @@ public final class MobStackerListScreen extends Screen {
                 .bounds(this.width / 2 + 90, y, 80, 20).build();
         add.active = editable && editableHere();
         addRenderableWidget(add);
+    }
+
+    /**
+     * The {@code maxStackSize} in force where this screen edits: the region's own when it sets one,
+     * the global one otherwise. From the synced snapshot on a server, from the config in singleplayer.
+     */
+    private String maxStackSizeHere() {
+        String value = null;
+        if (remote) {
+            if (regionName != null) {
+                value = MobStackerClientNetworking.regionValue(regionName, "maxStackSize");
+            }
+            if (value == null) {
+                value = MobStackerClientNetworking.value("maxStackSize");
+            }
+        } else {
+            StackRegion region = regionName == null ? null : MobStacker.config.getRegion(regionName);
+            if (region != null) {
+                value = region.getSetting("maxStackSize");
+            }
+            if (value == null) {
+                ConfigOption option = MobStackerSettings.byId("maxStackSize");
+                value = option == null ? null : option.storedValue();
+            }
+        }
+        return value == null || value.isBlank() ? "16" : value.trim();
+    }
+
+    /**
+     * Enter on an entity id typed without its namespace ("cow") writes the whole id into the box
+     * ("minecraft:cow") before it is used, so the box shows what will be stored. Round 6 read the
+     * missing completion for such an id - there is nothing to complete, it is already whole - as
+     * Enter not working.
+     */
+    private void expandShortEntityId() {
+        if (entryBox == null || !(tab == CEILINGS_TAB || TABS[tab].flavour() == MobListKind.Flavour.ENTITY)) {
+            return;
+        }
+        String typed = entryBox.getValue().trim().toLowerCase(Locale.ROOT);
+        if (typed.isEmpty() || typed.contains(":")) {
+            return;
+        }
+        String full = MobLists.normaliseEntityId(typed);
+        if (!full.equals(typed)) {
+            entryBox.setValue(full);
+            entryBox.moveCursorToEnd();
+            completion.close();
+        }
     }
 
     private String hintFor() {
@@ -327,6 +378,8 @@ public final class MobStackerListScreen extends Screen {
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             if (inEntry && completion.shouldEnterComplete()) {
                 completion.accept();
+            } else if (inEntry) {
+                expandShortEntityId();
             }
             if (inEntry && tab == CEILINGS_TAB && sizeBox != null && sizeBox.getValue().trim().isEmpty()) {
                 setFocused(sizeBox); // a ceiling needs a number too, so go and ask for it
@@ -479,6 +532,11 @@ public final class MobStackerListScreen extends Screen {
         if (tab == CEILINGS_TAB) {
             String entry = MobLists.normaliseEntityId(typed);
             String size = sizeBox == null ? "" : sizeBox.getValue().trim();
+            if (size.isEmpty()) {
+                // Nothing typed: the number the box shows as its hint, which is what the type
+                // stacks to now. Set with an untouched box used to refuse, as if there were no number.
+                size = maxStackSizeHere();
+            }
             if (ConfigOption.isDefaultKeyword(size)) {
                 // The same word `maxstack <entity> default` takes: no ceiling of its own, so the mob
                 // goes back to maxStackSize. Sent as the empty value the Remove button sends.

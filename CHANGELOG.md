@@ -7,8 +7,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.9.2] - unreleased
+## [1.9.2] - 2026-09-23
+### Added
+- **`-Dmobstacker.overlayDebug=true`**, a Java argument that has the region boxes write to the log,
+  every few seconds, what they find when they are drawn: which graphics mode, which buffer, what state
+  the rest of the game left behind. For a modpack in which the boxes do not show; silent without it.
+
+### Changed
+- **The ceilings tab's size box takes the number it shows.** Its grey hint is now the `maxStackSize`
+  in force there (the region's own, or the global one) rather than a fixed 16, and **Set** with the box
+  left empty uses it — it used to refuse, as if there were no number at all.
+- **Enter on an id typed without its namespace** (`cow`) writes the whole id into the box
+  (`minecraft:cow`) before it is used, so the box shows what is stored. There was nothing to complete —
+  `cow` already is an id — and a list that did not open read as Enter not working.
+
 ### Fixed
+- **With "Fabulous" graphics, water and clouds showed through a region box standing in front of them**
+  *(1.9.0)*. Fabulous puts the frame together from separate buffers by depth, and a box — which writes
+  no depth, so it can never hide another box — sat at the depth of whatever was behind it. Every box is
+  now drawn at the very end, into the finished frame, tested against the depth of the solid world
+  (kept aside for it before Fabulous wipes it). Clouds, water, leaves and mobs are now in front of a
+  box or behind it as they really are; the one thing that does not tint a box any more is water it is
+  under, which it is now drawn over. Fast and Fancy draw the boxes at the end too.
+- **With Iris installed — even with no shader pack — region boxes were drawn at the wrong moment**
+  *(1.8.0)*: under water and clouds, and with "Fabulous" graphics hardly at all (only the faces, and
+  only with clouds on). The boxes were drawn through the game's shared buffer, and while the world is
+  being drawn Iris hands out a buffered one of its own instead, which draws what it is given when Iris
+  decides to. The boxes now have a buffer of their own and are drawn on the spot.
 - **Removing a per-type ceiling in the mob list screen crashed the game** *(1.9.0)*. In singleplayer
   the screen reads the config while the game's own server changes it, and a list or map being read
   while the other side changed it threw an error. Every list and map in the config — the mob lists,
@@ -22,7 +47,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   sheep's wool; it now takes one animal out of the stack and shears only that one, as a player's
   shears do.
 
-## [1.9.1] - unreleased
+## [1.9.1] - not released on its own
+Everything below shipped as part of **1.9.2**; 1.9.1 was the development line it was built on.
+
 ### Added
 - **Region boxes through walls — where the server allows it.** An **X-ray** button on the region
   screen (and a key binding, unbound by default) draws every box through walls and terrain, so a
@@ -34,7 +61,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   hosts a LAN game, the game itself is the server, so the argument goes in the launcher). Without it
   the button is greyed out and says how to allow it, and the key binding says it is not allowed here.
   The server says yes or no in the config snapshot; a client's own flag counts for nothing on
-  somebody else's server, and a server older than 1.9.1 says no.
+  somebody else's server, and a server older than 1.9.2 says no.
   Where it is allowed, whether it is on is your own view, one choice for every world, kept in
   `config/mobstacker-overlay.json`; off by default. Built from render types of the mod's own that
   switch the depth test off themselves — vanilla's "no depth test" only assumes the test is already

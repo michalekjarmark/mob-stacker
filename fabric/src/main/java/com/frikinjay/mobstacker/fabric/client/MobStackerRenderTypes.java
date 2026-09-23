@@ -53,6 +53,21 @@ final class MobStackerRenderTypes extends RenderStateShard {
                     VIEW_OFFSET_Z_LAYERING, COLOR_WRITE));
 
     /**
+     * A region's edges: vanilla's {@code lines()} in every respect but two. It writes no depth, like
+     * {@link #REGION_FACES}, so nothing the overlay draws can hide anything else it draws. And it
+     * draws into the <b>main</b> buffer rather than the item-entity one.
+     *
+     * <p>The second is what matters. The boxes are drawn last of all, and under "Fabulous" graphics
+     * the item-entity buffer has been laid into the frame by then - a line drawn there would never be
+     * seen.
+     */
+    static final RenderType REGION_EDGES = composite("mobstacker_region_edges",
+            DefaultVertexFormat.POSITION_COLOR_NORMAL, VertexFormat.Mode.LINES, false,
+            List.of(RENDERTYPE_LINES_SHADER, TRANSLUCENT_TRANSPARENCY, LEQUAL_DEPTH_TEST, NO_CULL,
+                    VIEW_OFFSET_Z_LAYERING, COLOR_WRITE,
+                    new LineStateShard(OptionalDouble.empty())));
+
+    /**
      * {@link #REGION_FACES} with the depth test off as well, so terrain no longer hides a region:
      * the "through walls" view. Nothing else about it differs, so switching it on changes what hides
      * a box and nothing about how the box looks.

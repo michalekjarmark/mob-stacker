@@ -2,15 +2,17 @@ package com.frikinjay.mobstacker.fabric.client;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.google.gson.Gson;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.google.gson.GsonBuilder;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -110,19 +112,47 @@ public final class MobStackerRegionOverlay {
     private static WeakReference<IntegratedServer> keyedServer = new WeakReference<>(null);
     private static String keyedFolder;
 
+    /**
+     * The solid world's depth, kept aside under "Fabulous" graphics for the boxes terrain may hide.
+     * The pass that puts a Fabulous frame together wipes the main depth buffer on its way, and the
+     * boxes are drawn after it, so this is filled before it ({@link #keepSolidDepth}) and put back
+     * just before they are drawn. Created the first time it is needed, and sized to the window.
+     */
+    private static TextureTarget solidDepth;
+    /** True from the moment {@link #solidDepth} is filled in a frame until that frame's boxes are drawn. */
+    private static boolean solidDepthKept;
+
+    /**
+     * The overlay's own vertex buffer, drawn from and emptied on the spot for every batch.
+     *
+     * <p>Not the game's shared buffer source ({@code renderBuffers().bufferSource()}), which is what
+     * the boxes used until round 7 - and which is not the game's to give out while the world is
+     * drawn when Iris is installed, shader pack or not: Iris hands out its own buffered source for
+     * that time, and what goes into it is drawn when Iris flushes it, not when it is asked to. In the
+     * round 5-7 modpack that put the boxes under water and clouds whatever this code did, and before
+     * that made them depend on the cloud setting. A buffer of our own is drawn exactly when and how
+     * this class says. Grows as needed.
+     */
+    private static final BufferBuilder BUILDER = new BufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+
     private MobStackerRegionOverlay() {
     }
 
     public static void register() {
         file = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mobstacker-overlay.json");
         load();
-        // Two places, one per kind of box. A box terrain may hide is drawn right after the
-        // translucent terrain, while the depth buffer still says where the terrain is. A box seen
-        // through walls is drawn last of all, over everything the world draws: drawn any earlier,
-        // whatever came after it - clouds, and with "Fabulous" graphics water and mobs too, which
-        // are only laid over the frame at the very end - covered it again (round 6).
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> render(context, false));
-        WorldRenderEvents.LAST.register(context -> render(context, true));
+        // Every box is drawn last of all, straight into the finished frame. Drawn any earlier, what
+        // the world drew after it covered it: clouds with every setting, and with "Fabulous" graphics
+        // water and mobs too, because that frame is put together from separate buffers by depth and
+        // a box that writes none sat at the depth of whatever was behind it - in front of the box or
+        // not (round 6, both with X-ray on and, once that was fixed, with it off). The earlier hooks
+        // are only there to keep Fabulous's solid depth for the boxes that are depth-tested: kept
+        // before the debug renderer and again, more completely, after the translucent terrain -
+        // twice because in the round 6 modpack the second hook looked as if it only ran with clouds
+        // on, and a frame with no depth kept would test the boxes against a wiped buffer.
+        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> keepSolidDepth("BEFORE_DEBUG_RENDER"));
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> keepSolidDepth("AFTER_TRANSLUCENT"));
+        WorldRenderEvents.LAST.register(MobStackerRegionOverlay::render);
     }
 
     // ------------------------------------------------------------------ what is showing
@@ -263,52 +293,79 @@ public final class MobStackerRegionOverlay {
     // ------------------------------------------------------------------ drawing
 
     /**
-     * @param last true when called from {@code WorldRenderEvents.LAST}, which draws the boxes seen
-     *             through walls; false from {@code AFTER_TRANSLUCENT}, which draws the others. Each
-     *             call draws only its own kind, so every box is drawn exactly once a frame.
+     * Under "Fabulous" graphics, copies the main depth buffer aside while it still holds the solid
+     * world (translucent terrain, particles, clouds and weather each have a buffer of their own
+     * there, so the main one only ever holds what is solid). Called from two hooks in a frame; the
+     * later copy wins. Only when a depth-tested box is about to be drawn this frame; otherwise it
+     * costs nothing. Fast and Fancy never wipe the main depth, so they need none of this.
      */
-    private static void render(WorldRenderContext context, boolean last) {
+    private static void keepSolidDepth(String hook) {
+        MobStackerOverlayDebug.report(hook, "showing=" + anythingShowing() + " xray=" + throughWalls());
+        if (!Minecraft.useShaderTransparency() || Minecraft.getInstance().level == null || throughWalls()
+                || (!anythingShowing() && MobStackerRegionPicker.previewBox() == null)) {
+            return;
+        }
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        if (solidDepth == null) {
+            solidDepth = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
+        } else if (solidDepth.width != main.width || solidDepth.height != main.height) {
+            solidDepth.resize(main.width, main.height, Minecraft.ON_OSX);
+        }
+        solidDepth.copyDepthFrom(main);
+        // copyDepthFrom leaves no framebuffer bound; the main one was, and the game carries on
+        // drawing without binding it again.
+        main.bindWrite(false);
+        solidDepthKept = true;
+    }
+
+    private static void render(WorldRenderContext context) {
+        boolean restoreDepth = solidDepthKept;
+        solidDepthKept = false;
         if (Minecraft.getInstance().level == null) {
             return;
         }
         boolean xray = throughWalls();
-        if (xray != last) {
-            return;
-        }
         List<MobStackerClientRegions.View> regions = anythingShowing()
                 ? MobStackerClientRegions.inCurrentDimension()
                 : List.of();
         // The box being picked right now is drawn whatever the player's overlay settings say: they
         // asked for it by starting to pick, and it disappears again the moment they stop.
         AABB preview = MobStackerRegionPicker.previewBox();
+        MobStackerOverlayDebug.report("LAST", "regions=" + regions.size() + " preview=" + (preview != null)
+                + " xray=" + xray + " depthKept=" + restoreDepth);
         if (regions.isEmpty() && preview == null) {
             return;
+        }
+        if (!xray && restoreDepth) {
+            // Fabulous: put the solid world's depth back where the boxes can test against it. By now
+            // the frame is finished, so the only thing that would have read the wiped depth is
+            // this; the hand is drawn after a depth clear of its own.
+            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+            main.copyDepthFrom(solidDepth);
+            main.bindWrite(false);
         }
 
         Vec3 camera = context.camera().getPosition();
         PoseStack pose = context.matrixStack();
-        MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         Style style = state.style;
         // Through walls changes only which types draw the boxes (and when), never what is drawn:
         // the same faces and edges, with the depth test off.
         RenderType faceType = xray
                 ? MobStackerRenderTypes.REGION_FACES_XRAY : MobStackerRenderTypes.REGION_FACES;
         RenderType edgeType = xray
-                ? MobStackerRenderTypes.REGION_EDGES_XRAY : RenderType.lines();
+                ? MobStackerRenderTypes.REGION_EDGES_XRAY : MobStackerRenderTypes.REGION_EDGES;
 
         pose.pushPose();
         // The world is drawn relative to the camera, so every box moves with it.
         pose.translate(-camera.x, -camera.y, -camera.z);
 
-        // Faces are drawn with a type of our own that writes no depth (see
-        // MobStackerRenderTypes.REGION_FACES). Vanilla's filled box does write it, and that is what
-        // swallowed every edge behind a face - the far side of a box, and a whole region standing
-        // inside another. Drawing the edges first was tried in round 2 and was not enough: with
-        // "Fabulous" graphics the edges go into a buffer of their own and the faces still covered
-        // them when the frame was put together. Now faces go first and edges on top, so an edge is
-        // never tinted over and nothing here can hide anything else here.
+        // Faces and edges are drawn with types of our own that write no depth (see
+        // MobStackerRenderTypes). Vanilla's filled box does write it, and that is what swallowed
+        // every edge behind a face - the far side of a box, and a whole region standing inside
+        // another. Faces go first and edges on top, so an edge is never tinted over and nothing here
+        // can hide anything else here.
         if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(faceType);
+            BufferBuilder faces = begin(faceType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -319,11 +376,11 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            buffers.endBatch(faceType);
+            faceType.end(faces, RenderSystem.getVertexSorting());
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
-            VertexConsumer edges = buffers.getBuffer(edgeType);
+            BufferBuilder edges = begin(edgeType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -331,7 +388,7 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
-            buffers.endBatch(edgeType);
+            edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
         if (preview != null) {
@@ -339,19 +396,31 @@ public final class MobStackerRegionOverlay {
             // I mean", so being unmistakable matters more than matching the chosen style. It does
             // follow "through walls", which is at its most useful exactly while a corner is being
             // looked for on the far side of a hill.
-            VertexConsumer faces = buffers.getBuffer(faceType);
+            BufferBuilder faces = begin(faceType);
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            buffers.endBatch(faceType);
+            faceType.end(faces, RenderSystem.getVertexSorting());
 
-            VertexConsumer edges = buffers.getBuffer(edgeType);
+            BufferBuilder edges = begin(edgeType);
             LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(edgeType);
+            edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
         pose.popPose();
+    }
+
+    /**
+     * Starts a batch of one type in {@link #BUILDER}; {@code type.end(...)} draws and empties it.
+     * A batch left half-built by an exception in an earlier frame is thrown away first.
+     */
+    private static BufferBuilder begin(RenderType type) {
+        if (BUILDER.building()) {
+            BUILDER.discard();
+        }
+        BUILDER.begin(type.mode(), type.format());
+        return BUILDER;
     }
 
     /**
