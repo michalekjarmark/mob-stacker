@@ -21,6 +21,7 @@ import org.lwjgl.glfw.GLFW;
 public final class MobStackerClient implements ClientModInitializer {
     private static KeyMapping openConfigKey;
     private static KeyMapping toggleOverlayKey;
+    private static KeyMapping toggleXrayKey;
     // Set by the client command; the screen is opened on the next tick so the chat screen (which
     // closes right after a command runs) doesn't immediately override it.
     private static boolean openRequested;
@@ -46,6 +47,12 @@ public final class MobStackerClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_UNKNOWN, // unbound by default, like the config key
                 "key.categories.mobstacker"));
 
+        toggleXrayKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+                "key.mobstacker.toggle_region_xray",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_UNKNOWN, // unbound by default, like the other two
+                "key.categories.mobstacker"));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConfigKey.consumeClick()) {
                 client.setScreen(new MobStackerConfigScreen(client.screen));
@@ -55,6 +62,18 @@ public final class MobStackerClient implements ClientModInitializer {
                 if (client.player != null) {
                     client.player.displayClientMessage(Component.translatable(
                             on ? "message.mobstacker.overlay_on" : "message.mobstacker.overlay_off"), true);
+                }
+            }
+            while (toggleXrayKey.consumeClick()) {
+                String message;
+                if (!MobStackerRegionOverlay.throughWallsAllowed()) {
+                    message = "message.mobstacker.xray_not_allowed";
+                } else {
+                    message = MobStackerRegionOverlay.toggleThroughWalls()
+                            ? "message.mobstacker.xray_on" : "message.mobstacker.xray_off";
+                }
+                if (client.player != null) {
+                    client.player.displayClientMessage(Component.translatable(message), true);
                 }
             }
             if (openRequested) {

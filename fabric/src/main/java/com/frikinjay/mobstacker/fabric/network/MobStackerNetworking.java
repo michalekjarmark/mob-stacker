@@ -430,6 +430,10 @@ public final class MobStackerNetworking {
                 buf.writeVarInt(entry.getValue());
             }
         }
+        // Whether boxes may be drawn through walls here (MobStacker.XRAY_PROPERTY). Last, so an
+        // older client simply leaves it unread, and a newer client talking to an older server finds
+        // nothing there and reads that as "not allowed".
+        buf.writeBoolean(MobStacker.regionXrayAllowed());
         ServerPlayNetworking.send(player, SYNC, buf);
     }
 }

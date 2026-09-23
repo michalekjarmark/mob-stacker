@@ -128,7 +128,7 @@ given its own value inside a region.
 | `compactExperience` | Merge a stack's death experience into one orb | `true` |
 | `enableSeparator` | Allow splitting a stack with an item | `false` |
 | `consumeSeparator` | Consume that item on use | `true` |
-| `separatorItem` | Which item splits a stack | `minecraft:diamond` |
+| `separatorItem` | Which item splits a stack (the GUI completes item ids as you type) | `minecraft:diamond` |
 | `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
 The vanilla per-category spawn caps are settings too (category `mobcaps`, global only):
@@ -361,6 +361,11 @@ breeding pen keeps stacking everything it produces.
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
 and zombie horses.
 
+**Every horse in a stack keeps its own speed, jump and health.** The horse that comes out is the
+next one in line, with its own numbers, and when the top horse dies the next one takes over with
+its own. A good horse merged into a herd is not lost, and a herd merged under a good horse does not
+become a herd of good horses.
+
 **Taming works the same way**: offer a bone to a stack of wolves, cod to cats or seeds to parrots and
 one animal steps out to be tamed rather than the whole pack at once. Only while you are holding the
 right item — right-clicking a pack with an empty hand does nothing, exactly as in vanilla.
@@ -376,13 +381,28 @@ to a corner to read coordinates off F3.
 | Show or hide one | the **Box** button in the region screen |
 | Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
 | How it looks | the **Style** button — `wireframe`, `filled` or `both` *(the default)* |
+| Through walls | the **X-ray** button, or a key binding (unbound by default) — off by default, and only where the server allows it (below) |
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
 is each player's own business, kept client-side and never sent anywhere.
 
 Boxes need the mod on the client — without it there is simply nothing to see. They are hidden by
-terrain, like everything else in the world.
+terrain, like everything else in the world, until you switch **X-ray** on: then they are drawn
+through walls and terrain, so a region can be seen from anywhere around it — the box you are
+picking with **Pick in world…** too. Nothing in the world covers them then — not clouds, water or
+mobs either; only your hand and the HUD. Like the style, X-ray is one choice for every world.
+
+> 🔒 **X-ray is the server's to allow.** A box seen through a mountain shows a little of what is behind
+> it, so it only works on a server started with the Java argument `-Dmobstacker.xray=true`. In
+> singleplayer (and when you host a LAN game) your game *is* the server, so add the argument in your
+> launcher's Java arguments. Elsewhere the button is greyed out and tells you why; a client's own flag
+> does not count on somebody else's server.
+
+> 🎨 **Shader packs** (Iris) draw the boxes their own way, and some of them barely at all — against the
+> sky in particular: with a pack loaded, the pack decides how every line and translucent face in the
+> world is lit and blended, the boxes included. In testing, Complementary Reimagined showed them nearly
+> as intended and Sildur's Vibrant hardly at all.
 
 ## Names & name tags
 

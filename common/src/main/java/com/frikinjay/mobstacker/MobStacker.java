@@ -64,6 +64,22 @@ import java.util.regex.Pattern;
 public final class MobStacker {
     public static final String MOD_ID = "mobstacker";
 
+    /**
+     * The JVM flag that lets players draw region boxes through walls: {@code -Dmobstacker.xray=true}
+     * on the <b>server</b>. Off unless it is given, like {@code -Dmobstacker.selftest}.
+     *
+     * <p>A box seen through a mountain is a small x-ray of the world, so it is the server's to allow,
+     * never the player's: the server says whether it is allowed in the config-sync snapshot, and the
+     * client obeys that and ignores its own flag. In singleplayer, and for whoever hosts a LAN game,
+     * the server is the game itself, so the flag goes on the game.
+     */
+    public static final String XRAY_PROPERTY = "mobstacker.xray";
+
+    /** Whether this server lets its players draw region boxes through walls. */
+    public static boolean regionXrayAllowed() {
+        return Boolean.getBoolean(XRAY_PROPERTY);
+    }
+
     public static final Logger logger = LogUtils.getLogger();
     public static final String STACK_DATA_KEY = "StackData";
     public static final String STACK_SIZE_KEY = "StackSize";
@@ -417,6 +433,8 @@ public final class MobStacker {
         // After copyEntityData, because finalizeSpawn hands out random gear of its own that the
         // stored loadout has to overwrite.
         handOverMemberEquipment(self, newEntity, newStackSize);
+        // The same for a horse's own numbers, which finalizeSpawn rolled afresh a moment ago.
+        MobVariants.handOverMemberRolls(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
         if (newStackSize > 1) {
             // The mobs under the new top one are the same wounded members as before the kill.
@@ -680,6 +698,8 @@ public final class MobStacker {
             // The separated mob is one of the stored members, so it leaves wearing that member's
             // gear; the stack keeps the rest.
             takeMemberEquipmentFor(entity, newEntity);
+            // ...and, if it is a horse, with that member's own speed, jump and health.
+            MobVariants.takeMemberRollsFor(entity, newEntity);
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
@@ -821,6 +841,9 @@ public final class MobStacker {
 
         // With keepMemberEquipment the stack remembers what the mob being merged away was wearing
         // (and everything its own members were wearing), so nothing has to be thrown on the floor.
+        // Each horse's own numbers are kept the same way, whatever the equipment settings say:
+        // they are the horse, not something it carries.
+        ListTag mergedRolls = MobVariants.mergedMemberRolls(target, source);
         ListTag mergedLoadouts = null;
         if (keepsMemberEquipment(target)) {
             mergedLoadouts = new ListTag();
@@ -848,6 +871,7 @@ public final class MobStacker {
             // After load(), which put the target's own stack data back from the snapshot above.
             setMemberLoadouts(target, mergedLoadouts);
         }
+        MobVariants.setMergedMemberRolls(target, mergedRolls, newStackSize);
 
         source.discard();
 

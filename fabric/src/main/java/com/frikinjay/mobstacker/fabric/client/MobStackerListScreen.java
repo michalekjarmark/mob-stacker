@@ -13,10 +13,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import org.lwjgl.glfw.GLFW;
 
@@ -46,28 +44,13 @@ public final class MobStackerListScreen extends Screen {
     /** Room under the rows for the add row and Done, before any notes are stacked on top of it. */
     private static final int LIST_BOTTOM_MARGIN = 62;
     private static final int NOTE_HEIGHT = 12;
-    private static final int SUGGESTION_HEIGHT = 12;
-    private static final int MAX_SUGGESTIONS = 8;
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int MUTED_TEXT = 0xA0A0A0;
     private static final int WARN_TEXT = 0xFF5555;
-    private static final int SUGGESTION_TEXT = 0xAAAAAA;
-    private static final int SUGGESTION_PICKED = 0xFFFF55;
-    private static final int SUGGESTION_BACKGROUND = 0xF0100010;
-    /**
-     * How far in front of everything else the completion popup is drawn. Widgets render at z=0 and
-     * vanilla puts tooltips at 400, so this sits above the screen and below them - without it the
-     * popup went up behind the rows and the red mode warning, which is worse than no popup at all.
-     */
-    private static final int SUGGESTION_Z = 200;
 
     /** The tabs, in the order the {@code >} button walks them. Null kind = the ceilings tab. */
     private static final MobListKind[] TABS = MobListKind.values();
     private static final int CEILINGS_TAB = TABS.length;
-
-    /** Every entity id in the game, and every namespace that has one. Worked out once. */
-    private static List<String> entityIds;
-    private static List<String> modIds;
 
     private final Screen parent;
     /** The region being edited, or null for the global lists. */
@@ -86,8 +69,7 @@ public final class MobStackerListScreen extends Screen {
     private EditBox sizeBox;
     /** Set after the first click on the button that would drop this region's own list. */
     private boolean inheritArmed;
-    private List<String> suggestions = List.of();
-    private int suggestionIndex;
+    private final IdCompletion completion = new IdCompletion(this::candidates);
     /**
      * The rows this screen is showing, read once per rebuild.
      *
@@ -126,7 +108,6 @@ public final class MobStackerListScreen extends Screen {
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
         this.editable = singleplayer || (remote && MobStackerClientNetworking.authorized());
-        this.suggestions = List.of();
 
         addRenderableWidget(Button.builder(Component.literal("<"), b -> switchTab(-1))
                 .bounds(this.width / 2 - 170, 20, 20, 20).build());
@@ -233,6 +214,7 @@ public final class MobStackerListScreen extends Screen {
         box.setHint(Component.literal(hintFor()));
         box.setEditable(editable && editableHere());
         box.setResponder(this::updateSuggestions);
+        completion.attach(box);
         this.entryBox = box;
         addRenderableWidget(box);
 
@@ -273,7 +255,7 @@ public final class MobStackerListScreen extends Screen {
         tab = Math.floorMod(tab + delta, TABS.length + 1);
         scrollOffset = 0;
         inheritArmed = false;
-        suggestions = List.of();
+        completion.close();
         clearMessage();
         rebuildWidgets();
     }
@@ -320,144 +302,31 @@ public final class MobStackerListScreen extends Screen {
 
     // ------------------------------------------------------------------ suggestions
 
-    /**
-     * What the entry box could be completed to, in the same spirit as the command line's
-     * suggestions: an entity id has to be spelled exactly right, and nobody remembers whether it is
-     * {@code minecraft:zombified_piglin} or {@code zombie_pigman} until the game says so.
-     */
-    private void updateSuggestions(String typed) {
-        suggestionIndex = 0;
-        String text = typed.trim().toLowerCase(Locale.ROOT);
-        if (text.isEmpty() || !editable || !editableHere()) {
-            suggestions = List.of();
-            return;
-        }
-        List<String> already = tab == CEILINGS_TAB ? List.of() : rows;
-        // Three buckets, best first: the id itself, then the part after the colon (people type
-        // "cow"), then anything that merely contains what was typed.
-        List<String> byId = new ArrayList<>();
-        List<String> byPath = new ArrayList<>();
-        List<String> anywhere = new ArrayList<>();
-        for (String candidate : candidates()) {
-            if (candidate.equals(text) || already.contains(candidate)) {
-                continue;
-            }
-            if (candidate.startsWith(text)) {
-                byId.add(candidate);
-            } else if (pathOf(candidate).startsWith(text)) {
-                byPath.add(candidate);
-            } else if (candidate.contains(text)) {
-                anywhere.add(candidate);
-            }
-        }
-        List<String> out = new ArrayList<>(byId);
-        out.addAll(byPath);
-        out.addAll(anywhere);
-        suggestions = List.copyOf(out.subList(0, Math.min(out.size(), MAX_SUGGESTIONS)));
-    }
-
+    /** The entry box's completion. The list of ids it offers follows the tab. */
     private List<String> candidates() {
         boolean mods = tab != CEILINGS_TAB && TABS[tab].flavour() == MobListKind.Flavour.MOD;
-        return mods ? modIds() : entityIds();
+        return mods ? IdCompletion.modIds() : IdCompletion.entityIds();
     }
 
-    private static String pathOf(String id) {
-        int colon = id.indexOf(':');
-        return colon < 0 ? id : id.substring(colon + 1);
-    }
-
-    private static List<String> entityIds() {
-        if (entityIds == null) {
-            List<String> ids = new ArrayList<>();
-            for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
-                ids.add(id.toString());
-            }
-            ids.sort(String::compareTo);
-            entityIds = List.copyOf(ids);
-        }
-        return entityIds;
-    }
-
-    /** Namespaces that actually have an entity in them — the only ones a mod list can mean. */
-    private static List<String> modIds() {
-        if (modIds == null) {
-            List<String> ids = new ArrayList<>();
-            for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
-                if (!ids.contains(id.getNamespace())) {
-                    ids.add(id.getNamespace());
-                }
-            }
-            ids.sort(String::compareTo);
-            modIds = List.copyOf(ids);
-        }
-        return modIds;
-    }
-
-    /** Where the suggestion list is drawn: x, top, width, bottom, sitting on top of the entry box. */
-    private int[] suggestionArea() {
-        int x = this.width / 2 - 170;
-        int width = tab == CEILINGS_TAB ? 180 : 250;
-        int bottom = this.height - 54;
-        return new int[]{x, bottom - suggestions.size() * SUGGESTION_HEIGHT, width, bottom};
-    }
-
-    private void acceptSuggestion() {
-        if (suggestions.isEmpty() || entryBox == null) {
+    private void updateSuggestions(String typed) {
+        if (!editable || !editableHere()) {
+            completion.close();
             return;
         }
-        String chosen = suggestions.get(Math.min(suggestionIndex, suggestions.size() - 1));
-        entryBox.setValue(chosen);
-        // setValue runs the responder, which fills the list again from the completed id; it has
-        // served its purpose either way, so it closes here rather than a moment later.
-        suggestions = List.of();
-    }
-
-    /**
-     * Whether Enter should take the highlighted suggestion before adding. The last test round
-     * pressed Enter where Tab was meant, got no completion, and reasonably called that a bug: with
-     * the list open, the highlighted line is what the screen is offering. The one exception is text
-     * that is already a whole id on its own - "minecraft:pig" must not become the "minecraft:piglin"
-     * listed under it just because the list is open.
-     */
-    private boolean shouldEnterComplete() {
-        if (suggestions.isEmpty() || entryBox == null) {
-            return false;
-        }
-        String typed = entryBox.getValue().trim().toLowerCase(Locale.ROOT);
-        List<String> known = candidates();
-        return !known.contains(typed) && !known.contains("minecraft:" + typed);
+        // Ids already on the list are not worth offering; a ceiling can be set again, so all are.
+        completion.exclude(tab == CEILINGS_TAB ? List.of() : rows);
+        completion.update(typed);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        boolean inEntry = this.getFocused() == entryBox && entryBox != null;
-        if (inEntry && !suggestions.isEmpty()) {
-            switch (keyCode) {
-                case GLFW.GLFW_KEY_TAB -> {
-                    acceptSuggestion();
-                    return true;
-                }
-                case GLFW.GLFW_KEY_DOWN -> {
-                    suggestionIndex = Math.floorMod(suggestionIndex + 1, suggestions.size());
-                    return true;
-                }
-                case GLFW.GLFW_KEY_UP -> {
-                    suggestionIndex = Math.floorMod(suggestionIndex - 1, suggestions.size());
-                    return true;
-                }
-                case GLFW.GLFW_KEY_ESCAPE -> {
-                    // Closes the list, not the screen: losing a half-typed entry to Escape would be
-                    // its own small betrayal.
-                    suggestions = List.of();
-                    return true;
-                }
-                default -> {
-                }
-            }
+        boolean inEntry = entryBox != null && this.getFocused() == entryBox;
+        if (completion.handleKey(keyCode, inEntry)) {
+            return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            if (inEntry && shouldEnterComplete()) {
-                acceptSuggestion();
+            if (inEntry && completion.shouldEnterComplete()) {
+                completion.accept();
             }
             if (inEntry && tab == CEILINGS_TAB && sizeBox != null && sizeBox.getValue().trim().isEmpty()) {
                 setFocused(sizeBox); // a ceiling needs a number too, so go and ask for it
@@ -473,16 +342,8 @@ public final class MobStackerListScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!suggestions.isEmpty()) {
-            int[] area = suggestionArea();
-            if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
-                int index = (int) ((mouseY - area[1]) / SUGGESTION_HEIGHT);
-                if (index >= 0 && index < suggestions.size()) {
-                    suggestionIndex = index;
-                    acceptSuggestion();
-                    return true;
-                }
-            }
+        if (completion.mouseClicked(mouseX, mouseY, this.height)) {
+            return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
@@ -656,7 +517,7 @@ public final class MobStackerListScreen extends Screen {
         if (sizeBox != null) {
             sizeBox.setValue("");
         }
-        suggestions = List.of();
+        completion.close();
         rebuildWidgets();
         // Somebody adding ids is nearly always about to add another one.
         focusEntrySoon = true;
@@ -857,30 +718,7 @@ public final class MobStackerListScreen extends Screen {
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
-        renderSuggestions(graphics, mouseX, mouseY);
-    }
-
-    private void renderSuggestions(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (suggestions.isEmpty()) {
-            return;
-        }
-        int[] area = suggestionArea();
-        // Drawing last is not enough on its own - the screen's own text is batched and comes out in
-        // front of a plain fill. Lifting the whole popup forward is how vanilla's own command
-        // suggestions do it.
-        graphics.pose().pushPose();
-        graphics.pose().translate(0.0F, 0.0F, SUGGESTION_Z);
-        graphics.fill(area[0] - 1, area[1] - 1, area[0] + area[2] + 1, area[3], SUGGESTION_BACKGROUND);
-        int hovered = -1;
-        if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
-            hovered = (int) ((mouseY - area[1]) / SUGGESTION_HEIGHT);
-        }
-        for (int i = 0; i < suggestions.size(); i++) {
-            boolean picked = i == suggestionIndex || i == hovered;
-            graphics.drawString(this.font, suggestions.get(i), area[0] + 2,
-                    area[1] + i * SUGGESTION_HEIGHT + 2, picked ? SUGGESTION_PICKED : SUGGESTION_TEXT);
-        }
-        graphics.pose().popPose();
+        completion.render(graphics, this.height, mouseX, mouseY);
     }
 
     /** Whether the thing this row names exists in the running game. */

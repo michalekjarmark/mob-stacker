@@ -7,6 +7,42 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.9.1] - unreleased
+### Added
+- **Region boxes through walls — where the server allows it.** An **X-ray** button on the region
+  screen (and a key binding, unbound by default) draws every box through walls and terrain, so a
+  region can be seen from anywhere around it. It changes only what hides a box, not how the box
+  looks: the same faces, the same edges, the same colours and style. The box you are drawing with
+  **Pick in world…** follows it too, which is when it helps most.
+  **A box seen through a mountain is a small x-ray of the world, so it is the server's to allow:**
+  start the server with the Java argument `-Dmobstacker.xray=true` (in singleplayer, and for whoever
+  hosts a LAN game, the game itself is the server, so the argument goes in the launcher). Without it
+  the button is greyed out and says how to allow it, and the key binding says it is not allowed here.
+  The server says yes or no in the config snapshot; a client's own flag counts for nothing on
+  somebody else's server, and a server older than 1.9.1 says no.
+  Where it is allowed, whether it is on is your own view, one choice for every world, kept in
+  `config/mobstacker-overlay.json`; off by default. Built from render types of the mod's own that
+  switch the depth test off themselves — vanilla's "no depth test" only assumes the test is already
+  off, and right after the particles are drawn it is not. Boxes seen through walls are drawn after
+  everything else in the world, so clouds, water, leaves and mobs do not cover them either; only your
+  hand and the HUD are drawn over them.
+- **`separatorItem` completes item ids as you type**, on the config screen and on the region screen,
+  exactly the way the mob list editor completes entity ids: Tab, Enter or a click takes the
+  highlighted one, the arrows walk the list, Esc closes it. The three boxes share one piece of code
+  now, so they cannot drift apart.
+
+### Fixed
+- **Every horse in a stack keeps its own speed, jump and health** *(1.9.0 stopped the re-roll; this
+  finishes it)*. A stack of horses had one set of numbers — the top horse's — and every horse that
+  came out of it got those. So a good horse merged into a herd of poor ones came back out poor, and,
+  the other way round, a herd merged under one good horse came out one good horse at a time. The
+  stack now remembers each member's numbers, the way it remembers each member's equipment: the horse
+  that comes out is the next one in line with its own, and when the top horse dies the next one
+  takes over with its own. Donkeys, mules, llamas and the rest of the horse family too. A stack that
+  formed before this carries no numbers for its members, and hands out the top horse's, as it did.
+- **On a server, typing `max` or `default` into a config box showed the word** until the server
+  answered *(1.9.0)*. It shows the number the word stands for straight away, as the server stores it.
+
 ## [1.9.0] - 2026-09-23
 ### Added
 - **Whitelists.** Until now the only mob filter was a blacklist — "everything stacks except these".

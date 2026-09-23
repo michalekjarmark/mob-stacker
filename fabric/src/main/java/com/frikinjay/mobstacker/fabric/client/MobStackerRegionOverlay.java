@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.fabric.client;
 
+import com.frikinjay.mobstacker.MobStacker;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -43,11 +44,15 @@ import java.util.Set;
  * <p>The colour comes from the region (see {@code StackRegion.effectiveColor}), so it is shared by
  * everyone looking at the same region; only the decision to look is per player.
  *
- * <p>Boxes are depth-tested, so terrain hides them the way it hides everything else. Drawing them
- * through walls is a follow-up (1.9.1): it needs a render type with the depth test off, which
- * {@link MobStackerRenderTypes} can now build the same way it builds the faces. One box hiding
- * <em>another</em> is not the same question and is fixed here: faces write no depth, so nothing
- * this overlay draws can hide anything else it draws.
+ * <p>Boxes are depth-tested by default, so terrain hides them the way it hides everything else.
+ * <b>Through walls</b> is a switch of its own: it draws the same boxes with render types whose depth
+ * test is off ({@link MobStackerRenderTypes}), so a region can be seen from anywhere in it or around
+ * it. One box hiding <em>another</em> is a different question, answered either way: faces write no
+ * depth, so nothing this overlay draws can hide anything else it draws.
+ *
+ * <p>Through walls is the <b>server's</b> to allow ({@link MobStacker#XRAY_PROPERTY}), because it
+ * shows the player a little of what is behind a wall. The switch is still the player's own and is
+ * remembered as they left it; it just does nothing where the server has not allowed it.
  */
 public final class MobStackerRegionOverlay {
 
@@ -81,6 +86,12 @@ public final class MobStackerRegionOverlay {
         Map<String, WorldView> worlds = new LinkedHashMap<>();
         /** Global on purpose: how a box is drawn is a taste, not a fact about a world. */
         Style style = Style.BOTH;
+        /**
+         * Whether terrain hides a box. Global for the same reason as {@link #style}. Off by default:
+         * a box seen through a mountain is exactly what somebody laying out regions wants, and
+         * exactly what somebody who switched boxes on to glance at one farm does not.
+         */
+        boolean throughWalls = false;
     }
 
     /** What one world's or server's boxes look like to this player. */
@@ -105,7 +116,13 @@ public final class MobStackerRegionOverlay {
     public static void register() {
         file = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mobstacker-overlay.json");
         load();
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(MobStackerRegionOverlay::render);
+        // Two places, one per kind of box. A box terrain may hide is drawn right after the
+        // translucent terrain, while the depth buffer still says where the terrain is. A box seen
+        // through walls is drawn last of all, over everything the world draws: drawn any earlier,
+        // whatever came after it - clouds, and with "Fabulous" graphics water and mobs too, which
+        // are only laid over the frame at the very end - covered it again (round 6).
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> render(context, false));
+        WorldRenderEvents.LAST.register(context -> render(context, true));
     }
 
     // ------------------------------------------------------------------ what is showing
@@ -209,6 +226,34 @@ public final class MobStackerRegionOverlay {
         return state.style;
     }
 
+    /** Whether boxes are drawn through walls right now: switched on, and allowed here. */
+    public static boolean throughWalls() {
+        return state.throughWalls && throughWallsAllowed();
+    }
+
+    /**
+     * Whether whoever runs this world lets boxes be drawn through walls. Always the server's answer,
+     * never this client's: in singleplayer, and for a LAN host, the server is this same game, so it
+     * is this game's own {@code -Dmobstacker.xray} flag; anywhere else it is what the server's last
+     * snapshot said, and a server that has said nothing (older, or no snapshot yet) has not allowed it.
+     */
+    public static boolean throughWallsAllowed() {
+        if (Minecraft.getInstance().hasSingleplayerServer()) {
+            return MobStacker.regionXrayAllowed();
+        }
+        return MobStackerClientNetworking.serverAllowsXray();
+    }
+
+    /** @return true if boxes are drawn through walls afterwards. Does nothing where it is not allowed. */
+    public static boolean toggleThroughWalls() {
+        if (!throughWallsAllowed()) {
+            return false;
+        }
+        state.throughWalls = !state.throughWalls;
+        save();
+        return state.throughWalls;
+    }
+
     /** True when at least one box would be drawn, so the render hook can leave early. */
     public static boolean anythingShowing() {
         WorldView view = here();
@@ -217,8 +262,17 @@ public final class MobStackerRegionOverlay {
 
     // ------------------------------------------------------------------ drawing
 
-    private static void render(WorldRenderContext context) {
+    /**
+     * @param last true when called from {@code WorldRenderEvents.LAST}, which draws the boxes seen
+     *             through walls; false from {@code AFTER_TRANSLUCENT}, which draws the others. Each
+     *             call draws only its own kind, so every box is drawn exactly once a frame.
+     */
+    private static void render(WorldRenderContext context, boolean last) {
         if (Minecraft.getInstance().level == null) {
+            return;
+        }
+        boolean xray = throughWalls();
+        if (xray != last) {
             return;
         }
         List<MobStackerClientRegions.View> regions = anythingShowing()
@@ -235,6 +289,12 @@ public final class MobStackerRegionOverlay {
         PoseStack pose = context.matrixStack();
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         Style style = state.style;
+        // Through walls changes only which types draw the boxes (and when), never what is drawn:
+        // the same faces and edges, with the depth test off.
+        RenderType faceType = xray
+                ? MobStackerRenderTypes.REGION_FACES_XRAY : MobStackerRenderTypes.REGION_FACES;
+        RenderType edgeType = xray
+                ? MobStackerRenderTypes.REGION_EDGES_XRAY : RenderType.lines();
 
         pose.pushPose();
         // The world is drawn relative to the camera, so every box moves with it.
@@ -248,7 +308,7 @@ public final class MobStackerRegionOverlay {
         // them when the frame was put together. Now faces go first and edges on top, so an edge is
         // never tinted over and nothing here can hide anything else here.
         if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            VertexConsumer faces = buffers.getBuffer(faceType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -259,11 +319,11 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+            buffers.endBatch(faceType);
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            VertexConsumer edges = buffers.getBuffer(edgeType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -271,22 +331,24 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
-            buffers.endBatch(RenderType.lines());
+            buffers.endBatch(edgeType);
         }
 
         if (preview != null) {
             // Always both faces and edges, in white: it is a transient answer to "is this the area
-            // I mean", so being unmistakable matters more than matching the chosen style.
-            VertexConsumer faces = buffers.getBuffer(MobStackerRenderTypes.REGION_FACES);
+            // I mean", so being unmistakable matters more than matching the chosen style. It does
+            // follow "through walls", which is at its most useful exactly while a corner is being
+            // looked for on the far side of a hill.
+            VertexConsumer faces = buffers.getBuffer(faceType);
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            buffers.endBatch(MobStackerRenderTypes.REGION_FACES);
+            buffers.endBatch(faceType);
 
-            VertexConsumer edges = buffers.getBuffer(RenderType.lines());
+            VertexConsumer edges = buffers.getBuffer(edgeType);
             LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(RenderType.lines());
+            buffers.endBatch(edgeType);
         }
 
         pose.popPose();
