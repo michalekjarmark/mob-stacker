@@ -116,7 +116,13 @@ public final class MobStackerRegionOverlay {
     public static void register() {
         file = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mobstacker-overlay.json");
         load();
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(MobStackerRegionOverlay::render);
+        // Two places, one per kind of box. A box terrain may hide is drawn right after the
+        // translucent terrain, while the depth buffer still says where the terrain is. A box seen
+        // through walls is drawn last of all, over everything the world draws: drawn any earlier,
+        // whatever came after it - clouds, and with "Fabulous" graphics water and mobs too, which
+        // are only laid over the frame at the very end - covered it again (round 6).
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> render(context, false));
+        WorldRenderEvents.LAST.register(context -> render(context, true));
     }
 
     // ------------------------------------------------------------------ what is showing
@@ -256,8 +262,17 @@ public final class MobStackerRegionOverlay {
 
     // ------------------------------------------------------------------ drawing
 
-    private static void render(WorldRenderContext context) {
+    /**
+     * @param last true when called from {@code WorldRenderEvents.LAST}, which draws the boxes seen
+     *             through walls; false from {@code AFTER_TRANSLUCENT}, which draws the others. Each
+     *             call draws only its own kind, so every box is drawn exactly once a frame.
+     */
+    private static void render(WorldRenderContext context, boolean last) {
         if (Minecraft.getInstance().level == null) {
+            return;
+        }
+        boolean xray = throughWalls();
+        if (xray != last) {
             return;
         }
         List<MobStackerClientRegions.View> regions = anythingShowing()
@@ -274,9 +289,8 @@ public final class MobStackerRegionOverlay {
         PoseStack pose = context.matrixStack();
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         Style style = state.style;
-        // Through walls changes only which types draw the boxes, never what is drawn: the same
-        // faces and edges, with the depth test off.
-        boolean xray = throughWalls();
+        // Through walls changes only which types draw the boxes (and when), never what is drawn:
+        // the same faces and edges, with the depth test off.
         RenderType faceType = xray
                 ? MobStackerRenderTypes.REGION_FACES_XRAY : MobStackerRenderTypes.REGION_FACES;
         RenderType edgeType = xray

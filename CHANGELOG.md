@@ -23,7 +23,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   Where it is allowed, whether it is on is your own view, one choice for every world, kept in
   `config/mobstacker-overlay.json`; off by default. Built from render types of the mod's own that
   switch the depth test off themselves — vanilla's "no depth test" only assumes the test is already
-  off, and right after the particles are drawn, where the boxes are drawn, it is not.
+  off, and right after the particles are drawn it is not. Boxes seen through walls are drawn after
+  everything else in the world, so clouds, water, leaves and mobs do not cover them either; only your
+  hand and the HUD are drawn over them.
 - **`separatorItem` completes item ids as you type**, on the config screen and on the region screen,
   exactly the way the mob list editor completes entity ids: Tab, Enter or a click takes the
   highlighted one, the arrows walk the list, Esc closes it. The three boxes share one piece of code

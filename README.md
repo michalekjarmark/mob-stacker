@@ -390,7 +390,8 @@ is each player's own business, kept client-side and never sent anywhere.
 Boxes need the mod on the client — without it there is simply nothing to see. They are hidden by
 terrain, like everything else in the world, until you switch **X-ray** on: then they are drawn
 through walls and terrain, so a region can be seen from anywhere around it — the box you are
-picking with **Pick in world…** too. Like the style, X-ray is one choice for every world.
+picking with **Pick in world…** too. Nothing in the world covers them then — not clouds, water or
+mobs either; only your hand and the HUD. Like the style, X-ray is one choice for every world.
 
 > 🔒 **X-ray is the server's to allow.** A box seen through a mountain shows a little of what is behind
 > it, so it only works on a server started with the Java argument `-Dmobstacker.xray=true`. In

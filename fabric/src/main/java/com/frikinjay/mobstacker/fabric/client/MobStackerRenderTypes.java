@@ -61,6 +61,9 @@ final class MobStackerRenderTypes extends RenderStateShard {
      * render type sets its own depth test up when its batch is drawn, which overwrites whatever was
      * set before. It has to be a type whose own depth-test shard is off, which is why this exists,
      * and that shard has to be {@link #DEPTH_TEST_OFF} rather than vanilla's.
+     *
+     * <p>Drawn from {@code WorldRenderEvents.LAST}, after everything else in the world, so nothing
+     * the world draws later can cover it again.
      */
     static final RenderType REGION_FACES_XRAY = composite("mobstacker_region_faces_xray",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP, true,
@@ -69,20 +72,23 @@ final class MobStackerRenderTypes extends RenderStateShard {
 
     /**
      * Vanilla's {@code lines()} with the depth test off, for the same view: the same shader, line
-     * width, layering and output buffer, so an edge looks exactly as it does without it.
+     * width and layering, so an edge looks exactly as it does without it.
      *
      * <p>It also writes no depth ({@code COLOR_WRITE}, where vanilla's writes both): with the test
-     * off there is nothing depth would be good for, and writing it would let a box's edges hide
-     * whatever the game draws after the overlay. Under "Fabulous" graphics the lines still go into
-     * the item-entity buffer like vanilla's. That buffer's depth starts out as a copy of the
-     * terrain's, and an edge writes none of its own, so when the frame is put together an edge
-     * behind a wall sits at the wall's depth and is laid over it. (Something drawn into the main
-     * buffer after that copy, such as a mob in front, can still cover an edge there. Cosmetic.)
+     * off there is nothing depth would be good for.
+     *
+     * <p>Unlike vanilla's, it draws into the <b>main</b> buffer, not the item-entity one. It is drawn
+     * from {@code WorldRenderEvents.LAST}, and under "Fabulous" graphics that comes after the
+     * item-entity buffer has already been laid into the frame - a line drawn there would never be
+     * seen. The first version drew there earlier instead, and with "Fabulous" an edge was covered by
+     * any mob, water or cloud in front of whatever lay behind the box: that frame is put together by
+     * depth, and an edge that writes none sits at the depth of whatever is behind it. (Clouds, drawn
+     * after it, covered it with every setting.)
      */
     static final RenderType REGION_EDGES_XRAY = composite("mobstacker_region_edges_xray",
             DefaultVertexFormat.POSITION_COLOR_NORMAL, VertexFormat.Mode.LINES, false,
             List.of(RENDERTYPE_LINES_SHADER, TRANSLUCENT_TRANSPARENCY, DEPTH_TEST_OFF, NO_CULL,
-                    VIEW_OFFSET_Z_LAYERING, ITEM_ENTITY_TARGET, COLOR_WRITE,
+                    VIEW_OFFSET_Z_LAYERING, COLOR_WRITE,
                     new LineStateShard(OptionalDouble.empty())));
 
     private MobStackerRenderTypes() {
