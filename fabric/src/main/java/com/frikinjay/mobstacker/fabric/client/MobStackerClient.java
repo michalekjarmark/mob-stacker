@@ -65,10 +65,15 @@ public final class MobStackerClient implements ClientModInitializer {
                 }
             }
             while (toggleXrayKey.consumeClick()) {
-                boolean on = MobStackerRegionOverlay.toggleThroughWalls();
+                String message;
+                if (!MobStackerRegionOverlay.throughWallsAllowed()) {
+                    message = "message.mobstacker.xray_not_allowed";
+                } else {
+                    message = MobStackerRegionOverlay.toggleThroughWalls()
+                            ? "message.mobstacker.xray_on" : "message.mobstacker.xray_off";
+                }
                 if (client.player != null) {
-                    client.player.displayClientMessage(Component.translatable(
-                            on ? "message.mobstacker.xray_on" : "message.mobstacker.xray_off"), true);
+                    client.player.displayClientMessage(Component.translatable(message), true);
                 }
             }
             if (openRequested) {

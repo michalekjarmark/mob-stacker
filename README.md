@@ -381,7 +381,7 @@ to a corner to read coordinates off F3.
 | Show or hide one | the **Box** button in the region screen |
 | Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
 | How it looks | the **Style** button — `wireframe`, `filled` or `both` *(the default)* |
-| Through walls | the **X-ray** button, or a key binding (unbound by default) — off by default |
+| Through walls | the **X-ray** button, or a key binding (unbound by default) — off by default, and only where the server allows it (below) |
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
@@ -391,6 +391,17 @@ Boxes need the mod on the client — without it there is simply nothing to see. 
 terrain, like everything else in the world, until you switch **X-ray** on: then they are drawn
 through walls and terrain, so a region can be seen from anywhere around it — the box you are
 picking with **Pick in world…** too. Like the style, X-ray is one choice for every world.
+
+> 🔒 **X-ray is the server's to allow.** A box seen through a mountain shows a little of what is behind
+> it, so it only works on a server started with the Java argument `-Dmobstacker.xray=true`. In
+> singleplayer (and when you host a LAN game) your game *is* the server, so add the argument in your
+> launcher's Java arguments. Elsewhere the button is greyed out and tells you why; a client's own flag
+> does not count on somebody else's server.
+
+> 🎨 **Shader packs** (Iris) draw the boxes their own way, and some of them barely at all — against the
+> sky in particular: with a pack loaded, the pack decides how every line and translucent face in the
+> world is lit and blended, the boxes included. In testing, Complementary Reimagined showed them nearly
+> as intended and Sildur's Vibrant hardly at all.
 
 ## Names & name tags
 

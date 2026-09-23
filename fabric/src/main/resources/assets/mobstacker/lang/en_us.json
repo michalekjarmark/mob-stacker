@@ -6,5 +6,6 @@
   "message.mobstacker.overlay_on": "Region boxes: showing all",
   "message.mobstacker.overlay_off": "Region boxes: hidden",
   "message.mobstacker.xray_on": "Region boxes: drawn through walls",
-  "message.mobstacker.xray_off": "Region boxes: hidden by terrain"
+  "message.mobstacker.xray_off": "Region boxes: hidden by terrain",
+  "message.mobstacker.xray_not_allowed": "Region boxes through walls: not allowed here"
 }

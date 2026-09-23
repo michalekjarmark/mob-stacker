@@ -402,6 +402,8 @@ public final class MobStackerRegionScreen extends Screen {
             MobStackerRegionOverlay.toggleThroughWalls();
             rebuildOverlayRow();
         }).bounds(this.width / 2 + OVERLAY_WALLS_X, y, OVERLAY_WALLS_W, 20).build();
+        // The server's to allow (MobStacker.XRAY_PROPERTY); the tooltip says how.
+        walls.active = MobStackerRegionOverlay.throughWallsAllowed();
         this.overlayWalls = walls;
         addRenderableWidget(walls);
     }
@@ -925,12 +927,22 @@ public final class MobStackerRegionScreen extends Screen {
         }
 
         if (overWalls(mouseX, mouseY)) {
+            Component how;
+            if (MobStackerRegionOverlay.throughWallsAllowed()) {
+                how = Component.literal("Your own view, the same in every world. Never sent to the server.")
+                        .withStyle(ChatFormatting.DARK_GRAY);
+            } else if (remote) {
+                how = Component.literal("Not allowed on this server. Its admin can allow it by starting the server with -D"
+                        + MobStacker.XRAY_PROPERTY + "=true.").withStyle(ChatFormatting.GOLD);
+            } else {
+                how = Component.literal("Off until the game is started with -D" + MobStacker.XRAY_PROPERTY
+                        + "=true (a Java argument, set in the launcher).").withStyle(ChatFormatting.GOLD);
+            }
             ScreenTooltip.render(guiGraphics, this.font, List.of(
                     Component.literal("x-ray").withStyle(ChatFormatting.WHITE),
                     Component.literal("Draw region boxes through walls and terrain, so a region can be seen from anywhere around it.")
                             .withStyle(ChatFormatting.GRAY),
-                    Component.literal("Your own view, the same in every world. Never sent to the server.")
-                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+                    how), this.width, mouseX, mouseY);
             return;
         }
 

@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.fabric.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.RenderStateShard;
@@ -17,6 +18,21 @@ import java.util.OptionalDouble;
  * composite type uses (shader, transparency, depth test, cull, layering, output, write mask, line).
  */
 final class MobStackerRenderTypes extends RenderStateShard {
+
+    /**
+     * The depth test switched off - actually switched off.
+     *
+     * <p>Vanilla's {@code NO_DEPTH_TEST} does <b>nothing</b> when it is set up: it takes the test to
+     * be off already, which is the state vanilla's own types leave behind. The particle renderer does
+     * not - it switches the test on and leaves it on - and Fabric's {@code AFTER_TRANSLUCENT}, where
+     * the overlay draws, comes straight after the particles. So the first x-ray types were
+     * depth-tested all along, and round 5 saw no box through any wall. This one switches the test off
+     * itself, and leaves it off, the state every vanilla type with a depth test leaves when cleared.
+     * With the test off nothing is written to the depth buffer either.
+     */
+    private static final RenderStateShard DEPTH_TEST_OFF = new RenderStateShard("mobstacker_depth_test_off",
+            RenderSystem::disableDepthTest, () -> { }) {
+    };
 
     /**
      * A region's translucent faces: vanilla's {@code debugFilledBox} in every respect but one - it
@@ -43,11 +59,12 @@ final class MobStackerRenderTypes extends RenderStateShard {
      *
      * <p>Wrapping the vanilla type in {@code RenderSystem.disableDepthTest()} does not do this - a
      * render type sets its own depth test up when its batch is drawn, which overwrites whatever was
-     * set before. It has to be a type whose own depth-test shard is off, which is why this exists.
+     * set before. It has to be a type whose own depth-test shard is off, which is why this exists,
+     * and that shard has to be {@link #DEPTH_TEST_OFF} rather than vanilla's.
      */
     static final RenderType REGION_FACES_XRAY = composite("mobstacker_region_faces_xray",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLE_STRIP, true,
-            List.of(POSITION_COLOR_SHADER, TRANSLUCENT_TRANSPARENCY, NO_DEPTH_TEST,
+            List.of(POSITION_COLOR_SHADER, TRANSLUCENT_TRANSPARENCY, DEPTH_TEST_OFF,
                     VIEW_OFFSET_Z_LAYERING, COLOR_WRITE));
 
     /**
@@ -64,7 +81,7 @@ final class MobStackerRenderTypes extends RenderStateShard {
      */
     static final RenderType REGION_EDGES_XRAY = composite("mobstacker_region_edges_xray",
             DefaultVertexFormat.POSITION_COLOR_NORMAL, VertexFormat.Mode.LINES, false,
-            List.of(RENDERTYPE_LINES_SHADER, TRANSLUCENT_TRANSPARENCY, NO_DEPTH_TEST, NO_CULL,
+            List.of(RENDERTYPE_LINES_SHADER, TRANSLUCENT_TRANSPARENCY, DEPTH_TEST_OFF, NO_CULL,
                     VIEW_OFFSET_Z_LAYERING, ITEM_ENTITY_TARGET, COLOR_WRITE,
                     new LineStateShard(OptionalDouble.empty())));
 

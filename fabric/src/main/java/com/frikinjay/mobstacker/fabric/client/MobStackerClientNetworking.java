@@ -35,6 +35,8 @@ public final class MobStackerClientNetworking {
     private static final Map<String, Integer> CEILINGS = new LinkedHashMap<>();
     private static boolean authorized;
     private static String status = "";
+    // Whether the server lets region boxes be drawn through walls. False until it says otherwise.
+    private static boolean xrayAllowed;
 
     /** One region as the server described it, for the region editor screen. Corners as given. */
     public record RegionInfo(String name, String type, String dimension,
@@ -151,8 +153,12 @@ public final class MobStackerClientNetworking {
                         x1, y1, z1, x2, y2, z2, priority, color, overrides,
                         regionLists, regionCeilings));
             }
+            // Written last by 1.9.1 and later; a server older than that sends nothing here, and a
+            // server that has not said yes has said no.
+            boolean incomingXray = buf.isReadable() && buf.readBoolean();
             client.execute(() -> {
                 authorized = incomingAuth;
+                xrayAllowed = incomingXray;
                 status = incomingStatus;
                 SNAPSHOT.clear();
                 SNAPSHOT.putAll(incoming);
@@ -195,6 +201,11 @@ public final class MobStackerClientNetworking {
     /** True when the server told us this player is an operator (may edit). */
     public static boolean authorized() {
         return authorized;
+    }
+
+    /** True when the server's last snapshot allowed region boxes through walls. */
+    public static boolean serverAllowsXray() {
+        return xrayAllowed;
     }
 
     /** True once at least one snapshot has arrived from the server. */
@@ -274,6 +285,7 @@ public final class MobStackerClientNetworking {
         LISTS.clear();
         CEILINGS.clear();
         authorized = false;
+        xrayAllowed = false;
         status = "";
     }
 }

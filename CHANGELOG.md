@@ -9,14 +9,21 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 
 ## [1.9.1] - unreleased
 ### Added
-- **Region boxes through walls.** An **X-ray** button on the region screen (and a key binding,
-  unbound by default) draws every box through walls and terrain, so a region can be seen from
-  anywhere around it. It changes only what hides a box, not how the box looks: the same faces, the
-  same edges, the same colours and style. The box you are drawing with **Pick in world…** follows it
-  too, which is when it helps most. Like the style it is your own view, one choice for every world,
-  kept in `config/mobstacker-overlay.json` and never sent anywhere; off by default. Built from
-  render types of the mod's own with the depth test off — the only way to do it, since a vanilla type
-  sets its own depth test when it draws and undoes anything set before it.
+- **Region boxes through walls — where the server allows it.** An **X-ray** button on the region
+  screen (and a key binding, unbound by default) draws every box through walls and terrain, so a
+  region can be seen from anywhere around it. It changes only what hides a box, not how the box
+  looks: the same faces, the same edges, the same colours and style. The box you are drawing with
+  **Pick in world…** follows it too, which is when it helps most.
+  **A box seen through a mountain is a small x-ray of the world, so it is the server's to allow:**
+  start the server with the Java argument `-Dmobstacker.xray=true` (in singleplayer, and for whoever
+  hosts a LAN game, the game itself is the server, so the argument goes in the launcher). Without it
+  the button is greyed out and says how to allow it, and the key binding says it is not allowed here.
+  The server says yes or no in the config snapshot; a client's own flag counts for nothing on
+  somebody else's server, and a server older than 1.9.1 says no.
+  Where it is allowed, whether it is on is your own view, one choice for every world, kept in
+  `config/mobstacker-overlay.json`; off by default. Built from render types of the mod's own that
+  switch the depth test off themselves — vanilla's "no depth test" only assumes the test is already
+  off, and right after the particles are drawn, where the boxes are drawn, it is not.
 - **`separatorItem` completes item ids as you type**, on the config screen and on the region screen,
   exactly the way the mob list editor completes entity ids: Tab, Enter or a click takes the
   highlighted one, the arrows walk the list, Esc closes it. The three boxes share one piece of code

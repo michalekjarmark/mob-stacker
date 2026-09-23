@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.fabric.client;
 
+import com.frikinjay.mobstacker.MobStacker;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -48,6 +49,10 @@ import java.util.Set;
  * test is off ({@link MobStackerRenderTypes}), so a region can be seen from anywhere in it or around
  * it. One box hiding <em>another</em> is a different question, answered either way: faces write no
  * depth, so nothing this overlay draws can hide anything else it draws.
+ *
+ * <p>Through walls is the <b>server's</b> to allow ({@link MobStacker#XRAY_PROPERTY}), because it
+ * shows the player a little of what is behind a wall. The switch is still the player's own and is
+ * remembered as they left it; it just does nothing where the server has not allowed it.
  */
 public final class MobStackerRegionOverlay {
 
@@ -215,12 +220,29 @@ public final class MobStackerRegionOverlay {
         return state.style;
     }
 
+    /** Whether boxes are drawn through walls right now: switched on, and allowed here. */
     public static boolean throughWalls() {
-        return state.throughWalls;
+        return state.throughWalls && throughWallsAllowed();
     }
 
-    /** @return true if boxes are drawn through walls afterwards. */
+    /**
+     * Whether whoever runs this world lets boxes be drawn through walls. Always the server's answer,
+     * never this client's: in singleplayer, and for a LAN host, the server is this same game, so it
+     * is this game's own {@code -Dmobstacker.xray} flag; anywhere else it is what the server's last
+     * snapshot said, and a server that has said nothing (older, or no snapshot yet) has not allowed it.
+     */
+    public static boolean throughWallsAllowed() {
+        if (Minecraft.getInstance().hasSingleplayerServer()) {
+            return MobStacker.regionXrayAllowed();
+        }
+        return MobStackerClientNetworking.serverAllowsXray();
+    }
+
+    /** @return true if boxes are drawn through walls afterwards. Does nothing where it is not allowed. */
     public static boolean toggleThroughWalls() {
+        if (!throughWallsAllowed()) {
+            return false;
+        }
         state.throughWalls = !state.throughWalls;
         save();
         return state.throughWalls;
@@ -254,9 +276,10 @@ public final class MobStackerRegionOverlay {
         Style style = state.style;
         // Through walls changes only which types draw the boxes, never what is drawn: the same
         // faces and edges, with the depth test off.
-        RenderType faceType = state.throughWalls
+        boolean xray = throughWalls();
+        RenderType faceType = xray
                 ? MobStackerRenderTypes.REGION_FACES_XRAY : MobStackerRenderTypes.REGION_FACES;
-        RenderType edgeType = state.throughWalls
+        RenderType edgeType = xray
                 ? MobStackerRenderTypes.REGION_EDGES_XRAY : RenderType.lines();
 
         pose.pushPose();
