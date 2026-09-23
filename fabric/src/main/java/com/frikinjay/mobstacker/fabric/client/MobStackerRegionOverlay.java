@@ -5,14 +5,14 @@ import com.google.gson.Gson;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.google.gson.GsonBuilder;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -121,6 +121,19 @@ public final class MobStackerRegionOverlay {
     private static TextureTarget solidDepth;
     /** True from the moment {@link #solidDepth} is filled in a frame until that frame's boxes are drawn. */
     private static boolean solidDepthKept;
+
+    /**
+     * The overlay's own vertex buffer, drawn from and emptied on the spot for every batch.
+     *
+     * <p>Not the game's shared buffer source ({@code renderBuffers().bufferSource()}), which is what
+     * the boxes used until round 7 - and which is not the game's to give out while the world is
+     * drawn when Iris is installed, shader pack or not: Iris hands out its own buffered source for
+     * that time, and what goes into it is drawn when Iris flushes it, not when it is asked to. In the
+     * round 5-7 modpack that put the boxes under water and clouds whatever this code did, and before
+     * that made them depend on the cloud setting. A buffer of our own is drawn exactly when and how
+     * this class says. Grows as needed.
+     */
+    private static final BufferBuilder BUILDER = new BufferBuilder(RenderType.SMALL_BUFFER_SIZE);
 
     private MobStackerRegionOverlay() {
     }
@@ -334,7 +347,6 @@ public final class MobStackerRegionOverlay {
 
         Vec3 camera = context.camera().getPosition();
         PoseStack pose = context.matrixStack();
-        MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         Style style = state.style;
         // Through walls changes only which types draw the boxes (and when), never what is drawn:
         // the same faces and edges, with the depth test off.
@@ -353,7 +365,7 @@ public final class MobStackerRegionOverlay {
         // another. Faces go first and edges on top, so an edge is never tinted over and nothing here
         // can hide anything else here.
         if (style == Style.FILLED || style == Style.BOTH) {
-            VertexConsumer faces = buffers.getBuffer(faceType);
+            BufferBuilder faces = begin(faceType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -364,11 +376,11 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            buffers.endBatch(faceType);
+            faceType.end(faces, RenderSystem.getVertexSorting());
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
-            VertexConsumer edges = buffers.getBuffer(edgeType);
+            BufferBuilder edges = begin(edgeType);
             for (MobStackerClientRegions.View view : regions) {
                 if (!isShown(view.name())) {
                     continue;
@@ -376,7 +388,7 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
-            buffers.endBatch(edgeType);
+            edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
         if (preview != null) {
@@ -384,19 +396,31 @@ public final class MobStackerRegionOverlay {
             // I mean", so being unmistakable matters more than matching the chosen style. It does
             // follow "through walls", which is at its most useful exactly while a corner is being
             // looked for on the far side of a hill.
-            VertexConsumer faces = buffers.getBuffer(faceType);
+            BufferBuilder faces = begin(faceType);
             LevelRenderer.addChainedFilledBoxVertices(pose, faces,
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            buffers.endBatch(faceType);
+            faceType.end(faces, RenderSystem.getVertexSorting());
 
-            VertexConsumer edges = buffers.getBuffer(edgeType);
+            BufferBuilder edges = begin(edgeType);
             LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            buffers.endBatch(edgeType);
+            edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
         pose.popPose();
+    }
+
+    /**
+     * Starts a batch of one type in {@link #BUILDER}; {@code type.end(...)} draws and empties it.
+     * A batch left half-built by an exception in an earlier frame is thrown away first.
+     */
+    private static BufferBuilder begin(RenderType type) {
+        if (BUILDER.building()) {
+            BUILDER.discard();
+        }
+        BUILDER.begin(type.mode(), type.format());
+        return BUILDER;
     }
 
     /**

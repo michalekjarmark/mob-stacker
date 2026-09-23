@@ -59,10 +59,7 @@ final class MobStackerRenderTypes extends RenderStateShard {
      *
      * <p>The second is what matters. The boxes are drawn last of all, and under "Fabulous" graphics
      * the item-entity buffer has been laid into the frame by then - a line drawn there would never be
-     * seen. Before round 6 the edges went there earlier in the frame, with vanilla's type; in the
-     * round 6 modpack (Sodium, Fabulous) they never showed at all, while vanilla's own hitbox lines
-     * (F3+B), drawn into the same buffer but earlier still, did. Drawn last, into the finished frame,
-     * they depend on nothing that happens in between.
+     * seen.
      */
     static final RenderType REGION_EDGES = composite("mobstacker_region_edges",
             DefaultVertexFormat.POSITION_COLOR_NORMAL, VertexFormat.Mode.LINES, false,

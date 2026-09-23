@@ -29,6 +29,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   (kept aside for it before Fabulous wipes it). Clouds, water, leaves and mobs are now in front of a
   box or behind it as they really are; the one thing that does not tint a box any more is water it is
   under, which it is now drawn over. Fast and Fancy draw the boxes at the end too.
+- **With Iris installed — even with no shader pack — region boxes were drawn at the wrong moment**
+  *(1.8.0)*: under water and clouds, and with "Fabulous" graphics hardly at all (only the faces, and
+  only with clouds on). The boxes were drawn through the game's shared buffer, and while the world is
+  being drawn Iris hands out a buffered one of its own instead, which draws what it is given when Iris
+  decides to. The boxes now have a buffer of their own and are drawn on the spot.
 - **Removing a per-type ceiling in the mob list screen crashed the game** *(1.9.0)*. In singleplayer
   the screen reads the config while the game's own server changes it, and a list or map being read
   while the other side changed it threw an error. Every list and map in the config — the mob lists,

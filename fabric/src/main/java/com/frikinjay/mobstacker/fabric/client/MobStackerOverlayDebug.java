@@ -62,6 +62,10 @@ final class MobStackerOverlayDebug {
         out.append("graphics=").append(client.options.graphicsMode().get())
                 .append(" fabulous=").append(Minecraft.useShaderTransparency())
                 .append(" clouds=").append(client.options.getCloudsType())
+                // Whose buffer source the game hands out right now: Iris swaps in its own for the
+                // whole of world rendering, and the overlay drawing through it is what hid the boxes
+                // in round 5-7's modpack. The overlay has its own buffer since; this says who else is there.
+                .append(" bufferSource=").append(client.renderBuffers().bufferSource().getClass().getName())
                 .append(" drawFbo=").append(GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING))
                 .append(" [main=").append(id(client.getMainRenderTarget()))
                 .append(" translucent=").append(id(level.getTranslucentTarget()))
