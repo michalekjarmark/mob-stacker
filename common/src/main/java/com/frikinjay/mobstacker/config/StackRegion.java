@@ -41,8 +41,10 @@ public class StackRegion implements MobLists.Holder {
     // (somebody edited those by hand), so it can only ever add information, never contradict it.
     private int[] corners;
     // Settings that differ inside this region, keyed by the same ids the commands and the GUI use.
-    // Volatile because in singleplayer the config screen reads this from the client thread while the
-    // integrated server writes it, and a stale reference would leave the screen showing old state.
+    // Volatile and COPY-ON-WRITE, like every collection in this class: in singleplayer the screens
+    // read them from the render thread while the integrated server changes them, so a change builds
+    // a new map or list and swaps it in, and a stored one is never changed in place. Iterating one
+    // the other thread was changing is what crashed the ceilings tab in round 5.
     private volatile Map<String, String> settings;
     // Decides which region wins where two overlap: higher first, then the smaller region.
     private int priority;
@@ -208,32 +210,38 @@ public class StackRegion implements MobLists.Holder {
 
     /** The settings overridden here, keyed by setting id. Never null. */
     public Map<String, String> getSettings() {
-        return settings == null ? Collections.emptyMap() : Collections.unmodifiableMap(settings);
+        Map<String, String> own = settings;
+        return own == null ? Collections.emptyMap() : Collections.unmodifiableMap(own);
     }
 
     /** The value this region gives {@code id}, or null when it follows the global config. */
     public String getSetting(String id) {
-        return settings == null ? null : settings.get(id);
+        Map<String, String> own = settings;
+        return own == null ? null : own.get(id);
     }
 
     /** @return true when the stored value actually changed */
     public boolean setSetting(String id, String value) {
-        if (settings == null) {
-            settings = new LinkedHashMap<>();
+        Map<String, String> own = settings;
+        if (own != null && value.equals(own.get(id))) {
+            return false;
         }
-        return !value.equals(settings.put(id, value));
+        Map<String, String> next = own == null ? new LinkedHashMap<>() : new LinkedHashMap<>(own);
+        next.put(id, value);
+        settings = next;
+        return true;
     }
 
     /** @return true when an override was actually removed */
     public boolean clearSetting(String id) {
-        if (settings == null) {
+        Map<String, String> own = settings;
+        if (own == null || !own.containsKey(id)) {
             return false;
         }
-        boolean removed = settings.remove(id) != null;
-        if (settings.isEmpty()) {
-            settings = null;
-        }
-        return removed;
+        Map<String, String> next = new LinkedHashMap<>(own);
+        next.remove(id);
+        settings = next.isEmpty() ? null : next;
+        return true;
     }
 
     /** The backing list, or null when this region does not override it. */
@@ -277,23 +285,30 @@ public class StackRegion implements MobLists.Holder {
             return false;
         }
         List<String> list = backing(kind);
-        if (list == null) {
-            // The first entry is also what turns the override on: until now this region inherited.
-            list = new ArrayList<>();
-            store(kind, list);
-        } else if (list.contains(value)) {
+        if (list != null && list.contains(value)) {
             return false;
         }
-        list.add(value);
+        // With no list yet, the first entry is also what turns the override on: until now this
+        // region inherited.
+        List<String> next = list == null ? new ArrayList<>() : new ArrayList<>(list);
+        next.add(value);
+        store(kind, next);
         return true;
     }
 
     @Override
     public boolean removeFromList(MobListKind kind, String entry) {
+        String value = MobLists.normalise(kind, entry);
         List<String> list = backing(kind);
+        if (list == null || !list.contains(value)) {
+            return false;
+        }
         // An emptied list is kept, not dropped: "nothing stacks here" is a thing a region can mean,
         // and silently falling back to the global list instead would be the opposite of what was asked.
-        return list != null && list.remove(MobLists.normalise(kind, entry));
+        List<String> next = new ArrayList<>(list);
+        next.remove(value);
+        store(kind, next);
+        return true;
     }
 
     @Override
@@ -316,7 +331,8 @@ public class StackRegion implements MobLists.Holder {
 
     /** The ceilings set here, entity id -> size. Never null. */
     public Map<String, Integer> getMaxStackSizes() {
-        return maxStackSizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(maxStackSizes);
+        Map<String, Integer> sizes = maxStackSizes;
+        return sizes == null ? Collections.emptyMap() : Collections.unmodifiableMap(sizes);
     }
 
     /** Whether this region sets any per-type ceiling. Cheap; see the note on the global one. */
@@ -334,20 +350,24 @@ public class StackRegion implements MobLists.Holder {
     /** Sets a ceiling here, or drops it when {@code size} is null. @return true when something changed */
     public boolean setMaxStackSize(String entityId, Integer size) {
         String key = MobLists.normaliseEntityId(entityId);
+        Map<String, Integer> sizes = maxStackSizes;
         if (size == null) {
-            if (maxStackSizes == null) {
+            if (sizes == null || !sizes.containsKey(key)) {
                 return false;
             }
-            boolean removed = maxStackSizes.remove(key) != null;
-            if (maxStackSizes.isEmpty()) {
-                maxStackSizes = null;
-            }
-            return removed;
+            Map<String, Integer> next = new LinkedHashMap<>(sizes);
+            next.remove(key);
+            maxStackSizes = next.isEmpty() ? null : next;
+            return true;
         }
-        if (maxStackSizes == null) {
-            maxStackSizes = new LinkedHashMap<>();
+        Integer value = Math.max(1, size);
+        if (sizes != null && value.equals(sizes.get(key))) {
+            return false;
         }
-        return !Integer.valueOf(Math.max(1, size)).equals(maxStackSizes.put(key, Math.max(1, size)));
+        Map<String, Integer> next = sizes == null ? new LinkedHashMap<>() : new LinkedHashMap<>(sizes);
+        next.put(key, value);
+        maxStackSizes = next;
+        return true;
     }
 
     public String describeBounds() {

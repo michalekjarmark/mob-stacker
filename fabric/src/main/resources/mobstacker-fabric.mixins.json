@@ -6,6 +6,7 @@
   "client": [
   ],
   "mixins": [
+    "ShearsDispenseItemBehaviorMixin",
     "mobs.MushroomCowMixin",
     "mobs.SheepMixin"
   ],
