@@ -10,6 +10,7 @@ import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
 import com.frikinjay.mobstacker.mixin.OcelotAccessor;
 import com.frikinjay.mobstacker.mixin.FoxAccessor;
+import com.frikinjay.mobstacker.mixin.StriderAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -33,6 +34,7 @@ import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
+import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
@@ -40,6 +42,7 @@ import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -448,8 +451,7 @@ public final class MobStacker {
     }
 
     private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
+        finalizeLikeANewMob(source, target, serverLevel);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
@@ -461,6 +463,42 @@ public final class MobStacker {
         copyVariantData(source, target);
         copyAgeData(source, target);
         MobStackerAPI.applyEntityDataModifiers(source, target);
+    }
+
+    /**
+     * Runs vanilla's {@code finalizeSpawn} on a mob the mod is creating - a stack's remainder after a
+     * kill, or a mob taken out of a stack - and takes back what it hands out besides the mob itself.
+     *
+     * <p>A spider gets a skeleton on its back one time in a hundred, a strider a zombified piglin (and
+     * a saddle for it) or a baby strider, and a baby zombie may climb onto a chicken, new or nearby. A
+     * natural spawn adds the rider to the world along with its mount; the mod adds only the mob, so the
+     * rider rode along unseen, made the stack a mount that nothing merges into, and turned into a real
+     * skeleton the next time the chunk was loaded (round 7's server test: 3 in 250 spider kills). The
+     * random effect a spider may roll on Hard is the same kind of thing: it belonged to a spider that
+     * spawned, not to one more member of a stack.
+     */
+    private static void finalizeLikeANewMob(Mob source, Mob target, ServerLevel serverLevel) {
+        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
+                MobSpawnType.NATURAL, null, null);
+        for (Entity rider : List.copyOf(target.getPassengers())) {
+            rider.stopRiding();
+            rider.discard();
+        }
+        Entity mount = target.getVehicle();
+        if (mount != null) {
+            target.stopRiding();
+            if (mount.tickCount == 0) {
+                // Made for this mob a moment ago and already in the world (a chicken jockey's chicken).
+                mount.discard();
+            } else if (mount instanceof Chicken chicken) {
+                // A chicken that was already there: it stays, and is no longer anybody's mount.
+                chicken.setChickenJockey(false);
+            }
+        }
+        if (target instanceof Strider strider && strider.isSaddled()) {
+            ((StriderAccessor) strider).mobstacker$steering().setSaddle(false);
+        }
+        target.removeAllEffects();
     }
 
     /**
@@ -716,8 +754,7 @@ public final class MobStacker {
 
     private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
                                                     boolean markAsSeparated) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
+        finalizeLikeANewMob(source, target, serverLevel);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;

@@ -27,6 +27,7 @@
     "FoxAccessor",
     "OcelotAccessor",
     "ParrotAccessor",
+    "StriderAccessor",
     "PlayerMixin",
     "ServerEntityMixin",
     "mobs.MilkableMixin",

@@ -9,6 +9,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 
 ## [1.9.3] - unreleased
 ### Fixed
+- **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
+  mod creates - what is left of a stack after a kill, a mob taken out of one - goes through vanilla's
+  spawn setup, and that setup sometimes adds a rider: a skeleton on one spider in a hundred, a
+  zombified piglin (with a saddle) or a baby strider on a strider, a chicken under a baby zombie. The
+  mod added only the mob, so the rider travelled along out of sight, the stack became a mount that no
+  other mob would join, and the next time the chunk was loaded the rider appeared for real - a
+  skeleton from nowhere. Found by the first scripted server test (3 in 250 spider kills; none in 250
+  after the fix, nor in 98 strider kills). A random effect a spider may roll on Hard is dropped the
+  same way.
 - **Shearing a stack of mooshrooms left a stack of cows named "Mooshroom x10"** that no other cow
   would join. Vanilla copies a sheared mooshroom's name onto the cow it becomes, and that name was
   the stack's own label; the cow stack read it as a name a player had given. The cow stack is now
