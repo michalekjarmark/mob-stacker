@@ -1404,6 +1404,25 @@ public final class MobStacker {
         }
     }
 
+    /**
+     * Carries a whole stack onto the mob that replaces it when it turns into another kind: a zombie
+     * drowning, a pig or villager struck by lightning, a mooshroom sheared into a cow. Called once
+     * vanilla has built the new mob, and after vanilla has copied the old one's name onto it.
+     *
+     * <p>That copy is the trap. When the old name was the mod's own label ("Mooshroom x10"), the new
+     * mob carried it as an ordinary name - the wrong kind in it, and, not being its own label, read as
+     * one a player gave, so the new stack refused every mob of its kind (round 7's server test). A
+     * name a player gave stays, whether the name tag recorded it or it predates 1.7.0 and nothing did.
+     */
+    public static void carryStackInto(Mob source, Mob target) {
+        setStackSize(target, getStackSize(source));
+        if (target.hasCustomName() && source.hasCustomName() && hasNonCustomName(source)) {
+            target.setCustomName(null);
+        }
+        copyStackNaming(source, target);
+        updateStackDisplay(target);
+    }
+
     /** Carries a player-given name onto a mob that replaces this one (a remainder, a conversion). */
     public static void copyStackNaming(Mob source, Mob target) {
         if (!(source instanceof ICustomDataHolder from) || !(target instanceof ICustomDataHolder to)) {

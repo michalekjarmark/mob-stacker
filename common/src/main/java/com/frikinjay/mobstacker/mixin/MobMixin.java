@@ -39,14 +39,9 @@ public class MobMixin {
         if (mob == null) {
                 cir.setReturnValue(null);
         } else {
-            MobStacker.setStackSize(mob, MobStacker.getStackSize(instance));
-            if(mob.hasCustomName()) {
-                mob.setCustomName(null);
-            }
             // A stack a player named keeps its name through a conversion (zombie -> drowned, ...),
             // so the label is rebuilt from the name they gave rather than dropped on the floor.
-            MobStacker.copyStackNaming(instance, mob);
-            MobStacker.updateStackDisplay(mob);
+            MobStacker.carryStackInto(instance, mob);
         }
     }
 

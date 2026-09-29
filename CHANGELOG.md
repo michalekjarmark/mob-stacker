@@ -7,6 +7,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.9.3] - unreleased
+### Fixed
+- **Shearing a stack of mooshrooms left a stack of cows named "Mooshroom x10"** that no other cow
+  would join. Vanilla copies a sheared mooshroom's name onto the cow it becomes, and that name was
+  the stack's own label; the cow stack read it as a name a player had given. The cow stack is now
+  labelled "Cow x10" and takes cows like any other. Found by the first scripted server test.
+- **A stack a player named keeps its name when lightning turns it into something else** (a pig into a
+  zombified piglin, a villager into a witch), as it already did when a zombie drowned. Every
+  conversion now goes through one path, which also keeps a name given before 1.7.0 began
+  recording them.
+
 ## [1.9.2] - 2026-09-23
 ### Added
 - **`-Dmobstacker.overlayDebug=true`**, a Java argument that has the region boxes write to the log,
