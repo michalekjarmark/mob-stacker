@@ -35,8 +35,18 @@ preserved — the mobs are still there, they just travel together.
   `PLAYERS` (only near players). Stacking ships **off** until you opt in.
 - 🧩 **Settings per region** — almost every setting can differ inside a region, so a cow farm and a
   grinder in the same world behave differently. Regions are created, redrawn and deleted from the
-  GUI or the commands, and can be **drawn in the world** in a colour of their own.
+  GUI or the commands, and can be **drawn in the world** in a colour of their own, with their names.
 - 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
+- 🌋 **Farms keep working** — a fall, fire, lava, drowning or an explosion hurts every mob in a stack,
+  so a fall-damage farm kills the whole stack instead of one mob of it.
+- 🧠 **Stacks without AI** — optionally, stacks stop thinking (they still fall and float) or freeze
+  entirely, which saves the server the work.
+- 🏭 **Stacking by spawn origin** — stack the spawner farm and leave the wildlife alone, or the other
+  way round.
+- 🔍 **Ask a stack why** — `/mobstacker inspect` shows a stack up close and the rule that keeps it from
+  stacking; `/mobstacker stats` counts what the stacks stand for.
+- ↩️ **A way back out** — `/mobstacker unstack` splits stacks back into their mobs before the mod is
+  removed.
 - ⚔️ **Sweeping Edge support** — vanilla sweep damage applied to a stack, optionally mob by mob.
 - 🛡️ **Per-mob equipment** — every stacked mob keeps its own armour and weapons, and drops them when
   it is the one that dies, Looting and drop chances included.
@@ -83,6 +93,7 @@ given its own value inside a region.
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |
 | `stackHealth` | The stack shares one health bar, scaled to its size. Forces `killWholeStackOnDeath` on | `false` |
+| `stackAi` | What a stack of two or more does with its AI: `NORMAL`, `PHYSICS_ONLY` or `FROZEN` — see [Stacks without AI](#stacks-without-ai) | `NORMAL` |
 | `mobListMode` | `BLACKLIST` (everything stacks except the ignored lists) or `WHITELIST` (nothing stacks except the allowed lists) | `BLACKLIST` |
 | `ignoredEntities` | Entity ids that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
 | `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse"]` |
@@ -90,6 +101,22 @@ given its own value inside a region.
 | `allowedMods` | Mod ids whose entities stack, in `WHITELIST` mode | `[]` |
 | `maxStackSizes` | A ceiling for one mob type, e.g. `{"minecraft:cow": 64}`. Anything unlisted follows `maxStackSize` | `{}` |
 | `regions` | Allow/deny cuboids — see [Regions](#regions--modes) | `[]` |
+
+### Spawn origin
+
+Which mobs stack, by how they came into the world. A mob remembers it from 1.10.0 on; one from
+before that, or hatched from an egg, counts as natural. What is left of a stack after a kill, a mob
+taken out of one and a mob that converts keep the origin they came from.
+
+| Setting | Description | Default |
+|---|---|---|
+| `stackNaturalMobs` | Mobs that spawned on their own — in the dark, with the world, in a patrol or a raid — and mobs whose origin is unknown | `true` |
+| `stackSpawnerMobs` | Mobs from monster spawners | `true` |
+| `stackBredMobs` | Mobs born from breeding, vanilla's or a stack's | `true` |
+| `stackPlacedMobs` | Mobs a player put there: spawn eggs, dispensers, buckets, `/summon` | `true` |
+
+So `/mobstacker set stackNaturalMobs false` stacks the spawner farm and leaves the wildlife alone —
+or turn it off only inside a region with `/mobstacker region set <name> stackNaturalMobs false`.
 
 ### Combat
 
@@ -101,6 +128,7 @@ given its own value inside a region.
 | `sweepingEdgeSingleHit` | Put the whole sweep into the one hit and let overflow carry it down. Needs `sweepingEdgePerMob` | `false` |
 | `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: full swing, no crit, not sprinting, on the ground, sword in hand | `false` |
 | `sweepingEdgeMaxKills` | Cap on mobs one sweep may kill per swing (`0` = none) | `0` |
+| `environmentDamagePerMob` | A fall, fire, lava, drowning, suffocation, cramming, cactus, freezing, poison or an explosion hurts **every** mob in a stack, as it would a crowd standing loose | `true` |
 
 ### Feedback & display
 
@@ -151,7 +179,41 @@ All of these need operator permission (level 2).
 /mobstacker maxstack <entity> <n|max|default>   # a ceiling for one mob type
 /mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
+
+/mobstacker inspect [target]         # the mob you look at (or name): its stack, and why it will not stack
+/mobstacker stats [radius]           # how many stacks, and how many mobs they stand for
+/mobstacker unstack <radius|loaded> [confirm]   # split stacks back into mobs - before removing the mod
+/mobstacker stack <radius>           # merge what can merge here now, whatever stackMode says
 ```
+
+### Why won't it stack?
+
+Look at the mob and run **`/mobstacker inspect`** (or name one: `/mobstacker inspect @e[type=cow,limit=1,sort=nearest]`).
+It shows the stack's size and health, the region it stands in and what that region sets, the ceiling
+in force and where it comes from, where the mob came from, and then the answer: whether it can stack,
+and if not **the first rule that says no** — `stackMode`, a deny region, a mob list, its origin, a
+name, its gear, a player's claim on it, a full stack. Last, what happens between it and the nearest
+mob of its kind: they merge (and which one survives), or why not, down to "they differ in wool
+colour". The game and the command read the very same rules, so what it says is what happens.
+
+### Removing the mod
+
+Without the mod a stack is **one mob**, and every other mob it stood for is gone. So before removing
+it, bring them back:
+
+```
+/mobstacker set stackMode off        # or they merge again straight away
+/mobstacker unstack loaded confirm   # every stack in the loaded chunks
+```
+
+Mobs come back a hundred a tick, set down apart from each other where there is room — never on the far
+side of a wall or fence — because sixty-four let out on one spot would be hurt by vanilla's crowding
+limit. A stack with no room around it is left partly stacked and reported. Only **loaded** chunks can
+be reached, so visit (or `/forceload`) the farms that matter first. `unstack <radius>` does the same
+around you, and asks for `confirm` too once it would bring back more than 500 mobs.
+
+`/mobstacker stack <radius>` goes the other way: it merges what may merge there now, whatever
+`stackMode` and the regions say, while every rule about the mobs themselves still holds.
 
 `/mobstacker ignore …` still works as the old name for `list deny …`.
 
@@ -320,6 +382,13 @@ it needs `damageOverflow` to reach past the mob you struck.
 > a big jump in power. `sweepingEdgeMaxKills` caps it, and `sweepingEdgeVanillaConditions` restricts
 > the bonus to swings vanilla would actually sweep with.
 
+**Damage from the world hurts every mob in a stack** (`environmentDamagePerMob`, on by default): a
+fall, fire, lava, drowning, suffocation, cramming, magma, a cactus, freezing, the void, poison, an
+explosion or a falling anvil hurts each member as it would a crowd standing loose. The ones it kills
+drop their own loot, and the survivors keep the wound. So a 30-block drop kills a whole stack of ten
+zombies, where before it killed one and left nine standing at the bottom of the farm. A player's or a
+mob's hit is still one hit, with the leftover carried down by overflow.
+
 > 💡 **`damageOverflow` and the `sweepingEdge*` family are independent.** Overflow decides whether a
 > **killing blow's** leftover carries down; sweeping decides how much a sweep deals at all. Per-mob
 > sweeping still wounds the members with overflow off — turn off `sweepingEdgeOverflow` if you want
@@ -370,6 +439,23 @@ become a herd of good horses.
 one animal steps out to be tamed rather than the whole pack at once. Only while you are holding the
 right item — right-clicking a pack with an empty hand does nothing, exactly as in vanilla.
 
+## Stacks without AI
+
+`stackAi` decides what a stack of two or more mobs does with its AI — useful where hundreds of mobs
+stand in a farm doing nothing useful with it:
+
+| Value | What the stack does |
+|---|---|
+| `NORMAL` *(default)* | Thinks like any mob. |
+| `PHYSICS_ONLY` | Attacks nothing, follows nobody and stands where it is — but still falls, is carried by water, knocked back and **kept afloat** if its kind would swim, so farms built on water and drops keep working. |
+| `FROZEN` | Vanilla's NoAI: does not move at all, not even to fall. Saves the server the most. |
+
+A single mob always keeps its AI, so a stack killed down to its last mob wakes up again. Nothing is
+written into the mob — remove the mod and every mob thinks again. Worth knowing before choosing: a
+sheep that does not think does not eat grass, so its wool does not grow back, and villagers do not
+work or breed. Like every setting it can be set per region, e.g. only in the mob grinder:
+`/mobstacker region set grinder stackAi physics_only`.
+
 ## Seeing a region
 
 Give a region a colour and switch its box on, and its bounds are drawn in the world — no more walking
@@ -382,6 +468,11 @@ to a corner to read coordinates off F3.
 | Show or hide everything | the **All** button, or a key binding (unbound by default, set it in Controls) |
 | How it looks | the **Style** button — `wireframe`, `filled` or `both` *(the default)* |
 | Through walls | the **X-ray** button, or a key binding (unbound by default) — off by default, and only where the server allows it (below) |
+
+While boxes are on, each box has its **name** written on it like a name tag, in the region's colour,
+on the side nearest you, and a line at the **top left of the screen** names the region you are
+standing in — the one whose settings apply there, with how many more overlap. Both go away with the
+boxes, with F1 and under F3.
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
@@ -462,6 +553,7 @@ every kill path.
 
 - 🗂️ Config is per world, in `<world>/serverconfig/mobstacker.json`. Upgrading from a pre-1.4 version?
   Copy your old `config/mobstacker.json` there.
+- ↩️ Removing the mod? Run `/mobstacker unstack` first — see [Removing the mod](#removing-the-mod).
 - 👑 Boss entities keep their custom names and health bars.
 - 🔌 An API is available for custom merging conditions, death handlers and entity data modifiers.
 - 🐑🐷🧟 Works with animals, monsters and NPCs alike.

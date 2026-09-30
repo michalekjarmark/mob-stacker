@@ -350,7 +350,7 @@ public class MobStackerCommands {
                 .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredEntities().size())).withStyle(ChatFormatting.AQUA))
                 .append(Component.literal("   Ignored mods: ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredMods().size())).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("Commands: set, get, toggle, reset, stacksize, ignore, region, reload  -  ").withStyle(ChatFormatting.GRAY)
+        source.sendSuccess(() -> Component.literal("Commands: set, get, toggle, reset, list, maxstack, region, inspect, stats, unstack, stack, reload  -  ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help").withStyle(ChatFormatting.YELLOW)), false);
         warnIfStacksNowhere(source);
         return 1;
