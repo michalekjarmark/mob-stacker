@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
+import com.frikinjay.mobstacker.config.StackAi;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -31,6 +32,9 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
+import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.animal.Bucketable;
@@ -63,8 +67,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public final class MobStacker {
@@ -2044,6 +2050,44 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static boolean getStackOnSpawn(Entity at) {return setting("stackOnSpawn", at, config.getStackOnSpawn());}
+
+    public static StackAi getStackAi() {return config.getStackAi();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static StackAi getStackAi(Entity at) {return setting("stackAi", at, config.getStackAi());}
+
+    /** What this mob does with its AI: {@code stackAi} where it stands for a stack, NORMAL for anything else. */
+    public static StackAi stackAiFor(Mob mob) {
+        return getStackSize(mob) > 1 ? getStackAi(mob) : StackAi.NORMAL;
+    }
+
+    /** Per mob class, whether it swims up rather than sinking; see {@link #keepsAfloat}. */
+    private static final Map<Class<?>, Boolean> FLOATERS = new ConcurrentHashMap<>();
+
+    /**
+     * Whether a stack that no longer thinks should still be kept afloat in water and lava, because the
+     * mob would have swum up on its own.
+     *
+     * <p>Staying afloat is AI in vanilla - a goal ({@code FloatGoal}) for most mobs, a brain behaviour
+     * for villagers, goats and the like - so a stack without it sank, and a stack of cows in a water
+     * stream drowned. Mobs that sink in vanilla (zombies, skeletons, iron golems) and mobs that breathe
+     * water keep doing what they did. The answer is the same for every mob of a class, since goals are
+     * added when a mob is built, so it is worked out once.
+     */
+    public static boolean keepsAfloat(Mob mob, GoalSelector goals) {
+        return FLOATERS.computeIfAbsent(mob.getClass(), type -> {
+            Set<WrappedGoal> available = goals.getAvailableGoals();
+            if (available.isEmpty()) {
+                return !mob.canBreatheUnderwater(); // a brain, not goals: swims if it would drown
+            }
+            for (WrappedGoal goal : available) {
+                if (goal.getGoal() instanceof FloatGoal) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
 
     /**
      * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up

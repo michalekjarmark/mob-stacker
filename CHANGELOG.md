@@ -28,6 +28,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   sword kill whole stacks. A player's or a mob's hit is still one hit, with the leftover carried down
   by `damageOverflow` as before. Greyed out while `killWholeStackOnDeath` is on, which already does
   this. Per region, like every setting.
+- **`stackAi`: what a stack does with its AI** (the user's own idea). `NORMAL` (the default) changes
+  nothing. `PHYSICS_ONLY` stops a stack thinking - it attacks nothing, follows nobody and stands
+  where it is - while the world still acts on it: it falls, water carries it, a hit knocks it back,
+  and it stays afloat if its kind would have swum, so farms built on water and drops keep working.
+  `FROZEN` is vanilla's NoAI: it does not move at all, not even to fall, which saves the server the
+  most. Only stacks of two or more are affected, so a stack killed down to its last mob wakes up again,
+  and nothing is written into the mob: remove the mod and every mob thinks again. Worth knowing before
+  choosing: a sheep that does not think does not eat grass, so its wool does not grow back, and
+  villagers do not work or breed. Per region, like every setting.
 
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the

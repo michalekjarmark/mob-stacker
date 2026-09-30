@@ -82,6 +82,16 @@ public final class MobStackerSettings {
                 .withAppliedNote(() -> MobStacker.config.getStackHealth()
                         ? "killWholeStackOnDeath is forced on while this is on" : null));
 
+        register(ConfigOption.ofEnum("stackAi", Category.STACKING,
+                "What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. "
+                        + "PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, "
+                        + "is carried by water, knocked back and kept afloat, so farms keep working (sheep "
+                        + "do not eat grass, so their wool does not grow back, and villagers do not work). "
+                        + "FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob "
+                        + "always keeps its AI.",
+                StackAi.class, () -> MobStacker.config.getStackAi(), v -> MobStacker.config.setStackAi(v),
+                StackAi.NORMAL));
+
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
                 "Leftover lethal damage carries down onto the mobs below in the stack.",

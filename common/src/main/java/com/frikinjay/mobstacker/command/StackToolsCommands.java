@@ -110,7 +110,8 @@ public final class StackToolsCommands {
         source.sendSuccess(() -> label("Ceiling here: ").append(value(String.valueOf(MobStacker.getMaxMobStackSize(mob))))
                 .append(label(" (" + ceilingSource(mob, region) + ")"))
                 .append(label("   stackMode ")).append(value(MobStacker.config.getStackMode().name()))
-                .append(label("   stackRadius ")).append(value(String.valueOf(MobStacker.getStackRadius(mob)))), false);
+                .append(label("   stackRadius ")).append(value(String.valueOf(MobStacker.getStackRadius(mob))))
+                .append(label("   stackAi ")).append(value(MobStacker.getStackAi(mob).name())), false);
         if (region != null && !region.getSettings().isEmpty()) {
             MutableComponent overrides = label("Set by the region: ");
             boolean first = true;

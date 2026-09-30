@@ -53,6 +53,7 @@ public class MobStackerConfig implements MobLists.Holder {
     private double playerStackRadius = 12.0;
     private int stackScanInterval = 20;
     private boolean stackOnSpawn = true;
+    private StackAi stackAi = StackAi.NORMAL;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -454,6 +455,15 @@ public class MobStackerConfig implements MobLists.Holder {
             }
         }
         store(kind, next);
+        save();
+    }
+
+    public StackAi getStackAi() {
+        return stackAi != null ? stackAi : StackAi.NORMAL;
+    }
+
+    public void setStackAi(StackAi stackAi) {
+        this.stackAi = stackAi;
         save();
     }
 

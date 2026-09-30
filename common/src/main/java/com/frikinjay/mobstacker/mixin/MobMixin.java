@@ -1,21 +1,44 @@
 package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.config.StackAi;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Mob.class)
-public class MobMixin {
+public abstract class MobMixin extends LivingEntity {
+
+    @Shadow
+    @Final
+    protected GoalSelector goalSelector;
+
+    /** {@code stackAi} as it applies to this mob, worked out once a tick; see {@link #mobstacker$aiMode}. */
+    @Unique
+    private StackAi mobstacker$aiMode = StackAi.NORMAL;
+    @Unique
+    private int mobstacker$aiModeTick = -1;
+
+    protected MobMixin(EntityType<? extends LivingEntity> entityType, Level level) {
+        super(entityType, level);
+    }
 
     /**
      * Gives every mob a chance to join a nearby stack: once on its first tick, and periodically
@@ -29,7 +52,68 @@ public class MobMixin {
      */
     @Inject(method = "tick", at = @At("TAIL"))
     private void mobstacker$periodicStackScan(CallbackInfo ci) {
+        if (mobstacker$aiMode() != StackAi.NORMAL) {
+            // serverAiStep counts this for despawning, and a stack without AI no longer runs it: a
+            // stack nobody goes near would otherwise never despawn the way its mobs would have.
+            noActionTime++;
+            // A creeper that was swelling when its AI stopped would go on swelling, with nothing left
+            // to call it off, and blow the stack up. One lit with flint and steel still goes off.
+            if ((Object) this instanceof Creeper creeper && !creeper.isIgnited() && creeper.getSwellDir() > 0) {
+                creeper.setSwellDir(-1);
+            }
+        }
         MobStacker.tickStackScan((Mob) (Object) this);
+    }
+
+    /**
+     * What {@code stackAi} asks of this mob, asked once a tick rather than every time: the game checks
+     * {@code isEffectiveAi} several times a tick, and the answer needs the stack size and a region
+     * lookup. A tick late is the most it can be wrong by, just after a merge. Always NORMAL on a client.
+     */
+    @Unique
+    private StackAi mobstacker$aiMode() {
+        if (level().isClientSide()) {
+            return StackAi.NORMAL;
+        }
+        if (mobstacker$aiModeTick != tickCount) {
+            mobstacker$aiModeTick = tickCount;
+            mobstacker$aiMode = MobStacker.stackAiFor((Mob) (Object) this);
+        }
+        return mobstacker$aiMode;
+    }
+
+    /**
+     * {@code stackAi FROZEN}: the stack answers as a mob with vanilla's NoAI does, so it neither thinks
+     * nor moves - vanilla skips the AI step and all movement for a mob that is not "effective AI".
+     *
+     * <p>The NoAI flag itself is never set. It is saved with the mob, so every stack would have stayed
+     * frozen after the mod was removed, and a split or a merge would have had to carry it around.
+     */
+    @Inject(method = "isEffectiveAi", at = @At("RETURN"), cancellable = true)
+    private void mobstacker$frozenStack(CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() && mobstacker$aiMode() == StackAi.FROZEN) {
+            cir.setReturnValue(false);
+        }
+    }
+
+    /**
+     * {@code stackAi PHYSICS_ONLY}: the stack skips its whole AI step - goals, brain, pathfinding,
+     * looking and moving on purpose - and nothing else, so gravity, water and knockback still act on
+     * it. What it was walking towards is let go of, and it is kept afloat if its kind would swim.
+     */
+    @Inject(method = "serverAiStep", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$physicsOnlyStack(CallbackInfo ci) {
+        if (mobstacker$aiMode() != StackAi.PHYSICS_ONLY) {
+            return;
+        }
+        Mob self = (Mob) (Object) this;
+        self.setXxa(0.0F);
+        self.setYya(0.0F);
+        self.setZza(0.0F);
+        boolean deepEnough = (self.isInWater() && self.getFluidHeight(FluidTags.WATER) > self.getFluidJumpThreshold())
+                || self.isInLava();
+        self.setJumping(deepEnough && MobStacker.keepsAfloat(self, goalSelector));
+        ci.cancel();
     }
 
     @Inject(method = "convertTo", at = @At("RETURN"), cancellable = true)
