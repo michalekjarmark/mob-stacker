@@ -7,7 +7,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.9.3] - unreleased
+## [1.10.0] - unreleased
+### Added
+- **`/mobstacker inspect [target]`** - look at a mob (or name one) and see its stack up close: size,
+  health (the top mob's and that of the mobs under it), which region it stands in and what that region
+  sets, the ceiling in force and where it comes from, and what the stack remembers (members' gear,
+  horse stats, breeding, a player's name). Then the answer to the question every "stacking is broken"
+  report comes down to: **whether it can stack, and if not, the first rule that says no** - stackMode,
+  a DENY region, a list, a name, gear, a player's claim, its size - and what happens between it and the
+  nearest mob of its kind: they merge (and which one survives), or why not, down to "they differ in
+  wool colour". The rules exist once; the scan and the command read the same answer.
+- **`/mobstacker stats [radius]`** - how many stacks stand in the loaded chunks (or within a radius),
+  how many mobs they stand for, how many entities that saves, and the ten busiest kinds.
+
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
   mod creates - what is left of a stack after a kill, a mob taken out of one - goes through vanilla's

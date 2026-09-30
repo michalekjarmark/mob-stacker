@@ -120,10 +120,10 @@ public final class MobStacker {
      * off by default.
      */
     private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
-    private static final String BREED_LOVE_KEY = "BreedLove";
+    public static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
-    private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
-    private static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
+    public static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
+    public static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
     // Vanilla breeding cooldown is 5 minutes (6000 ticks).
     private static final int BREED_COOLDOWN_TICKS = 6000;
     public static MobStackerConfig config;
@@ -206,19 +206,28 @@ public final class MobStacker {
     }
 
     public static boolean canStack(Mob entity) {
-        if (!(entity instanceof Mob)) {
-            return false;
-        }
+        return stackRefusal(entity) == null;
+    }
 
+    /**
+     * Why this mob may not take part in stacking where it stands, or null when it may. The one place
+     * the rules are written down: {@link #canStack} is this compared with null, and
+     * {@code /mobstacker inspect} shows a player the answer.
+     *
+     * <p>Its {@code CanStack} flag is not asked here, because the callers always asked it
+     * separately; {@code inspect} asks it first.
+     */
+    public static StackRefusal stackRefusal(Mob entity) {
         // Babies stack only when their category's flag allows it. Farm animals (Animal) and
         // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
-            boolean allowed = (entity instanceof Animal)
-                    ? getEnableAnimalBabyStacking(entity)
-                    : getEnableHostileBabyStacking(entity);
-            if (!allowed) {
-                return false;
+            if (entity instanceof Animal) {
+                if (!getEnableAnimalBabyStacking(entity)) {
+                    return StackRefusal.BABY_ANIMAL;
+                }
+            } else if (!getEnableHostileBabyStacking(entity)) {
+                return StackRefusal.BABY_HOSTILE;
             }
         }
 
@@ -226,40 +235,45 @@ public final class MobStacker {
         // in stacking. Merging into a dying mob restores its health mid-animation, which makes
         // the death animation loop. Excluding it lets the death finish cleanly.
         if (entity.isDeadOrDying() || entity.isRemoved()) {
-            return false;
+            return StackRefusal.DYING;
         }
 
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
         if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
-            return false;
+            return StackRefusal.EQUIPPED;
         }
 
         if (isPlayerBound(entity)) {
-            return false;
+            return StackRefusal.PLAYER_BOUND;
         }
 
         // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
         // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
         // halfway through taming is the same bug seen from the other side.
         if (separationGrace(entity) > 0) {
-            return false;
+            return StackRefusal.SEPARATION_GRACE;
         }
 
-        if (!isStackingAllowedAt(entity)) {
-            return false;
+        StackRefusal location = locationRefusal(entity);
+        if (location != null) {
+            return location;
         }
 
         // Whether this kind of mob may stack at all here: a blacklist or a whitelist, global or
         // the region's own. MobLists is the single place that decides, because the answer now
         // depends on three things (the mode in force, which lists it consults, and whether the
         // region overrides them) and working any of them out twice is how tables drift apart.
-        if (!MobLists.allows(entity)) {
-            return false;
+        StackRefusal listed = MobLists.refusal(entity);
+        if (listed != null) {
+            return listed;
         }
 
-        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize(entity);
+        if (!hasValidCustomNameForStacking(entity)) {
+            return StackRefusal.PLAYER_NAMED;
+        }
+        return getStackSize(entity) < getMaxMobStackSize(entity) ? null : StackRefusal.FULL;
     }
 
     /**
@@ -269,9 +283,14 @@ public final class MobStacker {
      * stacked keep behaving correctly anywhere (death splitting, separation, ...).
      */
     public static boolean isStackingAllowedAt(Mob entity) {
+        return locationRefusal(entity) == null;
+    }
+
+    /** Why stacking is not allowed where this mob stands, or null when it is. See {@link #isStackingAllowedAt}. */
+    public static StackRefusal locationRefusal(Mob entity) {
         StackMode mode = config.getStackMode();
         if (mode == StackMode.OFF) {
-            return false;
+            return StackRefusal.STACKING_OFF;
         }
 
         String dimension = entity.level().dimension().location().toString();
@@ -284,25 +303,26 @@ public final class MobStacker {
         for (StackRegion region : config.getRegions()) {
             if (region.contains(dimension, x, y, z)) {
                 if (region.isDeny()) {
-                    return false; // DENY overrides everything, in every mode.
+                    return StackRefusal.DENY_REGION; // DENY overrides everything, in every mode.
                 }
                 insideAllowRegion = true;
             }
         }
 
         if (mode == StackMode.EVERYWHERE) {
-            return true;
+            return null;
         }
 
         if (mode == StackMode.PLAYERS) {
             // Only stack near a player. getNearestPlayer applies the distance limit itself and
             // excludes spectators; a radius <= 0 would disable stacking entirely (guarded below).
             double radius = config.getPlayerStackRadius();
-            return radius > 0 && entity.level().getNearestPlayer(entity, radius) != null;
+            return radius > 0 && entity.level().getNearestPlayer(entity, radius) != null
+                    ? null : StackRefusal.NO_PLAYER_NEAR;
         }
 
         // StackMode.REGIONS: only stack when inside at least one ALLOW region.
-        return insideAllowRegion;
+        return insideAllowRegion ? null : StackRefusal.OUTSIDE_ALLOW_REGION;
     }
 
     /**
@@ -375,40 +395,48 @@ public final class MobStacker {
      * happened to move.
      */
     public static boolean canMerge(Mob source, Mob target) {
-        if (source.getClass() != target.getClass() || !getCanStack(source) || !getCanStack(target)) {
-            return false;
+        return mergeRefusal(source, target) == null;
+    }
+
+    /** Why {@code source} may not be merged away into {@code target}, or null when it may. See {@link #canMerge}. */
+    public static StackRefusal mergeRefusal(Mob source, Mob target) {
+        if (source.getClass() != target.getClass()) {
+            return StackRefusal.DIFFERENT_KIND;
+        }
+        if (!getCanStack(source) || !getCanStack(target)) {
+            return StackRefusal.CAN_STACK_OFF;
         }
 
         // Never merge into / from a dying or removed mob (see canStack) — guards the
         // destructive mergeEntities call against the death-animation loop.
         if (source.isDeadOrDying() || target.isDeadOrDying() || source.isRemoved() || target.isRemoved()) {
-            return false;
+            return StackRefusal.DYING;
         }
 
         // In long: a ceiling may be as large as an int goes, and two stacks near it would overflow
         // to a negative and read as "plenty of room".
         if (((long) getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
-            return false;
+            return StackRefusal.TOO_BIG_TOGETHER;
         }
 
         // Never mix a baby with an adult (they carry different growth state). Two babies may
         // merge freely; mergeEntities keeps the youngest age so none grows up early.
         if (source.isBaby() != target.isBaby()) {
-            return false;
+            return StackRefusal.BABY_AND_ADULT;
         }
 
         // The stack shows one name, and the survivor keeps its own, so a mob carrying a different
         // player-given name must not be merged away into it - that name would simply vanish.
         Component ownName = playerGivenName(source);
         if (ownName != null && !ownName.equals(playerGivenName(target))) {
-            return false;
+            return StackRefusal.DIFFERENT_NAME;
         }
 
         if (!MobVariants.sameVariant(source, target)) {
-            return false;
+            return StackRefusal.DIFFERENT_VARIANT;
         }
 
-        return MobStackerAPI.checkCustomMergingConditions(source, target);
+        return MobStackerAPI.checkCustomMergingConditions(source, target) ? null : StackRefusal.OTHER_MOD;
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {

@@ -194,6 +194,7 @@ public class MobStackerCommands {
         if (Boolean.getBoolean("mobstacker.selftest")) {
             root.then(literal("selftest").executes(MobStackerCommands::runSelfTest));
         }
+        StackToolsCommands.attach(root);
         dispatcher.register(root);
     }
 
@@ -371,6 +372,10 @@ public class MobStackerCommands {
         source.sendSuccess(() -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a ceiling for one mob type").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker inspect [target]").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  a stack up close, and why it will not stack").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker stats [radius]").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  how many mobs the stacks stand for").withStyle(ChatFormatting.GRAY)), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))

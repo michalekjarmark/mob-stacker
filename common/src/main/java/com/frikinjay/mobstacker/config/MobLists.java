@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.config;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.StackRefusal;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
@@ -64,15 +65,20 @@ public final class MobLists {
 
     /** Whether the mob's <em>type</em> is allowed to stack where it stands. */
     public static boolean allows(Entity entity) {
+        return refusal(entity) == null;
+    }
+
+    /** Which list keeps the mob's type out of stacks where it stands, or null when none does. */
+    public static StackRefusal refusal(Entity entity) {
         ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         // The region is found once and then used for both halves of the answer. Going through
         // MobStacker.setting for the mode would search the region list a second time, and this runs
         // for every mob of every scan.
         StackRegion region = MobStacker.regionAt(entity);
         if (modeIn(region) == MobListMode.WHITELIST) {
-            return listed(MobListKind.Half.ALLOW, region, id);
+            return listed(MobListKind.Half.ALLOW, region, id) ? null : StackRefusal.NOT_ALLOW_LISTED;
         }
-        return !listed(MobListKind.Half.DENY, region, id);
+        return listed(MobListKind.Half.DENY, region, id) ? StackRefusal.DENY_LISTED : null;
     }
 
     /** The list mode in force inside {@code region}: its own override, or the global one. */
