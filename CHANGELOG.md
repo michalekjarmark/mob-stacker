@@ -37,6 +37,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   and nothing is written into the mob: remove the mod and every mob thinks again. Worth knowing before
   choosing: a sheep that does not think does not eat grass, so its wool does not grow back, and
   villagers do not work or breed. Per region, like every setting.
+- **Stacking by spawn origin**: a new *Spawn origin* page with four switches, all on by default -
+  `stackNaturalMobs` (spawned on their own), `stackSpawnerMobs` (monster spawners), `stackBredMobs`
+  (born from breeding, vanilla's or a stack's) and `stackPlacedMobs` (spawn eggs, dispensers, buckets,
+  `/summon`). So a server can stack the spawner farm and leave the wildlife alone, or the other way
+  round, per region too. Each mob remembers how it came into the world from 1.10.0 on; a mob from
+  before that, or one hatched from an egg, counts as natural. What is left of a stack after a kill, a
+  mob taken out of one and a mob that converts all keep the origin they came from. `inspect` shows it.
 
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the

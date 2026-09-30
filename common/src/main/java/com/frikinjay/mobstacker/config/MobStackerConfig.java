@@ -54,6 +54,10 @@ public class MobStackerConfig implements MobLists.Holder {
     private int stackScanInterval = 20;
     private boolean stackOnSpawn = true;
     private StackAi stackAi = StackAi.NORMAL;
+    private boolean stackNaturalMobs = true;
+    private boolean stackSpawnerMobs = true;
+    private boolean stackBredMobs = true;
+    private boolean stackPlacedMobs = true;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -464,6 +468,31 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public void setStackAi(StackAi stackAi) {
         this.stackAi = stackAi;
+        save();
+    }
+
+    public boolean getStackNaturalMobs() { return stackNaturalMobs; }
+    public boolean getStackSpawnerMobs() { return stackSpawnerMobs; }
+    public boolean getStackBredMobs() { return stackBredMobs; }
+    public boolean getStackPlacedMobs() { return stackPlacedMobs; }
+
+    public void setStackNaturalMobs(boolean stackNaturalMobs) {
+        this.stackNaturalMobs = stackNaturalMobs;
+        save();
+    }
+
+    public void setStackSpawnerMobs(boolean stackSpawnerMobs) {
+        this.stackSpawnerMobs = stackSpawnerMobs;
+        save();
+    }
+
+    public void setStackBredMobs(boolean stackBredMobs) {
+        this.stackBredMobs = stackBredMobs;
+        save();
+    }
+
+    public void setStackPlacedMobs(boolean stackPlacedMobs) {
+        this.stackPlacedMobs = stackPlacedMobs;
         save();
     }
 

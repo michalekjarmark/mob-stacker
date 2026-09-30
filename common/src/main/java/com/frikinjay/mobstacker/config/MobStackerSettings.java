@@ -92,6 +92,21 @@ public final class MobStackerSettings {
                 StackAi.class, () -> MobStacker.config.getStackAi(), v -> MobStacker.config.setStackAi(v),
                 StackAi.NORMAL));
 
+        // --- Spawn origin ---
+        register(ConfigOption.ofBool("stackNaturalMobs", Category.ORIGIN,
+                "Stack mobs that spawned on their own - in the dark, with the world, in a patrol or a raid - "
+                        + "and mobs whose origin is unknown: spawned before 1.10.0, or hatched from an egg.",
+                () -> MobStacker.config.getStackNaturalMobs(), v -> MobStacker.config.setStackNaturalMobs(v), true));
+        register(ConfigOption.ofBool("stackSpawnerMobs", Category.ORIGIN,
+                "Stack mobs that came from a monster spawner.",
+                () -> MobStacker.config.getStackSpawnerMobs(), v -> MobStacker.config.setStackSpawnerMobs(v), true));
+        register(ConfigOption.ofBool("stackBredMobs", Category.ORIGIN,
+                "Stack mobs that were born from breeding, vanilla's or a stack's.",
+                () -> MobStacker.config.getStackBredMobs(), v -> MobStacker.config.setStackBredMobs(v), true));
+        register(ConfigOption.ofBool("stackPlacedMobs", Category.ORIGIN,
+                "Stack mobs a player put there: from a spawn egg, a dispenser, a bucket or /summon.",
+                () -> MobStacker.config.getStackPlacedMobs(), v -> MobStacker.config.setStackPlacedMobs(v), true));
+
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
                 "Leftover lethal damage carries down onto the mobs below in the stack.",

@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker.command;
 import com.frikinjay.mobstacker.ICustomDataHolder;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.MobVariants;
+import com.frikinjay.mobstacker.SpawnOrigin;
 import com.frikinjay.mobstacker.StackRefusal;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -131,6 +132,12 @@ public final class StackToolsCommands {
             health.append(label(", each mob under it ")).append(value(round(memberHealth) + "/" + round(mob.getMaxHealth())));
         }
         source.sendSuccess(() -> health, false);
+        String recorded = MobStacker.originOf(mob);
+        SpawnOrigin origin = SpawnOrigin.of(recorded);
+        source.sendSuccess(() -> label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
+                .append(label(" - it " + (recorded == null ? "counts as having spawned on its own" : origin.description())
+                        + "; " + origin.settingId() + " "
+                        + (MobStacker.originStacks(mob) ? "lets it stack here" : "is off here"))), false);
         for (Component line : stackDataLines(mob)) {
             source.sendSuccess(() -> line, false);
         }

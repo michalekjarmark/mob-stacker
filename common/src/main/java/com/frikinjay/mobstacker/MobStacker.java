@@ -107,6 +107,8 @@ public final class MobStacker {
     public static final String NAMED_STACK_KEY = "NamedStack";
     /** The name the player typed, as JSON, so the " xN" suffix is appended and never parsed back off. */
     public static final String STACK_NAME_KEY = "StackName";
+    /** How the mob came into the world: vanilla's MobSpawnType name, recorded once. See {@link SpawnOrigin}. */
+    public static final String ORIGIN_KEY = "Origin";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -277,6 +279,10 @@ public final class MobStacker {
         StackRefusal listed = MobLists.refusal(entity);
         if (listed != null) {
             return listed;
+        }
+
+        if (!originStacks(entity)) {
+            return StackRefusal.ORIGIN;
         }
 
         if (!hasValidCustomNameForStacking(entity)) {
@@ -489,6 +495,7 @@ public final class MobStacker {
 
     private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
         finalizeLikeANewMob(source, target, serverLevel);
+        copyOrigin(source, target);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
@@ -792,6 +799,7 @@ public final class MobStacker {
     private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
                                                     boolean markAsSeparated) {
         finalizeLikeANewMob(source, target, serverLevel);
+        copyOrigin(source, target);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
@@ -1490,6 +1498,7 @@ public final class MobStacker {
      */
     public static void carryStackInto(Mob source, Mob target) {
         setStackSize(target, getStackSize(source));
+        copyOrigin(source, target);
         if (target.hasCustomName() && source.hasCustomName() && hasNonCustomName(source)) {
             target.setCustomName(null);
         }
@@ -1514,6 +1523,59 @@ public final class MobStacker {
         if (sourceData.contains(STACK_NAME_KEY, 8)) {
             targetData.putString(STACK_NAME_KEY, sourceData.getString(STACK_NAME_KEY));
         }
+    }
+
+    // --- Spawn origin ---------------------------------------------------------------------------
+
+    /**
+     * Remembers how a mob came into the world, the first time vanilla sets it up
+     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten: every mob the mod itself makes
+     * goes through {@code finalizeSpawn} again and is then handed its source's origin instead.
+     */
+    public static void recordOrigin(Mob mob, MobSpawnType reason) {
+        if (mob instanceof ICustomDataHolder holder && reason != null
+                && !holder.mobstacker$getCustomData().contains(ORIGIN_KEY, 8)) {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, reason.name());
+        }
+    }
+
+    /** Records an origin whatever was there, for a mob vanilla creates without {@code finalizeSpawn} (a bred baby). */
+    public static void setOrigin(Mob mob, MobSpawnType reason) {
+        if (mob instanceof ICustomDataHolder holder) {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, reason.name());
+        }
+    }
+
+    /** The recorded MobSpawnType name, or null when nothing was recorded. */
+    public static String originOf(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return null;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        return data.contains(ORIGIN_KEY, 8) ? data.getString(ORIGIN_KEY) : null;
+    }
+
+    /** A mob the mod makes out of another (a remainder, a separated mob, a conversion) came from where that one did. */
+    private static void copyOrigin(Mob source, Mob target) {
+        if (!(target instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        String origin = originOf(source);
+        if (origin == null) {
+            holder.mobstacker$getCustomData().remove(ORIGIN_KEY);
+        } else {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, origin);
+        }
+    }
+
+    /** Whether mobs that came into the world the way this one did may stack where it stands. */
+    public static boolean originStacks(Mob mob) {
+        return switch (SpawnOrigin.of(originOf(mob))) {
+            case NATURAL -> setting("stackNaturalMobs", mob, config.getStackNaturalMobs());
+            case SPAWNER -> setting("stackSpawnerMobs", mob, config.getStackSpawnerMobs());
+            case BRED -> setting("stackBredMobs", mob, config.getStackBredMobs());
+            case PLACED -> setting("stackPlacedMobs", mob, config.getStackPlacedMobs());
+        };
     }
 
     // --- Stack breeding -------------------------------------------------------------------
@@ -1664,6 +1726,7 @@ public final class MobStacker {
             }
             int size = Math.min(max, remaining);
             child.setBaby(true);
+            setOrigin(child, MobSpawnType.BREEDING);
             child.moveTo(parent.getX(), parent.getY(), parent.getZ(), parent.getYRot(), parent.getXRot());
             setStackSize(child, size);
             level.addFreshEntity(child);

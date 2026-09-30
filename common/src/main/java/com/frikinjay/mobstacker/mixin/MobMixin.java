@@ -2,18 +2,23 @@ package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.StackAi;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -114,6 +119,18 @@ public abstract class MobMixin extends LivingEntity {
                 || self.isInLava();
         self.setJumping(deepEnough && MobStacker.keepsAfloat(self, goalSelector));
         ci.cancel();
+    }
+
+    /**
+     * Remembers how this mob came into the world, for the Spawn origin settings. The first call is the
+     * one that counts: vanilla's own, when the mob is spawned. Every later one is the mod setting up a
+     * mob it made, which then takes its origin from the mob it was made from.
+     */
+    @Inject(method = "finalizeSpawn", at = @At("HEAD"))
+    private void mobstacker$recordOrigin(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason,
+                                         SpawnGroupData spawnData, CompoundTag entityTag,
+                                         CallbackInfoReturnable<SpawnGroupData> cir) {
+        MobStacker.recordOrigin((Mob) (Object) this, reason);
     }
 
     @Inject(method = "convertTo", at = @At("RETURN"), cancellable = true)

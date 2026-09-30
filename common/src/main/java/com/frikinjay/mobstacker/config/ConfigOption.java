@@ -23,6 +23,7 @@ public final class ConfigOption {
 
     public enum Category {
         STACKING("Stacking"),
+        ORIGIN("Spawn origin"),
         COMBAT("Combat"),
         FEEDBACK("Kill feedback"),
         DISPLAY("Stack display"),
