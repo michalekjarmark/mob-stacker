@@ -40,6 +40,14 @@ public final class MobStackerClientRegions {
         public int[] corners() {
             return new int[]{x1, y1, z1, x2, y2, z2};
         }
+
+        public boolean contains(int x, int y, int z) {
+            return x >= minX() && x <= maxX() && y >= minY() && y <= maxY() && z >= minZ() && z <= maxZ();
+        }
+
+        public long volume() {
+            return (long) (maxX() - minX() + 1) * (maxY() - minY() + 1) * (maxZ() - minZ() + 1);
+        }
     }
 
     private MobStackerClientRegions() {
@@ -66,6 +74,24 @@ public final class MobStackerClientRegions {
                     info.x2(), info.y2(), info.z2(),
                     info.priority(), info.overlayColor(), info.chosenColor() != null));
         }
+        return out;
+    }
+
+    /**
+     * The regions this block is in, in the dimension the player is in, the one whose settings apply
+     * first: the highest priority, and between equal priorities the smaller region - the same rule the
+     * server follows ({@code MobStacker.regionAt}), so what the player is told matches what happens.
+     */
+    public static List<View> containing(int x, int y, int z) {
+        List<View> out = new ArrayList<>();
+        for (View view : inCurrentDimension()) {
+            if (view.contains(x, y, z)) {
+                out.add(view);
+            }
+        }
+        out.sort((a, b) -> a.priority() != b.priority()
+                ? Integer.compare(b.priority(), a.priority())
+                : Long.compare(a.volume(), b.volume()));
         return out;
     }
 

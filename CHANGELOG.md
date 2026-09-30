@@ -54,6 +54,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **`/mobstacker stack <radius>`** merges what can merge there now, whatever `stackMode` and the regions
   say - every rule about the mobs themselves still holds (their kind, the ceiling, names, gear,
   variants, the stack radius). For tidying up a crowd where stacking is otherwise off.
+- **Region names in the world, and a "Region: ..." line.** With the region boxes on, each box has its
+  name written on it the way a mob's name tag is, in the region's colour, on the side nearest you and
+  growing with distance so it stays readable; with a few regions on screen it was hard to tell which
+  box was which. Inside a region, a line at the top left of the screen names the one whose settings
+  apply where you stand (and how many more overlap there). Both go away with the boxes, F1 and F3.
+  Names follow the boxes through walls only where the server allows it.
 
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
