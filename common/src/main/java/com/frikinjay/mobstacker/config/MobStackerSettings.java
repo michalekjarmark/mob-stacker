@@ -110,6 +110,16 @@ public final class MobStackerSettings {
                 0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
                 v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofBool("environmentDamagePerMob", Category.COMBAT,
+                "Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, "
+                        + "explosions - hurts every mob in a stack, as it would a crowd standing loose, so a "
+                        + "fall that kills one zombie kills the whole stack. A player's or a mob's hit stays "
+                        + "one hit.",
+                () -> MobStacker.config.getEnvironmentDamagePerMob(),
+                v -> MobStacker.config.setEnvironmentDamagePerMob(v), true)
+                // One death is every death already, and a pooled health bar has no members to hurt
+                // (stackHealth forces killWholeStackOnDeath on, so it is covered too).
+                .redundantWhen("killWholeStackOnDeath"));
 
         // --- Kill feedback ---
         register(ConfigOption.ofBool("stackKillActionBar", Category.FEEDBACK,

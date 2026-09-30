@@ -19,6 +19,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   wool colour". The rules exist once; the scan and the command read the same answer.
 - **`/mobstacker stats [radius]`** - how many stacks stand in the loaded chunks (or within a radius),
   how many mobs they stand for, how many entities that saves, and the ten busiest kinds.
+- **`environmentDamagePerMob` (on by default): damage from the world hurts every mob in a stack.**
+  A fall, fire, lava, drowning, suffocation, cramming, magma, a cactus, freezing, the void, poison,
+  an explosion or a falling anvil hurts each member as it would a crowd standing loose, the ones it
+  kills drop their own loot, and the survivors keep the wound. Until now a 30-block drop that kills
+  every zombie killed **one of a stack of ten** and left nine standing at the bottom of the farm, so
+  stacks broke fall-damage and "one hit" farms unless whole stacks died together - which also made a
+  sword kill whole stacks. A player's or a mob's hit is still one hit, with the leftover carried down
+  by `damageOverflow` as before. Greyed out while `killWholeStackOnDeath` is on, which already does
+  this. Per region, like every setting.
 
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the

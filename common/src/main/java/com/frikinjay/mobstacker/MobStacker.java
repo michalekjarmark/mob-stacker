@@ -24,8 +24,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Animal;
@@ -1959,6 +1962,31 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static int getSweepingEdgeMaxKills(Entity at) {return setting("sweepingEdgeMaxKills", at, config.getSweepingEdgeMaxKills());}
+
+    public static boolean getEnvironmentDamagePerMob() {return config.getEnvironmentDamagePerMob();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnvironmentDamagePerMob(Entity at) {return setting("environmentDamagePerMob", at, config.getEnvironmentDamagePerMob());}
+
+    /**
+     * Whether this damage comes from the world rather than from a blow: nobody dealt it (falling,
+     * fire, lava, drowning, suffocation, cramming, magma, cactus, berry bushes, freezing, the void,
+     * lightning, poison and wither), or it is an explosion or a falling block, which strike everything
+     * in the spot whoever set them off. What a crowd of loose mobs would all have taken, so what every
+     * member of a stack takes under {@code environmentDamagePerMob}.
+     *
+     * <p>{@code /kill} is left out: it already takes the whole stack its own way.
+     */
+    public static boolean isEnvironmentDamage(DamageSource source) {
+        if (source.is(DamageTypes.GENERIC_KILL)) {
+            return false;
+        }
+        return (source.getEntity() == null && source.getDirectEntity() == null)
+                || source.is(DamageTypeTags.IS_EXPLOSION)
+                || source.is(DamageTypes.FALLING_ANVIL)
+                || source.is(DamageTypes.FALLING_BLOCK)
+                || source.is(DamageTypes.FALLING_STALACTITE);
+    }
 
     // --- Vanilla sweep context -----------------------------------------------------------------
     // Whether the swing currently being resolved satisfies vanilla's own conditions for a sweep

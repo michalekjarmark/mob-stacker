@@ -325,18 +325,26 @@ public abstract class LivingEntityMixin extends Entity {
      * members in one spot and they are identical, so the sweep is recorded once for all of them (see
      * {@link MobStacker#getStackMemberDamage}) and deepens with every swing, exactly as a herd of
      * loose mobs would wear down.
+     * <p>
+     * Damage from the world ({@code environmentDamagePerMob}) is recorded the same way, at full
+     * strength: a fall or a fire hurts every member as much as the top mob, so they die together and
+     * each drops its own loot, where before a 30-block drop killed one zombie of ten and left the
+     * other nine standing at the bottom of the farm. None of it overflows, because every member has
+     * already taken it.
      */
     @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
-    private void mobstacker$overflowDamage(LivingEntity instance, float newHealth) {
-        // Two independent mechanisms live here, and either one is reason enough to run: damage
-        // overflow (the killing blow's leftover carries down the stack) and per-mob Sweeping Edge
-        // (the members carry their own wounds between swings). killWholeStackOnDeath makes both
-        // moot, because then one death is every death.
+    private void mobstacker$overflowDamage(LivingEntity instance, float newHealth, DamageSource source, float amount) {
+        // Three independent mechanisms live here, and any one is reason enough to run: damage
+        // overflow (the killing blow's leftover carries down the stack), per-mob Sweeping Edge (the
+        // members carry their own wounds between swings) and damage from the world hurting every
+        // member. killWholeStackOnDeath makes all of them moot, because then one death is every death.
         boolean perMobSweep = MobStacker.getSweepingEdgeOverflow(instance)
                 && MobStacker.getSweepingEdgePerMob(instance);
+        boolean perMobEnvironment = MobStacker.isEnvironmentDamage(source)
+                && MobStacker.getEnvironmentDamagePerMob(instance);
         if (instance.level().isClientSide() || !(instance instanceof Mob mob)
                 || MobStacker.getKillWholeStackOnDeath(instance)
-                || (!MobStacker.getDamageOverflow(instance) && !perMobSweep)) {
+                || (!MobStacker.getDamageOverflow(instance) && !perMobSweep && !perMobEnvironment)) {
             mobstacker$pendingSweepDamage = 0.0F;
             mobstacker$pendingSweepRawAmount = 0.0F;
             instance.setHealth(newHealth);
@@ -346,7 +354,9 @@ public abstract class LivingEntityMixin extends Entity {
         int stackSize = MobStacker.getStackSize(mob);
         float maxHealth = instance.getMaxHealth();
         float dealt = instance.getHealth() - newHealth;
-        float memberDamage = MobStacker.getStackMemberDamage(mob) + mobstacker$consumeSweepDamage(mob, dealt);
+        float memberDamage = MobStacker.getStackMemberDamage(mob) + mobstacker$consumeSweepDamage(mob, dealt)
+                // Every member takes what the top mob took, after the same armor: they wear the same.
+                + (perMobEnvironment && stackSize > 1 ? Math.max(0.0F, dealt) : 0.0F);
 
         if (newHealth > 0.0F || stackSize <= 1 || maxHealth <= 0.0F) {
             // The top mob takes the whole hit while the members only take the smaller sweep, so it is
@@ -364,10 +374,11 @@ public abstract class LivingEntityMixin extends Entity {
         float memberHealth = Math.max(0.5F, maxHealth - memberDamage);
 
         if (memberDamage >= maxHealth && remaining > 0) {
-            // The accumulated sweep alone finished every member below the top one.
+            // The accumulated wounds alone finished every member below the top one. Only a sweep is
+            // held back by sweepingEdgeMaxKills; a fall or a fire takes every mob it reaches.
             int sweepKills = remaining;
             int cap = MobStacker.getSweepingEdgeMaxKills(mob);
-            if (cap > 0) {
+            if (cap > 0 && !perMobEnvironment) {
                 sweepKills = Math.min(sweepKills, cap);
             }
             killed += sweepKills;
@@ -379,7 +390,8 @@ public abstract class LivingEntityMixin extends Entity {
 
         // Damage left over once the top mob's remaining health is gone. It is the overflow's own
         // business, so with the overflow off it is simply dropped and only the sweep's kills stand.
-        float overflow = MobStacker.getDamageOverflow(mob) ? -newHealth : 0.0F;
+        // Damage every member has already taken on its own has nothing left to carry down.
+        float overflow = MobStacker.getDamageOverflow(mob) && !perMobEnvironment ? -newHealth : 0.0F;
         int overflowKills = remaining > 0 ? Math.min((int) Math.floor(overflow / memberHealth), remaining) : 0;
         killed += overflowKills;
         remaining -= overflowKills;

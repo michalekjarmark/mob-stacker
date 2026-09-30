@@ -27,6 +27,7 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean sweepingEdgeSingleHit = false;
     private boolean sweepingEdgeVanillaConditions = false;
     private int sweepingEdgeMaxKills = 0;
+    private boolean environmentDamagePerMob = true;
     private boolean stackEquippedMobs = false;
     private boolean keepMemberEquipment = true;
     private boolean stackNamedMobs = false;
@@ -156,6 +157,7 @@ public class MobStackerConfig implements MobLists.Holder {
     public boolean getSweepingEdgeSingleHit() { return sweepingEdgeSingleHit; }
     public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
     public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
+    public boolean getEnvironmentDamagePerMob() { return environmentDamagePerMob; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public boolean getKeepMemberEquipment() { return keepMemberEquipment; }
     public boolean getStackNamedMobs() { return stackNamedMobs; }
@@ -233,6 +235,11 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public void setSweepingEdgeMaxKills(int sweepingEdgeMaxKills) {
         this.sweepingEdgeMaxKills = Math.max(0, sweepingEdgeMaxKills);
+        save();
+    }
+
+    public void setEnvironmentDamagePerMob(boolean environmentDamagePerMob) {
+        this.environmentDamagePerMob = environmentDamagePerMob;
         save();
     }
 
