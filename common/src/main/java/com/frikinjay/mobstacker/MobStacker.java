@@ -31,6 +31,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
@@ -229,6 +230,15 @@ public final class MobStacker {
      * separately; {@code inspect} asks it first.
      */
     public static StackRefusal stackRefusal(Mob entity) {
+        return stackRefusal(entity, true);
+    }
+
+    /**
+     * As {@link #stackRefusal(Mob)}, but with {@code checkWhere} false the one rule about the place -
+     * stackMode and the regions - is not asked, for {@code /mobstacker stack}, which stacks mobs where
+     * the scan would not. Everything about the mob itself is still asked.
+     */
+    public static StackRefusal stackRefusal(Mob entity, boolean checkWhere) {
         // Babies stack only when their category's flag allows it. Farm animals (Animal) and
         // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
         // mixing is prevented separately in canMerge.
@@ -267,7 +277,7 @@ public final class MobStacker {
             return StackRefusal.SEPARATION_GRACE;
         }
 
-        StackRefusal location = locationRefusal(entity);
+        StackRefusal location = checkWhere ? locationRefusal(entity) : null;
         if (location != null) {
             return location;
         }
@@ -813,8 +823,25 @@ public final class MobStacker {
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
-        if (getStackHealth(source) && source.getHealth() > target.getMaxHealth()) {
-            source.setHealth(source.getHealth() - target.getMaxHealth());
+        if (getStackHealth(source)) {
+            // A pooled health bar gives up one mob's worth, and so does its ceiling: the merge raised
+            // the stack's max health by every mob it took in, and a stack split back down to its last
+            // mob kept all of it - one cow with 640 max health.
+            AttributeInstance maxHealth = source.getAttribute(Attributes.MAX_HEALTH);
+            if (maxHealth != null && maxHealth.getBaseValue() - target.getMaxHealth() >= target.getMaxHealth()) {
+                maxHealth.setBaseValue(maxHealth.getBaseValue() - target.getMaxHealth());
+            }
+            if (source.getHealth() > target.getMaxHealth()) {
+                source.setHealth(source.getHealth() - target.getMaxHealth());
+            }
+            source.setHealth(Math.min(source.getHealth(), source.getMaxHealth()));
+            return;
+        }
+        // Every mob under the top one carries the same wound (sweeps, falls, fire), and the one taken
+        // out is one of them, so it leaves with it rather than healed.
+        float wound = getStackMemberDamage(source);
+        if (wound > 0.0F) {
+            target.setHealth(Math.max(0.5F, target.getMaxHealth() - wound));
         }
     }
 

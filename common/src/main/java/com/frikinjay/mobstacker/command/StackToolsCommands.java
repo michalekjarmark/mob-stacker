@@ -21,6 +21,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -37,8 +39,8 @@ import static net.minecraft.commands.Commands.literal;
 
 /**
  * The commands that look at and act on the stacks standing in the world, rather than on the config:
- * {@code inspect} and {@code stats}. Kept apart from {@link MobStackerCommands}, which is about
- * settings and is long enough already.
+ * {@code inspect}, {@code stats}, {@code unstack} and {@code stack}. Kept apart from
+ * {@link MobStackerCommands}, which is about settings and is long enough already.
  */
 public final class StackToolsCommands {
 
@@ -48,6 +50,21 @@ public final class StackToolsCommands {
     private static final double NEIGHBOUR_RANGE = 16.0;
     /** How many mob types {@code stats} lists before it stops. */
     private static final int STATS_TYPES = 10;
+    /** How many mobs {@code unstack} brings back per tick, so a big job cannot stall the server. */
+    private static final int UNSTACK_PER_TICK = 100;
+    /** Above this many new mobs, {@code unstack} asks to be run again with {@code confirm}. */
+    private static final int UNSTACK_CONFIRM_ABOVE = 500;
+    /**
+     * How many mobs may be set down on the stack's own spot when there is no room around it. Vanilla
+     * starts hurting mobs past 24 in one place (maxEntityCramming), so this stays well under it and the
+     * rest of that stack is left stacked instead.
+     */
+    private static final int UNSTACK_MAX_ON_THE_SPOT = 12;
+    /** The largest radius {@code stack} takes; it compares every mob in it with its neighbours. */
+    private static final int STACK_MAX_RADIUS = 128;
+
+    /** Stacks {@code unstack} is still splitting, oldest job first. */
+    private static final List<UnstackJob> unstackJobs = new ArrayList<>();
 
     private StackToolsCommands() {
     }
@@ -60,7 +77,18 @@ public final class StackToolsCommands {
                 .then(literal("stats")
                         .executes(ctx -> stats(ctx.getSource(), -1))
                         .then(argument("radius", IntegerArgumentType.integer(1, 100000))
-                                .executes(ctx -> stats(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))));
+                                .executes(ctx -> stats(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))))
+                .then(literal("unstack")
+                        .then(literal("loaded")
+                                .executes(ctx -> unstack(ctx.getSource(), -1, false))
+                                .then(literal("confirm").executes(ctx -> unstack(ctx.getSource(), -1, true))))
+                        .then(argument("radius", IntegerArgumentType.integer(1, 100000))
+                                .executes(ctx -> unstack(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius"), false))
+                                .then(literal("confirm").executes(ctx -> unstack(ctx.getSource(),
+                                        IntegerArgumentType.getInteger(ctx, "radius"), true)))))
+                .then(literal("stack")
+                        .then(argument("radius", IntegerArgumentType.integer(1, STACK_MAX_RADIUS))
+                                .executes(ctx -> stack(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))));
     }
 
     // ============================================================ inspect
@@ -325,6 +353,234 @@ public final class StackToolsCommands {
             source.sendSuccess(() -> label(" ... and " + (rows.size() - STATS_TYPES) + " more kinds"), false);
         }
         return (int) Math.min(Integer.MAX_VALUE, stacks);
+    }
+
+    // ============================================================ unstack
+
+    /**
+     * One run of {@code unstack}: the stacks it found, split a few mobs a tick, and who to tell when it
+     * is done.
+     */
+    private static final class UnstackJob {
+        final CommandSourceStack source;
+        final List<Mob> stacks;
+        int next;
+        int onTheSpot;
+        int mobs;
+        int split;
+        int leftStacked;
+
+        UnstackJob(CommandSourceStack source, List<Mob> stacks) {
+            this.source = source;
+            this.stacks = stacks;
+        }
+    }
+
+    /**
+     * Splits every stack in the loaded chunks (radius -1) or within {@code radius} blocks back into the
+     * mobs it stands for.
+     *
+     * <p>The way out before the mod is removed, or when stacking is turned off somewhere: without the mod
+     * a stack is one mob, and every mob it stood for is gone. Only loaded chunks can be reached - a stack
+     * in a chunk nobody has loaded stays a stack. The mobs come back a hundred a tick, set down apart
+     * from each other where there is room, because a stack of sixty-four let out on one spot would be
+     * hurt by vanilla's crowding limit.
+     */
+    private static int unstack(CommandSourceStack source, int radius, boolean confirmed) {
+        List<Mob> stacks = new ArrayList<>();
+        long mobs = 0;
+        Iterable<ServerLevel> levels = radius < 0 ? source.getServer().getAllLevels() : List.of(source.getLevel());
+        Vec3 centre = source.getPosition();
+        double reachSq = (double) radius * radius;
+        for (ServerLevel level : levels) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof Mob mob && mob.isAlive() && MobStacker.getStackSize(mob) > 1
+                        && (radius < 0 || entity.distanceToSqr(centre) <= reachSq)) {
+                    stacks.add(mob);
+                    mobs += MobStacker.getStackSize(mob) - 1;
+                }
+            }
+        }
+        String scope = radius < 0 ? "loaded" : String.valueOf(radius);
+        if (stacks.isEmpty()) {
+            source.sendSuccess(() -> label("No stacks " + (radius < 0 ? "in the loaded chunks." : "within " + radius + " blocks.")), false);
+            return 0;
+        }
+        long newMobs = mobs;
+        if (newMobs > UNSTACK_CONFIRM_ABOVE && !confirmed) {
+            source.sendSuccess(() -> Component.literal("That would bring back " + count(newMobs) + " mobs from "
+                            + count(stacks.size()) + " stacks. Run ").withStyle(ChatFormatting.YELLOW)
+                    .append(value("/mobstacker unstack " + scope + " confirm"))
+                    .append(Component.literal(" to go ahead.").withStyle(ChatFormatting.YELLOW)), false);
+            return 0;
+        }
+        unstackJobs.add(new UnstackJob(source, stacks));
+        source.sendSuccess(() -> label("Splitting ").append(value(count(stacks.size())))
+                .append(label(stacks.size() == 1 ? " stack back into " : " stacks back into ")).append(value(count(newMobs)))
+                .append(label(" more mobs, " + UNSTACK_PER_TICK + " a tick...")), true);
+        if (MobStacker.config.getStackMode() != com.frikinjay.mobstacker.config.StackMode.OFF) {
+            source.sendSuccess(() -> Component.literal("stackMode is " + MobStacker.config.getStackMode()
+                    + ", so they will merge again wherever stacking is allowed. Before removing the mod, "
+                    + "run /mobstacker set stackMode off first.").withStyle(ChatFormatting.GOLD), false);
+        }
+        if (radius < 0) {
+            source.sendSuccess(() -> label("Only loaded chunks are reached: a stack in a chunk nobody has "
+                    + "loaded stays a stack."), false);
+        }
+        return stacks.size();
+    }
+
+    /** Called every server tick: splits up to {@link #UNSTACK_PER_TICK} mobs off the stacks waiting. */
+    public static void tickUnstacking() {
+        int budget = UNSTACK_PER_TICK;
+        while (budget > 0 && !unstackJobs.isEmpty()) {
+            UnstackJob job = unstackJobs.get(0);
+            while (budget > 0 && job.next < job.stacks.size()) {
+                Mob stack = job.stacks.get(job.next);
+                if (stack.isRemoved() || !stack.isAlive() || MobStacker.getStackSize(stack) <= 1) {
+                    finishStack(job);
+                    continue;
+                }
+                Vec3 spot = placeApart(stack, job.onTheSpot >= UNSTACK_MAX_ON_THE_SPOT);
+                if (spot == null) {
+                    // No room left around it: what is still stacked stays stacked, rather than being
+                    // let out onto a spot where the crowd would hurt it.
+                    job.leftStacked++;
+                    finishStack(job);
+                    continue;
+                }
+                Mob separated = MobStacker.separateOne(stack, false);
+                budget--;
+                if (separated == null) {
+                    job.leftStacked++;
+                    finishStack(job);
+                    continue;
+                }
+                separated.moveTo(spot.x, spot.y, spot.z, stack.getRandom().nextFloat() * 360.0F, 0.0F);
+                if (spot.equals(stack.position())) {
+                    job.onTheSpot++;
+                }
+                job.mobs++;
+            }
+            if (job.next >= job.stacks.size()) {
+                unstackJobs.remove(0);
+                int mobs = job.mobs;
+                int split = job.split;
+                int left = job.leftStacked;
+                job.source.sendSuccess(() -> Component.literal("Unstacked: ").withStyle(ChatFormatting.GREEN)
+                        .append(value(count(mobs))).append(label(" mobs back from "))
+                        .append(value(count(split))).append(label(split == 1 ? " stack." : " stacks."))
+                        .append(left > 0 ? label(" " + count(left) + (left == 1 ? " was" : " were")
+                                + " left partly stacked: no room around " + (left == 1 ? "it." : "them."))
+                                : Component.empty()), true);
+            }
+        }
+    }
+
+    private static void finishStack(UnstackJob job) {
+        job.split++;
+        job.next++;
+        job.onTheSpot = 0;
+    }
+
+    /** Forgets every job; the server is stopping. */
+    public static void cancelUnstacking() {
+        unstackJobs.clear();
+    }
+
+    /**
+     * A spot near the stack to set one of its mobs down: free of blocks, reachable from the stack in a
+     * straight line (so a mob in a pen is never put down on the far side of the fence), on the ground if
+     * the stack is on the ground and in water if the stack is in water. Further out the bigger the stack.
+     * The stack's own spot when nothing else fits and {@code spotFull} is false; null when it is full too.
+     */
+    private static Vec3 placeApart(Mob stack, boolean spotFull) {
+        Level level = stack.level();
+        Vec3 base = stack.position();
+        EntityType<?> type = stack.getType();
+        double width = Math.max(0.6, stack.getBbWidth());
+        double spread = Math.min(8.0, Math.max(1.5, width * Math.sqrt(MobStacker.getStackSize(stack)) * 0.6));
+        boolean grounded = !level.noCollision(type.getAABB(base.x, base.y - 0.5, base.z));
+        boolean wet = !level.getFluidState(stack.blockPosition()).isEmpty();
+        Vec3 from = base.add(0.0, Math.min(0.5, stack.getBbHeight() * 0.5), 0.0);
+        for (int attempt = 0; attempt < 12; attempt++) {
+            double angle = stack.getRandom().nextDouble() * Math.PI * 2.0;
+            double distance = Math.sqrt(stack.getRandom().nextDouble()) * spread;
+            Vec3 spot = new Vec3(base.x + Math.cos(angle) * distance, base.y, base.z + Math.sin(angle) * distance);
+            if (!level.noCollision(type.getAABB(spot.x, spot.y, spot.z))) {
+                continue;
+            }
+            if (grounded && level.noCollision(type.getAABB(spot.x, spot.y - 0.5, spot.z))) {
+                continue; // nothing to stand on: an edge, a hole, a ledge
+            }
+            if (wet != !level.getFluidState(BlockPos.containing(spot)).isEmpty()) {
+                continue;
+            }
+            Vec3 to = spot.add(0.0, from.y - base.y, 0.0);
+            if (level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, stack))
+                    .getType() != HitResult.Type.MISS) {
+                continue; // a wall or a fence between them
+            }
+            return spot;
+        }
+        return spotFull ? null : base;
+    }
+
+    // ============================================================ stack
+
+    /**
+     * Merges the mobs within {@code radius} blocks that could merge with each other by every rule but the
+     * one about the place: stackMode and the regions are not asked, so an operator can tidy up a crowd
+     * where the scan is not allowed to. Mobs still only merge with their own kind within the stack radius,
+     * under the ceiling, and never when a name, gear, a variant or a player's claim keeps them apart. The
+     * stacks stay stacks afterwards, like any stack that wanders out of a stacking area.
+     */
+    private static int stack(CommandSourceStack source, int radius) {
+        ServerLevel level = source.getLevel();
+        Vec3 centre = source.getPosition();
+        AABB area = new AABB(centre, centre).inflate(radius);
+        double reachSq = (double) radius * radius;
+        List<Mob> mobs = level.getEntitiesOfClass(Mob.class, area,
+                mob -> mob.isAlive() && mob.distanceToSqr(centre) <= reachSq);
+        // The biggest stacks take the others in, the same way round as the scan's merges.
+        mobs.sort((a, b) -> Integer.compare(MobStacker.getStackSize(b), MobStacker.getStackSize(a)));
+        int merged = 0;
+        List<Mob> grew = new ArrayList<>();
+        for (Mob target : mobs) {
+            if (target.isRemoved() || !freeToStack(target)) {
+                continue;
+            }
+            for (Mob candidate : level.getEntitiesOfClass(Mob.class,
+                    target.getBoundingBox().inflate(MobStacker.getStackRadius(target)),
+                    other -> other != target && other.getClass() == target.getClass() && other.isAlive()
+                            && other.distanceToSqr(centre) <= reachSq)) {
+                if (candidate.isRemoved() || !freeToStack(candidate)
+                        || MobStacker.mergeRefusal(candidate, target) != null) {
+                    continue;
+                }
+                MobStacker.mergeEntities(target, candidate);
+                merged++;
+                if (!grew.contains(target)) {
+                    grew.add(target);
+                }
+                if (!freeToStack(target)) {
+                    break; // full
+                }
+            }
+        }
+        int mergedMobs = merged;
+        int stacks = grew.size();
+        source.sendSuccess(() -> mergedMobs == 0
+                ? label("Nothing within " + radius + " blocks could merge. /mobstacker inspect shows why for any one mob.")
+                : Component.literal("Stacked: ").withStyle(ChatFormatting.GREEN)
+                        .append(value(count(mergedMobs))).append(label(mergedMobs == 1 ? " mob merged into " : " mobs merged into "))
+                        .append(value(count(stacks))).append(label(stacks == 1 ? " stack." : " stacks.")), true);
+        return mergedMobs;
+    }
+
+    /** Whether this mob may take part in {@code stack}: every rule but where it stands. */
+    private static boolean freeToStack(Mob mob) {
+        return MobStacker.getCanStack(mob) && MobStacker.stackRefusal(mob, false) == null;
     }
 
     // ============================================================ formatting

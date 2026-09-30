@@ -376,6 +376,10 @@ public class MobStackerCommands {
                 .append(Component.literal("  a stack up close, and why it will not stack").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker stats [radius]").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  how many mobs the stacks stand for").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker unstack <radius|loaded>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  split stacks back into mobs - do this before removing the mod").withStyle(ChatFormatting.GRAY)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker stack <radius>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  merge what can merge here now, whatever stackMode says").withStyle(ChatFormatting.GRAY)), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))

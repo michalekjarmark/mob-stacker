@@ -44,6 +44,16 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   round, per region too. Each mob remembers how it came into the world from 1.10.0 on; a mob from
   before that, or one hatched from an egg, counts as natural. What is left of a stack after a kill, a
   mob taken out of one and a mob that converts all keep the origin they came from. `inspect` shows it.
+- **`/mobstacker unstack <radius|loaded>`** splits stacks back into the mobs they stand for - **run it
+  before removing the mod**, because without the mod a stack is one mob and every other mob it stood
+  for is gone. The mobs come back a hundred a tick and are set down apart from each other where there
+  is room, never on the far side of a wall or fence, since sixty-four let out on one spot would be hurt
+  by vanilla's crowding limit; a stack with no room around it is left partly stacked and reported. More
+  than 500 mobs asks for `confirm`. It warns while stacking is still on (they would merge again) and
+  reaches loaded chunks only.
+- **`/mobstacker stack <radius>`** merges what can merge there now, whatever `stackMode` and the regions
+  say - every rule about the mobs themselves still holds (their kind, the ceiling, names, gear,
+  variants, the stack radius). For tidying up a crowd where stacking is otherwise off.
 
 ### Fixed
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
@@ -59,6 +69,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   would join. Vanilla copies a sheared mooshroom's name onto the cow it becomes, and that name was
   the stack's own label; the cow stack read it as a name a player had given. The cow stack is now
   labelled "Cow x10" and takes cows like any other. Found by the first scripted server test.
+- **A mob taken out of a stack came out healed**, even when every mob under the top one carried a
+  wound (a sweep, a fall, a fire); it now comes out with that wound. And under `stackHealth`, taking
+  mobs out lowered the stack's health but never its maximum, so a stack split back down to one mob kept
+  the whole pool as its maximum - a single cow with 640 max health.
 - **A stack a player named keeps its name when lightning turns it into something else** (a pig into a
   zombified piglin, a villager into a witch), as it already did when a zombie drowned. Every
   conversion now goes through one path, which also keeps a name given before 1.7.0 began

@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.command.StackToolsCommands;
 import net.minecraft.server.MinecraftServer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -24,6 +25,7 @@ public abstract class MinecraftServerMixin {
     @Inject(method = "tickServer", at = @At("TAIL"))
     private void mobstacker$tickKillHolograms(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
         MobStacker.tickKillHolograms();
+        StackToolsCommands.tickUnstacking();
     }
 
     /**
@@ -33,5 +35,6 @@ public abstract class MinecraftServerMixin {
     @Inject(method = "stopServer", at = @At("HEAD"))
     private void mobstacker$clearKillHolograms(CallbackInfo ci) {
         MobStacker.clearKillHolograms();
+        StackToolsCommands.cancelUnstacking();
     }
 }
