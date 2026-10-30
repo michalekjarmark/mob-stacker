@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.10.0] - unreleased
+## [1.10.0] - 2026-10-31
 ### Added
 - **`/mobstacker inspect [target]`** - look at a mob (or name one) and see its stack up close: size,
   health (the top mob's and that of the mobs under it), which region it stands in and what that region
