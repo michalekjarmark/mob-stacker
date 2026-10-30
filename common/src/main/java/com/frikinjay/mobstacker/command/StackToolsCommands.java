@@ -69,16 +69,21 @@ public final class StackToolsCommands {
     private StackToolsCommands() {
     }
 
+    /** Operators only: the root lets region owners in as well, for region share (see MobStackerCommands). */
+    private static boolean isAdmin(CommandSourceStack source) {
+        return source.hasPermission(2);
+    }
+
     static void attach(LiteralArgumentBuilder<CommandSourceStack> root) {
-        root.then(literal("inspect")
+        root.then(literal("inspect").requires(StackToolsCommands::isAdmin)
                         .executes(ctx -> inspect(ctx.getSource(), lookedAt(ctx.getSource())))
                         .then(argument("target", EntityArgument.entity())
                                 .executes(ctx -> inspect(ctx.getSource(), EntityArgument.getEntity(ctx, "target")))))
-                .then(literal("stats")
+                .then(literal("stats").requires(StackToolsCommands::isAdmin)
                         .executes(ctx -> stats(ctx.getSource(), -1))
                         .then(argument("radius", IntegerArgumentType.integer(1, 100000))
                                 .executes(ctx -> stats(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))))
-                .then(literal("unstack")
+                .then(literal("unstack").requires(StackToolsCommands::isAdmin)
                         .then(literal("loaded")
                                 .executes(ctx -> unstack(ctx.getSource(), -1, false))
                                 .then(literal("confirm").executes(ctx -> unstack(ctx.getSource(), -1, true))))
@@ -86,7 +91,7 @@ public final class StackToolsCommands {
                                 .executes(ctx -> unstack(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius"), false))
                                 .then(literal("confirm").executes(ctx -> unstack(ctx.getSource(),
                                         IntegerArgumentType.getInteger(ctx, "radius"), true)))))
-                .then(literal("stack")
+                .then(literal("stack").requires(StackToolsCommands::isAdmin)
                         .then(argument("radius", IntegerArgumentType.integer(1, STACK_MAX_RADIUS))
                                 .executes(ctx -> stack(ctx.getSource(), IntegerArgumentType.getInteger(ctx, "radius")))));
     }

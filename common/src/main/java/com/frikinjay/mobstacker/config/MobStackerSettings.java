@@ -30,6 +30,11 @@ public final class MobStackerSettings {
             "stackMode", "playerStackRadius",
             "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
             "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
+    // Settings a region gives about itself rather than about the mobs in it. An override of one of
+    // these is kept even while it says what the global value says: a region somebody made private
+    // stays private when the server is switched to public and back, where pruning it as redundant
+    // (MobStackerConfig#pruneRedundantRegionOverrides) would have let it follow the server to public.
+    private static final java.util.Set<String> ABOUT_THE_REGION = java.util.Set.of("privateRegions");
     private static final Map<String, ConfigOption> BY_ID = new LinkedHashMap<>();
 
     static {
@@ -106,6 +111,15 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("stackPlacedMobs", Category.ORIGIN,
                 "Stack mobs a player put there: from a spawn egg, a dispenser, a bucket or /summon.",
                 () -> MobStacker.config.getStackPlacedMobs(), v -> MobStacker.config.setStackPlacedMobs(v), true));
+
+        // --- Regions ---
+        // Overridable like any other, but read off the region itself rather than at a mob: a region
+        // set to false is public, whatever the global value says (MobStacker#regionIsPrivate).
+        register(ConfigOption.ofBool("privateRegions", Category.REGIONS,
+                "Players who are not admins see only the regions they own or that were shared with them - "
+                        + "the boxes, the names and the GUI alike. Off: everybody sees every region. "
+                        + "Set to false on one region to make just that one public.",
+                () -> MobStacker.config.getPrivateRegions(), v -> MobStacker.config.setPrivateRegions(v), true));
 
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
@@ -441,6 +455,11 @@ public final class MobStackerSettings {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());
+    }
+
+    /** Whether this setting describes the region itself, so a region's own value is never pruned. */
+    public static boolean isAboutTheRegion(String id) {
+        return ABOUT_THE_REGION.contains(id);
     }
 
     /** Whether a region may carry its own value for this setting. */

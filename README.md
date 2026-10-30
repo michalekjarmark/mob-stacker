@@ -36,6 +36,8 @@ preserved — the mobs are still there, they just travel together.
 - 🧩 **Settings per region** — almost every setting can differ inside a region, so a cow farm and a
   grinder in the same world behave differently. Regions are created, redrawn and deleted from the
   GUI or the commands, and can be **drawn in the world** in a colour of their own, with their names.
+- 🔒 **Private regions** — players see only the regions they own or that were shared with them;
+  admins see them all. Nothing else is even sent to their game.
 - 💥 **Damage overflow** — one big hit kills several mobs in a stack and drops loot/XP for each.
 - 🌋 **Farms keep working** — a fall, fire, lava, drowning or an explosion hurts every mob in a stack,
   so a fall-damage farm kills the whole stack instead of one mob of it.
@@ -164,7 +166,8 @@ The vanilla per-category spawn caps are settings too (category `mobcaps`, global
 
 ## Commands
 
-All of these need operator permission (level 2).
+All of these need operator permission (level 2) — except `region share`, which the owner of a region
+may use on it (see [Who sees a region](#who-sees-a-region)).
 
 ```bash
 /mobstacker                          # grouped overview of every current value
@@ -308,6 +311,8 @@ with several cuboids.
 /mobstacker region remove <name>
 /mobstacker region list
 /mobstacker region show <name>                                  # bounds, priority and its overrides
+/mobstacker region owner <name> <player|none>                   # who owns it (see below)
+/mobstacker region share <name> [add|remove <player>]           # who else sees it - its owner may too
 ```
 
 > **Getting started:** stacking is `off` on a fresh install. Adding an `allow` region while it is
@@ -334,7 +339,7 @@ global config, so you only ever state the differences.
 In the GUI the same lives behind **Regions…**. A row's label is **gold** when the region sets that
 value itself and **grey** when it follows the world, and the `↺` beside it drops the override.
 A value equal to the global one is never stored as an override, so gold always means "different in
-here". Hovering says the same in words, and in red when a setting cannot be edited here. **New
+here" (the one exception is `privateRegions`, below). Hovering says the same in words, and in red when a setting cannot be edited here. **New
 region…** and **Edit area…** open an editor for a region's kind, dimension and both corners, with a
 **Here** button that fills a corner from where you are standing; the same screen deletes a region,
 behind a second click. Redrawing a region keeps its settings and its priority.
@@ -342,6 +347,37 @@ behind a second click. Redrawing a region keeps its settings and its priority.
 Only `stackMode`, `playerStackRadius` and the mob caps stay global — the first two decide where the
 region system applies at all, and the caps are world-level spawn limits rather than a property of a
 place.
+
+### Who sees a region
+
+A region's corners are a map of somebody's farm, so with `privateRegions` on (the default) a player is
+told about a region only when they may see it — the boxes, the names, the "Region:" line and the GUI
+all come from what the server sends, and the server sends nothing else:
+
+| Who | Sees |
+|---|---|
+| Admins — operators, the player whose singleplayer world it is, and anyone with the permission `mobstacker.regions.viewall` | every region |
+| A region's owner | that region, and may share it |
+| A player it was shared with | that region |
+| Everybody | regions set to `privateRegions false` |
+
+```bash
+/mobstacker region owner farm Steve           # operators only; "none" takes the owner away
+/mobstacker region share farm add Alex        # the owner (or an operator) lets a friend see it
+/mobstacker region share farm remove Alex
+/mobstacker region share farm                 # who sees it
+/mobstacker set privateRegions false          # everybody sees every region, as before 1.10.0
+/mobstacker region set spawn privateRegions false   # just this one is public
+```
+
+An owner who is not an operator gets `/mobstacker region share` and nothing else of `/mobstacker`,
+and only for their own regions. The permission node is read from any permissions mod built on
+fabric-permissions-api (LuckPerms is); without one it falls back to operator level 2. Changes reach a
+player's game by themselves — a share taken back hides the region within a moment, without logging
+out. One value is kept even when it matches the global one: a region set to private stays private
+when the server is switched to public and back.
+
+What this cannot hide is what the mobs do: stacks forming where they do say that a region is there.
 
 ## Combat
 
@@ -476,7 +512,8 @@ boxes, with F1 and under F3.
 
 `auto` means no colour was chosen, and the box is drawn **green** for an allow region and **red** for
 a deny one. The colour belongs to the region, so everyone sees the same one; *whether* a box is drawn
-is each player's own business, kept client-side and never sent anywhere.
+is each player's own business, kept client-side and never sent anywhere. Which regions a player can
+draw at all is the server's call — see [Who sees a region](#who-sees-a-region).
 
 Boxes need the mod on the client — without it there is simply nothing to see. They are hidden by
 terrain, like everything else in the world, until you switch **X-ray** on: then they are drawn

@@ -8,15 +8,21 @@ import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Server side of the config-sync protocol used by the in-game GUI to edit a dedicated (or LAN)
@@ -80,6 +86,19 @@ public final class MobStackerNetworking {
     /** Operator level required to change settings, matching the {@code /mobstacker} command tree. */
     private static final int EDIT_PERMISSION_LEVEL = 2;
 
+    /** How often (ticks) to look whether a player's permissions changed since their last snapshot. */
+    private static final int ACCESS_CHECK_INTERVAL = 40;
+
+    /**
+     * What each player holding a snapshot was last sent: the config version it showed, and the two
+     * permissions it was cut to. Only players who asked once are here - the snapshot is still never
+     * pushed to a client that has not opened the GUI. Server thread only.
+     */
+    private static final Map<UUID, Sent> SENT = new HashMap<>();
+
+    private record Sent(int version, boolean authorized, boolean seesAll) {
+    }
+
     private MobStackerNetworking() {
     }
 
@@ -94,6 +113,39 @@ public final class MobStackerNetworking {
             String raw = buf.readUtf();
             server.execute(() -> handleEdit(player, id, raw));
         });
+
+        // A snapshot has to follow the config, or a player taken off a region's list would go on
+        // seeing it until they logged out - and an operator's edit used to reach only that operator.
+        ServerTickEvents.END_SERVER_TICK.register(MobStackerNetworking::refreshSnapshots);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                server.execute(() -> SENT.remove(handler.getPlayer().getUUID())));
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> SENT.clear());
+    }
+
+    /**
+     * Sends a fresh snapshot to every player holding one that is out of date: the config changed since
+     * (a region was shared, moved, deleted, a setting set by somebody else), or the player's own
+     * permissions did - made an operator, deopped, or given a node by a permissions mod, which tells
+     * nobody, so it is looked at every couple of seconds.
+     */
+    private static void refreshSnapshots(MinecraftServer server) {
+        if (SENT.isEmpty()) {
+            return;
+        }
+        boolean checkAccess = server.getTickCount() % ACCESS_CHECK_INTERVAL == 0;
+        for (Map.Entry<UUID, Sent> entry : List.copyOf(SENT.entrySet())) {
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player == null) {
+                SENT.remove(entry.getKey());
+                continue;
+            }
+            Sent sent = entry.getValue();
+            if (sent.version() != MobStacker.configVersion
+                    || (checkAccess && (sent.authorized() != player.hasPermissions(EDIT_PERMISSION_LEVEL)
+                    || sent.seesAll() != MobStacker.seesAllRegions(player)))) {
+                sendSync(player, "");
+            }
+        }
     }
 
     private static void handleEdit(ServerPlayer player, String id, String raw) {
@@ -361,7 +413,9 @@ public final class MobStackerNetworking {
             return; // vanilla / non-mod client: send nothing, stay invisible to it
         }
         FriendlyByteBuf buf = PacketByteBufs.create();
-        buf.writeBoolean(player.hasPermissions(EDIT_PERMISSION_LEVEL));
+        boolean authorized = player.hasPermissions(EDIT_PERMISSION_LEVEL);
+        boolean seesAll = MobStacker.seesAllRegions(player);
+        buf.writeBoolean(authorized);
         buf.writeUtf(status == null ? "" : status);
         List<ConfigOption> options = MobStackerSettings.all();
         buf.writeVarInt(options.size());
@@ -387,8 +441,10 @@ public final class MobStackerNetworking {
             buf.writeVarInt(entry.getValue());
         }
 
-        // Regions follow the settings, so the GUI can edit each region's own values too.
-        List<StackRegion> regions = MobStacker.config.getRegions();
+        // Regions follow the settings, so the GUI can edit each region's own values too - only the
+        // ones this player may see (MobStacker#regionVisible). What is not sent cannot be drawn,
+        // read off the wire or dug out of a modified client.
+        List<StackRegion> regions = MobStacker.regionsVisibleTo(player);
         buf.writeVarInt(regions.size());
         for (StackRegion region : regions) {
             buf.writeUtf(region.getName());
@@ -435,5 +491,6 @@ public final class MobStackerNetworking {
         // nothing there and reads that as "not allowed".
         buf.writeBoolean(MobStacker.regionXrayAllowed());
         ServerPlayNetworking.send(player, SYNC, buf);
+        SENT.put(player.getUUID(), new Sent(MobStacker.configVersion, authorized, seesAll));
     }
 }

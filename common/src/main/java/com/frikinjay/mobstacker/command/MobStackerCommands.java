@@ -12,6 +12,7 @@ import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -23,6 +24,7 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
@@ -30,14 +32,20 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static com.frikinjay.mobstacker.MobStacker.MOD_ID;
@@ -55,46 +63,49 @@ import static net.minecraft.commands.Commands.literal;
 public class MobStackerCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> root = literal(MOD_ID)
-                .requires(source -> source.hasPermission(2))
+                // Operators, and region owners for the one thing they may do: share a region. Every
+                // other branch asks for an operator itself (isAdmin), so an owner sees no more than
+                // /mobstacker region share - ConfigSelfTest walks the tree to keep it that way.
+                .requires(MobStackerCommands::mayUseRoot)
                 .executes(MobStackerCommands::showOverview)
-                .then(literal("help")
+                .then(literal("help").requires(MobStackerCommands::isAdmin)
                         .executes(MobStackerCommands::showHelpRoot)
                         .then(argument("category", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestCategories)
                                 .executes(MobStackerCommands::showHelpCategory)))
-                .then(literal("reload").executes(MobStackerCommands::reloadConfig))
-                .then(literal("get")
+                .then(literal("reload").requires(MobStackerCommands::isAdmin).executes(MobStackerCommands::reloadConfig))
+                .then(literal("get").requires(MobStackerCommands::isAdmin)
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestSettings)
                                 .executes(MobStackerCommands::getValue)))
-                .then(literal("set")
+                .then(literal("set").requires(MobStackerCommands::isAdmin)
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestSettings)
                                 .then(argument("value", StringArgumentType.greedyString())
                                         .suggests(MobStackerCommands::suggestValues)
                                         .executes(MobStackerCommands::setValue))))
-                .then(literal("toggle")
+                .then(literal("toggle").requires(MobStackerCommands::isAdmin)
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestToggles)
                                 .executes(MobStackerCommands::toggleValue)))
-                .then(literal("reset")
+                .then(literal("reset").requires(MobStackerCommands::isAdmin)
                         .then(literal("all").executes(MobStackerCommands::resetAll))
                         .then(argument("setting", StringArgumentType.word())
                                 .suggests(MobStackerCommands::suggestSettings)
                                 .executes(MobStackerCommands::resetValue)))
-                .then(literal("stacksize")
+                .then(literal("stacksize").requires(MobStackerCommands::isAdmin)
                         .then(argument("target", EntityArgument.entity())
                                 .then(argument("size", IntegerArgumentType.integer(1))
                                         .executes(MobStackerCommands::setStackSizeLive))))
-                .then(literal("list")
+                .then(literal("list").requires(MobStackerCommands::isAdmin)
                         .then(listHalf("deny", MobListKind.Half.DENY, null))
                         .then(listHalf("allow", MobListKind.Half.ALLOW, null)))
                 // The old name for the deny lists, kept working because it is in every existing
                 // guide and in people's fingers. It reaches exactly the same code.
-                .then(literal("ignore")
+                .then(literal("ignore").requires(MobStackerCommands::isAdmin)
                         .then(listFlavour(MobListKind.DENY_ENTITIES, null))
                         .then(listFlavour(MobListKind.DENY_MODS, null)))
-                .then(literal("maxstack")
+                .then(literal("maxstack").requires(MobStackerCommands::isAdmin)
                         .then(literal("list").executes(ctx -> showMaxStacks(ctx, null)))
                         .then(argument("entityId", ResourceLocationArgument.id())
                                 .suggests(MobStackerCommands::suggestEntities)
@@ -107,7 +118,27 @@ public class MobStackerCommands {
                                         .executes(ctx -> setMaxStack(ctx, null,
                                                 IntegerArgumentType.getInteger(ctx, "size"))))))
                 .then(literal("region")
-                        .then(literal("add")
+                        .then(literal("owner").requires(MobStackerCommands::isAdmin)
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(MobStackerCommands::showRegionAccess)
+                                        .then(literal("none").executes(ctx -> setRegionOwner(ctx, false)))
+                                        .then(argument("player", GameProfileArgument.gameProfile())
+                                                .executes(ctx -> setRegionOwner(ctx, true)))))
+                        // The one branch a region's owner may use without being an operator; each
+                        // handler checks again that the region named is theirs.
+                        .then(literal("share").requires(MobStackerCommands::mayUseRoot)
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestSharableRegions)
+                                        .executes(MobStackerCommands::showRegionAccess)
+                                        .then(literal("add")
+                                                .then(argument("player", GameProfileArgument.gameProfile())
+                                                        .executes(MobStackerCommands::shareRegion)))
+                                        .then(literal("remove")
+                                                .then(argument("player", StringArgumentType.word())
+                                                        .suggests(MobStackerCommands::suggestSharedPlayers)
+                                                        .executes(MobStackerCommands::unshareRegion)))))
+                        .then(literal("add").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .then(literal("allow")
                                                 .then(argument("corner1", BlockPosArgument.blockPos())
@@ -117,30 +148,30 @@ public class MobStackerCommands {
                                                 .then(argument("corner1", BlockPosArgument.blockPos())
                                                         .then(argument("corner2", BlockPosArgument.blockPos())
                                                                 .executes(ctx -> addRegion(ctx, StackRegion.Type.DENY)))))))
-                        .then(literal("bounds")
+                        .then(literal("bounds").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("corner1", BlockPosArgument.blockPos())
                                                 .then(argument("corner2", BlockPosArgument.blockPos())
                                                         .executes(MobStackerCommands::setRegionBounds)))))
-                        .then(literal("type")
+                        .then(literal("type").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(literal("allow")
                                                 .executes(ctx -> setRegionType(ctx, StackRegion.Type.ALLOW)))
                                         .then(literal("deny")
                                                 .executes(ctx -> setRegionType(ctx, StackRegion.Type.DENY)))))
-                        .then(literal("remove")
+                        .then(literal("remove").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .executes(MobStackerCommands::removeRegion)))
-                        .then(literal("list")
+                        .then(literal("list").requires(MobStackerCommands::isAdmin)
                                 .executes(MobStackerCommands::listRegions))
-                        .then(literal("show")
+                        .then(literal("show").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .executes(MobStackerCommands::showRegion)))
-                        .then(literal("set")
+                        .then(literal("set").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("setting", StringArgumentType.word())
@@ -148,29 +179,29 @@ public class MobStackerCommands {
                                                 .then(argument("value", StringArgumentType.greedyString())
                                                         .suggests(MobStackerCommands::suggestValues)
                                                         .executes(MobStackerCommands::setRegionValue)))))
-                        .then(literal("unset")
+                        .then(literal("unset").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("setting", StringArgumentType.word())
                                                 .suggests(MobStackerCommands::suggestRegionOverrides)
                                                 .executes(MobStackerCommands::unsetRegionValue))))
-                        .then(literal("priority")
+                        .then(literal("priority").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("priority", IntegerArgumentType.integer())
                                                 .executes(MobStackerCommands::setRegionPriority))))
-                        .then(literal("rename")
+                        .then(literal("rename").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("newname", StringArgumentType.word())
                                                 .executes(MobStackerCommands::renameRegion))))
                         // "mobs" rather than "list", which this tree already uses for listing regions.
-                        .then(literal("mobs")
+                        .then(literal("mobs").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(listHalf("deny", MobListKind.Half.DENY, "name"))
                                         .then(listHalf("allow", MobListKind.Half.ALLOW, "name"))))
-                        .then(literal("maxstack")
+                        .then(literal("maxstack").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(literal("list").executes(ctx -> showMaxStacks(ctx, "name")))
@@ -182,7 +213,7 @@ public class MobStackerCommands {
                                                 .then(argument("size", IntegerArgumentType.integer(1))
                                                         .executes(ctx -> setMaxStack(ctx, "name",
                                                                 IntegerArgumentType.getInteger(ctx, "size")))))))
-                        .then(literal("color")
+                        .then(literal("color").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("color", StringArgumentType.word())
@@ -192,7 +223,7 @@ public class MobStackerCommands {
         // The self-test command is an opt-in developer/testing tool: it is only registered when the
         // JVM is started with -Dmobstacker.selftest=true, so the public release never exposes it.
         if (Boolean.getBoolean("mobstacker.selftest")) {
-            root.then(literal("selftest").executes(MobStackerCommands::runSelfTest));
+            root.then(literal("selftest").requires(MobStackerCommands::isAdmin).executes(MobStackerCommands::runSelfTest));
         }
         StackToolsCommands.attach(root);
         dispatcher.register(root);
@@ -325,6 +356,9 @@ public class MobStackerCommands {
     // ============================================================ overview & help
 
     private static int showOverview(CommandContext<CommandSourceStack> context) {
+        if (!isAdmin(context.getSource())) {
+            return showOwnerOverview(context.getSource());
+        }
         CommandSourceStack source = context.getSource();
         source.sendSuccess(() -> Component.literal("=== MobStacker: Restacked ===").withStyle(ChatFormatting.GOLD), false);
         for (Category category : Category.values()) {
@@ -371,7 +405,9 @@ public class MobStackerCommands {
                 .append(Component.literal("  which mobs stack; see mobListMode").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a ceiling for one mob type").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack|owner|share>").withStyle(ChatFormatting.YELLOW), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region owner <name> <player|none> | region share <name> <add|remove> <player>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  who besides admins sees a region (privateRegions)").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker inspect [target]").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a stack up close, and why it will not stack").withStyle(ChatFormatting.GRAY)), false);
         source.sendSuccess(() -> Component.literal("/mobstacker stats [radius]").withStyle(ChatFormatting.YELLOW)
@@ -507,6 +543,228 @@ public class MobStackerCommands {
                 .forEach(builder::suggest);
         return builder.buildFuture();
     }
+
+    // ============================================================ who sees a region
+
+    /** An operator: everything in this tree but {@code region share} asks for this. */
+    private static boolean isAdmin(CommandSourceStack source) {
+        return source.hasPermission(2);
+    }
+
+    /**
+     * Operators, and players who own a region - who may share it, and nothing more. Asked of the
+     * entity behind the command, by UUID: only an operator can make a command run as another one.
+     */
+    private static boolean mayUseRoot(CommandSourceStack source) {
+        return isAdmin(source) || (source.getEntity() != null && MobStacker.ownsRegion(source.getEntity().getUUID()));
+    }
+
+    private static boolean mayManageSharing(CommandSourceStack source, StackRegion region) {
+        return isAdmin(source) || (source.getEntity() != null && region.isOwnedBy(source.getEntity().getUUID()));
+    }
+
+    /**
+     * The region named by the command when this source may say who sees it - an operator, or its
+     * owner - and otherwise a refusal. A region that is somebody else's is refused in the same words
+     * as one that does not exist: answering differently would tell a player which names are taken.
+     */
+    private static StackRegion requireSharableRegion(CommandContext<CommandSourceStack> context) {
+        String name = StringArgumentType.getString(context, "name");
+        StackRegion region = MobStacker.config.getRegion(name);
+        CommandSourceStack source = context.getSource();
+        if (region != null && mayManageSharing(source, region)) {
+            return region;
+        }
+        source.sendFailure(Component.literal(isAdmin(source)
+                ? "Region '" + name + "' does not exist"
+                : "You have no region called '" + name + "'").withStyle(ChatFormatting.RED));
+        return null;
+    }
+
+    /** What {@code /mobstacker} alone says to a region owner who is not an operator. */
+    private static int showOwnerOverview(CommandSourceStack source) {
+        List<String> own = new ArrayList<>();
+        if (source.getEntity() != null) {
+            for (StackRegion region : MobStacker.config.getRegions()) {
+                if (region.isOwnedBy(source.getEntity().getUUID())) {
+                    own.add(region.getName());
+                }
+            }
+        }
+        source.sendSuccess(() -> Component.literal("Your regions: ").withStyle(ChatFormatting.GOLD)
+                .append(Component.literal(String.join(", ", own)).withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal("/mobstacker region share <region> add <player>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  let a friend see one too; ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal("remove <player>").withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(" takes it back, and no player at all shows who has it").withStyle(ChatFormatting.GRAY)), false);
+        return 1;
+    }
+
+    /** A player's name as the server knows it now, falling back to the one stored with the region. */
+    private static String playerName(MinecraftServer server, String uuid, String stored) {
+        try {
+            UUID id = UUID.fromString(uuid);
+            ServerPlayer online = server.getPlayerList().getPlayer(id);
+            if (online != null) {
+                return online.getGameProfile().getName();
+            }
+            if (server.getProfileCache() != null) {
+                Optional<GameProfile> known = server.getProfileCache().get(id);
+                if (known.isPresent() && known.get().getName() != null) {
+                    return known.get().getName();
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            // not a UUID: show what was stored
+        }
+        return stored != null ? stored : uuid;
+    }
+
+    /** The "who sees it" lines of {@code region show} and {@code region share <name>}. */
+    private static List<Component> regionAccessLines(MinecraftServer server, StackRegion region) {
+        List<Component> lines = new ArrayList<>();
+        UUID owner = region.getOwner();
+        lines.add(Component.literal(" owner: ").withStyle(ChatFormatting.GRAY)
+                .append(owner == null
+                        ? Component.literal("nobody").withStyle(ChatFormatting.DARK_GRAY)
+                        : Component.literal(playerName(server, owner.toString(), region.getOwnerName())).withStyle(ChatFormatting.AQUA)));
+        List<String> names = new ArrayList<>();
+        for (Map.Entry<String, String> entry : region.getSharedWith().entrySet()) {
+            names.add(playerName(server, entry.getKey(), entry.getValue()));
+        }
+        lines.add(Component.literal(" shared with: ").withStyle(ChatFormatting.GRAY)
+                .append(names.isEmpty()
+                        ? Component.literal("nobody").withStyle(ChatFormatting.DARK_GRAY)
+                        : Component.literal(String.join(", ", names)).withStyle(ChatFormatting.AQUA)));
+        lines.add(Component.literal(MobStacker.regionIsPrivate(region)
+                ? " seen by: admins, its owner and the players it is shared with"
+                : " seen by: everybody (privateRegions is off for it)").withStyle(ChatFormatting.DARK_GRAY));
+        return lines;
+    }
+
+    private static int showRegionAccess(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireSharableRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        for (Component line : regionAccessLines(source.getServer(), region)) {
+            source.sendSuccess(() -> line, false);
+        }
+        return 1;
+    }
+
+    private static int setRegionOwner(CommandContext<CommandSourceStack> context, boolean set) throws CommandSyntaxException {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        if (!set) {
+            if (region.getOwner() == null) {
+                source.sendSuccess(() -> Component.literal(region.getName() + " has no owner").withStyle(ChatFormatting.YELLOW), false);
+                return 1;
+            }
+            region.setOwner(null, null);
+            MobStacker.config.save();
+            source.sendSuccess(() -> Component.literal(region.getName() + " has no owner now").withStyle(ChatFormatting.GREEN), true);
+            return 1;
+        }
+        Collection<GameProfile> profiles = GameProfileArgument.getGameProfiles(context, "player");
+        if (profiles.size() != 1) {
+            source.sendFailure(Component.literal("A region has one owner - name a single player").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        GameProfile profile = profiles.iterator().next();
+        region.setOwner(profile.getId(), profile.getName());
+        // The owner sees it anyway; staying on the list as well would outlive a change of owner.
+        region.unshare(profile.getId());
+        MobStacker.config.save();
+        source.sendSuccess(() -> Component.literal(region.getName() + " now belongs to " + profile.getName()
+                + " - they see it, and may share it with /mobstacker region share").withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int shareRegion(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        StackRegion region = requireSharableRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        List<String> added = new ArrayList<>();
+        for (GameProfile profile : GameProfileArgument.getGameProfiles(context, "player")) {
+            if (region.isOwnedBy(profile.getId())) {
+                source.sendSuccess(() -> Component.literal(profile.getName() + " owns " + region.getName()
+                        + " and sees it anyway").withStyle(ChatFormatting.YELLOW), false);
+            } else if (region.share(profile.getId(), profile.getName())) {
+                added.add(profile.getName());
+            } else {
+                source.sendSuccess(() -> Component.literal(region.getName() + " is already shared with "
+                        + profile.getName()).withStyle(ChatFormatting.YELLOW), false);
+            }
+        }
+        if (added.isEmpty()) {
+            return 0;
+        }
+        MobStacker.config.save();
+        source.sendSuccess(() -> Component.literal("Shared " + region.getName() + " with " + String.join(", ", added))
+                .withStyle(ChatFormatting.GREEN), true);
+        if (!MobStacker.regionIsPrivate(region)) {
+            source.sendSuccess(() -> Component.literal(" (privateRegions is off for it, so everybody sees it anyway)")
+                    .withStyle(ChatFormatting.DARK_GRAY), false);
+        }
+        return 1;
+    }
+
+    private static int unshareRegion(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireSharableRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        String who = StringArgumentType.getString(context, "player");
+        // By the name the server knows now, the name stored when it was shared, or the UUID - a
+        // player who was renamed, or never comes back, must still be removable.
+        for (Map.Entry<String, String> entry : region.getSharedWith().entrySet()) {
+            String name = playerName(source.getServer(), entry.getKey(), entry.getValue());
+            if (who.equalsIgnoreCase(name) || who.equalsIgnoreCase(entry.getValue()) || who.equalsIgnoreCase(entry.getKey())) {
+                region.unshare(UUID.fromString(entry.getKey()));
+                MobStacker.config.save();
+                source.sendSuccess(() -> Component.literal(name + " no longer sees " + region.getName())
+                        .withStyle(ChatFormatting.GREEN), true);
+                return 1;
+            }
+        }
+        source.sendFailure(Component.literal(region.getName() + " is not shared with '" + who + "'").withStyle(ChatFormatting.RED));
+        return 0;
+    }
+
+    /** Operators get every region, an owner only their own. */
+    private static CompletableFuture<Suggestions> suggestSharableRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        for (StackRegion region : MobStacker.config.getRegions()) {
+            if (mayManageSharing(context.getSource(), region) && region.getName().toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                builder.suggest(region.getName());
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestSharedPlayers(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        StackRegion region = MobStacker.config.getRegion(StringArgumentType.getString(context, "name"));
+        if (region != null && mayManageSharing(context.getSource(), region)) {
+            String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+            for (Map.Entry<String, String> entry : region.getSharedWith().entrySet()) {
+                String name = playerName(context.getSource().getServer(), entry.getKey(), entry.getValue());
+                if (name.toLowerCase(Locale.ROOT).startsWith(remaining)) {
+                    builder.suggest(name);
+                }
+            }
+        }
+        return builder.buildFuture();
+    }
+
 
     private static CompletableFuture<Suggestions> suggestRegions(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase();
@@ -861,7 +1119,7 @@ public class MobStackerCommands {
      */
     private static int runSelfTest(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        ConfigSelfTest.Report report = ConfigSelfTest.run();
+        ConfigSelfTest.Report report = ConfigSelfTest.run(source);
         if (report.passed()) {
             source.sendSuccess(() -> Component.literal(
                     "Self-test PASSED: " + report.checks + " checks across " + report.options + " settings").withStyle(ChatFormatting.GREEN), false);
@@ -994,6 +1252,16 @@ public class MobStackerCommands {
         int overrides = region.getSettings().size();
         if (overrides > 0) {
             out.append("  ").append(overrides).append(overrides == 1 ? " setting" : " settings");
+        }
+        if (region.getOwner() != null) {
+            out.append("  owner ").append(region.getOwnerName());
+        }
+        int shared = region.getSharedWith().size();
+        if (shared > 0) {
+            out.append("  shared with ").append(shared);
+        }
+        if (!MobStacker.regionIsPrivate(region)) {
+            out.append("  public");
         }
         return out.toString();
     }
@@ -1200,6 +1468,9 @@ public class MobStackerCommands {
         String colorNote = region.getColor() == null ? " (from its type)" : "";
         source.sendSuccess(() -> Component.literal(
                 " overlay colour: " + color.name().toLowerCase(Locale.ROOT) + colorNote).withStyle(color.format()), false);
+        for (Component line : regionAccessLines(source.getServer(), region)) {
+            source.sendSuccess(() -> line, false);
+        }
 
         showRegionLists(source, region);
 

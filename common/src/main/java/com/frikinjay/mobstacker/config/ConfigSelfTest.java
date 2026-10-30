@@ -4,9 +4,16 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption.Result.Status;
 import com.frikinjay.mobstacker.config.ConfigOption.Type;
 
+import com.google.gson.Gson;
+import com.mojang.brigadier.tree.CommandNode;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.decoration.ArmorStand;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Automated round-trip check of every registered {@link ConfigOption}. For each setting it verifies
@@ -36,6 +43,14 @@ public final class ConfigSelfTest {
     }
 
     public static Report run() {
+        return run(null);
+    }
+
+    /**
+     * @param source who ran the test, for the checks that need a world and the command tree; null
+     *               leaves those out
+     */
+    public static Report run(CommandSourceStack source) {
         Report report = new Report();
         MobStackerConfig realConfig = MobStacker.config;
         File realFile = MobStacker.configFile;
@@ -54,6 +69,10 @@ public final class ConfigSelfTest {
             testLists(report);
             testListValidation(report);
             testRegionCreation(report);
+            testRegionPrivacy(report);
+            if (source != null) {
+                testCommandAccess(report, source);
+            }
         } catch (Exception e) {
             report.checks++;
             report.failures++;
@@ -474,6 +493,101 @@ public final class ConfigSelfTest {
         region.setMaxStackSize("minecraft:cow", null);
         check(report, region.getMaxStackSize("minecraft:cow") == null,
                 "a region stack ceiling survived being unset");
+    }
+
+    /**
+     * Who sees a region while regions are private: admins, its owner, the players it is shared with,
+     * and everybody once it - or the whole server - is public. And the owner and the list survive the
+     * trip to the config file, or a restart would hand every farm back to nobody.
+     */
+    private static void testRegionPrivacy(Report report) {
+        StackRegion region = new StackRegion("selftest", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 0, 0, 0, 4, 4, 4);
+        UUID owner = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+        UUID stranger = UUID.randomUUID();
+        region.setOwner(owner, "Owner");
+        region.share(friend, "Friend");
+        MobStacker.config.setPrivateRegions(true);
+        check(report, MobStacker.regionVisible(region, owner, false), "a region's owner does not see it");
+        check(report, MobStacker.regionVisible(region, friend, false), "a player it was shared with does not see it");
+        check(report, !MobStacker.regionVisible(region, stranger, false), "a private region is shown to a stranger");
+        check(report, MobStacker.regionVisible(region, stranger, true), "an admin does not see a private region");
+
+        region.setSetting("privateRegions", "false");
+        check(report, MobStacker.regionVisible(region, stranger, false), "a region made public is still hidden");
+        region.clearSetting("privateRegions");
+        MobStacker.config.setPrivateRegions(false);
+        check(report, MobStacker.regionVisible(region, stranger, false), "privateRegions off still hides a region");
+        MobStacker.config.setPrivateRegions(true);
+
+        StackRegion reloaded = new Gson().fromJson(new Gson().toJson(region), StackRegion.class);
+        check(report, reloaded.isOwnedBy(owner) && "Owner".equals(reloaded.getOwnerName()),
+                "a region's owner did not survive being saved");
+        check(report, reloaded.isSharedWith(friend) && !reloaded.isSharedWith(stranger),
+                "a region's shared list did not survive being saved");
+
+        region.unshare(friend);
+        check(report, !MobStacker.regionVisible(region, friend, false), "a player taken off the list still sees the region");
+        region.setOwner(null, null);
+        check(report, !MobStacker.regionVisible(region, owner, false), "a former owner still sees the region");
+
+        // A region marked private keeps the mark while the server agrees with it, so switching the
+        // server to public does not take the region along (found by the scripted test: the save
+        // pruned the override as redundant).
+        StackRegion pinned = new StackRegion("selftest_private", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 0, 0, 0, 4, 4, 4);
+        pinned.setSetting("privateRegions", "true");
+        MobStacker.config.addRegion(pinned);
+        try {
+            MobStacker.config.setPrivateRegions(true);
+            MobStacker.config.setPrivateRegions(false);
+            check(report, MobStacker.regionIsPrivate(pinned), "a region made private became public with the server");
+        } finally {
+            MobStacker.config.removeRegion("selftest_private");
+            MobStacker.config.setPrivateRegions(true);
+        }
+    }
+
+    /**
+     * The /mobstacker tree as a player who is no operator sees it: nothing at all, and for the owner of
+     * a region {@code region share} and nothing else. Every branch asks for an operator by itself
+     * since the root lets owners in, so one branch added without that would be open to every owner.
+     */
+    private static void testCommandAccess(Report report, CommandSourceStack source) {
+        CommandNode<CommandSourceStack> root = source.getServer().getCommands().getDispatcher()
+                .getRoot().getChild(MobStacker.MOD_ID);
+        check(report, root != null, "the /mobstacker command is not registered");
+        if (root == null) {
+            return;
+        }
+        // Stand-ins for two players: what the tree looks at is the entity's UUID.
+        ArmorStand stranger = new ArmorStand(EntityType.ARMOR_STAND, source.getLevel());
+        ArmorStand owner = new ArmorStand(EntityType.ARMOR_STAND, source.getLevel());
+        StackRegion region = new StackRegion("selftest_owned", "minecraft:overworld",
+                StackRegion.Type.ALLOW, 0, 0, 0, 4, 4, 4);
+        region.setOwner(owner.getUUID(), "Owner");
+        MobStacker.config.addRegion(region);
+        try {
+            CommandSourceStack asStranger = source.withEntity(stranger).withPermission(0);
+            CommandSourceStack asOwner = source.withEntity(owner).withPermission(0);
+            check(report, !root.canUse(asStranger), "/mobstacker is open to a player who owns no region");
+            check(report, root.canUse(asOwner), "/mobstacker is closed to a region owner");
+            for (CommandNode<CommandSourceStack> child : root.getChildren()) {
+                if (!"region".equals(child.getName())) {
+                    check(report, !child.canUse(asOwner), "/mobstacker " + child.getName() + " is open to a region owner");
+                    continue;
+                }
+                for (CommandNode<CommandSourceStack> regionChild : child.getChildren()) {
+                    boolean share = "share".equals(regionChild.getName());
+                    check(report, regionChild.canUse(asOwner) == share,
+                            "/mobstacker region " + regionChild.getName() + (share ? " is closed to" : " is open to")
+                                    + " a region owner");
+                }
+            }
+        } finally {
+            MobStacker.config.removeRegion("selftest_owned");
+        }
     }
 
     private static void check(Report report, boolean pass, String failureMessage) {

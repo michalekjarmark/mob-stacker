@@ -26,6 +26,7 @@ public abstract class MinecraftServerMixin {
     private void mobstacker$tickKillHolograms(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
         MobStacker.tickKillHolograms();
         StackToolsCommands.tickUnstacking();
+        MobStacker.tickCommandAccess((MinecraftServer) (Object) this);
     }
 
     /**

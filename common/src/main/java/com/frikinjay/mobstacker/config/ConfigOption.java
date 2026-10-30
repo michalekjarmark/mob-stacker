@@ -30,7 +30,8 @@ public final class ConfigOption {
         BREEDING("Breeding"),
         DROPS("Drops & XP"),
         MOBCAPS("Mob caps"),
-        SEPARATOR("Separator");
+        SEPARATOR("Separator"),
+        REGIONS("Regions");
 
         private final String display;
 

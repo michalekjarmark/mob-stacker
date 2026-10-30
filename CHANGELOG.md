@@ -60,6 +60,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   box was which. Inside a region, a line at the top left of the screen names the one whose settings
   apply where you stand (and how many more overlap there). Both go away with the boxes, F1 and F3.
   Names follow the boxes through walls only where the server allows it.
+- **Private regions (`privateRegions`, on by default).** Every modded client that opened the GUI was
+  sent every region on the server, corners included - a map of every farm and base, and an invitation
+  to grief them. Now the server sends a player only the regions they may see, so nothing else can be
+  drawn, read off the wire or dug out of a modified client: **admins** see every region (operators,
+  the player whose singleplayer world it is, and anyone a permissions mod such as LuckPerms gives
+  `mobstacker.regions.viewall`), a region's **owner** sees it, and so does everybody it was **shared
+  with**. `/mobstacker region owner <name> <player|none>` (operators) gives a region an owner, and the
+  owner may then use `/mobstacker region share <name> add|remove <player>` without being an operator -
+  the one command a player who is not an operator gets, and only for their own regions. Switch it off
+  for a server where everybody may see everything, or set it to `false` on one region to make just that
+  one public (a spawn, a market); a region's own value is kept even while it matches the server's, so a
+  private region stays private when the server is switched to public and back. A player's snapshot is
+  sent again by itself when anything about it changes - a share, a new owner, an op, a permission.
 
 ### Fixed
 - **Mobs of different origins merged into one stack lost theirs** (round 8): the stack kept the origin
@@ -70,6 +83,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   copied the joining mob's facing onto the stack along with the rest of its data. The stack now keeps
   its own, and what is left of a stack after a kill keeps the head's direction too, where it used to
   start out looking a random way - which a stack without AI then kept, its body slowly turning after it.
+- **An operator's change in the GUI reached only that operator's screen**; everybody else's boxes and
+  config screen kept the old values until they opened the GUI again. Every change now reaches every
+  player who has the config open or its boxes showing.
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
   mod creates - what is left of a stack after a kill, a mob taken out of one - goes through vanilla's
   spawn setup, and that setup sometimes adds a rider: a skeleton on one spider in a hundred, a

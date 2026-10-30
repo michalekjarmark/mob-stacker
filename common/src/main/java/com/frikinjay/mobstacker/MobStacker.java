@@ -26,6 +26,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -72,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -179,6 +181,7 @@ public final class MobStacker {
     public static void loadWorldConfig(MinecraftServer server) {
         // A previous world's holograms must never be ticked against this one.
         clearKillHolograms();
+        OWNER_COMMANDS_SENT.clear();
         try {
             Path dir = server.getWorldPath(LevelResource.ROOT).resolve("serverconfig");
             Files.createDirectories(dir);
@@ -216,6 +219,7 @@ public final class MobStacker {
     /** Re-reads the config from disk (used by {@code /mobstacker reload} after a manual edit). */
     public static void reloadConfig() {
         config = MobStackerConfig.load();
+        configChanged();
         logger.info("MobStacker config reloaded");
     }
 
@@ -2020,6 +2024,90 @@ public final class MobStacker {
     public static void setCanStack(Mob entity, boolean canStack) {
         if (entity instanceof ICustomDataHolder holder) {
             holder.mobstacker$getCustomData().putBoolean(CAN_STACK_KEY, canStack);
+        }
+    }
+
+    // --- Who sees which region ------------------------------------------------------------------
+    // Regions used to go to every modded client that asked, corners and all - a map of every farm
+    // and base on the server, and the grief that follows. Now the config sync sends a player only
+    // the regions they may see, and the server is the only side that decides; a client can draw no
+    // more than it was sent.
+
+    /**
+     * Bumped on every change to the config (see {@code MobStackerConfig.save}), so whoever holds
+     * something derived from it - a client's snapshot, an owner's command tree - can tell that it is
+     * out of date without being told what changed.
+     */
+    public static volatile int configVersion;
+
+    public static void configChanged() {
+        configVersion++;
+    }
+
+    /** Whether this region is hidden from players it does not name: its own value, or the global one. */
+    public static boolean regionIsPrivate(StackRegion region) {
+        String own = region.getSetting("privateRegions");
+        return own != null ? Boolean.parseBoolean(own.trim()) : config.getPrivateRegions();
+    }
+
+    /** Whether a player sees this region: any region if {@code seesAll}, a public one, or one of theirs. */
+    public static boolean regionVisible(StackRegion region, UUID player, boolean seesAll) {
+        return seesAll || !regionIsPrivate(region) || region.grantsAccessTo(player);
+    }
+
+    /**
+     * Whether a player sees every region: an operator, the player whose singleplayer world it is (who
+     * may edit it without cheats, too), or anyone a permissions mod gives
+     * {@value MobStackerPermissions#VIEW_ALL_REGIONS}.
+     */
+    public static boolean seesAllRegions(ServerPlayer player) {
+        return player.hasPermissions(2)
+                || player.server.isSingleplayerOwner(player.getGameProfile())
+                || MobStackerPermissions.check(player, MobStackerPermissions.VIEW_ALL_REGIONS, 2);
+    }
+
+    /** The regions this player may see, in the config's order. */
+    public static List<StackRegion> regionsVisibleTo(ServerPlayer player) {
+        boolean seesAll = seesAllRegions(player);
+        List<StackRegion> out = new ArrayList<>();
+        for (StackRegion region : config.getRegions()) {
+            if (regionVisible(region, player.getUUID(), seesAll)) {
+                out.add(region);
+            }
+        }
+        return out;
+    }
+
+    /** Whether this player owns any region, which is what lets them use {@code /mobstacker region share}. */
+    public static boolean ownsRegion(UUID player) {
+        for (StackRegion region : config.getRegions()) {
+            if (region.isOwnedBy(player)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int commandAccessVersion = -1;
+    private static final Map<UUID, Boolean> OWNER_COMMANDS_SENT = new java.util.HashMap<>();
+
+    /**
+     * Sends a player their command tree again when they became, or stopped being, a region owner.
+     * The tree a client gets lists only the commands it may use, decided when it is sent - at login
+     * and when the operator level changes - so a new owner would not see {@code region share} until
+     * they logged in again. Runs once per config change, from the server tick.
+     */
+    public static void tickCommandAccess(MinecraftServer server) {
+        if (commandAccessVersion == configVersion) {
+            return;
+        }
+        commandAccessVersion = configVersion;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            boolean owns = ownsRegion(player.getUUID());
+            Boolean before = OWNER_COMMANDS_SENT.put(player.getUUID(), owns);
+            if (before == null || before != owns) {
+                server.getCommands().sendCommands(player);
+            }
         }
     }
 
