@@ -58,22 +58,23 @@ import java.util.function.BiPredicate;
  */
 public final class MobVariants {
 
-    private record Rule(Class<? extends Mob> type, BiPredicate<Mob, Mob> matches, BiConsumer<Mob, Mob> copy) {}
+    /** @param what what differs when {@code matches} fails, for {@code /mobstacker inspect} to say */
+    private record Rule(Class<? extends Mob> type, String what, BiPredicate<Mob, Mob> matches, BiConsumer<Mob, Mob> copy) {}
 
-    private static <T extends Mob> Rule rule(Class<T> type, BiPredicate<T, T> matches, BiConsumer<T, T> copy) {
-        return new Rule(type,
+    private static <T extends Mob> Rule rule(Class<T> type, String what, BiPredicate<T, T> matches, BiConsumer<T, T> copy) {
+        return new Rule(type, what,
                 (a, b) -> matches.test(type.cast(a), type.cast(b)),
                 (from, to) -> copy.accept(type.cast(from), type.cast(to)));
     }
 
     private static final List<Rule> RULES = List.of(
-            rule(Sheep.class,
+            rule(Sheep.class, "wool colour, or one of them is sheared",
                     (a, b) -> a.getColor() == b.getColor() && a.isSheared() == b.isSheared(),
                     (from, to) -> {
                         to.setColor(from.getColor());
                         to.setSheared(from.isSheared());
                     }),
-            rule(Villager.class,
+            rule(Villager.class, "villager type, or one of them has a profession",
                     // Only jobless villagers stack: a profession carries a trade list and a
                     // workstation that belong to one villager and could not survive a merge.
                     (a, b) -> a.getVariant() == b.getVariant()
@@ -83,7 +84,7 @@ public final class MobVariants {
                         to.setVillagerData(from.getVillagerData());
                         to.setVariant(from.getVariant());
                     }),
-            rule(ZombieVillager.class,
+            rule(ZombieVillager.class, "villager type, or one of them has a profession",
                     (a, b) -> a.getVariant() == b.getVariant()
                             && a.getVillagerData().getProfession() == VillagerProfession.NONE
                             && b.getVillagerData().getProfession() == VillagerProfession.NONE,
@@ -91,32 +92,32 @@ public final class MobVariants {
                         to.setVillagerData(from.getVillagerData());
                         to.setVariant(from.getVariant());
                     }),
-            rule(Slime.class,
+            rule(Slime.class, "size",
                     (a, b) -> a.getSize() == b.getSize(),
                     (from, to) -> to.setSize(from.getSize(), true)),
-            rule(Frog.class,
+            rule(Frog.class, "variant",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> to.setVariant(from.getVariant())),
-            rule(Axolotl.class,
+            rule(Axolotl.class, "colour",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> to.setVariant(from.getVariant())),
-            rule(Cat.class,
+            rule(Cat.class, "coat",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> {
                         to.setVariant(from.getVariant());
                         to.setCollarColor(from.getCollarColor());
                     }),
-            rule(Fox.class,
+            rule(Fox.class, "coat",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> to.setVariant(from.getVariant())),
-            rule(MushroomCow.class,
+            rule(MushroomCow.class, "colour",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     // The stew effect a mooshroom was fed has no getter, so it travels as NBT.
                     (from, to) -> {
                         to.setVariant(from.getVariant());
                         copyNbtKeys(from, to, "EffectId", "EffectDuration");
                     }),
-            rule(Horse.class,
+            rule(Horse.class, "coat colour",
                     // Colour only, which is what a herd looks like from a distance and what the
                     // testers asked to keep stacking. Markings are copied rather than matched:
                     // setVariant writes the low byte only, so the markings on anything created out
@@ -124,20 +125,20 @@ public final class MobVariants {
                     // Variant tag carries both, so the herd's markings are the ones that come out.
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> copyNbtKeys(from, to, "Variant")),
-            rule(Llama.class,
+            rule(Llama.class, "colour or strength",
                     // Strength is the llama's inventory size, so it is as much a variant as colour.
                     (a, b) -> a.getVariant() == b.getVariant() && a.getStrength() == b.getStrength(),
                     (from, to) -> {
                         to.setVariant(from.getVariant());
                         copyNbtKeys(from, to, "Strength");
                     }),
-            rule(Rabbit.class,
+            rule(Rabbit.class, "coat",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> to.setVariant(from.getVariant())),
-            rule(Parrot.class,
+            rule(Parrot.class, "colour",
                     (a, b) -> a.getVariant() == b.getVariant(),
                     (from, to) -> to.setVariant(from.getVariant())),
-            rule(Panda.class,
+            rule(Panda.class, "genes",
                     // The hidden gene decides what the cubs look like, so it matters even though
                     // nothing about the panda in front of you shows it.
                     (a, b) -> a.getMainGene() == b.getMainGene() && a.getHiddenGene() == b.getHiddenGene(),
@@ -145,30 +146,30 @@ public final class MobVariants {
                         to.setMainGene(from.getMainGene());
                         to.setHiddenGene(from.getHiddenGene());
                     }),
-            rule(Goat.class,
+            rule(Goat.class, "horns, or one of them screams",
                     (a, b) -> a.isScreamingGoat() == b.isScreamingGoat()
                             && a.hasLeftHorn() == b.hasLeftHorn() && a.hasRightHorn() == b.hasRightHorn(),
                     (from, to) -> {
                         to.setScreamingGoat(from.isScreamingGoat());
                         copyNbtKeys(from, to, "HasLeftHorn", "HasRightHorn");
                     }),
-            rule(TropicalFish.class,
+            rule(TropicalFish.class, "pattern or colours",
                     // Pattern, body colour and pattern colour together make the 22 named fish;
                     // only the pattern has a public setter, so the whole lot travels as NBT.
                     (a, b) -> a.getVariant() == b.getVariant()
                             && a.getBaseColor() == b.getBaseColor()
                             && a.getPatternColor() == b.getPatternColor(),
                     (from, to) -> copyNbtKeys(from, to, "Variant")),
-            rule(Creeper.class,
+            rule(Creeper.class, "one of them is charged",
                     (a, b) -> a.isPowered() == b.isPowered(),
                     (from, to) -> copyNbtKeys(from, to, "powered")),
-            rule(Shulker.class,
+            rule(Shulker.class, "colour",
                     (a, b) -> Objects.equals(a.getColor(), b.getColor()),
                     (from, to) -> copyNbtKeys(from, to, "Color")),
-            rule(SnowGolem.class,
+            rule(SnowGolem.class, "one of them has lost its pumpkin",
                     (a, b) -> a.hasPumpkin() == b.hasPumpkin(),
                     (from, to) -> copyNbtKeys(from, to, "Pumpkin")),
-            rule(EnderMan.class,
+            rule(EnderMan.class, "the block it carries",
                     (a, b) -> Objects.equals(a.getCarriedBlock(), b.getCarriedBlock()),
                     (from, to) -> copyNbtKeys(from, to, "carriedBlockState"))
     );
@@ -180,12 +181,17 @@ public final class MobVariants {
      *         Types with no rule of their own carry no variant and always match.
      */
     public static boolean sameVariant(Mob self, Mob other) {
+        return variantDifference(self, other) == null;
+    }
+
+    /** What keeps these two mobs from merging, e.g. "wool colour, or one of them is sheared", or null when nothing does. */
+    public static String variantDifference(Mob self, Mob other) {
         for (Rule rule : RULES) {
             if (rule.type().isInstance(self) && rule.type().isInstance(other) && !rule.matches().test(self, other)) {
-                return false;
+                return rule.what();
             }
         }
-        return true;
+        return null;
     }
 
     /**

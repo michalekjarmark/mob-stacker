@@ -5,6 +5,7 @@ import com.frikinjay.mobstacker.StackShearable;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.MushroomCow;
@@ -14,9 +15,8 @@ import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 @Mixin(value = MushroomCow.class)
 public class MushroomCowMixin implements StackShearable {
@@ -53,12 +53,18 @@ public class MushroomCowMixin implements StackShearable {
         }
     }
 
-    @Inject(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/animal/Cow;moveTo(DDDFF)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
-    private void mobstacker$onInternalShearAllMoo(SoundSource soundSource, CallbackInfo ci, Cow cow) {
-        MushroomCow self = (MushroomCow) (Object) this;
-        if (cow != null) {
-            MobStacker.setStackSize(cow, MobStacker.getStackSize(self));
+    /**
+     * The cow a sheared mooshroom turns into takes the whole stack with it. Caught on its way into the
+     * world, which is after vanilla has copied the mooshroom's name onto it: that name is the stack's
+     * "Mooshroom x10" label, and left there it named a stack of cows that then took no other cow.
+     * Every entity {@code shear} adds comes through here; only the cow is touched.
+     */
+    @ModifyArg(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
+    private Entity mobstacker$carryStackIntoCow(Entity entity) {
+        if (entity instanceof Cow cow && !(entity instanceof MushroomCow)) {
+            MobStacker.carryStackInto((MushroomCow) (Object) this, cow);
         }
+        return entity;
     }
 
     private static EquipmentSlot mobstacker$getSlotForHand(InteractionHand hand) {

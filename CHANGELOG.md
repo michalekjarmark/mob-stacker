@@ -7,6 +7,107 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.10.0] - 2026-10-31
+### Added
+- **`/mobstacker inspect [target]`** - look at a mob (or name one) and see its stack up close: size,
+  health (the top mob's and that of the mobs under it), which region it stands in and what that region
+  sets, the ceiling in force and where it comes from, and what the stack remembers (members' gear,
+  horse stats, breeding, a player's name). Then the answer to the question every "stacking is broken"
+  report comes down to: **whether it can stack, and if not, the first rule that says no** - stackMode,
+  a DENY region, a list, a name, gear, a player's claim, its size - and what happens between it and the
+  nearest mob of its kind: they merge (and which one survives), or why not, down to "they differ in
+  wool colour". The rules exist once; the scan and the command read the same answer.
+- **`/mobstacker stats [radius]`** - how many stacks stand in the loaded chunks (or within a radius),
+  how many mobs they stand for, how many entities that saves, and the ten busiest kinds.
+- **`environmentDamagePerMob` (on by default): damage from the world hurts every mob in a stack.**
+  A fall, fire, lava, drowning, suffocation, cramming, magma, a cactus, freezing, the void, poison,
+  an explosion or a falling anvil hurts each member as it would a crowd standing loose, the ones it
+  kills drop their own loot, and the survivors keep the wound. Until now a 30-block drop that kills
+  every zombie killed **one of a stack of ten** and left nine standing at the bottom of the farm, so
+  stacks broke fall-damage and "one hit" farms unless whole stacks died together - which also made a
+  sword kill whole stacks. A player's or a mob's hit is still one hit, with the leftover carried down
+  by `damageOverflow` as before. Greyed out while `killWholeStackOnDeath` is on, which already does
+  this. Per region, like every setting.
+- **`stackAi`: what a stack does with its AI** (the user's own idea). `NORMAL` (the default) changes
+  nothing. `PHYSICS_ONLY` stops a stack thinking - it attacks nothing, follows nobody and stands
+  where it is - while the world still acts on it: it falls, water carries it, a hit knocks it back,
+  and it stays afloat if its kind would have swum, so farms built on water and drops keep working.
+  `FROZEN` is vanilla's NoAI: it does not move at all, not even to fall, which saves the server the
+  most. Only stacks of two or more are affected, so a stack killed down to its last mob wakes up again,
+  and nothing is written into the mob: remove the mod and every mob thinks again. Worth knowing before
+  choosing: a sheep that does not think does not eat grass, so its wool does not grow back, and
+  villagers do not work or breed. Per region, like every setting.
+- **Stacking by spawn origin**: a new *Spawn origin* page with four switches, all on by default -
+  `stackNaturalMobs` (spawned on their own), `stackSpawnerMobs` (monster spawners), `stackBredMobs`
+  (born from breeding, vanilla's or a stack's) and `stackPlacedMobs` (spawn eggs, dispensers, buckets,
+  `/summon`). So a server can stack the spawner farm and leave the wildlife alone, or the other way
+  round, per region too. Each mob remembers how it came into the world from 1.10.0 on; a mob from
+  before that, or one hatched from an egg, counts as natural. What is left of a stack after a kill, a
+  mob taken out of one and a mob that converts all keep the origin they came from. `inspect` shows it.
+- **`/mobstacker unstack <radius|loaded>`** splits stacks back into the mobs they stand for - **run it
+  before removing the mod**, because without the mod a stack is one mob and every other mob it stood
+  for is gone. The mobs come back a hundred a tick and are set down apart from each other where there
+  is room, never on the far side of a wall or fence, since sixty-four let out on one spot would be hurt
+  by vanilla's crowding limit; a stack with no room around it is left partly stacked and reported. More
+  than 500 mobs asks for `confirm`. It warns while stacking is still on (they would merge again) and
+  reaches loaded chunks only.
+- **`/mobstacker stack <radius>`** merges what can merge there now, whatever `stackMode` and the regions
+  say - every rule about the mobs themselves still holds (their kind, the ceiling, names, gear,
+  variants, the stack radius). For tidying up a crowd where stacking is otherwise off.
+- **Region names in the world, and a "Region: ..." line.** With the region boxes on, each box has its
+  name written on it the way a mob's name tag is, in the region's colour, on the side nearest you and
+  growing with distance so it stays readable; with a few regions on screen it was hard to tell which
+  box was which. Inside a region, a line at the top left of the screen names the one whose settings
+  apply where you stand (and how many more overlap there). Both go away with the boxes, F1 and F3.
+  Names follow the boxes through walls only where the server allows it.
+- **Private regions (`privateRegions`, on by default).** Every modded client that opened the GUI was
+  sent every region on the server, corners included - a map of every farm and base, and an invitation
+  to grief them. Now the server sends a player only the regions they may see, so nothing else can be
+  drawn, read off the wire or dug out of a modified client: **admins** see every region (operators,
+  the player whose singleplayer world it is, and anyone a permissions mod such as LuckPerms gives
+  `mobstacker.regions.viewall`), a region's **owner** sees it, and so does everybody it was **shared
+  with**. `/mobstacker region owner <name> <player|none>` (operators) gives a region an owner, and the
+  owner may then use `/mobstacker region share <name> add|remove <player>` without being an operator -
+  the one command a player who is not an operator gets, and only for their own regions. Switch it off
+  for a server where everybody may see everything, or set it to `false` on one region to make just that
+  one public (a spawn, a market); a region's own value is kept even while it matches the server's, so a
+  private region stays private when the server is switched to public and back. A player's snapshot is
+  sent again by itself when anything about it changes - a share, a new owner, an op, a permission.
+
+### Fixed
+- **Mobs of different origins merged into one stack lost theirs** (round 8): the stack kept the origin
+  of the mob on top, and every mob taken out of it - or brought back by `unstack` - came out with that
+  one. A stack now counts its members' origins, `inspect` lists them, a stack holding a mob whose origin
+  is switched off takes no more in, and taking mobs out hands out the odd ones first.
+- **A stack turned round every time a mob joined it** (round 8, seen with `stackAi FROZEN`): the merge
+  copied the joining mob's facing onto the stack along with the rest of its data. The stack now keeps
+  its own, and what is left of a stack after a kill keeps the head's direction too, where it used to
+  start out looking a random way - which a stack without AI then kept, its body slowly turning after it.
+- **An operator's change in the GUI reached only that operator's screen**; everybody else's boxes and
+  config screen kept the old values until they opened the GUI again. Every change now reaches every
+  player who has the config open or its boxes showing.
+- **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
+  mod creates - what is left of a stack after a kill, a mob taken out of one - goes through vanilla's
+  spawn setup, and that setup sometimes adds a rider: a skeleton on one spider in a hundred, a
+  zombified piglin (with a saddle) or a baby strider on a strider, a chicken under a baby zombie. The
+  mod added only the mob, so the rider travelled along out of sight, the stack became a mount that no
+  other mob would join, and the next time the chunk was loaded the rider appeared for real - a
+  skeleton from nowhere. Found by the first scripted server test (3 in 250 spider kills; none in 250
+  after the fix, nor in 98 strider kills). A random effect a spider may roll on Hard is dropped the
+  same way.
+- **Shearing a stack of mooshrooms left a stack of cows named "Mooshroom x10"** that no other cow
+  would join. Vanilla copies a sheared mooshroom's name onto the cow it becomes, and that name was
+  the stack's own label; the cow stack read it as a name a player had given. The cow stack is now
+  labelled "Cow x10" and takes cows like any other. Found by the first scripted server test.
+- **A mob taken out of a stack came out healed**, even when every mob under the top one carried a
+  wound (a sweep, a fall, a fire); it now comes out with that wound. And under `stackHealth`, taking
+  mobs out lowered the stack's health but never its maximum, so a stack split back down to one mob kept
+  the whole pool as its maximum - a single cow with 640 max health.
+- **A stack a player named keeps its name when lightning turns it into something else** (a pig into a
+  zombified piglin, a villager into a witch), as it already did when a zombie drowned. Every
+  conversion now goes through one path, which also keeps a name given before 1.7.0 began
+  recording them.
+
 ## [1.9.2] - 2026-09-23
 ### Added
 - **`-Dmobstacker.overlayDebug=true`**, a Java argument that has the region boxes write to the log,

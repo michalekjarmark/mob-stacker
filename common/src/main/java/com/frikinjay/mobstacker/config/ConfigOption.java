@@ -23,13 +23,15 @@ public final class ConfigOption {
 
     public enum Category {
         STACKING("Stacking"),
+        ORIGIN("Spawn origin"),
         COMBAT("Combat"),
         FEEDBACK("Kill feedback"),
         DISPLAY("Stack display"),
         BREEDING("Breeding"),
         DROPS("Drops & XP"),
         MOBCAPS("Mob caps"),
-        SEPARATOR("Separator");
+        SEPARATOR("Separator"),
+        REGIONS("Regions");
 
         private final String display;
 

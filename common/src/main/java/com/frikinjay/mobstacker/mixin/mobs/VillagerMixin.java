@@ -19,10 +19,7 @@ public class VillagerMixin {
             locals = LocalCapture.CAPTURE_FAILSOFT)
     private void mobstacker$thunderHit(ServerLevel serverLevel, LightningBolt lightningBolt, CallbackInfo ci, Witch witch) {
         if (witch != null) {
-            Villager instance = (Villager) (Object) this;
-            MobStacker.setStackSize(witch, MobStacker.getStackSize(instance));
-            witch.setCustomName(null);
-            MobStacker.updateStackDisplay(witch);
+            MobStacker.carryStackInto((Villager) (Object) this, witch);
         }
     }
 

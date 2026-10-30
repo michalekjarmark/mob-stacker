@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * An axis-aligned cuboid region bound to a single dimension.
@@ -61,6 +62,13 @@ public class StackRegion implements MobLists.Holder {
     // Per-type ceilings that apply only here, entity id -> size. Sparse like settings: a type that
     // is not named follows the region's own maxStackSize, and failing that the global one.
     private volatile Map<String, Integer> maxStackSizes;
+    // Who besides the admins may see this region while regions are private (privateRegions): its
+    // owner, who may also share it, and the players it was shared with. Kept by UUID, which a player
+    // cannot change, each with the name they had when they were added, to show back when the server
+    // no longer knows them by name. Null when nobody. Copy-on-write like everything above.
+    private String owner;
+    private String ownerName;
+    private volatile Map<String, String> sharedWith;
 
     // Required for Gson deserialization.
     public StackRegion() {
@@ -368,6 +376,77 @@ public class StackRegion implements MobLists.Holder {
         next.put(key, value);
         maxStackSizes = next;
         return true;
+    }
+
+    /** The owner's UUID, or null when the region has none (or the stored one is unreadable). */
+    public UUID getOwner() {
+        return parseUuid(owner);
+    }
+
+    /** The owner's name as it was when they were made the owner, or null. */
+    public String getOwnerName() {
+        return owner == null ? null : ownerName;
+    }
+
+    /** Makes {@code id} the owner, or leaves the region without one when it is null. */
+    public void setOwner(UUID id, String name) {
+        this.owner = id == null ? null : id.toString();
+        this.ownerName = id == null ? null : name;
+    }
+
+    public boolean isOwnedBy(UUID id) {
+        return id != null && id.equals(getOwner());
+    }
+
+    /** UUID (as text) -> the name the player had when it was shared with them. Never null. */
+    public Map<String, String> getSharedWith() {
+        Map<String, String> shared = sharedWith;
+        return shared == null ? Collections.emptyMap() : Collections.unmodifiableMap(shared);
+    }
+
+    public boolean isSharedWith(UUID id) {
+        Map<String, String> shared = sharedWith;
+        return id != null && shared != null && shared.containsKey(id.toString());
+    }
+
+    /** @return true when the player was not on the list yet */
+    public boolean share(UUID id, String name) {
+        Map<String, String> shared = sharedWith;
+        if (shared != null && shared.containsKey(id.toString())) {
+            return false;
+        }
+        Map<String, String> next = shared == null ? new LinkedHashMap<>() : new LinkedHashMap<>(shared);
+        next.put(id.toString(), name);
+        sharedWith = next;
+        return true;
+    }
+
+    /** @return true when the player was on the list */
+    public boolean unshare(UUID id) {
+        Map<String, String> shared = sharedWith;
+        if (shared == null || !shared.containsKey(id.toString())) {
+            return false;
+        }
+        Map<String, String> next = new LinkedHashMap<>(shared);
+        next.remove(id.toString());
+        sharedWith = next.isEmpty() ? null : next;
+        return true;
+    }
+
+    /** Whether this player may see the region while regions are private: its owner, or shared with them. */
+    public boolean grantsAccessTo(UUID id) {
+        return isOwnedBy(id) || isSharedWith(id);
+    }
+
+    private static UUID parseUuid(String text) {
+        if (text == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String describeBounds() {

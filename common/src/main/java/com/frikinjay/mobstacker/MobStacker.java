@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
+import com.frikinjay.mobstacker.config.StackAi;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
@@ -10,6 +11,7 @@ import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
 import com.frikinjay.mobstacker.mixin.OcelotAccessor;
 import com.frikinjay.mobstacker.mixin.FoxAccessor;
+import com.frikinjay.mobstacker.mixin.StriderAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -19,20 +21,30 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
+import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
+import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
@@ -40,6 +52,7 @@ import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -56,9 +69,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public final class MobStacker {
@@ -95,6 +112,8 @@ public final class MobStacker {
     public static final String NAMED_STACK_KEY = "NamedStack";
     /** The name the player typed, as JSON, so the " xN" suffix is appended and never parsed back off. */
     public static final String STACK_NAME_KEY = "StackName";
+    /** How the mob came into the world: vanilla's MobSpawnType name, recorded once. See {@link SpawnOrigin}. */
+    public static final String ORIGIN_KEY = "Origin";
 
     // --- Stack breeding (feeding a stacked adult its food breeds its members in pairs) ---
     // Members currently "in love" waiting for a partner; kept so partial feeding never wastes food.
@@ -117,10 +136,10 @@ public final class MobStacker {
      * off by default.
      */
     private static final String SEPARATION_GRACE_KEY = "SeparationGrace";
-    private static final String BREED_LOVE_KEY = "BreedLove";
+    public static final String BREED_LOVE_KEY = "BreedLove";
     // How many members recently bred and are on breeding cooldown, and until when (game time).
-    private static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
-    private static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
+    public static final String BREED_COOLDOWN_COUNT_KEY = "BreedCooldownCount";
+    public static final String BREED_COOLDOWN_END_KEY = "BreedCooldownEnd";
     // Vanilla breeding cooldown is 5 minutes (6000 ticks).
     private static final int BREED_COOLDOWN_TICKS = 6000;
     public static MobStackerConfig config;
@@ -162,6 +181,7 @@ public final class MobStacker {
     public static void loadWorldConfig(MinecraftServer server) {
         // A previous world's holograms must never be ticked against this one.
         clearKillHolograms();
+        OWNER_COMMANDS_SENT.clear();
         try {
             Path dir = server.getWorldPath(LevelResource.ROOT).resolve("serverconfig");
             Files.createDirectories(dir);
@@ -199,23 +219,42 @@ public final class MobStacker {
     /** Re-reads the config from disk (used by {@code /mobstacker reload} after a manual edit). */
     public static void reloadConfig() {
         config = MobStackerConfig.load();
+        configChanged();
         logger.info("MobStacker config reloaded");
     }
 
     public static boolean canStack(Mob entity) {
-        if (!(entity instanceof Mob)) {
-            return false;
-        }
+        return stackRefusal(entity) == null;
+    }
 
+    /**
+     * Why this mob may not take part in stacking where it stands, or null when it may. The one place
+     * the rules are written down: {@link #canStack} is this compared with null, and
+     * {@code /mobstacker inspect} shows a player the answer.
+     *
+     * <p>Its {@code CanStack} flag is not asked here, because the callers always asked it
+     * separately; {@code inspect} asks it first.
+     */
+    public static StackRefusal stackRefusal(Mob entity) {
+        return stackRefusal(entity, true);
+    }
+
+    /**
+     * As {@link #stackRefusal(Mob)}, but with {@code checkWhere} false the one rule about the place -
+     * stackMode and the regions - is not asked, for {@code /mobstacker stack}, which stacks mobs where
+     * the scan would not. Everything about the mob itself is still asked.
+     */
+    public static StackRefusal stackRefusal(Mob entity, boolean checkWhere) {
         // Babies stack only when their category's flag allows it. Farm animals (Animal) and
         // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
-            boolean allowed = (entity instanceof Animal)
-                    ? getEnableAnimalBabyStacking(entity)
-                    : getEnableHostileBabyStacking(entity);
-            if (!allowed) {
-                return false;
+            if (entity instanceof Animal) {
+                if (!getEnableAnimalBabyStacking(entity)) {
+                    return StackRefusal.BABY_ANIMAL;
+                }
+            } else if (!getEnableHostileBabyStacking(entity)) {
+                return StackRefusal.BABY_HOSTILE;
             }
         }
 
@@ -223,40 +262,49 @@ public final class MobStacker {
         // in stacking. Merging into a dying mob restores its health mid-animation, which makes
         // the death animation loop. Excluding it lets the death finish cleanly.
         if (entity.isDeadOrDying() || entity.isRemoved()) {
-            return false;
+            return StackRefusal.DYING;
         }
 
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
         if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
-            return false;
+            return StackRefusal.EQUIPPED;
         }
 
         if (isPlayerBound(entity)) {
-            return false;
+            return StackRefusal.PLAYER_BOUND;
         }
 
         // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
         // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
         // halfway through taming is the same bug seen from the other side.
         if (separationGrace(entity) > 0) {
-            return false;
+            return StackRefusal.SEPARATION_GRACE;
         }
 
-        if (!isStackingAllowedAt(entity)) {
-            return false;
+        StackRefusal location = checkWhere ? locationRefusal(entity) : null;
+        if (location != null) {
+            return location;
         }
 
         // Whether this kind of mob may stack at all here: a blacklist or a whitelist, global or
         // the region's own. MobLists is the single place that decides, because the answer now
         // depends on three things (the mode in force, which lists it consults, and whether the
         // region overrides them) and working any of them out twice is how tables drift apart.
-        if (!MobLists.allows(entity)) {
-            return false;
+        StackRefusal listed = MobLists.refusal(entity);
+        if (listed != null) {
+            return listed;
         }
 
-        return hasValidCustomNameForStacking(entity) && getStackSize(entity) < getMaxMobStackSize(entity);
+        if (!originStacks(entity)) {
+            return StackRefusal.ORIGIN;
+        }
+
+        if (!hasValidCustomNameForStacking(entity)) {
+            return StackRefusal.PLAYER_NAMED;
+        }
+        return getStackSize(entity) < getMaxMobStackSize(entity) ? null : StackRefusal.FULL;
     }
 
     /**
@@ -266,9 +314,14 @@ public final class MobStacker {
      * stacked keep behaving correctly anywhere (death splitting, separation, ...).
      */
     public static boolean isStackingAllowedAt(Mob entity) {
+        return locationRefusal(entity) == null;
+    }
+
+    /** Why stacking is not allowed where this mob stands, or null when it is. See {@link #isStackingAllowedAt}. */
+    public static StackRefusal locationRefusal(Mob entity) {
         StackMode mode = config.getStackMode();
         if (mode == StackMode.OFF) {
-            return false;
+            return StackRefusal.STACKING_OFF;
         }
 
         String dimension = entity.level().dimension().location().toString();
@@ -281,25 +334,26 @@ public final class MobStacker {
         for (StackRegion region : config.getRegions()) {
             if (region.contains(dimension, x, y, z)) {
                 if (region.isDeny()) {
-                    return false; // DENY overrides everything, in every mode.
+                    return StackRefusal.DENY_REGION; // DENY overrides everything, in every mode.
                 }
                 insideAllowRegion = true;
             }
         }
 
         if (mode == StackMode.EVERYWHERE) {
-            return true;
+            return null;
         }
 
         if (mode == StackMode.PLAYERS) {
             // Only stack near a player. getNearestPlayer applies the distance limit itself and
             // excludes spectators; a radius <= 0 would disable stacking entirely (guarded below).
             double radius = config.getPlayerStackRadius();
-            return radius > 0 && entity.level().getNearestPlayer(entity, radius) != null;
+            return radius > 0 && entity.level().getNearestPlayer(entity, radius) != null
+                    ? null : StackRefusal.NO_PLAYER_NEAR;
         }
 
         // StackMode.REGIONS: only stack when inside at least one ALLOW region.
-        return insideAllowRegion;
+        return insideAllowRegion ? null : StackRefusal.OUTSIDE_ALLOW_REGION;
     }
 
     /**
@@ -372,40 +426,48 @@ public final class MobStacker {
      * happened to move.
      */
     public static boolean canMerge(Mob source, Mob target) {
-        if (source.getClass() != target.getClass() || !getCanStack(source) || !getCanStack(target)) {
-            return false;
+        return mergeRefusal(source, target) == null;
+    }
+
+    /** Why {@code source} may not be merged away into {@code target}, or null when it may. See {@link #canMerge}. */
+    public static StackRefusal mergeRefusal(Mob source, Mob target) {
+        if (source.getClass() != target.getClass()) {
+            return StackRefusal.DIFFERENT_KIND;
+        }
+        if (!getCanStack(source) || !getCanStack(target)) {
+            return StackRefusal.CAN_STACK_OFF;
         }
 
         // Never merge into / from a dying or removed mob (see canStack) — guards the
         // destructive mergeEntities call against the death-animation loop.
         if (source.isDeadOrDying() || target.isDeadOrDying() || source.isRemoved() || target.isRemoved()) {
-            return false;
+            return StackRefusal.DYING;
         }
 
         // In long: a ceiling may be as large as an int goes, and two stacks near it would overflow
         // to a negative and read as "plenty of room".
         if (((long) getStackSize(source) + getStackSize(target)) > getMaxMobStackSize(target)) {
-            return false;
+            return StackRefusal.TOO_BIG_TOGETHER;
         }
 
         // Never mix a baby with an adult (they carry different growth state). Two babies may
         // merge freely; mergeEntities keeps the youngest age so none grows up early.
         if (source.isBaby() != target.isBaby()) {
-            return false;
+            return StackRefusal.BABY_AND_ADULT;
         }
 
         // The stack shows one name, and the survivor keeps its own, so a mob carrying a different
         // player-given name must not be merged away into it - that name would simply vanish.
         Component ownName = playerGivenName(source);
         if (ownName != null && !ownName.equals(playerGivenName(target))) {
-            return false;
+            return StackRefusal.DIFFERENT_NAME;
         }
 
         if (!MobVariants.sameVariant(source, target)) {
-            return false;
+            return StackRefusal.DIFFERENT_VARIANT;
         }
 
-        return MobStackerAPI.checkCustomMergingConditions(source, target);
+        return MobStackerAPI.checkCustomMergingConditions(source, target) ? null : StackRefusal.OTHER_MOD;
     }
 
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int stackSize) {
@@ -436,6 +498,7 @@ public final class MobStacker {
         // The same for a horse's own numbers, which finalizeSpawn rolled afresh a moment ago.
         MobVariants.handOverMemberRolls(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
+        handOverMemberOrigins(self, newEntity, newStackSize);
         if (newStackSize > 1) {
             // The mobs under the new top one are the same wounded members as before the kill.
             MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
@@ -448,11 +511,14 @@ public final class MobStacker {
     }
 
     private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
+        finalizeLikeANewMob(source, target, serverLevel);
+        copyOrigin(source, target);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
+        // The head too: a new mob's head starts out facing a random way, which a mob with its AI on
+        // corrects at once and a stack without it (stackAi) kept, its body slowly turning after it.
+        target.setYHeadRot(source.getYHeadRot());
 
         if (source.hasCustomName()) {
             target.setCustomName(source.getCustomName());
@@ -461,6 +527,42 @@ public final class MobStacker {
         copyVariantData(source, target);
         copyAgeData(source, target);
         MobStackerAPI.applyEntityDataModifiers(source, target);
+    }
+
+    /**
+     * Runs vanilla's {@code finalizeSpawn} on a mob the mod is creating - a stack's remainder after a
+     * kill, or a mob taken out of a stack - and takes back what it hands out besides the mob itself.
+     *
+     * <p>A spider gets a skeleton on its back one time in a hundred, a strider a zombified piglin (and
+     * a saddle for it) or a baby strider, and a baby zombie may climb onto a chicken, new or nearby. A
+     * natural spawn adds the rider to the world along with its mount; the mod adds only the mob, so the
+     * rider rode along unseen, made the stack a mount that nothing merges into, and turned into a real
+     * skeleton the next time the chunk was loaded (round 7's server test: 3 in 250 spider kills). The
+     * random effect a spider may roll on Hard is the same kind of thing: it belonged to a spider that
+     * spawned, not to one more member of a stack.
+     */
+    private static void finalizeLikeANewMob(Mob source, Mob target, ServerLevel serverLevel) {
+        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
+                MobSpawnType.NATURAL, null, null);
+        for (Entity rider : List.copyOf(target.getPassengers())) {
+            rider.stopRiding();
+            rider.discard();
+        }
+        Entity mount = target.getVehicle();
+        if (mount != null) {
+            target.stopRiding();
+            if (mount.tickCount == 0) {
+                // Made for this mob a moment ago and already in the world (a chicken jockey's chicken).
+                mount.discard();
+            } else if (mount instanceof Chicken chicken) {
+                // A chicken that was already there: it stays, and is no longer anybody's mount.
+                chicken.setChickenJockey(false);
+            }
+        }
+        if (target instanceof Strider strider && strider.isSaddled()) {
+            ((StriderAccessor) strider).mobstacker$steering().setSaddle(false);
+        }
+        target.removeAllEffects();
     }
 
     /**
@@ -691,6 +793,8 @@ public final class MobStacker {
             Mob newEntity = (Mob) entityType.create(entity.level());
             if (newEntity == null) return null;
 
+            // Read while the stack still has the member that is about to leave it.
+            Map<String, Integer> origins = memberOrigins(entity);
             setStackSize(entity, getStackSize(entity) - 1);
 
             copyEntityDataForSeparation(entity, newEntity, serverLevel, markAsSeparated);
@@ -700,6 +804,8 @@ public final class MobStacker {
             takeMemberEquipmentFor(entity, newEntity);
             // ...and, if it is a horse, with that member's own speed, jump and health.
             MobVariants.takeMemberRollsFor(entity, newEntity);
+            // ...and with the origin that member came into the world with.
+            takeMemberOriginFor(entity, newEntity, origins);
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
@@ -716,11 +822,12 @@ public final class MobStacker {
 
     private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
                                                     boolean markAsSeparated) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
+        finalizeLikeANewMob(source, target, serverLevel);
+        copyOrigin(source, target);
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
+        target.setYHeadRot(source.getYHeadRot());
 
         if (markAsSeparated) {
             target.setCustomName(Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString()));
@@ -731,8 +838,25 @@ public final class MobStacker {
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
-        if (getStackHealth(source) && source.getHealth() > target.getMaxHealth()) {
-            source.setHealth(source.getHealth() - target.getMaxHealth());
+        if (getStackHealth(source)) {
+            // A pooled health bar gives up one mob's worth, and so does its ceiling: the merge raised
+            // the stack's max health by every mob it took in, and a stack split back down to its last
+            // mob kept all of it - one cow with 640 max health.
+            AttributeInstance maxHealth = source.getAttribute(Attributes.MAX_HEALTH);
+            if (maxHealth != null && maxHealth.getBaseValue() - target.getMaxHealth() >= target.getMaxHealth()) {
+                maxHealth.setBaseValue(maxHealth.getBaseValue() - target.getMaxHealth());
+            }
+            if (source.getHealth() > target.getMaxHealth()) {
+                source.setHealth(source.getHealth() - target.getMaxHealth());
+            }
+            source.setHealth(Math.min(source.getHealth(), source.getMaxHealth()));
+            return;
+        }
+        // Every mob under the top one carries the same wound (sweeps, falls, fire), and the one taken
+        // out is one of them, so it leaves with it rather than healed.
+        float wound = getStackMemberDamage(source);
+        if (wound > 0.0F) {
+            target.setHealth(Math.max(0.5F, target.getMaxHealth() - wound));
         }
     }
 
@@ -844,6 +968,16 @@ public final class MobStacker {
         // Each horse's own numbers are kept the same way, whatever the equipment settings say:
         // they are the horse, not something it carries.
         ListTag mergedRolls = MobVariants.mergedMemberRolls(target, source);
+        // Every member keeps its own origin, or a stack of wild cows with one bred calf in it would
+        // hand out nothing but wild cows when split, and a stack would stand for origins it refuses.
+        Map<String, Integer> mergedOrigins = memberOrigins(target);
+        mergedOrigins.merge(originKey(source), 1, Integer::sum);
+        memberOrigins(source).forEach((origin, count) -> mergedOrigins.merge(origin, count, Integer::sum));
+        // The survivor stays where it stands and keeps facing the way it faced. load() below sets the
+        // head and body to the saved facing, and the source's facing used to come along in its save
+        // data, so a stack without AI turned round every time a mob joined it.
+        float headRot = target.getYHeadRot();
+        float bodyRot = target.yBodyRot;
         ListTag mergedLoadouts = null;
         if (keepsMemberEquipment(target)) {
             mergedLoadouts = new ListTag();
@@ -860,6 +994,8 @@ public final class MobStacker {
         updateStackDataInNbt(targetNbt, newStackSize);
 
         target.load(targetNbt);
+        target.setYHeadRot(headRot);
+        target.yBodyRot = bodyRot;
 
         updateHealth(target, source);
 
@@ -872,6 +1008,7 @@ public final class MobStacker {
             setMemberLoadouts(target, mergedLoadouts);
         }
         MobVariants.setMergedMemberRolls(target, mergedRolls, newStackSize);
+        storeMemberOrigins(target, mergedOrigins);
 
         source.discard();
 
@@ -893,7 +1030,7 @@ public final class MobStacker {
         // must be kept, not overwritten by the discarded source. Stack size and health are then
         // recomputed explicitly (updateStackDataInNbt / updateHealth).
         return key.equals("Pos") || key.equals("UUID") ||
-                key.equals("Motion") || key.equals("Health") ||
+                key.equals("Motion") || key.equals("Rotation") || key.equals("Health") ||
                 key.equals("Attributes") || key.equals(STACK_DATA_KEY) ||
                 // What the stack wears and what it is called belong to the survivor: the mob being
                 // merged away has its gear stored as a member loadout, and copying its name over
@@ -1404,6 +1541,27 @@ public final class MobStacker {
         }
     }
 
+    /**
+     * Carries a whole stack onto the mob that replaces it when it turns into another kind: a zombie
+     * drowning, a pig or villager struck by lightning, a mooshroom sheared into a cow. Called once
+     * vanilla has built the new mob, and after vanilla has copied the old one's name onto it.
+     *
+     * <p>That copy is the trap. When the old name was the mod's own label ("Mooshroom x10"), the new
+     * mob carried it as an ordinary name - the wrong kind in it, and, not being its own label, read as
+     * one a player gave, so the new stack refused every mob of its kind (round 7's server test). A
+     * name a player gave stays, whether the name tag recorded it or it predates 1.7.0 and nothing did.
+     */
+    public static void carryStackInto(Mob source, Mob target) {
+        setStackSize(target, getStackSize(source));
+        copyOrigin(source, target);
+        storeMemberOrigins(target, memberOrigins(source));
+        if (target.hasCustomName() && source.hasCustomName() && hasNonCustomName(source)) {
+            target.setCustomName(null);
+        }
+        copyStackNaming(source, target);
+        updateStackDisplay(target);
+    }
+
     /** Carries a player-given name onto a mob that replaces this one (a remainder, a conversion). */
     public static void copyStackNaming(Mob source, Mob target) {
         if (!(source instanceof ICustomDataHolder from) || !(target instanceof ICustomDataHolder to)) {
@@ -1421,6 +1579,201 @@ public final class MobStacker {
         if (sourceData.contains(STACK_NAME_KEY, 8)) {
             targetData.putString(STACK_NAME_KEY, sourceData.getString(STACK_NAME_KEY));
         }
+    }
+
+    // --- Spawn origin ---------------------------------------------------------------------------
+
+    /**
+     * Remembers how a mob came into the world, the first time vanilla sets it up
+     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten: every mob the mod itself makes
+     * goes through {@code finalizeSpawn} again and is then handed its source's origin instead.
+     */
+    public static void recordOrigin(Mob mob, MobSpawnType reason) {
+        if (mob instanceof ICustomDataHolder holder && reason != null
+                && !holder.mobstacker$getCustomData().contains(ORIGIN_KEY, 8)) {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, reason.name());
+        }
+    }
+
+    /** Records an origin whatever was there, for a mob vanilla creates without {@code finalizeSpawn} (a bred baby). */
+    public static void setOrigin(Mob mob, MobSpawnType reason) {
+        if (mob instanceof ICustomDataHolder holder) {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, reason.name());
+        }
+    }
+
+    /** The recorded MobSpawnType name, or null when nothing was recorded. */
+    public static String originOf(Mob mob) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return null;
+        }
+        CompoundTag data = holder.mobstacker$getCustomData();
+        return data.contains(ORIGIN_KEY, 8) ? data.getString(ORIGIN_KEY) : null;
+    }
+
+    /** A mob the mod makes out of another (a remainder, a separated mob, a conversion) came from where that one did. */
+    private static void copyOrigin(Mob source, Mob target) {
+        if (!(target instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        String origin = originOf(source);
+        if (origin == null) {
+            holder.mobstacker$getCustomData().remove(ORIGIN_KEY);
+        } else {
+            holder.mobstacker$getCustomData().putString(ORIGIN_KEY, origin);
+        }
+    }
+
+    /**
+     * Whether this stack may stack where it stands, as far as origins go: the mob on top and every
+     * member under it. A stack holding one mob of an origin that is switched off takes nobody else in,
+     * the same as that mob standing alone would not.
+     */
+    public static boolean originStacks(Mob mob) {
+        if (!originStacks(mob, originOf(mob))) {
+            return false;
+        }
+        if (getStackSize(mob) > 1 && mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            for (String origin : holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY).getAllKeys()) {
+                if (!originStacks(mob, NO_ORIGIN.equals(origin) ? null : origin)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Whether mobs with this recorded origin (null: none) may stack where {@code at} stands. */
+    public static boolean originStacks(Mob at, String recorded) {
+        return switch (SpawnOrigin.of(recorded)) {
+            case NATURAL -> setting("stackNaturalMobs", at, config.getStackNaturalMobs());
+            case SPAWNER -> setting("stackSpawnerMobs", at, config.getStackSpawnerMobs());
+            case BRED -> setting("stackBredMobs", at, config.getStackBredMobs());
+            case PLACED -> setting("stackPlacedMobs", at, config.getStackPlacedMobs());
+        };
+    }
+
+    // Round 8: the members' origins were lost in a merge - the survivor kept its own and every mob
+    // merged into it took that one, so a split stack handed out the wrong origins and a stack of wild
+    // cows could quietly hold bred ones. They are counted rather than listed in order like equipment
+    // and horse rolls: which member leaves first is something nobody can see, and a stack of a
+    // thousand needs a handful of numbers rather than a thousand strings.
+
+    /** Key in a stack's custom data: recorded origin -> how many members under the top came from it. */
+    public static final String MEMBER_ORIGINS_KEY = "MemberOrigins";
+    /** The {@link #MEMBER_ORIGINS_KEY} entry for members with nothing recorded (not a MobSpawnType name). */
+    public static final String NO_ORIGIN = "NONE";
+
+    private static String originKey(Mob mob) {
+        String origin = originOf(mob);
+        return origin == null ? NO_ORIGIN : origin;
+    }
+
+    private static void setOriginKey(Mob mob, String origin) {
+        if (mob instanceof ICustomDataHolder holder) {
+            if (NO_ORIGIN.equals(origin)) {
+                holder.mobstacker$getCustomData().remove(ORIGIN_KEY);
+            } else {
+                holder.mobstacker$getCustomData().putString(ORIGIN_KEY, origin);
+            }
+        }
+    }
+
+    /**
+     * The origins of the members under the top, as counts that add up to the stack size minus one. A
+     * stack that recorded none - every member came from where the top did, or it formed before this
+     * existed - is filled in with the top's own origin, which is what it always handed out.
+     */
+    public static Map<String, Integer> memberOrigins(Mob mob) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        if (mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            CompoundTag stored = holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY);
+            for (String origin : stored.getAllKeys()) {
+                int count = stored.getInt(origin);
+                if (count > 0) {
+                    counts.merge(origin, count, Integer::sum);
+                }
+            }
+        }
+        fitMemberOrigins(counts, Math.max(0, getStackSize(mob) - 1), originKey(mob));
+        return counts;
+    }
+
+    /** Pads with the top's origin, or takes the most numerous out, until the counts add up to {@code members}. */
+    private static void fitMemberOrigins(Map<String, Integer> counts, int members, String top) {
+        int total = 0;
+        for (int count : counts.values()) {
+            total += count;
+        }
+        if (total < members) {
+            counts.merge(top, members - total, Integer::sum);
+        }
+        for (; total > members; total--) {
+            takeMostNumerous(counts, top);
+        }
+    }
+
+    /** Stores the members' origins on a stack, or nothing at all when every one is the top's. */
+    private static void storeMemberOrigins(Mob mob, Map<String, Integer> counts) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        String top = originKey(mob);
+        fitMemberOrigins(counts, Math.max(0, getStackSize(mob) - 1), top);
+        CompoundTag data = holder.mobstacker$getCustomData();
+        if (counts.keySet().stream().allMatch(top::equals)) {
+            data.remove(MEMBER_ORIGINS_KEY);
+            return;
+        }
+        CompoundTag stored = new CompoundTag();
+        counts.forEach((origin, count) -> stored.putInt(origin, count));
+        data.put(MEMBER_ORIGINS_KEY, stored);
+    }
+
+    /** Takes one member of the most numerous origin out of the counts (ties: {@code preferred}). */
+    private static String takeMostNumerous(Map<String, Integer> counts, String preferred) {
+        String pick = null;
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            if (pick == null || entry.getValue() > counts.get(pick)
+                    || (entry.getValue().equals(counts.get(pick)) && entry.getKey().equals(preferred))) {
+                pick = entry.getKey();
+            }
+        }
+        if (pick == null) {
+            return preferred;
+        }
+        counts.computeIfPresent(pick, (origin, count) -> count > 1 ? count - 1 : null);
+        return pick;
+    }
+
+    /**
+     * The mob taken out of a stack leaves with a member's origin, the odd ones out first: taking a
+     * stack's few bred calves out one by one leaves a stack of nothing but wild cows, which may stack
+     * again once {@code stackBredMobs} is off. {@code origins} was read before the stack shrank.
+     */
+    private static void takeMemberOriginFor(Mob stack, Mob separated, Map<String, Integer> origins) {
+        String top = originKey(stack);
+        Map<String, Integer> others = new LinkedHashMap<>(origins);
+        others.remove(top);
+        String taken = others.isEmpty() ? top : takeMostNumerous(others, top);
+        origins.computeIfPresent(taken, (origin, count) -> count > 1 ? count - 1 : null);
+        setOriginKey(separated, taken);
+        storeMemberOrigins(stack, origins);
+    }
+
+    /**
+     * After the top of a stack was killed (with however many overflow took under it): the new top is
+     * one of the members that are left, and the rest keep their origins. Called once the remainder has
+     * its stack size.
+     */
+    private static void handOverMemberOrigins(Mob dead, Mob survivor, int newStackSize) {
+        String top = originKey(dead);
+        Map<String, Integer> members = memberOrigins(dead);
+        fitMemberOrigins(members, newStackSize, top); // the members killed with the top
+        setOriginKey(survivor, takeMostNumerous(members, top));
+        storeMemberOrigins(survivor, members);
     }
 
     // --- Stack breeding -------------------------------------------------------------------
@@ -1571,6 +1924,7 @@ public final class MobStacker {
             }
             int size = Math.min(max, remaining);
             child.setBaby(true);
+            setOrigin(child, MobSpawnType.BREEDING);
             child.moveTo(parent.getX(), parent.getY(), parent.getZ(), parent.getYRot(), parent.getXRot());
             setStackSize(child, size);
             level.addFreshEntity(child);
@@ -1670,6 +2024,90 @@ public final class MobStacker {
     public static void setCanStack(Mob entity, boolean canStack) {
         if (entity instanceof ICustomDataHolder holder) {
             holder.mobstacker$getCustomData().putBoolean(CAN_STACK_KEY, canStack);
+        }
+    }
+
+    // --- Who sees which region ------------------------------------------------------------------
+    // Regions used to go to every modded client that asked, corners and all - a map of every farm
+    // and base on the server, and the grief that follows. Now the config sync sends a player only
+    // the regions they may see, and the server is the only side that decides; a client can draw no
+    // more than it was sent.
+
+    /**
+     * Bumped on every change to the config (see {@code MobStackerConfig.save}), so whoever holds
+     * something derived from it - a client's snapshot, an owner's command tree - can tell that it is
+     * out of date without being told what changed.
+     */
+    public static volatile int configVersion;
+
+    public static void configChanged() {
+        configVersion++;
+    }
+
+    /** Whether this region is hidden from players it does not name: its own value, or the global one. */
+    public static boolean regionIsPrivate(StackRegion region) {
+        String own = region.getSetting("privateRegions");
+        return own != null ? Boolean.parseBoolean(own.trim()) : config.getPrivateRegions();
+    }
+
+    /** Whether a player sees this region: any region if {@code seesAll}, a public one, or one of theirs. */
+    public static boolean regionVisible(StackRegion region, UUID player, boolean seesAll) {
+        return seesAll || !regionIsPrivate(region) || region.grantsAccessTo(player);
+    }
+
+    /**
+     * Whether a player sees every region: an operator, the player whose singleplayer world it is (who
+     * may edit it without cheats, too), or anyone a permissions mod gives
+     * {@value MobStackerPermissions#VIEW_ALL_REGIONS}.
+     */
+    public static boolean seesAllRegions(ServerPlayer player) {
+        return player.hasPermissions(2)
+                || player.server.isSingleplayerOwner(player.getGameProfile())
+                || MobStackerPermissions.check(player, MobStackerPermissions.VIEW_ALL_REGIONS, 2);
+    }
+
+    /** The regions this player may see, in the config's order. */
+    public static List<StackRegion> regionsVisibleTo(ServerPlayer player) {
+        boolean seesAll = seesAllRegions(player);
+        List<StackRegion> out = new ArrayList<>();
+        for (StackRegion region : config.getRegions()) {
+            if (regionVisible(region, player.getUUID(), seesAll)) {
+                out.add(region);
+            }
+        }
+        return out;
+    }
+
+    /** Whether this player owns any region, which is what lets them use {@code /mobstacker region share}. */
+    public static boolean ownsRegion(UUID player) {
+        for (StackRegion region : config.getRegions()) {
+            if (region.isOwnedBy(player)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int commandAccessVersion = -1;
+    private static final Map<UUID, Boolean> OWNER_COMMANDS_SENT = new java.util.HashMap<>();
+
+    /**
+     * Sends a player their command tree again when they became, or stopped being, a region owner.
+     * The tree a client gets lists only the commands it may use, decided when it is sent - at login
+     * and when the operator level changes - so a new owner would not see {@code region share} until
+     * they logged in again. Runs once per config change, from the server tick.
+     */
+    public static void tickCommandAccess(MinecraftServer server) {
+        if (commandAccessVersion == configVersion) {
+            return;
+        }
+        commandAccessVersion = configVersion;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            boolean owns = ownsRegion(player.getUUID());
+            Boolean before = OWNER_COMMANDS_SENT.put(player.getUUID(), owns);
+            if (before == null || before != owns) {
+                server.getCommands().sendCommands(player);
+            }
         }
     }
 
@@ -1876,6 +2314,31 @@ public final class MobStacker {
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static int getSweepingEdgeMaxKills(Entity at) {return setting("sweepingEdgeMaxKills", at, config.getSweepingEdgeMaxKills());}
 
+    public static boolean getEnvironmentDamagePerMob() {return config.getEnvironmentDamagePerMob();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static boolean getEnvironmentDamagePerMob(Entity at) {return setting("environmentDamagePerMob", at, config.getEnvironmentDamagePerMob());}
+
+    /**
+     * Whether this damage comes from the world rather than from a blow: nobody dealt it (falling,
+     * fire, lava, drowning, suffocation, cramming, magma, cactus, berry bushes, freezing, the void,
+     * lightning, poison and wither), or it is an explosion or a falling block, which strike everything
+     * in the spot whoever set them off. What a crowd of loose mobs would all have taken, so what every
+     * member of a stack takes under {@code environmentDamagePerMob}.
+     *
+     * <p>{@code /kill} is left out: it already takes the whole stack its own way.
+     */
+    public static boolean isEnvironmentDamage(DamageSource source) {
+        if (source.is(DamageTypes.GENERIC_KILL)) {
+            return false;
+        }
+        return (source.getEntity() == null && source.getDirectEntity() == null)
+                || source.is(DamageTypeTags.IS_EXPLOSION)
+                || source.is(DamageTypes.FALLING_ANVIL)
+                || source.is(DamageTypes.FALLING_BLOCK)
+                || source.is(DamageTypes.FALLING_STALACTITE);
+    }
+
     // --- Vanilla sweep context -----------------------------------------------------------------
     // Whether the swing currently being resolved satisfies vanilla's own conditions for a sweep
     // attack (fully charged, no crit, not sprinting, on the ground, sword in hand). It has to be
@@ -1932,6 +2395,44 @@ public final class MobStacker {
 
     /** As above, but for where {@code at} is standing: a region may set its own value. */
     public static boolean getStackOnSpawn(Entity at) {return setting("stackOnSpawn", at, config.getStackOnSpawn());}
+
+    public static StackAi getStackAi() {return config.getStackAi();}
+
+    /** As above, but for where {@code at} is standing: a region may set its own value. */
+    public static StackAi getStackAi(Entity at) {return setting("stackAi", at, config.getStackAi());}
+
+    /** What this mob does with its AI: {@code stackAi} where it stands for a stack, NORMAL for anything else. */
+    public static StackAi stackAiFor(Mob mob) {
+        return getStackSize(mob) > 1 ? getStackAi(mob) : StackAi.NORMAL;
+    }
+
+    /** Per mob class, whether it swims up rather than sinking; see {@link #keepsAfloat}. */
+    private static final Map<Class<?>, Boolean> FLOATERS = new ConcurrentHashMap<>();
+
+    /**
+     * Whether a stack that no longer thinks should still be kept afloat in water and lava, because the
+     * mob would have swum up on its own.
+     *
+     * <p>Staying afloat is AI in vanilla - a goal ({@code FloatGoal}) for most mobs, a brain behaviour
+     * for villagers, goats and the like - so a stack without it sank, and a stack of cows in a water
+     * stream drowned. Mobs that sink in vanilla (zombies, skeletons, iron golems) and mobs that breathe
+     * water keep doing what they did. The answer is the same for every mob of a class, since goals are
+     * added when a mob is built, so it is worked out once.
+     */
+    public static boolean keepsAfloat(Mob mob, GoalSelector goals) {
+        return FLOATERS.computeIfAbsent(mob.getClass(), type -> {
+            Set<WrappedGoal> available = goals.getAvailableGoals();
+            if (available.isEmpty()) {
+                return !mob.canBreatheUnderwater(); // a brain, not goals: swims if it would drown
+            }
+            for (WrappedGoal goal : available) {
+                if (goal.getGoal() instanceof FloatGoal) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
 
     /**
      * The colour a stack's name is drawn in. With {@code stackNameColorBySize} on the colour steps up

@@ -10,10 +10,17 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import org.joml.Matrix4f;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.AABB;
@@ -134,6 +141,15 @@ public final class MobStackerRegionOverlay {
      * this class says. Grows as needed.
      */
     private static final BufferBuilder BUILDER = new BufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+
+    /**
+     * Where the region names are drawn from, for the same reason as {@link #BUILDER}: text goes through
+     * a buffer source, and the game's own is Iris's while the world is being drawn. Emptied at the end
+     * of every frame's labels.
+     */
+    private static final MultiBufferSource.BufferSource LABELS = MultiBufferSource.immediate(new BufferBuilder(256));
+    /** Past this, a region's name is not drawn: it would be a speck, and there may be many. */
+    private static final double LABEL_RANGE = 128.0;
 
     private MobStackerRegionOverlay() {
     }
@@ -408,7 +424,66 @@ public final class MobStackerRegionOverlay {
             edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
+        drawNames(pose, context.camera(), regions, xray);
+
         pose.popPose();
+    }
+
+    /**
+     * Writes each showing region's name on its box, the way a mob's name tag is written: facing the
+     * camera, with a dark backing. With a few regions on screen, boxes alone did not say which was which.
+     *
+     * <p>The name sits on the point of the box nearest the camera, at eye height where the box reaches
+     * it, so it is on the side being looked at however big the region is, and it grows with distance so
+     * it can still be read. A region the camera is inside gets no name in the world - the line at the
+     * top of the screen ({@link MobStackerRegionHud}) says where the player is. Hidden by terrain like
+     * the boxes, unless the server allows them through walls and the player has that on.
+     */
+    private static void drawNames(PoseStack pose, Camera camera, List<MobStackerClientRegions.View> regions, boolean xray) {
+        if (regions.isEmpty()) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        Font font = minecraft.font;
+        Vec3 eye = camera.getPosition();
+        int backing = (int) (minecraft.options.getBackgroundOpacity(0.25F) * 255.0F) << 24;
+        for (MobStackerClientRegions.View view : regions) {
+            if (!isShown(view.name())) {
+                continue;
+            }
+            AABB box = boxOf(view);
+            if (box.contains(eye)) {
+                continue;
+            }
+            double x = Mth.clamp(eye.x, box.minX, box.maxX);
+            double y = Mth.clamp(eye.y, box.minY, box.maxY);
+            double z = Mth.clamp(eye.z, box.minZ, box.maxZ);
+            double distance = Math.sqrt(eye.distanceToSqr(x, y, z));
+            if (distance > LABEL_RANGE) {
+                continue;
+            }
+            float[] rgb = rgbOf(view);
+            int colour = 0xFF000000 | ((int) (rgb[0] * 255) << 16) | ((int) (rgb[1] * 255) << 8) | (int) (rgb[2] * 255);
+            Component name = Component.literal(view.name()
+                    + (view.type() == com.frikinjay.mobstacker.config.StackRegion.Type.DENY ? " (deny)" : ""));
+            float scale = 0.025F * (float) Math.max(1.0, distance / 10.0);
+
+            pose.pushPose();
+            pose.translate(x, y + 0.5, z);
+            pose.mulPose(camera.rotation());
+            pose.scale(-scale, -scale, scale);
+            Matrix4f matrix = pose.last().pose();
+            float left = -font.width(name) / 2.0F;
+            if (xray) {
+                // As a name tag behind a wall: faint through it, full strength where it is in view.
+                font.drawInBatch(name, left, 0.0F, 0x40FFFFFF & colour, false, matrix, LABELS,
+                        Font.DisplayMode.SEE_THROUGH, backing, LightTexture.FULL_BRIGHT);
+            }
+            font.drawInBatch(name, left, 0.0F, colour, false, matrix, LABELS,
+                    Font.DisplayMode.NORMAL, xray ? 0 : backing, LightTexture.FULL_BRIGHT);
+            pose.popPose();
+        }
+        LABELS.endBatch();
     }
 
     /**

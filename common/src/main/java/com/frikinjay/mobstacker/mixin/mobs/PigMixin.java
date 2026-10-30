@@ -19,10 +19,7 @@ public class PigMixin {
             locals = LocalCapture.CAPTURE_FAILSOFT)
     private void mobstacker$thunderHit(ServerLevel serverLevel, LightningBolt lightningBolt, CallbackInfo ci, ZombifiedPiglin zombifiedPiglin) {
         if (zombifiedPiglin != null) {
-            Pig instance = (Pig) (Object) this;
-            MobStacker.setStackSize(zombifiedPiglin, MobStacker.getStackSize(instance));
-            zombifiedPiglin.setCustomName(null);
-            MobStacker.updateStackDisplay(zombifiedPiglin);
+            MobStacker.carryStackInto((Pig) (Object) this, zombifiedPiglin);
         }
     }
 

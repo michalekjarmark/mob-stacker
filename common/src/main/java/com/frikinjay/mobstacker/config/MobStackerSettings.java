@@ -30,6 +30,11 @@ public final class MobStackerSettings {
             "stackMode", "playerStackRadius",
             "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
             "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
+    // Settings a region gives about itself rather than about the mobs in it. An override of one of
+    // these is kept even while it says what the global value says: a region somebody made private
+    // stays private when the server is switched to public and back, where pruning it as redundant
+    // (MobStackerConfig#pruneRedundantRegionOverrides) would have let it follow the server to public.
+    private static final java.util.Set<String> ABOUT_THE_REGION = java.util.Set.of("privateRegions");
     private static final Map<String, ConfigOption> BY_ID = new LinkedHashMap<>();
 
     static {
@@ -82,6 +87,40 @@ public final class MobStackerSettings {
                 .withAppliedNote(() -> MobStacker.config.getStackHealth()
                         ? "killWholeStackOnDeath is forced on while this is on" : null));
 
+        register(ConfigOption.ofEnum("stackAi", Category.STACKING,
+                "What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. "
+                        + "PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, "
+                        + "is carried by water, knocked back and kept afloat, so farms keep working (sheep "
+                        + "do not eat grass, so their wool does not grow back, and villagers do not work). "
+                        + "FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob "
+                        + "always keeps its AI.",
+                StackAi.class, () -> MobStacker.config.getStackAi(), v -> MobStacker.config.setStackAi(v),
+                StackAi.NORMAL));
+
+        // --- Spawn origin ---
+        register(ConfigOption.ofBool("stackNaturalMobs", Category.ORIGIN,
+                "Stack mobs that spawned on their own - in the dark, with the world, in a patrol or a raid - "
+                        + "and mobs whose origin is unknown: spawned before 1.10.0, or hatched from an egg.",
+                () -> MobStacker.config.getStackNaturalMobs(), v -> MobStacker.config.setStackNaturalMobs(v), true));
+        register(ConfigOption.ofBool("stackSpawnerMobs", Category.ORIGIN,
+                "Stack mobs that came from a monster spawner.",
+                () -> MobStacker.config.getStackSpawnerMobs(), v -> MobStacker.config.setStackSpawnerMobs(v), true));
+        register(ConfigOption.ofBool("stackBredMobs", Category.ORIGIN,
+                "Stack mobs that were born from breeding, vanilla's or a stack's.",
+                () -> MobStacker.config.getStackBredMobs(), v -> MobStacker.config.setStackBredMobs(v), true));
+        register(ConfigOption.ofBool("stackPlacedMobs", Category.ORIGIN,
+                "Stack mobs a player put there: from a spawn egg, a dispenser, a bucket or /summon.",
+                () -> MobStacker.config.getStackPlacedMobs(), v -> MobStacker.config.setStackPlacedMobs(v), true));
+
+        // --- Regions ---
+        // Overridable like any other, but read off the region itself rather than at a mob: a region
+        // set to false is public, whatever the global value says (MobStacker#regionIsPrivate).
+        register(ConfigOption.ofBool("privateRegions", Category.REGIONS,
+                "Players who are not admins see only the regions they own or that were shared with them - "
+                        + "the boxes, the names and the GUI alike. Off: everybody sees every region. "
+                        + "Set to false on one region to make just that one public.",
+                () -> MobStacker.config.getPrivateRegions(), v -> MobStacker.config.setPrivateRegions(v), true));
+
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
                 "Leftover lethal damage carries down onto the mobs below in the stack.",
@@ -110,6 +149,16 @@ public final class MobStackerSettings {
                 0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
                 v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofBool("environmentDamagePerMob", Category.COMBAT,
+                "Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, "
+                        + "explosions - hurts every mob in a stack, as it would a crowd standing loose, so a "
+                        + "fall that kills one zombie kills the whole stack. A player's or a mob's hit stays "
+                        + "one hit.",
+                () -> MobStacker.config.getEnvironmentDamagePerMob(),
+                v -> MobStacker.config.setEnvironmentDamagePerMob(v), true)
+                // One death is every death already, and a pooled health bar has no members to hurt
+                // (stackHealth forces killWholeStackOnDeath on, so it is covered too).
+                .redundantWhen("killWholeStackOnDeath"));
 
         // --- Kill feedback ---
         register(ConfigOption.ofBool("stackKillActionBar", Category.FEEDBACK,
@@ -406,6 +455,11 @@ public final class MobStackerSettings {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());
+    }
+
+    /** Whether this setting describes the region itself, so a region's own value is never pruned. */
+    public static boolean isAboutTheRegion(String id) {
+        return ABOUT_THE_REGION.contains(id);
     }
 
     /** Whether a region may carry its own value for this setting. */

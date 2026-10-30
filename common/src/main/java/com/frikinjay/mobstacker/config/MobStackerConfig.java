@@ -27,6 +27,7 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean sweepingEdgeSingleHit = false;
     private boolean sweepingEdgeVanillaConditions = false;
     private int sweepingEdgeMaxKills = 0;
+    private boolean environmentDamagePerMob = true;
     private boolean stackEquippedMobs = false;
     private boolean keepMemberEquipment = true;
     private boolean stackNamedMobs = false;
@@ -52,6 +53,14 @@ public class MobStackerConfig implements MobLists.Holder {
     private double playerStackRadius = 12.0;
     private int stackScanInterval = 20;
     private boolean stackOnSpawn = true;
+    private StackAi stackAi = StackAi.NORMAL;
+    private boolean stackNaturalMobs = true;
+    private boolean stackSpawnerMobs = true;
+    private boolean stackBredMobs = true;
+    private boolean stackPlacedMobs = true;
+    // On by default: a player who is not an admin is told only about the regions they own or were
+    // given, so the config sync no longer hands every modded client every region's corners.
+    private boolean privateRegions = true;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -119,6 +128,9 @@ public class MobStackerConfig implements MobLists.Holder {
         } catch (Exception e) {
             MobStacker.logger.error("Failed to save config", e);
         }
+        // Every change goes through here, so this is what tells the clients holding a snapshot, and
+        // the command trees of region owners, that what they were sent may be out of date.
+        MobStacker.configChanged();
     }
 
     /**
@@ -138,7 +150,8 @@ public class MobStackerConfig implements MobLists.Holder {
         for (StackRegion region : all) {
             for (String id : new ArrayList<>(region.getSettings().keySet())) {
                 ConfigOption option = MobStackerSettings.byId(id);
-                if (option != null && option.storedValue().equalsIgnoreCase(region.getSetting(id))) {
+                if (option != null && !MobStackerSettings.isAboutTheRegion(id)
+                        && option.storedValue().equalsIgnoreCase(region.getSetting(id))) {
                     region.clearSetting(id);
                 }
             }
@@ -156,6 +169,7 @@ public class MobStackerConfig implements MobLists.Holder {
     public boolean getSweepingEdgeSingleHit() { return sweepingEdgeSingleHit; }
     public boolean getSweepingEdgeVanillaConditions() { return sweepingEdgeVanillaConditions; }
     public int getSweepingEdgeMaxKills() { return sweepingEdgeMaxKills; }
+    public boolean getEnvironmentDamagePerMob() { return environmentDamagePerMob; }
     public boolean getStackEquippedMobs() { return stackEquippedMobs; }
     public boolean getKeepMemberEquipment() { return keepMemberEquipment; }
     public boolean getStackNamedMobs() { return stackNamedMobs; }
@@ -233,6 +247,11 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public void setSweepingEdgeMaxKills(int sweepingEdgeMaxKills) {
         this.sweepingEdgeMaxKills = Math.max(0, sweepingEdgeMaxKills);
+        save();
+    }
+
+    public void setEnvironmentDamagePerMob(boolean environmentDamagePerMob) {
+        this.environmentDamagePerMob = environmentDamagePerMob;
         save();
     }
 
@@ -447,6 +466,47 @@ public class MobStackerConfig implements MobLists.Holder {
             }
         }
         store(kind, next);
+        save();
+    }
+
+    public StackAi getStackAi() {
+        return stackAi != null ? stackAi : StackAi.NORMAL;
+    }
+
+    public void setStackAi(StackAi stackAi) {
+        this.stackAi = stackAi;
+        save();
+    }
+
+    public boolean getStackNaturalMobs() { return stackNaturalMobs; }
+    public boolean getStackSpawnerMobs() { return stackSpawnerMobs; }
+    public boolean getStackBredMobs() { return stackBredMobs; }
+    public boolean getStackPlacedMobs() { return stackPlacedMobs; }
+
+    public void setStackNaturalMobs(boolean stackNaturalMobs) {
+        this.stackNaturalMobs = stackNaturalMobs;
+        save();
+    }
+
+    public void setStackSpawnerMobs(boolean stackSpawnerMobs) {
+        this.stackSpawnerMobs = stackSpawnerMobs;
+        save();
+    }
+
+    public void setStackBredMobs(boolean stackBredMobs) {
+        this.stackBredMobs = stackBredMobs;
+        save();
+    }
+
+    public void setStackPlacedMobs(boolean stackPlacedMobs) {
+        this.stackPlacedMobs = stackPlacedMobs;
+        save();
+    }
+
+    public boolean getPrivateRegions() { return privateRegions; }
+
+    public void setPrivateRegions(boolean privateRegions) {
+        this.privateRegions = privateRegions;
         save();
     }
 
