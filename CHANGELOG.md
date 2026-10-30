@@ -62,6 +62,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   Names follow the boxes through walls only where the server allows it.
 
 ### Fixed
+- **Mobs of different origins merged into one stack lost theirs** (round 8): the stack kept the origin
+  of the mob on top, and every mob taken out of it - or brought back by `unstack` - came out with that
+  one. A stack now counts its members' origins, `inspect` lists them, a stack holding a mob whose origin
+  is switched off takes no more in, and taking mobs out hands out the odd ones first.
+- **A stack turned round every time a mob joined it** (round 8, seen with `stackAi FROZEN`): the merge
+  copied the joining mob's facing onto the stack along with the rest of its data. The stack now keeps
+  its own, and what is left of a stack after a kill keeps the head's direction too, where it used to
+  start out looking a random way - which a stack without AI then kept, its body slowly turning after it.
 - **Now and then a stack came back from a kill carrying a rider nobody could see.** Every mob the
   mod creates - what is left of a stack after a kill, a mob taken out of one - goes through vanilla's
   spawn setup, and that setup sometimes adds a rider: a skeleton on one spider in a hundred, a

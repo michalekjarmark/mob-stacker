@@ -165,7 +165,27 @@ public final class StackToolsCommands {
         source.sendSuccess(() -> label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
                 .append(label(" - it " + (recorded == null ? "counts as having spawned on its own" : origin.description())
                         + "; " + origin.settingId() + " "
-                        + (MobStacker.originStacks(mob) ? "lets it stack here" : "is off here"))), false);
+                        + (MobStacker.originStacks(mob, recorded) ? "lets it stack here" : "is off here"))), false);
+        if (size > 1) {
+            // Only worth a line when the members did not all come from where the top did.
+            Map<String, Integer> members = MobStacker.memberOrigins(mob);
+            String top = recorded == null ? MobStacker.NO_ORIGIN : recorded;
+            if (!members.keySet().stream().allMatch(top::equals)) {
+                MutableComponent under = label("Under it: ");
+                boolean first = true;
+                for (Map.Entry<String, Integer> entry : members.entrySet()) {
+                    String memberOrigin = MobStacker.NO_ORIGIN.equals(entry.getKey()) ? null : entry.getKey();
+                    if (!first) {
+                        under.append(label(", "));
+                    }
+                    under.append(value(entry.getValue() + " " + (memberOrigin == null ? "not recorded" : memberOrigin)))
+                            .append(label(MobStacker.originStacks(mob, memberOrigin) ? "" : " ("
+                                    + SpawnOrigin.of(memberOrigin).settingId() + " is off here)"));
+                    first = false;
+                }
+                source.sendSuccess(() -> under, false);
+            }
+        }
         for (Component line : stackDataLines(mob)) {
             source.sendSuccess(() -> line, false);
         }

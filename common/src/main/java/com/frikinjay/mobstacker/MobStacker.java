@@ -21,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
@@ -67,6 +68,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -492,6 +494,7 @@ public final class MobStacker {
         // The same for a horse's own numbers, which finalizeSpawn rolled afresh a moment ago.
         MobVariants.handOverMemberRolls(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
+        handOverMemberOrigins(self, newEntity, newStackSize);
         if (newStackSize > 1) {
             // The mobs under the new top one are the same wounded members as before the kill.
             MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
@@ -509,6 +512,9 @@ public final class MobStacker {
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
+        // The head too: a new mob's head starts out facing a random way, which a mob with its AI on
+        // corrects at once and a stack without it (stackAi) kept, its body slowly turning after it.
+        target.setYHeadRot(source.getYHeadRot());
 
         if (source.hasCustomName()) {
             target.setCustomName(source.getCustomName());
@@ -783,6 +789,8 @@ public final class MobStacker {
             Mob newEntity = (Mob) entityType.create(entity.level());
             if (newEntity == null) return null;
 
+            // Read while the stack still has the member that is about to leave it.
+            Map<String, Integer> origins = memberOrigins(entity);
             setStackSize(entity, getStackSize(entity) - 1);
 
             copyEntityDataForSeparation(entity, newEntity, serverLevel, markAsSeparated);
@@ -792,6 +800,8 @@ public final class MobStacker {
             takeMemberEquipmentFor(entity, newEntity);
             // ...and, if it is a horse, with that member's own speed, jump and health.
             MobVariants.takeMemberRollsFor(entity, newEntity);
+            // ...and with the origin that member came into the world with.
+            takeMemberOriginFor(entity, newEntity, origins);
 
             // Apply custom entity data
             MobStackerAPI.applyEntityDataModifiersOnSeparation(entity, newEntity);
@@ -813,6 +823,7 @@ public final class MobStacker {
         target.moveTo(source.position().x, source.position().y, source.position().z,
                 source.getYRot(), source.getXRot());
         target.yBodyRot = source.yBodyRot;
+        target.setYHeadRot(source.getYHeadRot());
 
         if (markAsSeparated) {
             target.setCustomName(Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString()));
@@ -953,6 +964,16 @@ public final class MobStacker {
         // Each horse's own numbers are kept the same way, whatever the equipment settings say:
         // they are the horse, not something it carries.
         ListTag mergedRolls = MobVariants.mergedMemberRolls(target, source);
+        // Every member keeps its own origin, or a stack of wild cows with one bred calf in it would
+        // hand out nothing but wild cows when split, and a stack would stand for origins it refuses.
+        Map<String, Integer> mergedOrigins = memberOrigins(target);
+        mergedOrigins.merge(originKey(source), 1, Integer::sum);
+        memberOrigins(source).forEach((origin, count) -> mergedOrigins.merge(origin, count, Integer::sum));
+        // The survivor stays where it stands and keeps facing the way it faced. load() below sets the
+        // head and body to the saved facing, and the source's facing used to come along in its save
+        // data, so a stack without AI turned round every time a mob joined it.
+        float headRot = target.getYHeadRot();
+        float bodyRot = target.yBodyRot;
         ListTag mergedLoadouts = null;
         if (keepsMemberEquipment(target)) {
             mergedLoadouts = new ListTag();
@@ -969,6 +990,8 @@ public final class MobStacker {
         updateStackDataInNbt(targetNbt, newStackSize);
 
         target.load(targetNbt);
+        target.setYHeadRot(headRot);
+        target.yBodyRot = bodyRot;
 
         updateHealth(target, source);
 
@@ -981,6 +1004,7 @@ public final class MobStacker {
             setMemberLoadouts(target, mergedLoadouts);
         }
         MobVariants.setMergedMemberRolls(target, mergedRolls, newStackSize);
+        storeMemberOrigins(target, mergedOrigins);
 
         source.discard();
 
@@ -1002,7 +1026,7 @@ public final class MobStacker {
         // must be kept, not overwritten by the discarded source. Stack size and health are then
         // recomputed explicitly (updateStackDataInNbt / updateHealth).
         return key.equals("Pos") || key.equals("UUID") ||
-                key.equals("Motion") || key.equals("Health") ||
+                key.equals("Motion") || key.equals("Rotation") || key.equals("Health") ||
                 key.equals("Attributes") || key.equals(STACK_DATA_KEY) ||
                 // What the stack wears and what it is called belong to the survivor: the mob being
                 // merged away has its gear stored as a member loadout, and copying its name over
@@ -1526,6 +1550,7 @@ public final class MobStacker {
     public static void carryStackInto(Mob source, Mob target) {
         setStackSize(target, getStackSize(source));
         copyOrigin(source, target);
+        storeMemberOrigins(target, memberOrigins(source));
         if (target.hasCustomName() && source.hasCustomName() && hasNonCustomName(source)) {
             target.setCustomName(null);
         }
@@ -1595,14 +1620,156 @@ public final class MobStacker {
         }
     }
 
-    /** Whether mobs that came into the world the way this one did may stack where it stands. */
+    /**
+     * Whether this stack may stack where it stands, as far as origins go: the mob on top and every
+     * member under it. A stack holding one mob of an origin that is switched off takes nobody else in,
+     * the same as that mob standing alone would not.
+     */
     public static boolean originStacks(Mob mob) {
-        return switch (SpawnOrigin.of(originOf(mob))) {
-            case NATURAL -> setting("stackNaturalMobs", mob, config.getStackNaturalMobs());
-            case SPAWNER -> setting("stackSpawnerMobs", mob, config.getStackSpawnerMobs());
-            case BRED -> setting("stackBredMobs", mob, config.getStackBredMobs());
-            case PLACED -> setting("stackPlacedMobs", mob, config.getStackPlacedMobs());
+        if (!originStacks(mob, originOf(mob))) {
+            return false;
+        }
+        if (getStackSize(mob) > 1 && mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            for (String origin : holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY).getAllKeys()) {
+                if (!originStacks(mob, NO_ORIGIN.equals(origin) ? null : origin)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Whether mobs with this recorded origin (null: none) may stack where {@code at} stands. */
+    public static boolean originStacks(Mob at, String recorded) {
+        return switch (SpawnOrigin.of(recorded)) {
+            case NATURAL -> setting("stackNaturalMobs", at, config.getStackNaturalMobs());
+            case SPAWNER -> setting("stackSpawnerMobs", at, config.getStackSpawnerMobs());
+            case BRED -> setting("stackBredMobs", at, config.getStackBredMobs());
+            case PLACED -> setting("stackPlacedMobs", at, config.getStackPlacedMobs());
         };
+    }
+
+    // Round 8: the members' origins were lost in a merge - the survivor kept its own and every mob
+    // merged into it took that one, so a split stack handed out the wrong origins and a stack of wild
+    // cows could quietly hold bred ones. They are counted rather than listed in order like equipment
+    // and horse rolls: which member leaves first is something nobody can see, and a stack of a
+    // thousand needs a handful of numbers rather than a thousand strings.
+
+    /** Key in a stack's custom data: recorded origin -> how many members under the top came from it. */
+    public static final String MEMBER_ORIGINS_KEY = "MemberOrigins";
+    /** The {@link #MEMBER_ORIGINS_KEY} entry for members with nothing recorded (not a MobSpawnType name). */
+    public static final String NO_ORIGIN = "NONE";
+
+    private static String originKey(Mob mob) {
+        String origin = originOf(mob);
+        return origin == null ? NO_ORIGIN : origin;
+    }
+
+    private static void setOriginKey(Mob mob, String origin) {
+        if (mob instanceof ICustomDataHolder holder) {
+            if (NO_ORIGIN.equals(origin)) {
+                holder.mobstacker$getCustomData().remove(ORIGIN_KEY);
+            } else {
+                holder.mobstacker$getCustomData().putString(ORIGIN_KEY, origin);
+            }
+        }
+    }
+
+    /**
+     * The origins of the members under the top, as counts that add up to the stack size minus one. A
+     * stack that recorded none - every member came from where the top did, or it formed before this
+     * existed - is filled in with the top's own origin, which is what it always handed out.
+     */
+    public static Map<String, Integer> memberOrigins(Mob mob) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        if (mob instanceof ICustomDataHolder holder
+                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            CompoundTag stored = holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY);
+            for (String origin : stored.getAllKeys()) {
+                int count = stored.getInt(origin);
+                if (count > 0) {
+                    counts.merge(origin, count, Integer::sum);
+                }
+            }
+        }
+        fitMemberOrigins(counts, Math.max(0, getStackSize(mob) - 1), originKey(mob));
+        return counts;
+    }
+
+    /** Pads with the top's origin, or takes the most numerous out, until the counts add up to {@code members}. */
+    private static void fitMemberOrigins(Map<String, Integer> counts, int members, String top) {
+        int total = 0;
+        for (int count : counts.values()) {
+            total += count;
+        }
+        if (total < members) {
+            counts.merge(top, members - total, Integer::sum);
+        }
+        for (; total > members; total--) {
+            takeMostNumerous(counts, top);
+        }
+    }
+
+    /** Stores the members' origins on a stack, or nothing at all when every one is the top's. */
+    private static void storeMemberOrigins(Mob mob, Map<String, Integer> counts) {
+        if (!(mob instanceof ICustomDataHolder holder)) {
+            return;
+        }
+        String top = originKey(mob);
+        fitMemberOrigins(counts, Math.max(0, getStackSize(mob) - 1), top);
+        CompoundTag data = holder.mobstacker$getCustomData();
+        if (counts.keySet().stream().allMatch(top::equals)) {
+            data.remove(MEMBER_ORIGINS_KEY);
+            return;
+        }
+        CompoundTag stored = new CompoundTag();
+        counts.forEach((origin, count) -> stored.putInt(origin, count));
+        data.put(MEMBER_ORIGINS_KEY, stored);
+    }
+
+    /** Takes one member of the most numerous origin out of the counts (ties: {@code preferred}). */
+    private static String takeMostNumerous(Map<String, Integer> counts, String preferred) {
+        String pick = null;
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            if (pick == null || entry.getValue() > counts.get(pick)
+                    || (entry.getValue().equals(counts.get(pick)) && entry.getKey().equals(preferred))) {
+                pick = entry.getKey();
+            }
+        }
+        if (pick == null) {
+            return preferred;
+        }
+        counts.computeIfPresent(pick, (origin, count) -> count > 1 ? count - 1 : null);
+        return pick;
+    }
+
+    /**
+     * The mob taken out of a stack leaves with a member's origin, the odd ones out first: taking a
+     * stack's few bred calves out one by one leaves a stack of nothing but wild cows, which may stack
+     * again once {@code stackBredMobs} is off. {@code origins} was read before the stack shrank.
+     */
+    private static void takeMemberOriginFor(Mob stack, Mob separated, Map<String, Integer> origins) {
+        String top = originKey(stack);
+        Map<String, Integer> others = new LinkedHashMap<>(origins);
+        others.remove(top);
+        String taken = others.isEmpty() ? top : takeMostNumerous(others, top);
+        origins.computeIfPresent(taken, (origin, count) -> count > 1 ? count - 1 : null);
+        setOriginKey(separated, taken);
+        storeMemberOrigins(stack, origins);
+    }
+
+    /**
+     * After the top of a stack was killed (with however many overflow took under it): the new top is
+     * one of the members that are left, and the rest keep their origins. Called once the remainder has
+     * its stack size.
+     */
+    private static void handOverMemberOrigins(Mob dead, Mob survivor, int newStackSize) {
+        String top = originKey(dead);
+        Map<String, Integer> members = memberOrigins(dead);
+        fitMemberOrigins(members, newStackSize, top); // the members killed with the top
+        setOriginKey(survivor, takeMostNumerous(members, top));
+        storeMemberOrigins(survivor, members);
     }
 
     // --- Stack breeding -------------------------------------------------------------------
