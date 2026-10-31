@@ -31,8 +31,12 @@
     "StriderAccessor",
     "PlayerMixin",
     "ServerEntityMixin",
+    "ShearsDispenseItemBehaviorMixin",
     "mobs.MilkableMixin",
+    "mobs.MushroomCowShearMixin",
     "mobs.PigMixin",
+    "mobs.SheepShearMixin",
+    "mobs.SnowGolemShearMixin",
     "mobs.VillagerMixin",
     "mobs.ZombieMixin"
   ],

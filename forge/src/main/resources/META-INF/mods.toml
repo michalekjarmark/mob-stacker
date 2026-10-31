@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "LGPL-3.0"
+issueTrackerURL = "https://github.com/michalekjarmark/mob-stacker/issues"
+
+[[mods]]
+modId = "mobstacker"
+version = "${version}"
+displayName = "MobStacker: Restacked"
+authors = "michalekjarmark, davidex"
+credits = "frikinjay (original author)"
+displayURL = "https://github.com/michalekjarmark/mob-stacker"
+logoFile = "assets/mobstacker/icon.png"
+description = '''
+Greatly increases performance by stacking mobs together. An actively-developed fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback, per-world config and an in-game config GUI.
+'''
+# Stacking is the server's business: a client without the mod joins a server with it, and a client
+# with it joins any server. The config screen and region boxes simply have nothing to talk to there.
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.mobstacker]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mobstacker]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"

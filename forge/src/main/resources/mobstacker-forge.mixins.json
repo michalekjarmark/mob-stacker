@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "com.frikinjay.mobstacker.forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8",
+  "client": [
+  ],
+  "mixins": [
+    "mobs.MushroomCowMixin",
+    "mobs.SheepMixin",
+    "mobs.SnowGolemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

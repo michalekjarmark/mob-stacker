@@ -722,9 +722,18 @@ public final class MobStacker {
      * (see {@code MobVariants}), so the two stay apart until the wool grows back.
      */
     public static boolean isShearingOneInteraction(Mob mob, ItemStack held) {
-        return held.is(Items.SHEARS) && mob instanceof Shearable shearable && shearable.readyForShearing()
+        return !shearingOutsideMobInteract
+                && held.is(Items.SHEARS) && mob instanceof Shearable shearable && shearable.readyForShearing()
                 && !getStackedHarvest(mob);
     }
+
+    /**
+     * Set by a loader whose shears do not shear in {@code mobInteract}. Forge moves it into
+     * {@code IForgeShearable.onSheared}, which {@code ShearsItem} calls after the mob's own interaction
+     * has passed - so handing a mob over there would leave the shears to shear the stack anyway. Its
+     * own mixin applies the same one-at-a-time rule inside {@code onSheared} instead.
+     */
+    public static boolean shearingOutsideMobInteract;
 
     /**
      * Has every client that can see this mob forget it and be sent it afresh, the way the server

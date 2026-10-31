@@ -11,3 +11,4 @@ rootProject.name = 'mobstacker'
 
 include 'common'
 include 'fabric'
+include 'forge'

@@ -9,7 +9,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.MushroomCow;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,8 +17,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * When a player's shears harvest the members of a mooshroom stack on Fabric, and the cow the top one
+ * turns into taking the stack along. What a member gives is {@code MushroomCowShearMixin}'s, in common.
+ */
 @Mixin(value = MushroomCow.class)
-public class MushroomCowMixin implements StackShearable {
+public class MushroomCowMixin {
 
     @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
     private void mobstacker$onShearAllMoo(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
@@ -28,27 +31,9 @@ public class MushroomCowMixin implements StackShearable {
         // As in SheepMixin: vanilla's own shear already dropped five mushrooms for the top mob.
         int extra = MobStacker.extraHarvests(self);
         if(!self.level().isClientSide) {
-            mobstacker$shearMembers(SoundSource.PLAYERS, extra);
+            ((StackShearable) self).mobstacker$shearMembers(SoundSource.PLAYERS, extra);
             for (int i = 0; i < extra; i++) {
                 itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));
-            }
-        }
-    }
-
-    /**
-     * Five mushrooms for each member under the top mooshroom. By now vanilla has already turned the
-     * top one into a cow (the stack went with it, below) and dropped its own five; this mooshroom is
-     * discarded but still knows its variant, which is all a member's harvest needs.
-     */
-    @Override
-    public void mobstacker$shearMembers(SoundSource source, int count) {
-        MushroomCow self = (MushroomCow) (Object) this;
-        if (self.level().isClientSide) {
-            return;
-        }
-        for (int i = 0; i < count; i++) {
-            for (int j = 0; j < 5; ++j) {
-                self.level().addFreshEntity(new ItemEntity(self.level(), self.getX(), self.getY(1.0), self.getZ(), new ItemStack(self.getVariant().getBlockState().getBlock())));
             }
         }
     }
