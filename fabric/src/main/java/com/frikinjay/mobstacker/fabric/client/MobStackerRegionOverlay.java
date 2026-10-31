@@ -53,7 +53,9 @@ import java.util.Set;
  * <p>The colour comes from the region (see {@code StackRegion.effectiveColor}), so it is shared by
  * everyone looking at the same region; only the decision to look is per player.
  *
- * <p>Boxes are depth-tested by default, so terrain hides them the way it hides everything else.
+ * <p>Boxes are depth-tested by default, so terrain and mobs hide them the way they hide everything
+ * else - but not water, glass or clouds, which a box is drawn over in every graphics mode (see
+ * {@link #solidDepth}).
  * <b>Through walls</b> is a switch of its own: it draws the same boxes with render types whose depth
  * test is off ({@link MobStackerRenderTypes}), so a region can be seen from anywhere in it or around
  * it. One box hiding <em>another</em> is a different question, answered either way: faces write no
@@ -120,14 +122,26 @@ public final class MobStackerRegionOverlay {
     private static String keyedFolder;
 
     /**
-     * The solid world's depth, kept aside under "Fabulous" graphics for the boxes terrain may hide.
-     * The pass that puts a Fabulous frame together wipes the main depth buffer on its way, and the
-     * boxes are drawn after it, so this is filled before it ({@link #keepSolidDepth}) and put back
-     * just before they are drawn. Created the first time it is needed, and sized to the window.
+     * The solid world's depth, which is what the boxes and their names are tested against: terrain
+     * and mobs hide them, nothing see-through does. Kept just before the translucent terrain is drawn
+     * ({@link #keepSolidDepth}) and put back just before the boxes are, in every graphics mode.
+     *
+     * <p>Under "Fabulous" the pass that puts the frame together wipes the main depth on its way, so
+     * there is nothing else to test against. Under "Fast" and "Fancy" there is, and it was used until
+     * round 9 - but water, stained glass and clouds write their depth into it there, so a box under
+     * water could not be seen from above the surface, and a name with X-ray on was only ever drawn at
+     * its faint see-through strength, while Fabulous drew both. Created the first time it is needed,
+     * and sized to the window.
      */
     private static TextureTarget solidDepth;
     /** True from the moment {@link #solidDepth} is filled in a frame until that frame's boxes are drawn. */
     private static boolean solidDepthKept;
+    /**
+     * The frame's own depth, set aside while the boxes are drawn against {@link #solidDepth} and put
+     * back after them, so whatever is drawn after the boxes (another mod's, say) is tested against what
+     * the world really drew.
+     */
+    private static TextureTarget frameDepth;
 
     /**
      * The overlay's own vertex buffer, drawn from and emptied on the spot for every batch.
@@ -161,13 +175,12 @@ public final class MobStackerRegionOverlay {
         // the world drew after it covered it: clouds with every setting, and with "Fabulous" graphics
         // water and mobs too, because that frame is put together from separate buffers by depth and
         // a box that writes none sat at the depth of whatever was behind it - in front of the box or
-        // not (round 6, both with X-ray on and, once that was fixed, with it off). The earlier hooks
-        // are only there to keep Fabulous's solid depth for the boxes that are depth-tested: kept
-        // before the debug renderer and again, more completely, after the translucent terrain -
-        // twice because in the round 6 modpack the second hook looked as if it only ran with clouds
-        // on, and a frame with no depth kept would test the boxes against a wiped buffer.
+        // not (round 6, both with X-ray on and, once that was fixed, with it off). What they are
+        // tested against is the solid world's depth, kept just before the translucent terrain by
+        // LevelRendererMixin, and before the debug renderer as well, in case a mod has moved that
+        // point: the later copy wins. (Until round 9 it was also kept after the translucent terrain,
+        // which under Fast and Fancy has water in it.)
         WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> keepSolidDepth("BEFORE_DEBUG_RENDER"));
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> keepSolidDepth("AFTER_TRANSLUCENT"));
         WorldRenderEvents.LAST.register(MobStackerRegionOverlay::render);
     }
 
@@ -309,24 +322,19 @@ public final class MobStackerRegionOverlay {
     // ------------------------------------------------------------------ drawing
 
     /**
-     * Under "Fabulous" graphics, copies the main depth buffer aside while it still holds the solid
-     * world (translucent terrain, particles, clouds and weather each have a buffer of their own
-     * there, so the main one only ever holds what is solid). Called from two hooks in a frame; the
-     * later copy wins. Only when a depth-tested box is about to be drawn this frame; otherwise it
-     * costs nothing. Fast and Fancy never wipe the main depth, so they need none of this.
+     * Copies the main depth buffer aside while it holds the solid world and nothing see-through yet
+     * (see {@link #solidDepth}). Called twice in a frame, before the debug renderer and just before
+     * the translucent terrain; the later copy wins. Only when a box is about to be drawn this frame;
+     * otherwise it costs nothing. With X-ray on the boxes ignore depth, but their names do not.
      */
-    private static void keepSolidDepth(String hook) {
+    public static void keepSolidDepth(String hook) {
         MobStackerOverlayDebug.report(hook, "showing=" + anythingShowing() + " xray=" + throughWalls());
-        if (!Minecraft.useShaderTransparency() || Minecraft.getInstance().level == null || throughWalls()
+        if (Minecraft.getInstance().level == null
                 || (!anythingShowing() && MobStackerRegionPicker.previewBox() == null)) {
             return;
         }
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        if (solidDepth == null) {
-            solidDepth = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
-        } else if (solidDepth.width != main.width || solidDepth.height != main.height) {
-            solidDepth.resize(main.width, main.height, Minecraft.ON_OSX);
-        }
+        solidDepth = sizedLike(main, solidDepth);
         solidDepth.copyDepthFrom(main);
         // copyDepthFrom leaves no framebuffer bound; the main one was, and the game carries on
         // drawing without binding it again.
@@ -334,8 +342,19 @@ public final class MobStackerRegionOverlay {
         solidDepthKept = true;
     }
 
+    /** {@code target}, created or resized to match {@code main} when it does not already. */
+    private static TextureTarget sizedLike(RenderTarget main, TextureTarget target) {
+        if (target == null) {
+            return new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
+        }
+        if (target.width != main.width || target.height != main.height) {
+            target.resize(main.width, main.height, Minecraft.ON_OSX);
+        }
+        return target;
+    }
+
     private static void render(WorldRenderContext context) {
-        boolean restoreDepth = solidDepthKept;
+        boolean depthKept = solidDepthKept;
         solidDepthKept = false;
         if (Minecraft.getInstance().level == null) {
             return;
@@ -348,15 +367,17 @@ public final class MobStackerRegionOverlay {
         // asked for it by starting to pick, and it disappears again the moment they stop.
         AABB preview = MobStackerRegionPicker.previewBox();
         MobStackerOverlayDebug.report("LAST", "regions=" + regions.size() + " preview=" + (preview != null)
-                + " xray=" + xray + " depthKept=" + restoreDepth);
+                + " xray=" + xray + " depthKept=" + depthKept);
         if (regions.isEmpty() && preview == null) {
             return;
         }
-        if (!xray && restoreDepth) {
-            // Fabulous: put the solid world's depth back where the boxes can test against it. By now
-            // the frame is finished, so the only thing that would have read the wiped depth is
-            // this; the hand is drawn after a depth clear of its own.
-            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        if (depthKept) {
+            // Test against the solid world only: terrain and mobs hide a box, water and clouds do
+            // not, the same in every graphics mode. The frame's own depth goes back once the boxes
+            // are drawn; the hand is drawn after a depth clear of its own either way.
+            frameDepth = sizedLike(main, frameDepth);
+            frameDepth.copyDepthFrom(main);
             main.copyDepthFrom(solidDepth);
             main.bindWrite(false);
         }
@@ -427,6 +448,11 @@ public final class MobStackerRegionOverlay {
         drawNames(pose, context.camera(), regions, xray);
 
         pose.popPose();
+
+        if (depthKept) {
+            main.copyDepthFrom(frameDepth);
+            main.bindWrite(false);
+        }
     }
 
     /**

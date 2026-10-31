@@ -516,10 +516,13 @@ is each player's own business, kept client-side and never sent anywhere. Which r
 draw at all is the server's call — see [Who sees a region](#who-sees-a-region).
 
 Boxes need the mod on the client — without it there is simply nothing to see. They are hidden by
-terrain, like everything else in the world, until you switch **X-ray** on: then they are drawn
+terrain and mobs, like everything else in the world — though not by what you can see through: a box
+under water, behind glass or beyond the clouds is drawn over them, whatever the graphics setting. That
+lasts until you switch **X-ray** on: then they are drawn
 through walls and terrain, so a region can be seen from anywhere around it — the box you are
 picking with **Pick in world…** too. Nothing in the world covers them then — not clouds, water or
-mobs either; only your hand and the HUD. Like the style, X-ray is one choice for every world.
+mobs either; only your hand and the HUD. A box's name is drawn faint where something stands in front
+of it and at full strength where it is in view. Like the style, X-ray is one choice for every world.
 
 > 🔒 **X-ray is the server's to allow.** A box seen through a mountain shows a little of what is behind
 > it, so it only works on a server started with the Java argument `-Dmobstacker.xray=true`. In
