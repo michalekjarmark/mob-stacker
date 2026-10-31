@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.10.1] - unreleased
+## [1.10.1] - 2026-10-31
 ### Fixed
 - **A region box under water could not be seen from above the surface under "Fast" and "Fancy"
   graphics** - only once the player was under water too - while "Fabulous" drew it. Water, stained
