@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;

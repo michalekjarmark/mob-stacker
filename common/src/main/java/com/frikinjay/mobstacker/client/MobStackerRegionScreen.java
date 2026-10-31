@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
@@ -6,7 +6,7 @@ import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
-import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
+import com.frikinjay.mobstacker.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

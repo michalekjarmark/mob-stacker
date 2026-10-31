@@ -24,7 +24,7 @@
       "com.frikinjay.mobstacker.fabric.MobStackerFabric"
     ],
     "client": [
-      "com.frikinjay.mobstacker.fabric.client.MobStackerClient"
+      "com.frikinjay.mobstacker.fabric.client.MobStackerFabricClient"
     ]
   },
   "mixins": [

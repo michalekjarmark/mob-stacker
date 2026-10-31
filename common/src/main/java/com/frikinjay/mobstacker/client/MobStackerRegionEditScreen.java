@@ -1,8 +1,8 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
-import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
+import com.frikinjay.mobstacker.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

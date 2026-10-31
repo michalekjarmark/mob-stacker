@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;

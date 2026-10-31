@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.network;
+package com.frikinjay.mobstacker.network;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
@@ -8,11 +8,7 @@ import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -27,12 +23,16 @@ import java.util.UUID;
 /**
  * Server side of the config-sync protocol used by the in-game GUI to edit a dedicated (or LAN)
  * server's config over the network. This class contains no client-only references, so it is safe to
- * load on a dedicated server; it is registered from {@code MobStackerFabric#onInitialize}.
+ * load on a dedicated server.
  * <p>
- * The channels are <em>optional</em>: Fabric only delivers our packets to clients that registered
- * these receivers (checked via {@link ServerPlayNetworking#canSend}). A vanilla client — or any
- * client without the mod — is never sent anything and never disconnected, so the mod stays fully
- * server-side. Edits are gated on operator permission ({@value #EDIT_PERMISSION_LEVEL}) on the
+ * The loader's part is small and lives with the loader: it delivers the two packets a client sends
+ * to {@link #onRequest} and {@link #onEdit}, and it is the {@link Transport} that says whether a
+ * player's client listens on a channel and sends to it. Everything else - who may edit, what a
+ * snapshot holds, when it is sent again - is here, once for every loader.
+ * <p>
+ * The channels are <em>optional</em>: a packet only goes to a client that said it listens on the
+ * channel ({@link Transport#canSend}). A vanilla client — or any client without the mod — is never
+ * sent anything and never disconnected, so the mod stays fully server-side. Edits are gated on operator permission ({@value #EDIT_PERMISSION_LEVEL}) on the
  * server, exactly like the {@code /mobstacker} commands, so a client can never change more than the
  * player is allowed to from chat.
  */
@@ -99,36 +99,54 @@ public final class MobStackerNetworking {
     private record Sent(int version, boolean authorized, boolean seesAll) {
     }
 
+    /** What the loader does for this protocol: whether a client listens on a channel, and sending to it. */
+    public interface Transport {
+        boolean canSend(ServerPlayer player, ResourceLocation channel);
+
+        void send(ServerPlayer player, ResourceLocation channel, FriendlyByteBuf buf);
+    }
+
+    /** Nothing is sent until the loader has said how; a server without one is a server without the GUI. */
+    private static Transport transport;
+
     private MobStackerNetworking() {
     }
 
-    public static void registerServer() {
-        // A client opened the GUI and wants the server's current config.
-        ServerPlayNetworking.registerGlobalReceiver(REQUEST, (server, player, handler, buf, responseSender) ->
-                server.execute(() -> sendSync(player, "")));
+    /** Called once by the loader's entrypoint, before any player can connect. */
+    public static void init(Transport loaderTransport) {
+        transport = loaderTransport;
+    }
 
-        // A client changed a setting in the GUI. Read on the network thread, act on the main thread.
-        ServerPlayNetworking.registerGlobalReceiver(EDIT, (server, player, handler, buf, responseSender) -> {
-            String id = buf.readUtf();
-            String raw = buf.readUtf();
-            server.execute(() -> handleEdit(player, id, raw));
-        });
+    /** A client opened the GUI and wants the server's current config. Any thread. */
+    public static void onRequest(MinecraftServer server, ServerPlayer player) {
+        server.execute(() -> sendSync(player, ""));
+    }
 
-        // A snapshot has to follow the config, or a player taken off a region's list would go on
-        // seeing it until they logged out - and an operator's edit used to reach only that operator.
-        ServerTickEvents.END_SERVER_TICK.register(MobStackerNetworking::refreshSnapshots);
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                server.execute(() -> SENT.remove(handler.getPlayer().getUUID())));
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> SENT.clear());
+    /** A client changed a setting in the GUI. Read on the network thread, acted on on the main thread. */
+    public static void onEdit(MinecraftServer server, ServerPlayer player, FriendlyByteBuf buf) {
+        String id = buf.readUtf();
+        String raw = buf.readUtf();
+        server.execute(() -> handleEdit(player, id, raw));
+    }
+
+    /** The server stopped: whoever held a snapshot of it holds none of the next one. */
+    public static void onServerStopped() {
+        SENT.clear();
+    }
+
+    /** A new, empty packet buffer, as each loader's own helper makes one. */
+    public static FriendlyByteBuf newBuffer() {
+        return new FriendlyByteBuf(Unpooled.buffer());
     }
 
     /**
      * Sends a fresh snapshot to every player holding one that is out of date: the config changed since
      * (a region was shared, moved, deleted, a setting set by somebody else), or the player's own
      * permissions did - made an operator, deopped, or given a node by a permissions mod, which tells
-     * nobody, so it is looked at every couple of seconds.
+     * nobody, so it is looked at every couple of seconds. Called at the end of every server tick
+     * ({@code MinecraftServerMixin}). A player who logged out is dropped here too, the tick after.
      */
-    private static void refreshSnapshots(MinecraftServer server) {
+    public static void refreshSnapshots(MinecraftServer server) {
         if (SENT.isEmpty()) {
             return;
         }
@@ -409,10 +427,10 @@ public final class MobStackerNetworking {
      * The status line carries a short human-readable result of the last edit (or {@code ""}).
      */
     public static void sendSync(ServerPlayer player, String status) {
-        if (!ServerPlayNetworking.canSend(player, SYNC)) {
+        if (transport == null || !transport.canSend(player, SYNC)) {
             return; // vanilla / non-mod client: send nothing, stay invisible to it
         }
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = newBuffer();
         boolean authorized = player.hasPermissions(EDIT_PERMISSION_LEVEL);
         boolean seesAll = MobStacker.seesAllRegions(player);
         buf.writeBoolean(authorized);
@@ -490,7 +508,7 @@ public final class MobStackerNetworking {
         // older client simply leaves it unread, and a newer client talking to an older server finds
         // nothing there and reads that as "not allowed".
         buf.writeBoolean(MobStacker.regionXrayAllowed());
-        ServerPlayNetworking.send(player, SYNC, buf);
+        transport.send(player, SYNC, buf);
         SENT.put(player.getUUID(), new Sent(MobStacker.configVersion, authorized, seesAll));
     }
 }
