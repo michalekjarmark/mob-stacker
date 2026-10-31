@@ -7,6 +7,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.10.1] - 2026-10-31
+### Fixed
+- **A region box under water could not be seen from above the surface under "Fast" and "Fancy"
+  graphics** - only once the player was under water too - while "Fabulous" drew it. Water, stained
+  glass and clouds write depth there into the buffer the boxes were tested against. The boxes and
+  their names are now tested against the solid world's depth, kept just before the translucent
+  terrain is drawn (a new client mixin on `LevelRenderer.renderLevel`, after Iris has drawn the mobs
+  it holds back), so terrain and mobs hide a box and nothing see-through does, in every graphics
+  mode. The frame's own depth is put back once the boxes are drawn.
+- **With X-ray on, a region's name was grey under "Fast" and "Fancy"** wherever water or a cloud was
+  in front of it - only its faint see-through copy got through. Under "Fabulous" it was the other way
+  round: the name was drawn at full strength even through a mountain. It is now faint behind terrain
+  and full strength in view, in every mode.
+
 ## [1.10.0] - 2026-10-31
 ### Added
 - **`/mobstacker inspect [target]`** - look at a mob (or name one) and see its stack up close: size,
