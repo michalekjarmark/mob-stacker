@@ -39,6 +39,8 @@ public final class MobStackerClientNetworking {
     private static String status = "";
     // Whether the server lets region boxes be drawn through walls. False until it says otherwise.
     private static boolean xrayAllowed;
+    // Whether this connection already asked for a snapshot by itself (see #tickJoin).
+    private static boolean askedOnJoin;
 
     /** One region as the server described it, for the region editor screen. Corners as given. */
     public record RegionInfo(String name, String type, String dimension,
@@ -198,6 +200,23 @@ public final class MobStackerClientNetworking {
     /** The connection is gone: don't carry one server's config over to the next one. */
     public static void onDisconnect() {
         clear();
+        askedOnJoin = false;
+    }
+
+    /**
+     * Asks a modded server for its snapshot once per connection, as soon as the server is known to
+     * have the mod. Called every client tick. The boxes and the {@code Region:} line are drawn from the
+     * snapshot, and it used to be asked for only when the config screen opened - so after joining a
+     * server, a player saw no region at all until they had opened {@code /mobstackerconfig} once.
+     */
+    public static void tickJoin(Minecraft client) {
+        if (askedOnJoin || client.getConnection() == null || client.hasSingleplayerServer()) {
+            return;
+        }
+        if (serverHasMod()) {
+            askedOnJoin = true;
+            requestSync();
+        }
     }
 
     /** The server's copy of one global mob list. Empty until the first snapshot arrives. */

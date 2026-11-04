@@ -25,7 +25,7 @@ public final class ConfigOption {
         STACKING("Stacking"),
         ORIGIN("Spawn origin"),
         COMBAT("Combat"),
-        FEEDBACK("Kill feedback"),
+        FEEDBACK("Feedback"),
         DISPLAY("Stack display"),
         BREEDING("Breeding"),
         DROPS("Drops & XP"),

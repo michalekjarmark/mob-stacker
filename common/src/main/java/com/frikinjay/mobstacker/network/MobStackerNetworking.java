@@ -314,6 +314,14 @@ public final class MobStackerNetworking {
                 sendSync(player, problem);
                 return;
             }
+            if (canonical.equalsIgnoreCase(option.storedValue())) {
+                // The global value is no override (the screen already folds it; a packet is whatever
+                // the other end put in it) - see MobStackerCommands#setRegionValue.
+                region.clearSetting(option.id());
+                MobStacker.config.save();
+                sendSync(player, regionName + ": " + option.id() + " follows the global config");
+                return;
+            }
             region.setSetting(option.id(), canonical);
             MobStacker.config.save();
             sendSync(player, regionName + ": " + option.id() + " = " + canonical);

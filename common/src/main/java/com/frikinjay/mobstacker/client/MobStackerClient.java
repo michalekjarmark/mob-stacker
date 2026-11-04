@@ -73,6 +73,7 @@ public final class MobStackerClient {
     public static void onEndClientTick(Minecraft client) {
         // First, as it was when the picker had a tick hook of its own registered before this one.
         MobStackerRegionPicker.onClientTick(client);
+        MobStackerClientNetworking.tickJoin(client);
         while (OPEN_CONFIG.consumeClick()) {
             client.setScreen(new MobStackerConfigScreen(client.screen));
         }

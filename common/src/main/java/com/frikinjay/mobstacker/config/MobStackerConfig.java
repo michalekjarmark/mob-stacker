@@ -61,6 +61,8 @@ public class MobStackerConfig implements MobLists.Holder {
     // On by default: a player who is not an admin is told only about the regions they own or were
     // given, so the config sync no longer hands every modded client every region's corners.
     private boolean privateRegions = true;
+    // Off by default: vanilla's sendCommandFeedback gamerule decides, as for every other command.
+    private boolean alwaysShowFeedback = false;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -504,6 +506,13 @@ public class MobStackerConfig implements MobLists.Holder {
     }
 
     public boolean getPrivateRegions() { return privateRegions; }
+
+    public boolean getAlwaysShowFeedback() { return alwaysShowFeedback; }
+
+    public void setAlwaysShowFeedback(boolean alwaysShowFeedback) {
+        this.alwaysShowFeedback = alwaysShowFeedback;
+        save();
+    }
 
     public void setPrivateRegions(boolean privateRegions) {
         this.privateRegions = privateRegions;

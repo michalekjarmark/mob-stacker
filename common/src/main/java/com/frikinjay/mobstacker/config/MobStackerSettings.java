@@ -27,7 +27,7 @@ public final class MobStackerSettings {
     // caps are world-level spawn limits rather than a property of a place. Everything else can be
     // given a different value inside a region.
     private static final java.util.Set<String> GLOBAL_ONLY = java.util.Set.of(
-            "stackMode", "playerStackRadius",
+            "stackMode", "playerStackRadius", "alwaysShowFeedback",
             "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
             "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
     // Settings a region gives about itself rather than about the mobs in it. An override of one of
@@ -118,8 +118,10 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("privateRegions", Category.REGIONS,
                 "Players who are not admins see only the regions they own or that were shared with them - "
                         + "the boxes, the names and the GUI alike. Off: everybody sees every region. "
-                        + "Set to false on one region to make just that one public.",
-                () -> MobStacker.config.getPrivateRegions(), v -> MobStacker.config.setPrivateRegions(v), true));
+                        + "Set to false on one region to make just that one public, or to true to keep "
+                        + "one private on a public server.",
+                () -> MobStacker.config.getPrivateRegions(), v -> MobStacker.config.setPrivateRegions(v), true)
+                .withAppliedNote(MobStackerSettings::regionsKeepingTheirPrivacy));
 
         // --- Combat ---
         register(ConfigOption.ofBool("damageOverflow", Category.COMBAT,
@@ -174,6 +176,11 @@ public final class MobStackerSettings {
                 "Colour of the floating \"-N\" kill hologram.",
                 StackColor.class, () -> MobStacker.config.getKillHologramColor(),
                 v -> MobStacker.config.setKillHologramColor(v), StackColor.RED));
+        // Global only: it is about who reads a command's answer, not about a place.
+        register(ConfigOption.ofBool("alwaysShowFeedback", Category.FEEDBACK,
+                "Show this mod's command replies to the player who typed the command even while the "
+                        + "gamerule sendCommandFeedback is false. Command blocks and functions stay quiet.",
+                () -> MobStacker.config.getAlwaysShowFeedback(), v -> MobStacker.config.setAlwaysShowFeedback(v), false));
 
         // --- Stack display ---
         register(ConfigOption.ofEnum("stackNameColor", Category.DISPLAY,
@@ -455,6 +462,28 @@ public final class MobStackerSettings {
             return null;
         }
         return dependencyProblem(option, region::getSetting, region.getName());
+    }
+
+    /**
+     * After the server's privateRegions changed: the regions whose own value now differs from it and
+     * which therefore did not follow. Without the note, a region that stays private on a server just
+     * made public looks like the change did not reach it (round 10).
+     */
+    private static String regionsKeepingTheirPrivacy() {
+        boolean global = MobStacker.config.getPrivateRegions();
+        List<String> keeping = new ArrayList<>();
+        for (StackRegion region : MobStacker.config.getRegions()) {
+            String own = region.getSetting("privateRegions");
+            if (own != null && Boolean.parseBoolean(own.trim()) != global) {
+                keeping.add(region.getName());
+            }
+        }
+        if (keeping.isEmpty()) {
+            return null;
+        }
+        return (global ? "Still public by their own setting: " : "Still private by their own setting: ")
+                + String.join(", ", keeping)
+                + " - /mobstacker region unset <name> privateRegions makes one follow the server";
     }
 
     /** Whether this setting describes the region itself, so a region's own value is never pruned. */

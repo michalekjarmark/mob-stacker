@@ -280,10 +280,11 @@ public final class MobStackerRegionScreen extends Screen {
      * business. "auto" means nothing was chosen and the box takes its colour from the region's kind.
      */
     private void addColorButton() {
-        Button button = Button.builder(colorLabel(), b -> {
-            StackColor next = nextColor(currentRegion().colorChosen() ? currentRegion().color() : null);
+        Button button = new StepButton(this.width / 2 + COLOR_X, 68, COLOR_W, 20, colorLabel(), (b, direction) -> {
+            StackColor chosen = currentRegion().colorChosen() ? currentRegion().color() : null;
+            StackColor next = direction < 0 ? previousColor(chosen) : nextColor(chosen);
             applyEdit(MobStackerNetworking.REGION_COLOR, next == null ? "" : next.name());
-        }).bounds(this.width / 2 + COLOR_X, 68, COLOR_W, 20).build();
+        });
         button.active = editable;
         this.colorButton = button;
         addRenderableWidget(button);
@@ -309,10 +310,6 @@ public final class MobStackerRegionScreen extends Screen {
         return previous < 0 ? null : all[previous];
     }
 
-    /**
-     * Right-click steps the colour backwards. Seventeen stops is a long way round to go back one, and
-     * a vanilla button only ever answers the left button, so the screen catches the right one itself.
-     */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         boolean inItemBox = itemCompletion.isFor(this.getFocused());
@@ -330,15 +327,6 @@ public final class MobStackerRegionScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (itemCompletion.mouseClicked(mouseX, mouseY, this.height)) {
-            return true;
-        }
-        if (button == 1 && colorButton != null && colorButton.active && colorButton.visible
-                && overColor((int) mouseX, (int) mouseY)) {
-            StackColor previous = previousColor(currentRegion().colorChosen() ? currentRegion().color() : null);
-            if (this.minecraft != null) {
-                colorButton.playDownSound(this.minecraft.getSoundManager());
-            }
-            applyEdit(MobStackerNetworking.REGION_COLOR, previous == null ? "" : previous.name());
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -391,10 +379,11 @@ public final class MobStackerRegionScreen extends Screen {
         this.overlayAll = all;
         addRenderableWidget(all);
 
-        Button style = Button.builder(overlayStyleLabel(), b -> {
-            MobStackerRegionOverlay.cycleStyle();
+        Button style = new StepButton(left + OVERLAY_BOX_W + OVERLAY_ALL_W + 8, y, OVERLAY_STYLE_W, 20,
+                overlayStyleLabel(), (b, direction) -> {
+            MobStackerRegionOverlay.cycleStyle(direction);
             rebuildOverlayRow();
-        }).bounds(left + OVERLAY_BOX_W + OVERLAY_ALL_W + 8, y, OVERLAY_STYLE_W, 20).build();
+        });
         this.overlayStyle = style;
         addRenderableWidget(style);
 
@@ -486,11 +475,11 @@ public final class MobStackerRegionScreen extends Screen {
         switch (option.type()) {
             case BOOL -> {
                 boolean[] state = { Boolean.parseBoolean(valueOf(option)) };
-                Button button = Button.builder(boolLabel(state[0]), b -> {
+                Button button = new StepButton(widgetX, y, widgetW, widgetH, boolLabel(state[0]), (b, direction) -> {
                     state[0] = !state[0];
                     b.setMessage(boolLabel(state[0]));
                     applyEdit(option.id(), String.valueOf(state[0]));
-                }).bounds(widgetX, y, widgetW, widgetH).build();
+                });
                 button.active = allowed;
                 addRenderableWidget(button);
                 row.widget = button;
@@ -505,12 +494,13 @@ public final class MobStackerRegionScreen extends Screen {
                 if (index[0] < 0) {
                     index[0] = 0;
                 }
-                Button button = Button.builder(enumLabel(values.get(index[0])), b -> {
-                    index[0] = (index[0] + 1) % values.size();
+                Button button = new StepButton(widgetX, y, widgetW, widgetH,
+                        StepButton.enumLabel(option, values.get(index[0])), (b, direction) -> {
+                    index[0] = StepButton.stepIndex(index[0], direction, values.size());
                     String value = values.get(index[0]);
-                    b.setMessage(enumLabel(value));
+                    b.setMessage(StepButton.enumLabel(option, value));
                     applyEdit(option.id(), value);
-                }).bounds(widgetX, y, widgetW, widgetH).build();
+                });
                 button.active = allowed;
                 addRenderableWidget(button);
                 row.widget = button;
@@ -518,7 +508,7 @@ public final class MobStackerRegionScreen extends Screen {
                     int found = indexOfIgnoreCase(values, value);
                     if (found >= 0) {
                         index[0] = found;
-                        button.setMessage(enumLabel(values.get(found)));
+                        button.setMessage(StepButton.enumLabel(option, values.get(found)));
                     }
                 };
             }
@@ -1046,10 +1036,6 @@ public final class MobStackerRegionScreen extends Screen {
 
     private static Component boolLabel(boolean value) {
         return Component.literal(value ? "ON" : "OFF").withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED);
-    }
-
-    private static Component enumLabel(String value) {
-        return Component.literal(value).withStyle(ChatFormatting.AQUA);
     }
 
     private static int indexOfIgnoreCase(List<String> values, String value) {

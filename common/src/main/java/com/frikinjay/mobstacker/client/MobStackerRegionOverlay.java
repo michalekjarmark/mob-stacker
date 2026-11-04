@@ -279,9 +279,10 @@ public final class MobStackerRegionOverlay {
         return state.style;
     }
 
-    public static Style cycleStyle() {
+    /** The next style ({@code direction} 1) or the one before it (-1). */
+    public static Style cycleStyle(int direction) {
         Style[] all = Style.values();
-        state.style = all[(state.style.ordinal() + 1) % all.length];
+        state.style = all[Math.floorMod(state.style.ordinal() + direction, all.length)];
         save();
         return state.style;
     }
