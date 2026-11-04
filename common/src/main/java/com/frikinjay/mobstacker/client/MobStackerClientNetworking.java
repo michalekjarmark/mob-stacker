@@ -1,12 +1,11 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.MobListKind;
 import com.frikinjay.mobstacker.config.StackColor;
-import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import com.frikinjay.mobstacker.network.MobStackerNetworking;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,9 +19,12 @@ import java.util.Map;
  * small verbs the GUI needs: whether the current server speaks our protocol, whether this player may
  * edit, the snapshot values, and the request/edit sends.
  * <p>
- * Client-only: nothing here is referenced from common or the dedicated-server entrypoint. When a
- * config snapshot arrives it updates the cache and, if the config screen is open, tells it to
+ * Client-only: nothing here is referenced from server code or the dedicated-server entrypoint. When
+ * a config snapshot arrives it updates the cache and, if the config screen is open, tells it to
  * refresh so button states track the authoritative values.
+ * <p>
+ * The loader hands a snapshot that arrives to {@link #onSync}, says when the connection is gone
+ * ({@link #onDisconnect}) and is the {@link Transport} the requests and edits go out through.
  */
 public final class MobStackerClientNetworking {
     // Latest snapshot from the server (id -> canonical value string). Kept in registry order.
@@ -37,6 +39,8 @@ public final class MobStackerClientNetworking {
     private static String status = "";
     // Whether the server lets region boxes be drawn through walls. False until it says otherwise.
     private static boolean xrayAllowed;
+    // Whether this connection already asked for a snapshot by itself (see #tickJoin).
+    private static boolean askedOnJoin;
 
     /** One region as the server described it, for the region editor screen. Corners as given. */
     public record RegionInfo(String name, String type, String dimension,
@@ -84,102 +88,135 @@ public final class MobStackerClientNetworking {
         }
     }
 
+    /** What the loader does for this protocol on the client: whether the server listens, and sending to it. */
+    public interface Transport {
+        boolean canSend(ResourceLocation channel);
+
+        void send(ResourceLocation channel, FriendlyByteBuf buf);
+    }
+
+    private static Transport transport;
+
     private MobStackerClientNetworking() {
     }
 
-    public static void register() {
-        ClientPlayNetworking.registerGlobalReceiver(MobStackerNetworking.SYNC, (client, handler, buf, responseSender) -> {
-            boolean incomingAuth = buf.readBoolean();
-            String incomingStatus = buf.readUtf();
-            int count = buf.readVarInt();
-            Map<String, String> incoming = new LinkedHashMap<>();
-            for (int i = 0; i < count; i++) {
-                String id = buf.readUtf();
-                String value = buf.readUtf();
-                incoming.put(id, value);
+    /** Called once by the loader's client entrypoint. */
+    public static void init(Transport loaderTransport) {
+        transport = loaderTransport;
+    }
+
+    /** A snapshot from the server. Read where it arrives (the network thread), kept on the client thread. */
+    public static void onSync(FriendlyByteBuf buf) {
+        Minecraft client = Minecraft.getInstance();
+        boolean incomingAuth = buf.readBoolean();
+        String incomingStatus = buf.readUtf();
+        int count = buf.readVarInt();
+        Map<String, String> incoming = new LinkedHashMap<>();
+        for (int i = 0; i < count; i++) {
+            String id = buf.readUtf();
+            String value = buf.readUtf();
+            incoming.put(id, value);
+        }
+        Map<MobListKind, List<String>> incomingLists = new EnumMap<>(MobListKind.class);
+        for (MobListKind kind : MobListKind.values()) {
+            int listSize = buf.readVarInt();
+            List<String> entries = new ArrayList<>(listSize);
+            for (int e = 0; e < listSize; e++) {
+                entries.add(buf.readUtf());
             }
-            Map<MobListKind, List<String>> incomingLists = new EnumMap<>(MobListKind.class);
+            incomingLists.put(kind, entries);
+        }
+        int ceilingCount = buf.readVarInt();
+        Map<String, Integer> incomingCeilings = new LinkedHashMap<>();
+        for (int c = 0; c < ceilingCount; c++) {
+            incomingCeilings.put(buf.readUtf(), buf.readVarInt());
+        }
+        int regionCount = buf.readVarInt();
+        List<RegionInfo> incomingRegions = new ArrayList<>();
+        for (int i = 0; i < regionCount; i++) {
+            String name = buf.readUtf();
+            String type = buf.readUtf();
+            String dimension = buf.readUtf();
+            int x1 = buf.readInt();
+            int y1 = buf.readInt();
+            int z1 = buf.readInt();
+            int x2 = buf.readInt();
+            int y2 = buf.readInt();
+            int z2 = buf.readInt();
+            int priority = buf.readInt();
+            String color = buf.readUtf();
+            int overrideCount = buf.readVarInt();
+            Map<String, String> overrides = new LinkedHashMap<>();
+            for (int o = 0; o < overrideCount; o++) {
+                overrides.put(buf.readUtf(), buf.readUtf());
+            }
+            // Absent from the map means "inherits"; present-but-empty means "nothing stacks".
+            Map<MobListKind, List<String>> regionLists = new EnumMap<>(MobListKind.class);
             for (MobListKind kind : MobListKind.values()) {
+                if (!buf.readBoolean()) {
+                    continue;
+                }
                 int listSize = buf.readVarInt();
                 List<String> entries = new ArrayList<>(listSize);
                 for (int e = 0; e < listSize; e++) {
                     entries.add(buf.readUtf());
                 }
-                incomingLists.put(kind, entries);
+                regionLists.put(kind, entries);
             }
-            int ceilingCount = buf.readVarInt();
-            Map<String, Integer> incomingCeilings = new LinkedHashMap<>();
-            for (int c = 0; c < ceilingCount; c++) {
-                incomingCeilings.put(buf.readUtf(), buf.readVarInt());
+            int regionCeilingCount = buf.readVarInt();
+            Map<String, Integer> regionCeilings = new LinkedHashMap<>();
+            for (int c = 0; c < regionCeilingCount; c++) {
+                regionCeilings.put(buf.readUtf(), buf.readVarInt());
             }
-            int regionCount = buf.readVarInt();
-            List<RegionInfo> incomingRegions = new ArrayList<>();
-            for (int i = 0; i < regionCount; i++) {
-                String name = buf.readUtf();
-                String type = buf.readUtf();
-                String dimension = buf.readUtf();
-                int x1 = buf.readInt();
-                int y1 = buf.readInt();
-                int z1 = buf.readInt();
-                int x2 = buf.readInt();
-                int y2 = buf.readInt();
-                int z2 = buf.readInt();
-                int priority = buf.readInt();
-                String color = buf.readUtf();
-                int overrideCount = buf.readVarInt();
-                Map<String, String> overrides = new LinkedHashMap<>();
-                for (int o = 0; o < overrideCount; o++) {
-                    overrides.put(buf.readUtf(), buf.readUtf());
-                }
-                // Absent from the map means "inherits"; present-but-empty means "nothing stacks".
-                Map<MobListKind, List<String>> regionLists = new EnumMap<>(MobListKind.class);
-                for (MobListKind kind : MobListKind.values()) {
-                    if (!buf.readBoolean()) {
-                        continue;
-                    }
-                    int listSize = buf.readVarInt();
-                    List<String> entries = new ArrayList<>(listSize);
-                    for (int e = 0; e < listSize; e++) {
-                        entries.add(buf.readUtf());
-                    }
-                    regionLists.put(kind, entries);
-                }
-                int regionCeilingCount = buf.readVarInt();
-                Map<String, Integer> regionCeilings = new LinkedHashMap<>();
-                for (int c = 0; c < regionCeilingCount; c++) {
-                    regionCeilings.put(buf.readUtf(), buf.readVarInt());
-                }
-                incomingRegions.add(new RegionInfo(name, type, dimension,
-                        x1, y1, z1, x2, y2, z2, priority, color, overrides,
-                        regionLists, regionCeilings));
+            incomingRegions.add(new RegionInfo(name, type, dimension,
+                    x1, y1, z1, x2, y2, z2, priority, color, overrides,
+                    regionLists, regionCeilings));
+        }
+        // Written last by 1.9.1 and later; a server older than that sends nothing here, and a
+        // server that has not said yes has said no.
+        boolean incomingXray = buf.isReadable() && buf.readBoolean();
+        client.execute(() -> {
+            authorized = incomingAuth;
+            xrayAllowed = incomingXray;
+            status = incomingStatus;
+            SNAPSHOT.clear();
+            SNAPSHOT.putAll(incoming);
+            REGIONS.clear();
+            REGIONS.addAll(incomingRegions);
+            LISTS.clear();
+            LISTS.putAll(incomingLists);
+            CEILINGS.clear();
+            CEILINGS.putAll(incomingCeilings);
+            if (client.screen instanceof MobStackerConfigScreen screen) {
+                screen.onConfigSynced();
+            } else if (client.screen instanceof MobStackerRegionScreen screen) {
+                screen.onConfigSynced();
+            } else if (client.screen instanceof MobStackerListScreen screen) {
+                screen.onConfigSynced();
             }
-            // Written last by 1.9.1 and later; a server older than that sends nothing here, and a
-            // server that has not said yes has said no.
-            boolean incomingXray = buf.isReadable() && buf.readBoolean();
-            client.execute(() -> {
-                authorized = incomingAuth;
-                xrayAllowed = incomingXray;
-                status = incomingStatus;
-                SNAPSHOT.clear();
-                SNAPSHOT.putAll(incoming);
-                REGIONS.clear();
-                REGIONS.addAll(incomingRegions);
-                LISTS.clear();
-                LISTS.putAll(incomingLists);
-                CEILINGS.clear();
-                CEILINGS.putAll(incomingCeilings);
-                if (client.screen instanceof MobStackerConfigScreen screen) {
-                    screen.onConfigSynced();
-                } else if (client.screen instanceof MobStackerRegionScreen screen) {
-                    screen.onConfigSynced();
-                } else if (client.screen instanceof MobStackerListScreen screen) {
-                    screen.onConfigSynced();
-                }
-            });
         });
+    }
 
-        // Don't carry one server's config over to the next connection.
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clear());
+    /** The connection is gone: don't carry one server's config over to the next one. */
+    public static void onDisconnect() {
+        clear();
+        askedOnJoin = false;
+    }
+
+    /**
+     * Asks a modded server for its snapshot once per connection, as soon as the server is known to
+     * have the mod. Called every client tick. The boxes and the {@code Region:} line are drawn from the
+     * snapshot, and it used to be asked for only when the config screen opened - so after joining a
+     * server, a player saw no region at all until they had opened {@code /mobstackerconfig} once.
+     */
+    public static void tickJoin(Minecraft client) {
+        if (askedOnJoin || client.getConnection() == null || client.hasSingleplayerServer()) {
+            return;
+        }
+        if (serverHasMod()) {
+            askedOnJoin = true;
+            requestSync();
+        }
     }
 
     /** The server's copy of one global mob list. Empty until the first snapshot arrives. */
@@ -195,7 +232,7 @@ public final class MobStackerClientNetworking {
 
     /** True when the connected server registered our protocol, i.e. it has the mod installed. */
     public static boolean serverHasMod() {
-        return ClientPlayNetworking.canSend(MobStackerNetworking.EDIT);
+        return transport != null && transport.canSend(MobStackerNetworking.EDIT);
     }
 
     /** True when the server told us this player is an operator (may edit). */
@@ -245,7 +282,7 @@ public final class MobStackerClientNetworking {
 
     public static void requestSync() {
         if (serverHasMod()) {
-            ClientPlayNetworking.send(MobStackerNetworking.REQUEST, PacketByteBufs.create());
+            transport.send(MobStackerNetworking.REQUEST, MobStackerNetworking.newBuffer());
         }
     }
 
@@ -253,10 +290,10 @@ public final class MobStackerClientNetworking {
         if (!serverHasMod()) {
             return;
         }
-        FriendlyByteBuf buf = PacketByteBufs.create();
+        FriendlyByteBuf buf = MobStackerNetworking.newBuffer();
         buf.writeUtf(id);
         buf.writeUtf(raw);
-        ClientPlayNetworking.send(MobStackerNetworking.EDIT, buf);
+        transport.send(MobStackerNetworking.EDIT, buf);
     }
 
     /** Optimistically apply a region edit locally; the server echo confirms or corrects it. */

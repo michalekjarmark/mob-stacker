@@ -1,7 +1,6 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.StackRegion;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -20,17 +19,15 @@ import java.util.List;
  * is the region whose settings apply at the player's feet (see
  * {@link MobStackerClientRegions#containing}); when several overlap, how many more there are. Off
  * with the boxes, with the HUD hidden (F1) and under the debug screen (F3), which uses that corner.
+ *
+ * <p>Drawn by the loader's HUD hook, after the game's own HUD, through {@link #render}.
  */
 public final class MobStackerRegionHud {
 
     private MobStackerRegionHud() {
     }
 
-    public static void register() {
-        HudRenderCallback.EVENT.register((graphics, tickDelta) -> render(graphics));
-    }
-
-    private static void render(GuiGraphics graphics) {
+    public static void render(GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null || minecraft.options.hideGui || minecraft.options.renderDebug
                 || !MobStackerRegionOverlay.anythingShowing()) {

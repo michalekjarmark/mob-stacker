@@ -236,11 +236,11 @@ public class MobStackerCommands {
         if (option == null) {
             return unknownSetting(context, StringArgumentType.getString(context, "setting"));
         }
-        context.getSource().sendSuccess(() -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
+        CommandFeedback.success(context.getSource(), () -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
                 .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
                 .append(valueComponent(option))
                 .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
-        context.getSource().sendSuccess(() -> Component.literal(option.description()).withStyle(ChatFormatting.GRAY), false);
+        CommandFeedback.success(context.getSource(), () -> Component.literal(option.description()).withStyle(ChatFormatting.GRAY), false);
         // Say so when the value above is not the one in the config file: another setting is forcing
         // it, or the setting it depends on is off and holding it at its default.
         String problem = MobStackerSettings.lockProblem(option, null, null);
@@ -252,7 +252,7 @@ public class MobStackerCommands {
             final String note = option.currentValue().equalsIgnoreCase(stored)
                     ? problem
                     : problem + "  (stored: " + stored + ")";
-            context.getSource().sendSuccess(() -> Component.literal(note).withStyle(ChatFormatting.YELLOW), false);
+            CommandFeedback.success(context.getSource(), () -> Component.literal(note).withStyle(ChatFormatting.YELLOW), false);
         }
         return 1;
     }
@@ -306,7 +306,7 @@ public class MobStackerCommands {
             MobStacker.config.save();
         }
         final int count = changed;
-        context.getSource().sendSuccess(() -> Component.literal("Reset " + count + " setting(s) to their defaults").withStyle(ChatFormatting.AQUA), true);
+        CommandFeedback.success(context.getSource(), () -> Component.literal("Reset " + count + " setting(s) to their defaults").withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -325,11 +325,11 @@ public class MobStackerCommands {
                 if (result.message != null) {
                     message.append(Component.literal("   (" + result.message + ")").withStyle(ChatFormatting.YELLOW));
                 }
-                source.sendSuccess(() -> message, true);
+                CommandFeedback.success(source, () -> message, true);
                 return 1;
             }
             case UNCHANGED -> {
-                source.sendSuccess(() -> Component.literal(option.id() + " is already " + result.oldValue).withStyle(ChatFormatting.YELLOW), false);
+                CommandFeedback.success(source, () -> Component.literal(option.id() + " is already " + result.oldValue).withStyle(ChatFormatting.YELLOW), false);
                 return 1;
             }
             default -> {
@@ -360,7 +360,7 @@ public class MobStackerCommands {
             return showOwnerOverview(context.getSource());
         }
         CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal("=== MobStacker: Restacked ===").withStyle(ChatFormatting.GOLD), false);
+        CommandFeedback.success(source, () -> Component.literal("=== MobStacker: Restacked ===").withStyle(ChatFormatting.GOLD), false);
         for (Category category : Category.values()) {
             List<ConfigOption> options = MobStackerSettings.byCategory(category);
             if (options.isEmpty()) {
@@ -376,15 +376,15 @@ public class MobStackerCommands {
                 line.append(Component.literal(option.id() + ":").withStyle(ChatFormatting.GRAY))
                         .append(valueComponent(option));
             }
-            source.sendSuccess(() -> line, false);
+            CommandFeedback.success(source, () -> line, false);
         }
-        source.sendSuccess(() -> Component.literal("Regions: ").withStyle(ChatFormatting.GRAY)
+        CommandFeedback.success(source, () -> Component.literal("Regions: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(MobStacker.config.getRegions().size())).withStyle(ChatFormatting.AQUA))
                 .append(Component.literal("   Ignored entities: ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredEntities().size())).withStyle(ChatFormatting.AQUA))
                 .append(Component.literal("   Ignored mods: ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(String.valueOf(MobStacker.config.getIgnoredMods().size())).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("Commands: set, get, toggle, reset, list, maxstack, region, inspect, stats, unstack, stack, reload  -  ").withStyle(ChatFormatting.GRAY)
+        CommandFeedback.success(source, () -> Component.literal("Commands: set, get, toggle, reset, list, maxstack, region, inspect, stats, unstack, stack, reload  -  ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help").withStyle(ChatFormatting.YELLOW)), false);
         warnIfStacksNowhere(source);
         return 1;
@@ -392,29 +392,29 @@ public class MobStackerCommands {
 
     private static int showHelpRoot(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal("=== MobStacker: Restacked - help ===").withStyle(ChatFormatting.GOLD), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker set <setting> <value>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("=== MobStacker: Restacked - help ===").withStyle(ChatFormatting.GOLD), false);
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker set <setting> <value>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  change a setting").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker get|toggle|reset <setting>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker get|toggle|reset <setting>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  inspect / flip / restore").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker reset all").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker reset all").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  restore every setting to default").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker stacksize <target> <n>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  force a targeted mob's live stack count").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker list <deny|allow> <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker list <deny|allow> <entity|mod> <add|remove|list>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  which mobs stack; see mobListMode").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a ceiling for one mob type").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack|owner|share>").withStyle(ChatFormatting.YELLOW), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region owner <name> <player|none> | region share <name> <add|remove> <player>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack|owner|share>").withStyle(ChatFormatting.YELLOW), false);
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region owner <name> <player|none> | region share <name> <add|remove> <player>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  who besides admins sees a region (privateRegions)").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker inspect [target]").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker inspect [target]").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a stack up close, and why it will not stack").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker stats [radius]").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker stats [radius]").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  how many mobs the stacks stand for").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker unstack <radius|loaded>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker unstack <radius|loaded>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  split stacks back into mobs - do this before removing the mod").withStyle(ChatFormatting.GRAY)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker stack <radius>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker stack <radius>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  merge what can merge here now, whatever stackMode says").withStyle(ChatFormatting.GRAY)), false);
 
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
@@ -433,7 +433,7 @@ public class MobStackerCommands {
             categories.append(Component.literal(category.name().toLowerCase()).withStyle(ChatFormatting.AQUA))
                     .append(Component.literal(" (" + count + ")").withStyle(ChatFormatting.DARK_GRAY));
         }
-        source.sendSuccess(() -> categories, false);
+        CommandFeedback.success(source, () -> categories, false);
         return 1;
     }
 
@@ -451,13 +451,13 @@ public class MobStackerCommands {
             return 0;
         }
         final Category resolved = category;
-        context.getSource().sendSuccess(() -> Component.literal("[" + resolved.display() + "]").withStyle(ChatFormatting.GOLD), false);
+        CommandFeedback.success(context.getSource(), () -> Component.literal("[" + resolved.display() + "]").withStyle(ChatFormatting.GOLD), false);
         for (ConfigOption option : MobStackerSettings.byCategory(category)) {
-            context.getSource().sendSuccess(() -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
+            CommandFeedback.success(context.getSource(), () -> Component.literal(option.id()).withStyle(ChatFormatting.WHITE)
                     .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
                     .append(valueComponent(option))
                     .append(Component.literal("   [default " + option.defaultValue() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
-            context.getSource().sendSuccess(() -> Component.literal("  " + option.description()).withStyle(ChatFormatting.DARK_GRAY), false);
+            CommandFeedback.success(context.getSource(), () -> Component.literal("  " + option.description()).withStyle(ChatFormatting.DARK_GRAY), false);
         }
         return 1;
     }
@@ -591,9 +591,9 @@ public class MobStackerCommands {
                 }
             }
         }
-        source.sendSuccess(() -> Component.literal("Your regions: ").withStyle(ChatFormatting.GOLD)
+        CommandFeedback.success(source, () -> Component.literal("Your regions: ").withStyle(ChatFormatting.GOLD)
                 .append(Component.literal(String.join(", ", own)).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("/mobstacker region share <region> add <player>").withStyle(ChatFormatting.YELLOW)
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region share <region> add <player>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  let a friend see one too; ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal("remove <player>").withStyle(ChatFormatting.YELLOW))
                 .append(Component.literal(" takes it back, and no player at all shows who has it").withStyle(ChatFormatting.GRAY)), false);
@@ -648,9 +648,9 @@ public class MobStackerCommands {
             return 0;
         }
         CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        CommandFeedback.success(source, () -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
         for (Component line : regionAccessLines(source.getServer(), region)) {
-            source.sendSuccess(() -> line, false);
+            CommandFeedback.success(source, () -> line, false);
         }
         return 1;
     }
@@ -663,12 +663,12 @@ public class MobStackerCommands {
         CommandSourceStack source = context.getSource();
         if (!set) {
             if (region.getOwner() == null) {
-                source.sendSuccess(() -> Component.literal(region.getName() + " has no owner").withStyle(ChatFormatting.YELLOW), false);
+                CommandFeedback.success(source, () -> Component.literal(region.getName() + " has no owner").withStyle(ChatFormatting.YELLOW), false);
                 return 1;
             }
             region.setOwner(null, null);
             MobStacker.config.save();
-            source.sendSuccess(() -> Component.literal(region.getName() + " has no owner now").withStyle(ChatFormatting.GREEN), true);
+            CommandFeedback.success(source, () -> Component.literal(region.getName() + " has no owner now").withStyle(ChatFormatting.GREEN), true);
             return 1;
         }
         Collection<GameProfile> profiles = GameProfileArgument.getGameProfiles(context, "player");
@@ -681,7 +681,7 @@ public class MobStackerCommands {
         // The owner sees it anyway; staying on the list as well would outlive a change of owner.
         region.unshare(profile.getId());
         MobStacker.config.save();
-        source.sendSuccess(() -> Component.literal(region.getName() + " now belongs to " + profile.getName()
+        CommandFeedback.success(source, () -> Component.literal(region.getName() + " now belongs to " + profile.getName()
                 + " - they see it, and may share it with /mobstacker region share").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -695,12 +695,12 @@ public class MobStackerCommands {
         List<String> added = new ArrayList<>();
         for (GameProfile profile : GameProfileArgument.getGameProfiles(context, "player")) {
             if (region.isOwnedBy(profile.getId())) {
-                source.sendSuccess(() -> Component.literal(profile.getName() + " owns " + region.getName()
+                CommandFeedback.success(source, () -> Component.literal(profile.getName() + " owns " + region.getName()
                         + " and sees it anyway").withStyle(ChatFormatting.YELLOW), false);
             } else if (region.share(profile.getId(), profile.getName())) {
                 added.add(profile.getName());
             } else {
-                source.sendSuccess(() -> Component.literal(region.getName() + " is already shared with "
+                CommandFeedback.success(source, () -> Component.literal(region.getName() + " is already shared with "
                         + profile.getName()).withStyle(ChatFormatting.YELLOW), false);
             }
         }
@@ -708,10 +708,10 @@ public class MobStackerCommands {
             return 0;
         }
         MobStacker.config.save();
-        source.sendSuccess(() -> Component.literal("Shared " + region.getName() + " with " + String.join(", ", added))
+        CommandFeedback.success(source, () -> Component.literal("Shared " + region.getName() + " with " + String.join(", ", added))
                 .withStyle(ChatFormatting.GREEN), true);
         if (!MobStacker.regionIsPrivate(region)) {
-            source.sendSuccess(() -> Component.literal(" (privateRegions is off for it, so everybody sees it anyway)")
+            CommandFeedback.success(source, () -> Component.literal(" (privateRegions is off for it, so everybody sees it anyway)")
                     .withStyle(ChatFormatting.DARK_GRAY), false);
         }
         return 1;
@@ -731,7 +731,7 @@ public class MobStackerCommands {
             if (who.equalsIgnoreCase(name) || who.equalsIgnoreCase(entry.getValue()) || who.equalsIgnoreCase(entry.getKey())) {
                 region.unshare(UUID.fromString(entry.getKey()));
                 MobStacker.config.save();
-                source.sendSuccess(() -> Component.literal(name + " no longer sees " + region.getName())
+                CommandFeedback.success(source, () -> Component.literal(name + " no longer sees " + region.getName())
                         .withStyle(ChatFormatting.GREEN), true);
                 return 1;
             }
@@ -878,7 +878,7 @@ public class MobStackerCommands {
         }
         boolean changed = add ? holder.addToList(kind, entry) : holder.removeFromList(kind, entry);
         if (!changed) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                             "'" + entry + "' is " + (add ? "already on " : "not on ") + kind.id() + " " + scope)
                     .withStyle(ChatFormatting.YELLOW), false);
             return 1;
@@ -886,13 +886,13 @@ public class MobStackerCommands {
         // A region's lists live inside the config object, so the region path has to ask for the save
         // that the global path already did for itself.
         MobStacker.config.save();
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                         (add ? "Added '" : "Removed '") + entry + (add ? "' to " : "' from ") + kind.id() + " " + scope)
                 .withStyle(add ? ChatFormatting.GREEN : ChatFormatting.GOLD), true);
         if (add) {
             String note = MobLists.entryNote(kind, entry);
             if (note != null) {
-                context.getSource().sendSuccess(() -> Component.literal(" " + note)
+                CommandFeedback.success(context.getSource(), () -> Component.literal(" " + note)
                         .withStyle(ChatFormatting.YELLOW), false);
             }
             noteIfNotRead(context, kind, regionArg, scope);
@@ -921,10 +921,10 @@ public class MobStackerCommands {
                 ? "/mobstacker set mobListMode " + want
                 : "/mobstacker region set " + StringArgumentType.getString(context, regionArg)
                         + " mobListMode " + want;
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 " mobListMode " + scope + " is " + mode + ", so this list is not being read")
                 .withStyle(ChatFormatting.RED), false);
-        context.getSource().sendSuccess(() -> Component.literal(" change it with " + fix)
+        CommandFeedback.success(context.getSource(), () -> Component.literal(" change it with " + fix)
                 .withStyle(ChatFormatting.GRAY), false);
     }
 
@@ -935,13 +935,13 @@ public class MobStackerCommands {
         }
         String scope = scopeOf(context, regionArg);
         if (!holder.hasList(kind)) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     kind.id() + " " + scope + " already follows the global list").withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
         holder.clearList(kind);
         MobStacker.config.save();
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 kind.id() + " " + scope + " now follows the global list").withStyle(ChatFormatting.GOLD), true);
         return 1;
     }
@@ -953,14 +953,14 @@ public class MobStackerCommands {
         }
         String scope = scopeOf(context, regionArg);
         if (holder.hasList(kind)) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     kind.id() + " " + scope + " is already this region's own").withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
         // Seeded with what was being inherited, so taking a list over does not silently empty it.
         holder.setList(kind, MobStacker.config.getList(kind));
         MobStacker.config.save();
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 kind.id() + " " + scope + " is now this region's own copy").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -975,12 +975,12 @@ public class MobStackerCommands {
         List<String> entries = own ? holder.getList(kind) : MobStacker.config.getList(kind);
         String heading = kind.id() + " " + scope + (own ? "" : " (inherited)");
         if (entries.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal(heading + ": empty").withStyle(ChatFormatting.YELLOW), false);
+            CommandFeedback.success(context.getSource(), () -> Component.literal(heading + ": empty").withStyle(ChatFormatting.YELLOW), false);
         } else {
-            context.getSource().sendSuccess(() -> Component.literal(heading + " (" + entries.size() + "):")
+            CommandFeedback.success(context.getSource(), () -> Component.literal(heading + " (" + entries.size() + "):")
                     .withStyle(ChatFormatting.AQUA), false);
             for (String entry : entries) {
-                context.getSource().sendSuccess(() -> Component.literal(" - " + entry).withStyle(ChatFormatting.GRAY), false);
+                CommandFeedback.success(context.getSource(), () -> Component.literal(" - " + entry).withStyle(ChatFormatting.GRAY), false);
             }
         }
         // The mode decides whether this list is read at all, so say which one is in force rather
@@ -989,7 +989,7 @@ public class MobStackerCommands {
                 ? MobStacker.config.getMobListMode()
                 : regionMode(StringArgumentType.getString(context, regionArg));
         boolean active = (mode == MobListMode.WHITELIST) == (kind.half() == MobListKind.Half.ALLOW);
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                         "mobListMode " + scope + " is " + mode + ", so this list is "
                                 + (active ? "in use" : "not being read"))
                 .withStyle(active ? ChatFormatting.DARK_GRAY : ChatFormatting.RED), false);
@@ -1040,13 +1040,13 @@ public class MobStackerCommands {
             region.setMaxStackSize(entityId, size);
             MobStacker.config.save();
         }
-        context.getSource().sendSuccess(() -> Component.literal(size == null
+        CommandFeedback.success(context.getSource(), () -> Component.literal(size == null
                         ? "'" + entityId + "' " + scope + " follows maxStackSize again"
                         : "'" + entityId + "' stacks up to " + size + " " + scope)
                 .withStyle(size == null ? ChatFormatting.GOLD : ChatFormatting.GREEN), true);
         String note = size == null ? null : MobLists.entryNote(MobListKind.DENY_ENTITIES, entityId);
         if (note != null) {
-            context.getSource().sendSuccess(() -> Component.literal(" " + note)
+            CommandFeedback.success(context.getSource(), () -> Component.literal(" " + note)
                     .withStyle(ChatFormatting.YELLOW), false);
         }
         return 1;
@@ -1067,14 +1067,14 @@ public class MobStackerCommands {
             sizes = region.getMaxStackSizes();
         }
         if (sizes.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                             "No per-type ceilings " + scope + "; everything follows maxStackSize")
                     .withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 "Per-type ceilings " + scope + " (" + sizes.size() + "):").withStyle(ChatFormatting.AQUA), false);
-        sizes.forEach((id, size) -> context.getSource().sendSuccess(
+        sizes.forEach((id, size) -> CommandFeedback.success(context.getSource(), 
                 () -> Component.literal(" - " + id + " -> " + size).withStyle(ChatFormatting.GRAY), false));
         return 1;
     }
@@ -1093,10 +1093,10 @@ public class MobStackerCommands {
 
             int currentSize = MobStacker.getStackSize(mob);
             if (currentSize == newSize) {
-                context.getSource().sendSuccess(() -> Component.literal("That mob's stack size is already " + newSize).withStyle(ChatFormatting.YELLOW), false);
+                CommandFeedback.success(context.getSource(), () -> Component.literal("That mob's stack size is already " + newSize).withStyle(ChatFormatting.YELLOW), false);
             } else {
                 MobStacker.setStackSize(mob, newSize);
-                context.getSource().sendSuccess(() -> Component.literal("Set the targeted mob's stack size to " + newSize).withStyle(ChatFormatting.GREEN), true);
+                CommandFeedback.success(context.getSource(), () -> Component.literal("Set the targeted mob's stack size to " + newSize).withStyle(ChatFormatting.GREEN), true);
             }
         } catch (Exception e) {
             context.getSource().sendFailure(Component.literal("Error setting stack size: " + e.getMessage()).withStyle(ChatFormatting.RED));
@@ -1108,7 +1108,7 @@ public class MobStackerCommands {
 
     private static int reloadConfig(CommandContext<CommandSourceStack> context) {
         MobStacker.reloadConfig();
-        context.getSource().sendSuccess(() -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
+        CommandFeedback.success(context.getSource(), () -> Component.literal("MobStacker config reloaded from disk").withStyle(ChatFormatting.AQUA), true);
         return 1;
     }
 
@@ -1121,7 +1121,7 @@ public class MobStackerCommands {
         CommandSourceStack source = context.getSource();
         ConfigSelfTest.Report report = ConfigSelfTest.run(source);
         if (report.passed()) {
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                     "Self-test PASSED: " + report.checks + " checks across " + report.options + " settings").withStyle(ChatFormatting.GREEN), false);
             return 1;
         }
@@ -1153,7 +1153,7 @@ public class MobStackerCommands {
     /** Emits a yellow heads-up when the current config would stack nowhere (see {@link #stacksNowhere()}). */
     private static void warnIfStacksNowhere(CommandSourceStack source) {
         if (stacksNowhere()) {
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                     "Note: stackMode is REGIONS but no ALLOW region is defined - nothing will stack anywhere. "
                             + "Add one with /mobstacker region add <name> allow <c1> <c2>, or /mobstacker set stackMode everywhere."
             ).withStyle(ChatFormatting.YELLOW), false);
@@ -1200,7 +1200,7 @@ public class MobStackerCommands {
                 corner1.getX(), corner1.getY(), corner1.getZ(),
                 corner2.getX(), corner2.getY(), corner2.getZ()));
         if (result == 1 && moved) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     "The corners were read here, so the region moved to " + dimension + "."
             ).withStyle(ChatFormatting.AQUA), true);
         }
@@ -1216,7 +1216,7 @@ public class MobStackerCommands {
             return 0;
         }
         if (region.getType() == type) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     "Region '" + name + "' is already " + type).withStyle(ChatFormatting.YELLOW), false);
             return 0;
         }
@@ -1228,7 +1228,7 @@ public class MobStackerCommands {
             context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
             return 0;
         }
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 "Region '" + name + "' is now " + type).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -1239,7 +1239,7 @@ public class MobStackerCommands {
             context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
             return 0;
         }
-        context.getSource().sendSuccess(() -> Component.literal(result.message()).withStyle(ChatFormatting.GREEN), true);
+        CommandFeedback.success(context.getSource(), () -> Component.literal(result.message()).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
 
@@ -1270,7 +1270,7 @@ public class MobStackerCommands {
         String name = StringArgumentType.getString(context, "name");
         if (MobStacker.config.removeRegion(name)) {
             MobStacker.config.save();
-            context.getSource().sendSuccess(() -> Component.literal("Removed region '" + name + "'").withStyle(ChatFormatting.GOLD), true);
+            CommandFeedback.success(context.getSource(), () -> Component.literal("Removed region '" + name + "'").withStyle(ChatFormatting.GOLD), true);
         } else {
             context.getSource().sendFailure(Component.literal("Region '" + name + "' does not exist").withStyle(ChatFormatting.RED));
         }
@@ -1282,15 +1282,15 @@ public class MobStackerCommands {
         String mode = String.valueOf(MobStacker.config.getStackMode());
 
         if (regions.isEmpty()) {
-            context.getSource().sendSuccess(() -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
+            CommandFeedback.success(context.getSource(), () -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
             warnIfStacksNowhere(context.getSource());
             return 1;
         }
 
-        context.getSource().sendSuccess(() -> Component.literal("Stacking regions (mode: " + mode + "):").withStyle(ChatFormatting.AQUA), false);
+        CommandFeedback.success(context.getSource(), () -> Component.literal("Stacking regions (mode: " + mode + "):").withStyle(ChatFormatting.AQUA), false);
         for (StackRegion region : regions) {
             ChatFormatting color = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " "
                             + region.describeBounds() + describeRegionExtras(region)
             ).withStyle(color), false);
@@ -1346,8 +1346,23 @@ public class MobStackerCommands {
         }
 
         String previous = region.getSetting(option.id());
+        if (canonical.equalsIgnoreCase(option.storedValue())) {
+            // What the server already says is not an override, as in the region screen: the region
+            // follows the global value again. For privateRegions this matters - it is never pruned
+            // on save, so `region set farm privateRegions true` on a private server used to pin the
+            // region private, and switching the server public later left it hidden (round 10).
+            if (previous != null) {
+                region.clearSetting(option.id());
+                MobStacker.config.save();
+            }
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
+                    region.getName() + ": " + option.id() + " follows the global config (" + canonical
+                            + ") - a region keeps a value of its own only while it differs").withStyle(ChatFormatting.GREEN),
+                    previous != null);
+            return 1;
+        }
         if (canonical.equals(previous)) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     region.getName() + ": " + option.id() + " is already " + canonical).withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
@@ -1355,7 +1370,7 @@ public class MobStackerCommands {
         region.setSetting(option.id(), canonical);
         MobStacker.config.save();
         String from = previous != null ? previous : option.currentValue() + " (global)";
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 region.getName() + ": " + option.id() + " " + from + " -> " + canonical).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -1369,13 +1384,13 @@ public class MobStackerCommands {
         ConfigOption option = MobStackerSettings.byId(settingId);
         String id = option != null ? option.id() : settingId;
         if (!region.clearSetting(id)) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     region.getName() + " does not override " + id).withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
         MobStacker.config.save();
         String now = option != null ? option.currentValue() : "the global value";
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 region.getName() + ": " + id + " follows the global config again (" + now + ")")
                 .withStyle(ChatFormatting.GREEN), true);
         return 1;
@@ -1389,13 +1404,13 @@ public class MobStackerCommands {
         int priority = IntegerArgumentType.getInteger(context, "priority");
         int previous = region.getPriority();
         if (priority == previous) {
-            context.getSource().sendSuccess(() -> Component.literal(
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
                     region.getName() + ": priority is already " + priority).withStyle(ChatFormatting.YELLOW), false);
             return 1;
         }
         region.setPriority(priority);
         MobStacker.config.save();
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 region.getName() + ": priority " + previous + " -> " + priority).withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -1446,7 +1461,7 @@ public class MobStackerCommands {
         String label = chosen == null
                 ? AUTO_COLOR + " (" + shown.name().toLowerCase(Locale.ROOT) + ", from its type)"
                 : shown.name().toLowerCase(Locale.ROOT);
-        context.getSource().sendSuccess(() -> Component.literal(
+        CommandFeedback.success(context.getSource(), () -> Component.literal(
                 region.getName() + ": overlay colour " + label).withStyle(shown.format()), true);
         return 1;
     }
@@ -1458,37 +1473,37 @@ public class MobStackerCommands {
         }
         CommandSourceStack source = context.getSource();
         ChatFormatting typeColor = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
-        source.sendSuccess(() -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
-        source.sendSuccess(() -> Component.literal(" type: " + region.getType()).withStyle(typeColor), false);
-        source.sendSuccess(() -> Component.literal(
+        CommandFeedback.success(source, () -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        CommandFeedback.success(source, () -> Component.literal(" type: " + region.getType()).withStyle(typeColor), false);
+        CommandFeedback.success(source, () -> Component.literal(
                 " at: " + region.getDimension() + " " + region.describeBounds()).withStyle(ChatFormatting.GRAY), false);
-        source.sendSuccess(() -> Component.literal(
+        CommandFeedback.success(source, () -> Component.literal(
                 " priority: " + region.getPriority() + " (higher wins where regions overlap)").withStyle(ChatFormatting.GRAY), false);
         StackColor color = region.effectiveColor();
         String colorNote = region.getColor() == null ? " (from its type)" : "";
-        source.sendSuccess(() -> Component.literal(
+        CommandFeedback.success(source, () -> Component.literal(
                 " overlay colour: " + color.name().toLowerCase(Locale.ROOT) + colorNote).withStyle(color.format()), false);
         for (Component line : regionAccessLines(source.getServer(), region)) {
-            source.sendSuccess(() -> line, false);
+            CommandFeedback.success(source, () -> line, false);
         }
 
         showRegionLists(source, region);
 
         Map<String, String> overrides = region.getSettings();
         if (overrides.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                     " settings: none - everything follows the global config").withStyle(ChatFormatting.DARK_GRAY), false);
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                     " set one with /mobstacker region set " + region.getName() + " <setting> <value>")
                     .withStyle(ChatFormatting.DARK_GRAY), false);
             return 1;
         }
-        source.sendSuccess(() -> Component.literal(
+        CommandFeedback.success(source, () -> Component.literal(
                 " settings (" + overrides.size() + " overridden here):").withStyle(ChatFormatting.GOLD), false);
         for (Map.Entry<String, String> entry : overrides.entrySet()) {
             ConfigOption option = MobStackerSettings.byId(entry.getKey());
             String global = option != null ? option.currentValue() : "?";
-            source.sendSuccess(() -> Component.literal("  " + entry.getKey() + " = ")
+            CommandFeedback.success(source, () -> Component.literal("  " + entry.getKey() + " = ")
                     .withStyle(ChatFormatting.GRAY)
                     .append(Component.literal(entry.getValue()).withStyle(ChatFormatting.AQUA))
                     .append(Component.literal("   [global " + global + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
@@ -1506,7 +1521,7 @@ public class MobStackerCommands {
     private static void showRegionLists(CommandSourceStack source, StackRegion region) {
         MobListMode mode = MobLists.modeIn(region);
         boolean ownMode = region.getSetting("mobListMode") != null;
-        source.sendSuccess(() -> Component.literal(
+        CommandFeedback.success(source, () -> Component.literal(
                         " mob lists: " + mode + (ownMode ? " (set here)" : " (from the global config)"))
                 .withStyle(ownMode ? ChatFormatting.GOLD : ChatFormatting.DARK_GRAY), false);
 
@@ -1519,16 +1534,16 @@ public class MobStackerCommands {
             }
             boolean own = region.hasList(kind);
             int size = MobLists.effective(kind, region).size();
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                             "  " + kind.id() + ": " + size + (own ? " (this region's own)" : " (inherited)"))
                     .withStyle(own ? ChatFormatting.GOLD : ChatFormatting.DARK_GRAY), false);
         }
 
         Map<String, Integer> ceilings = region.getMaxStackSizes();
         if (!ceilings.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(
+            CommandFeedback.success(source, () -> Component.literal(
                     "  stack ceilings set here (" + ceilings.size() + "):").withStyle(ChatFormatting.GOLD), false);
-            ceilings.forEach((id, size) -> source.sendSuccess(
+            ceilings.forEach((id, size) -> CommandFeedback.success(source, 
                     () -> Component.literal("   " + id + " -> " + size).withStyle(ChatFormatting.GRAY), false));
         }
     }

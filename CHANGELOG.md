@@ -7,6 +7,36 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.11.0] - 2026-11-04
+### Added
+- **A Forge version for Minecraft 1.20.1** (Forge 47 and up; it needs nothing else). Same features
+  and the same per-world config file as the Fabric jar, and a client without the mod can still join a
+  Forge server with it, as on Fabric. Shears in a
+  player's hand go through Forge's own shearing (`IForgeShearable.onSheared`), so a stack is sheared
+  the same way as on Fabric. Not ported: the `mobstacker.regions.viewall` permission node (on Forge
+  it falls back to operator level 2).
+- **`alwaysShowFeedback` (off by default)**: the mod's command replies reach the player who typed the
+  command even while the gamerule `sendCommandFeedback` is false. Servers turn the gamerule off
+  because of command blocks spamming the chat, which also left `/mobstacker` with no answer at all.
+  Command blocks and functions stay quiet, also when they run the command as a player. Errors were
+  never hidden. Global only, in the "Feedback" category (the old "Kill feedback").
+### Changed
+- **Right-click steps a cycling button backwards** on every MobStacker screen (colours, modes, on/off,
+  a region's type and dimension, the box style), as the region colour button already did. Colour
+  settings (`stackNameColor` and the others) show their value in that colour, like the region colour.
+- **`/mobstacker region set <region> <setting> <value>` with what the server already says makes the
+  region follow the server again**, as picking that value in the region screen always did. For
+  `privateRegions` this mattered: it is the one setting a region keeps even while it agrees with the
+  server, so `region set farm privateRegions true` on a private server pinned the region private, and
+  `/mobstacker set privateRegions false` later left it hidden. Switching `privateRegions` now also
+  names the regions that keep a value of their own and therefore did not follow.
+- Internal: the screens, the region boxes, the picker, the HUD line and both halves of the networking
+  moved into the shared code, so both loaders run the same code for them.
+### Fixed
+- **On a server, region boxes and the `Region:` line stayed empty until the config screen had been
+  opened once** after joining: the client asked for the region list only when the screen opened. It
+  asks as soon as it knows the server has the mod.
+
 ## [1.10.1] - 2026-10-31
 ### Fixed
 - **A region box under water could not be seen from above the surface under "Fast" and "Fancy"

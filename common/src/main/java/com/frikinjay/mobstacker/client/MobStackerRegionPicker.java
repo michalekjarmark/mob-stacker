@@ -1,13 +1,11 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.phys.AABB;
@@ -41,61 +39,65 @@ public final class MobStackerRegionPicker {
     private MobStackerRegionPicker() {
     }
 
-    public static void register() {
-        // Fires before the block or the held item is used, so the click can be taken for picking
-        // instead - otherwise choosing a corner would place a torch on it.
-        UseBlockCallback.EVENT.register((player, level, hand, hitResult) -> {
-            if (!isPicking() || !level.isClientSide()) {
-                return InteractionResult.PASS;
-            }
-            if (player.isShiftKeyDown()) {
-                cancel("Corner picking cancelled");
-                return InteractionResult.FAIL;
-            }
-            onPicked(hitResult.getBlockPos());
-            // FAIL rather than SUCCESS: the click is spent, and there is no arm swing to play for it.
+    /**
+     * A block was right-clicked, before the block or the held item is used, so the click can be taken
+     * for picking instead - otherwise choosing a corner would place a torch on it. Called by the
+     * loader's use-block hook; anything but PASS spends the click.
+     */
+    public static InteractionResult onUseBlock(Player player, Level level, BlockHitResult hitResult) {
+        if (!isPicking() || !level.isClientSide()) {
+            return InteractionResult.PASS;
+        }
+        if (player.isShiftKeyDown()) {
+            cancel("Corner picking cancelled");
             return InteractionResult.FAIL;
-        });
+        }
+        onPicked(hitResult.getBlockPos());
+        // FAIL rather than SUCCESS: the click is spent, and there is no arm swing to play for it.
+        return InteractionResult.FAIL;
+    }
 
-        // A mob standing in front of the block you meant is hit first, and without this the click
-        // would shear the sheep instead. It cannot pick anything - there is no block in the hit - so
-        // it is swallowed and the prompt repeated rather than quietly doing something else.
-        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
-            if (!isPicking() || !level.isClientSide()) {
-                return InteractionResult.PASS;
-            }
-            if (player.isShiftKeyDown()) {
-                cancel("Corner picking cancelled");
-                return InteractionResult.FAIL;
-            }
+    /**
+     * A mob was right-clicked. One standing in front of the block you meant is hit first, and without
+     * this the click would shear the sheep instead. It cannot pick anything - there is no block in the
+     * hit - so it is swallowed and the prompt repeated rather than quietly doing something else.
+     */
+    public static InteractionResult onUseEntity(Player player, Level level) {
+        if (!isPicking() || !level.isClientSide()) {
+            return InteractionResult.PASS;
+        }
+        if (player.isShiftKeyDown()) {
+            cancel("Corner picking cancelled");
+            return InteractionResult.FAIL;
+        }
+        remind();
+        return InteractionResult.FAIL;
+    }
+
+    /** The end of every client tick, from the loader's hook. */
+    public static void onClientTick(Minecraft client) {
+        if (!isPicking()) {
+            return;
+        }
+        // World first, screen second. The other order never let go of the editor after a
+        // disconnect - the title screen counts as a screen being open, so the check that clears
+        // the reference was the one being skipped.
+        if (client.player == null || client.level == null) {
+            reset(); // no world to pick in any more
+            return;
+        }
+        if (client.screen != null) {
+            return; // chat or a menu is open: picking waits rather than being thrown away
+        }
+        if (!client.level.dimension().equals(dimension)) {
+            // A region's corners only mean anything in one dimension, and a portal is not a
+            // reason to guess which one was meant.
+            cancel("Corner picking cancelled — you changed dimension");
+            return;
+        }
+        if (--reminderTimer <= 0) {
             remind();
-            return InteractionResult.FAIL;
-        });
-
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (!isPicking()) {
-                return;
-            }
-            // World first, screen second. The other order never let go of the editor after a
-            // disconnect - the title screen counts as a screen being open, so the check that clears
-            // the reference was the one being skipped.
-            if (client.player == null || client.level == null) {
-                reset(); // no world to pick in any more
-                return;
-            }
-            if (client.screen != null) {
-                return; // chat or a menu is open: picking waits rather than being thrown away
-            }
-            if (!client.level.dimension().equals(dimension)) {
-                // A region's corners only mean anything in one dimension, and a portal is not a
-                // reason to guess which one was meant.
-                cancel("Corner picking cancelled — you changed dimension");
-                return;
-            }
-            if (--reminderTimer <= 0) {
-                remind();
-            }
-        });
+        }
     }
 
     /**

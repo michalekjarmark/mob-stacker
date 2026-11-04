@@ -7,9 +7,10 @@
 <p align="center">
 <img src="https://img.shields.io/badge/Minecraft-1.20.1-brightgreen" alt="Minecraft 1.20.1">
 <img src="https://img.shields.io/badge/Loader-Fabric-1976d2" alt="Fabric">
+<img src="https://img.shields.io/badge/Loader-Forge-e04e14" alt="Forge">
 <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17">
 <img src="https://img.shields.io/github/license/michalekjarmark/mob-stacker" alt="License: LGPL v3">
-<img src="https://img.shields.io/badge/requires-Fabric%20API-1976d2" alt="Requires Fabric API">
+<img src="https://img.shields.io/badge/Fabric%20needs-Fabric%20API-1976d2" alt="Fabric needs Fabric API">
 <img src="https://img.shields.io/github/last-commit/michalekjarmark/mob-stacker" alt="Last commit">
 </p>
 <br>
@@ -21,10 +22,13 @@ preserved — the mobs are still there, they just travel together.
 > 🍴 **About this fork:** *MobStacker: Restacked* is an **actively-developed, independent fork** of
 > [MobStacker](https://github.com/frikinjay/mob-stacker) by **frikinjay** (the original author),
 > maintained by **michalekjarmark & davidex** under **LGPL v3**. We develop it independently of the
-> original author, who no longer maintains the mod, keeping a **Fabric 1.20.1** line for our server.
+> original author, who no longer maintains the mod, keeping a **1.20.1** line for our server - on
+> **Fabric** and, since 1.11.0, on **Forge**.
 
-> 📦 **Dependencies:** only **[Fabric API](https://modrinth.com/mod/fabric-api)** (used by the config
-> GUI). Stacking itself is server-side — a client only needs the mod to open the GUI.
+> 📦 **Dependencies:** on Fabric only **[Fabric API](https://modrinth.com/mod/fabric-api)**; on Forge
+> (47 and up) nothing at all. Stacking itself is server-side — a client only needs the mod for the GUI
+> and the region boxes. Use the jar for your loader: `mobstacker-1.20.1-fabric-…` or
+> `mobstacker-1.20.1-forge-…`.
 > *Let Me Despawn* is an optional companion, never a requirement.
 
 > 📝 **Changelog:** see [CHANGELOG.md](CHANGELOG.md).
@@ -67,7 +71,8 @@ preserved — the mobs are still there, they just travel together.
 - 🧭 **Streamlined commands** — a flat `/mobstacker set|get|toggle|reset <setting>` tree with
   tab-completion.
 - 🗂️ **Per-world config** — settings live in the world save folder instead of leaking between worlds.
-- 🪶 **Only Fabric API required** — the old *Almanac* dependency is built in.
+- 🧩 **Fabric and Forge** — the same mod on both loaders since 1.11.0: Fabric API on Fabric, nothing at
+  all on Forge. The old *Almanac* dependency is built in.
 
 > 🔗 **Good companions:** [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn)
 > for vanilla-style despawning, and
@@ -144,6 +149,7 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `stackNameColorBySize` | Step the colour up with the stack size | `false` |
 | `stackNameColorMedium` / `stackNameColorLarge` | Colours above each threshold | `YELLOW` / `RED` |
 | `stackSizeMediumThreshold` / `stackSizeLargeThreshold` | Where those colours take over | `16` / `64` |
+| `alwaysShowFeedback` | The `/mobstacker` commands answer the player who typed them even with the gamerule `sendCommandFeedback` off (command blocks and functions stay quiet). Global only | `false` |
 
 ### Breeding, drops and the separator
 
@@ -167,7 +173,9 @@ The vanilla per-category spawn caps are settings too (category `mobcaps`, global
 ## Commands
 
 All of these need operator permission (level 2) — except `region share`, which the owner of a region
-may use on it (see [Who sees a region](#who-sees-a-region)).
+may use on it (see [Who sees a region](#who-sees-a-region)). A server that runs with the gamerule
+`sendCommandFeedback` off (command blocks spamming the chat) can turn `alwaysShowFeedback` on, and the
+commands answer whoever typed them again.
 
 ```bash
 /mobstacker                          # grouped overview of every current value
@@ -272,13 +280,14 @@ Tab-completion suggests every setting name and then the valid values for the one
 
 Bind *"Open Config GUI"* (category *MobStacker: Restacked*) in **Options → Controls**, or run
 `/mobstackerconfig`. The screen is driven by the same registry as the commands: booleans flip,
-`stackMode` cycles, numbers and item ids are typed and validated, one category at a time. On a
+`stackMode` and the colours cycle (right-click goes back one), numbers and item ids are typed and
+validated, one category at a time. On a
 **remote server with the mod** it shows the server's live config and saves operators' edits;
 non-operators see it read-only. In **singleplayer** (and on a LAN host) it edits your own world's
 config whether cheats are on or not: it is the mod's settings screen, and the file it writes sits in
 your own save folder anyway. The `/mobstacker` commands follow vanilla's rule instead and need cheats
 (operator level 2). The networking uses optional channels, so vanilla clients are never sent
-anything. Needs **Fabric API** on the client.
+anything. On Fabric it needs **Fabric API** on the client.
 
 ## Regions & modes
 
@@ -371,11 +380,13 @@ all come from what the server sends, and the server sends nothing else:
 ```
 
 An owner who is not an operator gets `/mobstacker region share` and nothing else of `/mobstacker`,
-and only for their own regions. The permission node is read from any permissions mod built on
-fabric-permissions-api (LuckPerms is); without one it falls back to operator level 2. Changes reach a
+and only for their own regions. On Fabric the permission node is read from any permissions mod built
+on fabric-permissions-api (LuckPerms is); without one, and on Forge, it falls back to operator level 2. Changes reach a
 player's game by themselves — a share taken back hides the region within a moment, without logging
-out. One value is kept even when it matches the global one: a region set to private stays private
-when the server is switched to public and back.
+out. A region's own `privateRegions` wins over the server's, like every per-region setting, and it is
+kept while the server is switched back and forth. Setting a region to what the server already says
+makes it follow the server again, and `/mobstacker set privateRegions …` names the regions that keep a
+value of their own.
 
 What this cannot hide is what the mobs do: stacks forming where they do say that a region is there.
 

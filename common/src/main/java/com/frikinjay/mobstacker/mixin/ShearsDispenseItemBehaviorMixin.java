@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.mixin;
+package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.StackShearable;

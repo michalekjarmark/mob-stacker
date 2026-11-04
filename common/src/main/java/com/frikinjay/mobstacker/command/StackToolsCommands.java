@@ -127,7 +127,7 @@ public final class StackToolsCommands {
         }
         int size = MobStacker.getStackSize(mob);
         String kind = MobStacker.getLocalizedEntityName(mob.getType()).getString();
-        source.sendSuccess(() -> Component.literal("=== " + kind + (size > 1 ? " x" + size : " (not stacked)") + " ===")
+        CommandFeedback.success(source, () -> Component.literal("=== " + kind + (size > 1 ? " x" + size : " (not stacked)") + " ===")
                 .withStyle(ChatFormatting.GOLD), false);
 
         BlockPos pos = mob.blockPosition();
@@ -139,9 +139,9 @@ public final class StackToolsCommands {
                 ? label("in no region")
                 : label("region ").append(value(region.getName()))
                         .append(label(" (" + region.getType() + ", priority " + region.getPriority() + ")")));
-        source.sendSuccess(() -> where, false);
+        CommandFeedback.success(source, () -> where, false);
 
-        source.sendSuccess(() -> label("Ceiling here: ").append(value(String.valueOf(MobStacker.getMaxMobStackSize(mob))))
+        CommandFeedback.success(source, () -> label("Ceiling here: ").append(value(String.valueOf(MobStacker.getMaxMobStackSize(mob))))
                 .append(label(" (" + ceilingSource(mob, region) + ")"))
                 .append(label("   stackMode ")).append(value(MobStacker.config.getStackMode().name()))
                 .append(label("   stackRadius ")).append(value(String.valueOf(MobStacker.getStackRadius(mob))))
@@ -156,7 +156,7 @@ public final class StackToolsCommands {
                 overrides.append(value(setting.getKey() + "=" + setting.getValue()));
                 first = false;
             }
-            source.sendSuccess(() -> overrides, false);
+            CommandFeedback.success(source, () -> overrides, false);
         }
 
         MutableComponent health = label("Health: ").append(value(round(mob.getHealth()) + "/" + round(mob.getMaxHealth())));
@@ -164,10 +164,10 @@ public final class StackToolsCommands {
             float memberHealth = mob.getMaxHealth() - MobStacker.getStackMemberDamage(mob);
             health.append(label(", each mob under it ")).append(value(round(memberHealth) + "/" + round(mob.getMaxHealth())));
         }
-        source.sendSuccess(() -> health, false);
+        CommandFeedback.success(source, () -> health, false);
         String recorded = MobStacker.originOf(mob);
         SpawnOrigin origin = SpawnOrigin.of(recorded);
-        source.sendSuccess(() -> label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
+        CommandFeedback.success(source, () -> label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
                 .append(label(" - it " + (recorded == null ? "counts as having spawned on its own" : origin.description())
                         + "; " + origin.settingId() + " "
                         + (MobStacker.originStacks(mob, recorded) ? "lets it stack here" : "is off here"))), false);
@@ -188,22 +188,22 @@ public final class StackToolsCommands {
                                     + SpawnOrigin.of(memberOrigin).settingId() + " is off here)"));
                     first = false;
                 }
-                source.sendSuccess(() -> under, false);
+                CommandFeedback.success(source, () -> under, false);
             }
         }
         for (Component line : stackDataLines(mob)) {
-            source.sendSuccess(() -> line, false);
+            CommandFeedback.success(source, () -> line, false);
         }
 
         StackRefusal own = ownRefusal(mob);
-        source.sendSuccess(() -> own == null
+        CommandFeedback.success(source, () -> own == null
                 ? label("Stacking: ").append(Component.literal("yes").withStyle(ChatFormatting.GREEN))
                         .append(label(", it can join a stack or take mobs in"))
                 : label("Stacking: ").append(Component.literal("no").withStyle(ChatFormatting.RED))
                         .append(label(" - " + own.reason())), false);
 
         Component neighbour = neighbourLine(mob, kind);
-        source.sendSuccess(() -> neighbour, false);
+        CommandFeedback.success(source, () -> neighbour, false);
         return 1;
     }
 
@@ -354,11 +354,11 @@ public final class StackToolsCommands {
         }
         long saved = represented - entities;
         String scope = radius < 0 ? "in loaded chunks" : "within " + radius + " blocks";
-        source.sendSuccess(() -> Component.literal("=== Stacks " + scope + " ===").withStyle(ChatFormatting.GOLD), false);
+        CommandFeedback.success(source, () -> Component.literal("=== Stacks " + scope + " ===").withStyle(ChatFormatting.GOLD), false);
         long finalEntities = entities;
         long finalRepresented = represented;
         long finalStacks = stacks;
-        source.sendSuccess(() -> value(count(finalEntities)).append(label(" mob entities stand for "))
+        CommandFeedback.success(source, () -> value(count(finalEntities)).append(label(" mob entities stand for "))
                 .append(value(count(finalRepresented))).append(label(" mobs; "))
                 .append(value(count(finalStacks))).append(label(finalStacks == 1 ? " stack saves " : " stacks save "))
                 .append(Component.literal(count(saved)).withStyle(ChatFormatting.GREEN))
@@ -369,13 +369,13 @@ public final class StackToolsCommands {
         for (int i = 0; i < rows.size() && i < STATS_TYPES; i++) {
             Map.Entry<EntityType<?>, long[]> row = rows.get(i);
             long[] numbers = row.getValue();
-            source.sendSuccess(() -> label(" " + BuiltInRegistries.ENTITY_TYPE.getKey(row.getKey()) + ": ")
+            CommandFeedback.success(source, () -> label(" " + BuiltInRegistries.ENTITY_TYPE.getKey(row.getKey()) + ": ")
                     .append(value(count(numbers[1]))).append(label(" mobs in "))
                     .append(value(count(numbers[0]))).append(label(numbers[0] == 1 ? " stack" : " stacks"))
                     .append(label(" (largest x" + numbers[2] + ")")), false);
         }
         if (rows.size() > STATS_TYPES) {
-            source.sendSuccess(() -> label(" ... and " + (rows.size() - STATS_TYPES) + " more kinds"), false);
+            CommandFeedback.success(source, () -> label(" ... and " + (rows.size() - STATS_TYPES) + " more kinds"), false);
         }
         return (int) Math.min(Integer.MAX_VALUE, stacks);
     }
@@ -428,28 +428,28 @@ public final class StackToolsCommands {
         }
         String scope = radius < 0 ? "loaded" : String.valueOf(radius);
         if (stacks.isEmpty()) {
-            source.sendSuccess(() -> label("No stacks " + (radius < 0 ? "in the loaded chunks." : "within " + radius + " blocks.")), false);
+            CommandFeedback.success(source, () -> label("No stacks " + (radius < 0 ? "in the loaded chunks." : "within " + radius + " blocks.")), false);
             return 0;
         }
         long newMobs = mobs;
         if (newMobs > UNSTACK_CONFIRM_ABOVE && !confirmed) {
-            source.sendSuccess(() -> Component.literal("That would bring back " + count(newMobs) + " mobs from "
+            CommandFeedback.success(source, () -> Component.literal("That would bring back " + count(newMobs) + " mobs from "
                             + count(stacks.size()) + " stacks. Run ").withStyle(ChatFormatting.YELLOW)
                     .append(value("/mobstacker unstack " + scope + " confirm"))
                     .append(Component.literal(" to go ahead.").withStyle(ChatFormatting.YELLOW)), false);
             return 0;
         }
         unstackJobs.add(new UnstackJob(source, stacks));
-        source.sendSuccess(() -> label("Splitting ").append(value(count(stacks.size())))
+        CommandFeedback.success(source, () -> label("Splitting ").append(value(count(stacks.size())))
                 .append(label(stacks.size() == 1 ? " stack back into " : " stacks back into ")).append(value(count(newMobs)))
                 .append(label(" more mobs, " + UNSTACK_PER_TICK + " a tick...")), true);
         if (MobStacker.config.getStackMode() != com.frikinjay.mobstacker.config.StackMode.OFF) {
-            source.sendSuccess(() -> Component.literal("stackMode is " + MobStacker.config.getStackMode()
+            CommandFeedback.success(source, () -> Component.literal("stackMode is " + MobStacker.config.getStackMode()
                     + ", so they will merge again wherever stacking is allowed. Before removing the mod, "
                     + "run /mobstacker set stackMode off first.").withStyle(ChatFormatting.GOLD), false);
         }
         if (radius < 0) {
-            source.sendSuccess(() -> label("Only loaded chunks are reached: a stack in a chunk nobody has "
+            CommandFeedback.success(source, () -> label("Only loaded chunks are reached: a stack in a chunk nobody has "
                     + "loaded stays a stack."), false);
         }
         return stacks.size();
@@ -492,7 +492,7 @@ public final class StackToolsCommands {
                 int mobs = job.mobs;
                 int split = job.split;
                 int left = job.leftStacked;
-                job.source.sendSuccess(() -> Component.literal("Unstacked: ").withStyle(ChatFormatting.GREEN)
+                CommandFeedback.success(job.source, () -> Component.literal("Unstacked: ").withStyle(ChatFormatting.GREEN)
                         .append(value(count(mobs))).append(label(" mobs back from "))
                         .append(value(count(split))).append(label(split == 1 ? " stack." : " stacks."))
                         .append(left > 0 ? label(" " + count(left) + (left == 1 ? " was" : " were")
@@ -595,7 +595,7 @@ public final class StackToolsCommands {
         }
         int mergedMobs = merged;
         int stacks = grew.size();
-        source.sendSuccess(() -> mergedMobs == 0
+        CommandFeedback.success(source, () -> mergedMobs == 0
                 ? label("Nothing within " + radius + " blocks could merge. /mobstacker inspect shows why for any one mob.")
                 : Component.literal("Stacked: ").withStyle(ChatFormatting.GREEN)
                         .append(value(count(mergedMobs))).append(label(mergedMobs == 1 ? " mob merged into " : " mobs merged into "))

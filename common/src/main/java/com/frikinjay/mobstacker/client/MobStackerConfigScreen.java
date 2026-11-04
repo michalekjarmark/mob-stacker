@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
@@ -188,11 +188,11 @@ public final class MobStackerConfigScreen extends Screen {
         switch (option.type()) {
             case BOOL -> {
                 boolean[] state = { Boolean.parseBoolean(valueOf(option)) };
-                Button button = Button.builder(boolLabel(state[0]), b -> {
+                Button button = new StepButton(widgetX, y, widgetW, widgetH, boolLabel(state[0]), (b, direction) -> {
                     state[0] = !state[0];
                     b.setMessage(boolLabel(state[0]));
                     applyOption(option, String.valueOf(state[0]));
-                }).bounds(widgetX, y, widgetW, widgetH).build();
+                });
                 button.active = allowed;
                 addRenderableWidget(button);
                 row.widget = button;
@@ -207,12 +207,13 @@ public final class MobStackerConfigScreen extends Screen {
                 if (index[0] < 0) {
                     index[0] = 0;
                 }
-                Button button = Button.builder(enumLabel(values.get(index[0])), b -> {
-                    index[0] = (index[0] + 1) % values.size();
+                Button button = new StepButton(widgetX, y, widgetW, widgetH,
+                        StepButton.enumLabel(option, values.get(index[0])), (b, direction) -> {
+                    index[0] = StepButton.stepIndex(index[0], direction, values.size());
                     String value = values.get(index[0]);
-                    b.setMessage(enumLabel(value));
+                    b.setMessage(StepButton.enumLabel(option, value));
                     applyOption(option, value);
-                }).bounds(widgetX, y, widgetW, widgetH).build();
+                });
                 button.active = allowed;
                 addRenderableWidget(button);
                 row.widget = button;
@@ -220,7 +221,7 @@ public final class MobStackerConfigScreen extends Screen {
                     int found = indexOfIgnoreCase(values, value);
                     if (found >= 0) {
                         index[0] = found;
-                        button.setMessage(enumLabel(values.get(found)));
+                        button.setMessage(StepButton.enumLabel(option, values.get(found)));
                     }
                 };
             }
@@ -526,10 +527,6 @@ public final class MobStackerConfigScreen extends Screen {
 
     private static Component boolLabel(boolean value) {
         return Component.literal(value ? "ON" : "OFF").withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED);
-    }
-
-    private static Component enumLabel(String value) {
-        return Component.literal(value).withStyle(ChatFormatting.AQUA);
     }
 
     private static int indexOfIgnoreCase(List<String> values, String target) {

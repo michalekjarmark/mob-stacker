@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
   "client": [
+    "client.LevelRendererMixin",
     "client.LivingEntityRendererMixin",
     "client.RabbitRendererMixin",
     "client.SheepFurLayerMixin"
@@ -13,6 +14,7 @@
     "ArmorStandAccessor",
     "ArmorStandMixin",
     "CommandsMixin",
+    "CommandSourceStackAccessor",
     "EntityDataMixin",
     "EntityMixin",
     "ExperienceOrbMixin",
@@ -30,8 +32,12 @@
     "StriderAccessor",
     "PlayerMixin",
     "ServerEntityMixin",
+    "ShearsDispenseItemBehaviorMixin",
     "mobs.MilkableMixin",
+    "mobs.MushroomCowShearMixin",
     "mobs.PigMixin",
+    "mobs.SheepShearMixin",
+    "mobs.SnowGolemShearMixin",
     "mobs.VillagerMixin",
     "mobs.ZombieMixin"
   ],

@@ -1,4 +1,4 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.google.gson.Gson;
@@ -8,8 +8,6 @@ import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -168,7 +166,11 @@ public final class MobStackerRegionOverlay {
     private MobStackerRegionOverlay() {
     }
 
-    public static void register() {
+    /**
+     * Reads the player's overlay settings. Called once by the loader's client entrypoint; the drawing
+     * itself is hooked into the world renderer by {@code LevelRendererMixin}, on every loader alike.
+     */
+    public static void init() {
         file = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mobstacker-overlay.json");
         load();
         // Every box is drawn last of all, straight into the finished frame. Drawn any earlier, what
@@ -176,12 +178,11 @@ public final class MobStackerRegionOverlay {
         // water and mobs too, because that frame is put together from separate buffers by depth and
         // a box that writes none sat at the depth of whatever was behind it - in front of the box or
         // not (round 6, both with X-ray on and, once that was fixed, with it off). What they are
-        // tested against is the solid world's depth, kept just before the translucent terrain by
-        // LevelRendererMixin, and before the debug renderer as well, in case a mod has moved that
-        // point: the later copy wins. (Until round 9 it was also kept after the translucent terrain,
-        // which under Fast and Fancy has water in it.)
-        WorldRenderEvents.BEFORE_DEBUG_RENDER.register(context -> keepSolidDepth("BEFORE_DEBUG_RENDER"));
-        WorldRenderEvents.LAST.register(MobStackerRegionOverlay::render);
+        // tested against is the solid world's depth, kept just before the translucent terrain, and
+        // before the debug renderer as well, in case a mod has moved that point: the later copy
+        // wins. (Until round 9 it was also kept after the translucent terrain, which under Fast and
+        // Fancy has water in it.) The three points are Fabric's BEFORE_DEBUG_RENDER and LAST - the
+        // same instructions its events are fired from - and the translucent terrain's own.
     }
 
     // ------------------------------------------------------------------ what is showing
@@ -278,9 +279,10 @@ public final class MobStackerRegionOverlay {
         return state.style;
     }
 
-    public static Style cycleStyle() {
+    /** The next style ({@code direction} 1) or the one before it (-1). */
+    public static Style cycleStyle(int direction) {
         Style[] all = Style.values();
-        state.style = all[(state.style.ordinal() + 1) % all.length];
+        state.style = all[Math.floorMod(state.style.ordinal() + direction, all.length)];
         save();
         return state.style;
     }
@@ -353,7 +355,12 @@ public final class MobStackerRegionOverlay {
         return target;
     }
 
-    private static void render(WorldRenderContext context) {
+    /**
+     * Draws every showing box, its name and the picker's preview. Called just before the world
+     * renderer's debug pass, after everything else in the world (Fabric's {@code LAST}), with the
+     * world's own pose stack and camera.
+     */
+    public static void render(PoseStack pose, Camera camera) {
         boolean depthKept = solidDepthKept;
         solidDepthKept = false;
         if (Minecraft.getInstance().level == null) {
@@ -382,8 +389,7 @@ public final class MobStackerRegionOverlay {
             main.bindWrite(false);
         }
 
-        Vec3 camera = context.camera().getPosition();
-        PoseStack pose = context.matrixStack();
+        Vec3 eye = camera.getPosition();
         Style style = state.style;
         // Through walls changes only which types draw the boxes (and when), never what is drawn:
         // the same faces and edges, with the depth test off.
@@ -394,7 +400,7 @@ public final class MobStackerRegionOverlay {
 
         pose.pushPose();
         // The world is drawn relative to the camera, so every box moves with it.
-        pose.translate(-camera.x, -camera.y, -camera.z);
+        pose.translate(-eye.x, -eye.y, -eye.z);
 
         // Faces and edges are drawn with types of our own that write no depth (see
         // MobStackerRenderTypes). Vanilla's filled box does write it, and that is what swallowed
@@ -445,7 +451,7 @@ public final class MobStackerRegionOverlay {
             edgeType.end(edges, RenderSystem.getVertexSorting());
         }
 
-        drawNames(pose, context.camera(), regions, xray);
+        drawNames(pose, camera, regions, xray);
 
         pose.popPose();
 

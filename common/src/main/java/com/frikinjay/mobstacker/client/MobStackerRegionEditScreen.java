@@ -1,8 +1,8 @@
-package com.frikinjay.mobstacker.fabric.client;
+package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
-import com.frikinjay.mobstacker.fabric.network.MobStackerNetworking;
+import com.frikinjay.mobstacker.network.MobStackerNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -121,17 +121,18 @@ public final class MobStackerRegionEditScreen extends Screen {
         });
         addRenderableWidget(nameBox);
 
-        Button typeButton = Button.builder(typeLabel(), b -> {
+        Button typeButton = new StepButton(this.width / 2 - 40, TYPE_Y, 190, ROW_HEIGHT, typeLabel(), (b, direction) -> {
             type = type == StackRegion.Type.ALLOW ? StackRegion.Type.DENY : StackRegion.Type.ALLOW;
             b.setMessage(typeLabel());
-        }).bounds(this.width / 2 - 40, TYPE_Y, 190, ROW_HEIGHT).build();
+        });
         typeButton.active = editable;
         addRenderableWidget(typeButton);
 
-        Button dimensionButton = Button.builder(dimensionLabel(), b -> {
-            dimensionIndex = Math.floorMod(dimensionIndex + 1, Math.max(1, dimensions.size()));
+        Button dimensionButton = new StepButton(this.width / 2 - 40, DIMENSION_Y, 190, ROW_HEIGHT, dimensionLabel(),
+                (b, direction) -> {
+            dimensionIndex = StepButton.stepIndex(dimensionIndex, direction, Math.max(1, dimensions.size()));
             b.setMessage(dimensionLabel());
-        }).bounds(this.width / 2 - 40, DIMENSION_Y, 190, ROW_HEIGHT).build();
+        });
         dimensionButton.active = editable && dimensions.size() > 1;
         addRenderableWidget(dimensionButton);
 

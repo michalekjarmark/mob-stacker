@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.command.StackToolsCommands;
+import com.frikinjay.mobstacker.network.MobStackerNetworking;
 import net.minecraft.server.MinecraftServer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,6 +28,9 @@ public abstract class MinecraftServerMixin {
         MobStacker.tickKillHolograms();
         StackToolsCommands.tickUnstacking();
         MobStacker.tickCommandAccess((MinecraftServer) (Object) this);
+        // A snapshot has to follow the config, or a player taken off a region's list would go on
+        // seeing it until they logged out - and an operator's edit used to reach only that operator.
+        MobStackerNetworking.refreshSnapshots((MinecraftServer) (Object) this);
     }
 
     /**
@@ -37,5 +41,6 @@ public abstract class MinecraftServerMixin {
     private void mobstacker$clearKillHolograms(CallbackInfo ci) {
         MobStacker.clearKillHolograms();
         StackToolsCommands.cancelUnstacking();
+        MobStackerNetworking.onServerStopped();
     }
 }

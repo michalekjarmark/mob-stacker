@@ -26,3 +26,6 @@ build.bat
 
 # Tests
 /tests
+
+# Loom dev runs (runServer / runClient)
+**/run/
