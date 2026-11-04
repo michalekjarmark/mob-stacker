@@ -71,7 +71,8 @@ preserved — the mobs are still there, they just travel together.
 - 🧭 **Streamlined commands** — a flat `/mobstacker set|get|toggle|reset <setting>` tree with
   tab-completion.
 - 🗂️ **Per-world config** — settings live in the world save folder instead of leaking between worlds.
-- 🪶 **Only Fabric API required** — the old *Almanac* dependency is built in.
+- 🧩 **Fabric and Forge** — the same mod on both loaders since 1.11.0: Fabric API on Fabric, nothing at
+  all on Forge. The old *Almanac* dependency is built in.
 
 > 🔗 **Good companions:** [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn)
 > for vanilla-style despawning, and

@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.11.0] - unreleased
+## [1.11.0] - 2026-11-04
 ### Added
 - **A Forge version for Minecraft 1.20.1** (Forge 47 and up; it needs nothing else). Same features
   and the same per-world config file as the Fabric jar, and a client without the mod can still join a
