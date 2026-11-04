@@ -14,7 +14,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   Forge server with it, as on Fabric. Shears in a
   player's hand go through Forge's own shearing (`IForgeShearable.onSheared`), so a stack is sheared
   the same way as on Fabric. Not ported: the `mobstacker.regions.viewall` permission node (on Forge
-  it falls back to operator level 2) and the Let Me Despawn compatibility.
+  it falls back to operator level 2).
 - **`alwaysShowFeedback` (off by default)**: the mod's command replies reach the player who typed the
   command even while the gamerule `sendCommandFeedback` is false. Servers turn the gamerule off
   because of command blocks spamming the chat, which also left `/mobstacker` with no answer at all.
