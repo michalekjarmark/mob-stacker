@@ -1,0 +1,75 @@
+# Which mobs stack
+
+Two separate questions decide which kinds of mobs may stack: the **mob lists** (by kind or by mod) and
+the **spawn origin** (how the mob came into the world). Both can be set globally and per region.
+
+## Mob lists
+
+`mobListMode` picks which pair of lists is read:
+
+| Mode | Lists read | Effect |
+|---|---|---|
+| `BLACKLIST` *(default)* | deny lists | Everything stacks except the mobs and mods listed. |
+| `WHITELIST` | allow lists | Nothing stacks except the mobs and mods listed. |
+
+Each mode has its own pair of lists, one of entity ids and one of mod ids, so switching the mode to
+have a look never rewrites a list you built:
+
+| List | Default |
+|---|---|
+| deny, entity | `minecraft:ender_dragon`, `minecraft:vex` |
+| deny, mod | `corpse` |
+| allow, entity | empty |
+| allow, mod | empty |
+
+```
+/mobstacker list deny entity add minecraft:iron_golem
+/mobstacker list deny mod add alexsmobs           # every mob from that mod
+/mobstacker list allow entity add minecraft:cow
+/mobstacker set mobListMode whitelist
+/mobstacker list deny entity list
+```
+
+`/mobstacker ignore …` still works as the old name for `list deny …`.
+
+In the config screen the lists are behind **Mob lists…**. The entry box completes ids as you type:
+**Tab**, **Enter** or a click takes the highlighted one, the arrow keys move through the list and
+**Esc** closes it.
+
+A `minecraft:` id that names no mob is a typo and is refused. An id from **another mod** is accepted
+even when that mod is not installed (a list has to survive its mod being removed for a while), but it
+is shown as `(not loaded)` so you can tell it does nothing right now.
+
+### Lists per region
+
+A region follows the global lists until it takes one over. Taking over is explicit, and starts from a
+copy of the global list:
+
+```
+/mobstacker region mobs sheep_pen allow entity override   # its own copy of the global list
+/mobstacker region mobs sheep_pen allow entity add minecraft:sheep
+/mobstacker region mobs sheep_pen allow entity inherit    # back to the global list
+```
+
+Entity lists and mod lists are taken over separately. Adding to a list the region only inherits is
+refused rather than silently turned into a list with one entry, which would drop everything you could
+see in it. The **Mob lists…** button on the region screen does the same.
+
+## Spawn origin
+
+A mob remembers how it came into the world, and four switches decide which of them stack:
+
+| Setting | Mobs that… | Default |
+|---|---|---|
+| `stackNaturalMobs` | spawned on their own (in the dark, with the world, in a patrol or a raid), plus mobs whose origin is unknown | on |
+| `stackSpawnerMobs` | came from a monster spawner | on |
+| `stackBredMobs` | were born from breeding, vanilla's or a stack's | on |
+| `stackPlacedMobs` | a player put there: spawn egg, dispenser, bucket, `/summon` | on |
+
+So `/mobstacker set stackNaturalMobs false` stacks your spawner farm and leaves the wildlife alone. Or
+do it in one place only: `/mobstacker region set grinder stackNaturalMobs false`.
+
+> [!NOTE]
+> Mobs remember their origin from version 1.10.0 on. Older mobs, and mobs hatched from an egg, count
+> as natural. What is left of a stack after a kill, a mob taken out of one, and a mob that converts
+> (a zombie drowning, a pig struck by lightning) keep the origin they had.

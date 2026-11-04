@@ -1,0 +1,54 @@
+# Seeing regions
+
+Switch a region's box on and its bounds are drawn in the world, so nobody has to walk to a corner and
+read coordinates off F3. This needs the mod on the player's game.
+
+| | |
+|---|---|
+| Colour a region | `/mobstacker region color <region> <colour\|auto>`, or the colour button on the region screen (right-click steps back) |
+| Show or hide one region | **Box** on the region screen |
+| Show or hide all regions | **All** on the region screen, or the key **Show/hide all region boxes** |
+| Change the look | **Style**: `wireframe`, `filled` or `both` *(default)* |
+| See boxes through walls | **X-ray**, or the key **Region boxes through walls on/off**, where the server allows it (below) |
+
+Both keys are unbound until you set them under **Options → Controls → MobStacker: Restacked**.
+
+`auto` means no colour was chosen: an allow region is drawn **green** and a deny region **red**. A
+region's colour belongs to the region, so everybody sees the same one. *Whether* boxes are drawn, and
+in which style, is each player's own choice: it is kept on their computer and never sent anywhere.
+
+## Names and the "Region:" line
+
+While boxes are showing, each box carries its **name** like a name tag, in the region's colour, on the
+side nearest you. A line at the **top left of the screen**, `Region: <name>`, tells you which region you
+stand in: the one whose settings apply there, and how many more overlap it. Both disappear with the
+boxes, with F1 and while F3 is open.
+
+## Through walls (X-ray)
+
+Normally a box is hidden by terrain and mobs like anything else in the world, but **not by what you
+can see through**: a box under water, behind glass or beyond the clouds is drawn over them, in every
+graphics mode.
+
+With **X-ray** on, boxes are drawn through walls and terrain, so a region can be seen from anywhere
+around it, the one you are picking with **Pick in world…** too. A box's name is faint where something
+stands in front of it and full strength where it is in view.
+
+> [!IMPORTANT]
+> **X-ray is the server's to allow.** A box seen through a mountain shows a little of what is behind
+> it, so X-ray only works on a server started with the Java argument `-Dmobstacker.xray=true`. In
+> singleplayer, and when you host a LAN world, your game is the server: add the argument to your
+> launcher's Java arguments. Elsewhere the button is greyed out and says why.
+
+## Shaders and modpacks
+
+- **Shader packs** (Iris) draw the boxes their own way, and some barely at all: the pack decides how
+  every line and see-through face in the world is lit. Complementary Reimagined shows them nearly as
+  intended, Sildur's Vibrant hardly at all. Iris and Sodium **without** a shader pack are fine.
+- **Boxes not showing in a modpack?** Start the game with the Java argument
+  `-Dmobstacker.overlayDebug=true`. Every few seconds `logs/latest.log` gets a line starting with
+  `[MobStacker overlay debug]` that says what the boxes found when they were drawn. Add it to a bug
+  report.
+
+Which regions a player can see at all is decided by the server; see
+[Private regions]($regions/private_regions).

@@ -1,0 +1,50 @@
+# Breeding, shearing & drops
+
+## Breeding a stack
+
+With `enableStackBreeding` on (the default), **feeding a stacked animal breeds its members in pairs**,
+without taking them out of the stack:
+
+- it takes **one food item per member**: 16 cows fed 16 wheat give 8 calves,
+- a partial feed is remembered, so food is never wasted,
+- the members that bred go on vanilla's ~5-minute cooldown; the rest can still be bred,
+- animals vanilla would not let breed (an untamed wolf, for one) are not bred here either.
+
+`breedOnePerClick` feeds one member per click instead of as many as the food in your hand allows.
+
+**The babies arrive as one baby stack** (a young `Cow x8`), grow up together and then join the adult
+stack. Feeding a baby stack speeds up its growth, scaled to its size.
+
+Loose babies stack with each other too: farm animals of about the same age
+(`enableAnimalBabyStacking`), and babies that do not age, such as baby zombies
+(`enableHostileBabyStacking`). Both are on by default.
+
+> [!NOTE]
+> Wolves, cats and horses have their own right-click behaviour and breed the vanilla way.
+
+## Shearing and milking
+
+With `stackedHarvest` on (the default), **a stack gives one mob's worth per member**:
+
+- shearing a stack of 16 sheep gives 16 sheep's worth of wool and costs 16 points of shear durability,
+- a stack of mooshrooms gives mushrooms for each and turns into a stack of cows,
+- a stack of snow golems gives a carved pumpkin each,
+- milking a stack of cows fills as many buckets as you hold, one per cow.
+
+A **dispenser** with shears does exactly what a player's shears do.
+
+With `stackedHarvest` **off**, a stack gives what a single mob would: shears take **one** animal out of
+the stack and shear that one, so the rest keep their wool for the next click.
+
+> [!NOTE]
+> Shear state is part of what a sheep stack has to share, so sheared and woolly sheep form separate
+> stacks. When a stack of sheared sheep eats grass, the whole stack grows its wool back at once.
+
+## Drops and experience
+
+Killing a big stack would normally litter the ground with an item per drop per mob and a swarm of tiny
+experience orbs. With `compactDrops` and `compactExperience` (both on), **a stack's death drops come
+out merged into as few full item stacks as possible, and its experience as one orb**.
+
+Nothing is created or lost: the same loot and the same experience, in fewer entities. Items that differ
+(enchantments, names, other data) are kept apart. Only stacked mobs are affected, whatever killed them.

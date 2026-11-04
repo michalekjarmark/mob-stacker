@@ -1,0 +1,26 @@
+{
+    "getting_started.mdx": {
+        "name": "Getting started",
+        "icon": "Rocket"
+    },
+    "stacking": {
+        "name": "Stacking",
+        "icon": "Layers"
+    },
+    "regions": {
+        "name": "Regions",
+        "icon": "Map"
+    },
+    "gameplay": {
+        "name": "Gameplay",
+        "icon": "Swords"
+    },
+    "reference": {
+        "name": "Reference",
+        "icon": "BookOpen"
+    },
+    "faq.mdx": {
+        "name": "FAQ & troubleshooting",
+        "icon": "CircleHelp"
+    }
+}

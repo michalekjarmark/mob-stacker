@@ -1,0 +1,25 @@
+# Equipment
+
+Mobs that hold or wear something stay **out of stacks by default** (`stackEquippedMobs` is off), because
+gear belongs to one mob and a stack shows only one.
+
+Switch `stackEquippedMobs` on and, with `keepMemberEquipment` (on by default), the stack **remembers
+what every member wears and holds**, piece by piece, with each piece's drop chance.
+
+When a member dies, its own gear is put back on the mob just before its loot is rolled, so vanilla does
+the rest:
+
+- each piece drops with its own chance, and **Looting** raises it,
+- dropped armour is damaged the way vanilla damages it,
+- items from **other mods**, and any enchantment, work without the mod knowing anything about them.
+
+What is left of a killed stack, and a mob taken out of one, carry the next member's gear.
+
+| Setting | Effect | Default |
+|---|---|---|
+| `stackEquippedMobs` | Mobs with gear may stack at all | off |
+| `keepMemberEquipment` | Remember each member's gear (needs `stackEquippedMobs`) | on |
+
+> [!NOTE]
+> Without `keepMemberEquipment`, a merge keeps only the surviving mob's gear, and what the other mobs
+> wore is lost.

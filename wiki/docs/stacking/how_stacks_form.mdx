@@ -1,0 +1,88 @@
+# How stacks form
+
+A stack is **one mob that stands for several**. It is shown with its count, such as `Zombie x12`, and
+everything it does (moving, attacking, dropping loot) it does as the top mob of the pile. The mobs under
+it are kept in the stack's own data until they are needed: when the top one dies, when one is taken out,
+or when the stack is split.
+
+## When mobs merge
+
+Two mobs of the same kind merge when they are within `stackRadius` blocks of each other (default 6) and
+every rule below lets them. A mob looks for a stack to join:
+
+- whenever it **moves into another block**,
+- every `stackScanInterval` ticks (default 20, one second), so mobs that never move still merge. `0`
+  turns this off and leaves only the first way,
+- and on its **very first tick** if `stackOnSpawn` is on (the default), so mobs from spawners,
+  breeding and spawn eggs join the stack at once instead of a second later.
+
+**The bigger stack wins.** When a stack and a lone mob meet, the lone mob joins the stack where the
+stack stands, so a stack never seems to jump to where a single mob was.
+
+## How big a stack may grow
+
+| | |
+|---|---|
+| `maxStackSize` | The largest a stack may grow to. Default 16, up to 2147483647. |
+| A ceiling per mob type | `/mobstacker maxstack minecraft:cow 64` lets cows grow to 64 whatever `maxStackSize` says. `maxstack list` shows them. |
+| A ceiling per region | `/mobstacker region maxstack <region> minecraft:cow 200`, see [Settings per region]($regions/region_settings). |
+
+A mob type with its own ceiling ignores `maxStackSize` completely, so `maxstack list` saying 64 while
+the config screen says 5000 is not a contradiction: both are in force, for different mobs.
+
+> [!TIP]
+> Wherever a whole number is asked for, `max` means as high as that setting goes:
+> `/mobstacker set maxStackSize max`. And `default` puts any setting back to its default:
+> `/mobstacker set maxStackSize default` is the same as `/mobstacker reset maxStackSize`.
+
+`/mobstacker stacksize <target> <n>` sets the count of **one living stack**, which is handy for
+testing. It is not a limit.
+
+## What has to match
+
+Only mobs that look and behave the same merge, so a stack never changes what a mob is:
+
+| Mob | Stays apart when… |
+|---|---|
+| Sheep | the wool colour differs, or one of them is sheared |
+| Villager, zombie villager | the villager type differs, or one of them has a profession (jobless ones stack) |
+| Slime, magma cube | the size differs |
+| Horse | the coat colour differs |
+| Llama | the colour or strength differs |
+| Cat, fox, rabbit | the coat differs |
+| Axolotl, parrot, shulker, mooshroom | the colour differs |
+| Frog | the variant differs |
+| Panda | the genes differ |
+| Goat | the horns differ, or one of them screams |
+| Tropical fish | the pattern or colours differ |
+| Creeper | one of them is charged |
+| Snow golem | one of them has lost its pumpkin |
+| Enderman | it carries a different block |
+
+Babies and adults never mix. Loose babies stack with each other if
+`enableAnimalBabyStacking` (farm animals, matched by age) or `enableHostileBabyStacking` (baby
+zombies and the like) allows it, both on by default.
+
+Some mobs never stack at all, with no setting to change it:
+
+- **anything a player has made theirs**: tamed or owned, saddled, wearing horse armour, carrying a
+  chest, leashed, riding or being ridden, an ocelot that trusts you, a fox that knows you, a horse
+  being tamed. See [Pets & mounts]($gameplay/pets_and_mounts);
+- an entity tagged with `{StackData:{CanStack:0b}}`.
+
+The ender dragon and the vex are on the default [deny list]($stacking/which_mobs_stack). A boss that
+does stack keeps its health bar, which shows the stack's name.
+
+Others stay out by default and can be let in: mobs with **equipment** (`stackEquippedMobs`, see
+[Equipment]($gameplay/equipment)) and mobs **renamed with a name tag** (`stackNamedMobs`, see
+[Names & colours]($stacking/names_and_colours)).
+
+> [!TIP]
+> When a mob refuses to stack, look at it and run `/mobstacker inspect`. It names the first rule that
+> says no. See [FAQ & troubleshooting]($faq).
+
+## When a mob comes out of a stack
+
+A mob is taken out of a stack when you tame, ride, bucket or shear one (see
+[Pets & mounts]($gameplay/pets_and_mounts)), or use the separator item. It may join a stack again on
+the next scan, unless `separationCooldown` keeps it out for that many seconds (default 0).

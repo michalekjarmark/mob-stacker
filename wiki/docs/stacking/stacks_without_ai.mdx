@@ -1,0 +1,25 @@
+# Stacks without AI
+
+Hundreds of mobs standing in a farm spend most of the server's time thinking about where to walk.
+`stackAi` decides what a stack of **two or more** mobs does with its AI:
+
+| Value | What the stack does |
+|---|---|
+| `NORMAL` *(default)* | Thinks like any mob. |
+| `PHYSICS_ONLY` | Attacks nothing, follows nobody and stands where it is, but still falls, is carried by water, is knocked back and is **kept afloat** if its kind would swim. Farms built on water streams and drops keep working. |
+| `FROZEN` | Like vanilla's `NoAI`: does not move at all, not even to fall. Saves the most. |
+
+```
+/mobstacker set stackAi physics_only
+/mobstacker region set grinder stackAi frozen     # only in one region
+```
+
+- A **single mob always keeps its AI**, so the last mob of a stack wakes up again.
+- Nothing is written into the mob. Remove the mod, or set `NORMAL` again, and every mob thinks as
+  before.
+- A stack without AI still despawns as vanilla would, and a creeper stops swelling.
+
+> [!WARNING]
+> A mob that does not think does not do anything else either. A sheep does not eat grass, so its
+> wool does not grow back. Villagers do not work or breed. Animals do not follow the food you hold. Use
+> it per region where that is what you want, such as a mob grinder.

@@ -1,0 +1,85 @@
+# For server owners
+
+## Where things live
+
+- **Config**: per world, in `<world>/serverconfig/mobstacker.json`. Written whenever a setting changes;
+  after editing it by hand, run `/mobstacker reload`. Upgrading from a version before 1.4? Copy the old
+  `config/mobstacker.json` there.
+- **Stacks**: inside the mobs themselves, saved with the world like any other mob data.
+- **Players' own choices** (which region boxes they show, the box style, X-ray on or off): on each
+  player's computer, in `config/mobstacker-overlay.json`. Never sent to the server.
+
+## Players without the mod
+
+Stacking is done on the server, so players do not need the mod to play on a server that has it. They
+see stacks as ordinary mobs with a `Cow x16` name. Without the mod they have no config screen, no
+region boxes, and `Dinnerbone`/`Grumm` stacks are not drawn upside down for them. The mod's network
+channels are optional, so a player without it is never sent anything or kicked.
+
+## Permissions
+
+| Who | May |
+|---|---|
+| Operators (level 2) | everything under `/mobstacker`, and edit the config from the config screen |
+| A region's owner | `/mobstacker region share` on their own regions |
+| Everybody with the mod | open the config screen read-only, and see the regions they may see |
+
+See [Private regions]($regions/private_regions) for the `mobstacker.regions.viewall` permission.
+
+## Command answers
+
+Many servers set the gamerule `sendCommandFeedback` to false because command blocks spam the chat.
+That also hides every answer `/mobstacker` gives. Turn this on:
+
+```
+/mobstacker set alwaysShowFeedback true
+```
+
+and the player who **typed** a `/mobstacker` command gets its answer again. Command blocks and
+functions stay quiet, also when they run the command as a player (`execute as`). Vanilla commands are
+not affected. Errors are always shown either way.
+
+## Java arguments
+
+| Argument | Where | Effect |
+|---|---|---|
+| `-Dmobstacker.xray=true` | the server (in singleplayer, your game) | allows region boxes through walls, see [Seeing regions]($regions/seeing_regions#through-walls-x-ray) |
+| `-Dmobstacker.overlayDebug=true` | a player's game | logs what the region boxes found, for bug reports about boxes |
+| `-Dmobstacker.selftest=true` | the server | adds `/mobstacker selftest`, which checks every setting against a sandbox config. For development. |
+
+## Mob caps
+
+The mod has a setting for each of vanilla's spawn caps (`/mobstacker help mobcaps`). **It lowers them
+by default, even while stacking is off**: monsters 22 instead of vanilla's 70, animals 5 instead of 10,
+and so on (see [All settings]($reference/settings#mob-caps)). This comes from the original MobStacker.
+For vanilla spawning, set each cap to its vanilla value:
+
+```
+/mobstacker set monsterMobCap 70
+/mobstacker set creatureMobCap 10
+/mobstacker set ambientMobCap 15
+/mobstacker set axolotlsMobCap 5
+/mobstacker set undergroundWaterCreatureMobCap 5
+/mobstacker set waterCreatureMobCap 5
+/mobstacker set waterAmbientMobCap 20
+```
+
+## Removing the mod
+
+> [!CAUTION]
+> Without the mod a stack is **one mob**, and every other mob it stood for is gone. Unstack first.
+
+```
+/mobstacker set stackMode off        # or they merge again straight away
+/mobstacker unstack loaded confirm   # every stack in the loaded chunks
+```
+
+- Mobs come back a hundred per tick, set down apart where there is room, never on the far side of a
+  wall or fence, so they do not hurt each other by crowding. A stack with no room around it is left
+  partly stacked and reported.
+- Only **loaded** chunks can be reached: visit (or `/forceload`) the farms that matter first.
+- `unstack <radius>` does the same around you, and also asks for `confirm` once it would bring back
+  more than 500 mobs.
+
+Stacks without AI think again on their own once the mod is gone: the mod never writes `NoAI` into a
+mob.

@@ -1,0 +1,62 @@
+# Creating regions
+
+A region is a box in one dimension, of one of two kinds:
+
+| Kind | Effect |
+|---|---|
+| `allow` | Mobs may stack here, in the `regions` [stack mode]($stacking/where_mobs_stack). |
+| `deny` | Mobs never form a stack here, in **every** mode. |
+
+Both kinds can also carry [their own settings]($regions/region_settings), which apply to every mob
+inside them. Shapes that are not a box are built from several regions.
+
+## In the config screen
+
+Open `/mobstackerconfig` → **Regions…**:
+
+- **New region…** opens the area editor: a name, the kind, the dimension and both corners. **Here**
+  fills a corner with the block you are standing on.
+- **Pick in world…** lets you click the corners instead: right-click one block, then another. While
+  you pick, the box from the first corner to the block you are looking at is drawn, so you see the
+  reach before saving. Sneak and click to cancel. Nothing is placed on the blocks you click, and
+  nothing is saved until you press **Save**.
+- **Edit area…** reshapes or renames the selected region, and its **Delete** button asks for a second
+  click.
+
+A region keeps its corners the way you gave them: the first block you clicked is corner 1.
+
+## With commands
+
+Corners are block coordinates; `~` works as in any command. The region is created in the dimension
+you are in.
+
+```
+/mobstacker region add <name> <allow|deny> <x1 y1 z1> <x2 y2 z2>
+/mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15
+/mobstacker region bounds cowfarm 100 60 -40 140 75 0     # move or resize, keeps its settings
+/mobstacker region type cowfarm deny
+/mobstacker region rename cowfarm cows                   # keeps area, settings and colour
+/mobstacker region list
+/mobstacker region show cows                             # corners, priority and its own settings
+/mobstacker region remove cows
+```
+
+> [!TIP]
+> Adding an `allow` region while `stackMode` is `off` switches it to `regions`, so the new region works
+> at once.
+
+## Overlapping regions
+
+Where regions overlap, **the one with the higher priority** gives the settings, and a tie goes to the
+**smaller** region. Priority is 0 unless you set it:
+
+```
+/mobstacker region priority cows 10
+```
+
+Whatever the priorities, **a deny region always stops new stacks** in the space it covers.
+
+## Who owns a region
+
+A region can have an owner, who sees it even when regions are private and may share it with friends.
+See [Private regions]($regions/private_regions).

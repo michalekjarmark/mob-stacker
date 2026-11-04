@@ -1,0 +1,43 @@
+# Settings per region
+
+A region can give **almost every setting** a value of its own. Anything it does not set follows the
+global config, so a region states only how it differs.
+
+```
+/mobstacker region set cowfarm maxStackSize 64
+/mobstacker region set grinder stackAi frozen
+/mobstacker region set grinder stackNaturalMobs false
+/mobstacker region unset cowfarm maxStackSize       # follow the global value again
+/mobstacker region show cowfarm                     # what it sets
+```
+
+Setting a region to the value the global config already has is the same as `unset`: the region follows
+the global value from then on, including when the global value changes later.
+
+**Global only**: `stackMode` and `playerStackRadius` (they decide where regions matter at all), the
+seven mob caps (world-wide spawn limits) and `alwaysShowFeedback`. Everything else can be set per
+region; the [settings list]($reference/settings) marks each one.
+
+## In the config screen
+
+**Regions…** shows the selected region's settings on the same pages as the global screen:
+
+- a **gold** label means the region sets this value itself,
+- a **grey** label means it follows the global config,
+- **↺** next to a value drops the region's own value.
+
+Hovering a setting's name explains it, in red when it cannot be changed here and why.
+
+## Settings that depend on others
+
+Some settings only work together with another one; for example `sweepingEdgePerMob` needs
+`sweepingEdgeOverflow`. Inside a region this is judged by **the region's own values**: a region that
+switches `sweepingEdgeOverflow` on for itself may use `sweepingEdgePerMob` even if the world has it
+off. A setting that cannot work yet is greyed out and reads as off; nothing you set is erased.
+
+## Mob lists and ceilings per region
+
+- **Mob lists**: `/mobstacker region mobs <region> …`, or **Mob lists…** on the region screen. See
+  [Which mobs stack]($stacking/which_mobs_stack#lists-per-region).
+- **Stack ceilings per mob type**: `/mobstacker region maxstack <region> minecraft:cow 200`, or the
+  ceilings tab of **Mob lists…**. `default` removes the ceiling again.

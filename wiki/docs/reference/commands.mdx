@@ -1,0 +1,79 @@
+# All commands
+
+Everything under `/mobstacker` needs **operator rights** (level 2, cheats on in singleplayer), except
+`/mobstacker region share`, which a region's owner may use on their own regions. Tab completes setting
+names, values, regions, mob ids and players everywhere.
+
+> [!TIP]
+> If your server runs with the gamerule `sendCommandFeedback` off, these commands answer nobody. Turn
+> on `alwaysShowFeedback` and they answer the player who typed them again; see
+> [For server owners]($reference/server_owners#command-answers).
+
+## Settings
+
+```
+/mobstacker                          # every current value, grouped
+/mobstacker help [category]          # the command list, or one category's settings
+/mobstacker get <setting>            # value, default and description
+/mobstacker set <setting> <value>    # checked against what the setting accepts
+/mobstacker toggle <setting>         # flip an on/off setting
+/mobstacker reset <setting>          # back to its default (also: set <setting> default)
+/mobstacker reset all
+/mobstacker reload                   # read the config file again after editing it by hand
+```
+
+In any number, `max` means as high as that setting goes. See [All settings]($reference/settings).
+
+## Which mobs stack
+
+```
+/mobstacker list <deny|allow> <entity|mod> <add|remove|list> [id]
+/mobstacker ignore <entity|mod> <add|remove|list> [id]       # old name for "list deny"
+/mobstacker maxstack <entity> <n|max|default>                # a size ceiling for one mob type
+/mobstacker maxstack list
+```
+
+## Regions
+
+```
+/mobstacker region add <name> <allow|deny> <x1 y1 z1> <x2 y2 z2>
+/mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>      # move or resize
+/mobstacker region type <name> <allow|deny>
+/mobstacker region rename <name> <new name>
+/mobstacker region remove <name>
+/mobstacker region list
+/mobstacker region show <name>                              # corners, priority and its own settings
+/mobstacker region priority <name> <n>                      # higher wins where regions overlap
+/mobstacker region color <name> <colour|auto>               # the colour its box is drawn in
+
+/mobstacker region set <name> <setting> <value>             # the region's own value
+/mobstacker region unset <name> <setting>                   # follow the global value again
+/mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit> [id]
+/mobstacker region maxstack <name> <entity> <n|max|default>
+
+/mobstacker region owner <name> <player|none>               # operators only
+/mobstacker region share <name> [add|remove <player>]       # operators, and the region's owner
+```
+
+See [Creating regions]($regions/creating_regions), [Settings per region]($regions/region_settings) and
+[Private regions]($regions/private_regions).
+
+## Stacks
+
+```
+/mobstacker inspect [target]                   # a stack up close, and why it does not stack
+/mobstacker stats [radius]                     # stacks in loaded chunks (or around you), by mob type
+/mobstacker stacksize <target> <n>             # set the count of one living stack
+/mobstacker stack <radius>                     # merge what may merge here now, whatever stackMode says
+/mobstacker unstack <radius|loaded> [confirm]  # split stacks back into mobs
+```
+
+`inspect` without a target takes the mob you are looking at; with one, use a selector such as
+`@e[type=cow,limit=1,sort=nearest]`. See [FAQ & troubleshooting]($faq) for what it shows, and
+[Removing the mod]($reference/server_owners#removing-the-mod) for `unstack`.
+
+## For players
+
+```
+/mobstackerconfig                    # open the config screen (runs on your own game)
+```

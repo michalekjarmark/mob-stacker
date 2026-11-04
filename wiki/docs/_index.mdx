@@ -1,0 +1,52 @@
+# MobStacker: Restacked
+
+**MobStacker: Restacked** merges nearby mobs of the same kind into one entity, so a farm with four
+hundred cows costs the server four cows' worth of ticking. Loot, experience, health and behaviour are
+kept: the mobs are still there, they just travel together as `Cow x100`.
+
+It runs on **Minecraft 1.20.1**, on **Fabric** (with Fabric API) and on **Forge** (47 or newer, nothing
+else needed). Stacking happens on the server; a player only needs the mod for the config screen and for
+seeing regions in the world.
+
+> [!IMPORTANT]
+> A fresh install stacks **nothing** until you choose where stacking may happen. See
+> [Getting started]($getting_started).
+
+## What it does
+
+- **You decide where mobs stack**: everywhere, near players, or only inside regions you draw. A deny
+  region keeps a place stack-free in every mode.
+- **Almost every setting can differ per region**, so a cow farm and a mob grinder in the same world
+  behave differently.
+- **Regions can be seen in the world**: coloured boxes with their names, and a line telling you which
+  region you stand in. Players see only the regions they own or that were shared with them.
+- **Fights stay fair**: a big hit kills several mobs and drops loot for each, Sweeping Edge works on a
+  stack, and a fall, fire or lava hurts every mob in a stack, so farms keep working.
+- **Nothing is lost**: every stacked mob keeps its own armour and weapons, every horse its own speed,
+  and a stack can be split back into its mobs before you remove the mod.
+- **Pets are safe**: anything tamed, saddled, leashed or named is left alone, and right-clicking a wild
+  herd hands you one animal.
+- **Farms scale with the stack**: shearing, milking and breeding a stack give one mob's worth per
+  member, and its drops come out as a few full stacks and one experience orb.
+- **Fewer things to tick**: stacks can optionally stop thinking (they still fall and float) or freeze.
+- **Ask a stack why**: `/mobstacker inspect` names the rule that keeps a mob out of a stack.
+
+## Where to read next
+
+| | |
+|---|---|
+| [Getting started]($getting_started) | Install it, switch stacking on, first region |
+| [Where mobs stack]($stacking/where_mobs_stack) | The four stack modes |
+| [Regions]($regions/creating_regions) | Drawing regions, settings per region, private regions |
+| [Combat]($gameplay/combat) | Damage overflow, Sweeping Edge, damage from the world |
+| [All settings]($reference/settings) | Every setting with its default |
+| [All commands]($reference/commands) | The `/mobstacker` command tree |
+| [FAQ & troubleshooting]($faq) | "Why won't it stack?" and other questions |
+
+## About this fork
+
+*MobStacker: Restacked* is an independently developed fork of
+[MobStacker](https://github.com/frikinjay/mob-stacker) by **frikinjay**, maintained by
+**michalekjarmark & davidex** under the [LGPL v3](https://www.gnu.org/licenses/lgpl-3.0.html). The
+source code, the changelog and the issue tracker are on
+[GitHub](https://github.com/michalekjarmark/mob-stacker).
