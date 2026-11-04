@@ -1,0 +1,56 @@
+# Private regions
+
+A region's corners are a map of somebody's farm. With `privateRegions` on (the default), a player is
+told about a region **only when they may see it**: the boxes, the names, the `Region:` line and the
+region screen all come from what the server sends, and the server sends nothing else.
+
+| Who | Sees |
+|---|---|
+| **Admins**: operators, the player whose singleplayer world it is, and anyone with the permission `mobstacker.regions.viewall` | every region |
+| A region's **owner** | that region, and may share it |
+| A player it was **shared with** | that region |
+| **Everybody** | regions that are public (below) |
+
+## Owners and sharing
+
+```
+/mobstacker region owner farm Steve          # operators only; "none" takes the owner away
+/mobstacker region share farm add Alex       # the owner (or an operator) lets a friend see it
+/mobstacker region share farm remove Alex
+/mobstacker region share farm                # who sees it
+```
+
+An owner who is not an operator can use `/mobstacker region share` and nothing else of `/mobstacker`,
+and only on their own regions. A region they do not own is answered as if it did not exist, and Tab
+offers only theirs.
+
+Changes reach players' games by themselves within a couple of seconds: a new owner sees the region
+without logging out, a share taken back hides it again, and making somebody an operator shows them
+everything.
+
+## Public regions
+
+```
+/mobstacker set privateRegions false               # every region public, for the whole server
+/mobstacker region set spawn privateRegions false  # just this region public
+/mobstacker region set vault privateRegions true   # keep this one private on a public server
+```
+
+A region's own value wins over the server's, like every per-region setting, and it stays when the
+server is switched back and forth. Setting a region to what the server already says makes it follow the
+server again. `/mobstacker set privateRegions …` lists the regions that keep a value of their own and
+therefore did not change with it.
+
+## The permission node
+
+`mobstacker.regions.viewall` lets a player see every region without being an operator. On **Fabric**
+it is read from any permissions mod built on fabric-permissions-api (LuckPerms is one):
+
+```
+/lp user Alex permission set mobstacker.regions.viewall true
+```
+
+Without such a mod, and on **Forge**, it falls back to operator level 2.
+
+> [!NOTE]
+> What cannot be hidden is what the mobs do: stacks forming in a place say that a region is there.

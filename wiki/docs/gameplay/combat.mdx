@@ -1,0 +1,76 @@
+# Combat
+
+By default a stack fights like a single mob: a hit that kills the top mob removes it, and the next
+one takes its place. The settings below decide what happens to the rest of the stack.
+
+## Damage overflow
+
+With `damageOverflow` on (the default), **the damage left over from a killing blow carries on to the
+mobs below**:
+
+- every mob it kills drops its loot and experience and counts as a kill,
+- a mob it does not finish is left **wounded**, not healed,
+- it uses the final damage after armour and resistance, so it works for **any** source: a sword, an
+  arrow, a Harming potion, magic.
+
+Sharpness, Smite, Bane of Arthropods and Fire Aspect raise the hit, so they kill more mobs. Looting
+applies to every mob killed.
+
+## Killing the whole stack at once
+
+| Setting | Effect |
+|---|---|
+| `killWholeStackOnDeath` | Killing the top mob kills the whole stack, with loot for every mob. Overflow is not needed then. |
+| `stackHealth` | The stack has one health bar, scaled to its size. Forces `killWholeStackOnDeath` on while it is on. |
+
+## Sweeping Edge
+
+Sweeping Edge normally hurts the mobs *around* the one you hit, and a stack is one entity, so it would
+do nothing. With `sweepingEdgeOverflow` on (the default) the vanilla sweep,
+`1 + attack damage × level / (level + 1)`, is added to the hit:
+
+| Level | Sweep damage |
+|---|---|
+| I | `1 + 0.50 × attack damage` |
+| II | `1 + 0.67 × attack damage` |
+| III | `1 + 0.75 × attack damage` |
+
+Finer control:
+
+| Setting | Effect |
+|---|---|
+| `sweepingEdgePerMob` | The mob you hit takes the full blow and **every other mob takes its own sweep**, like a vanilla sweep through a crowd. The wounds add up from swing to swing, so a stack falls apart over a few swings. |
+| `sweepingEdgeSingleHit` | All those sweeps go into the one hit instead, and overflow carries it down: one swing kills several mobs outright instead of wounding them all. Needs `sweepingEdgePerMob`. |
+| `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: a full swing, no critical hit, not sprinting, on the ground, a sword in hand. |
+| `sweepingEdgeMaxKills` | At most this many mobs killed by one swing's sweep (0 = no limit). |
+
+> [!WARNING]
+> A stack stands in one spot, so a sweep strong enough to kill one healthy mob of its kind kills
+> **all** of them in one swing. That is what vanilla would do to the same mobs side by side, but a big
+> jump in power. `sweepingEdgeMaxKills` and `sweepingEdgeVanillaConditions` rein it in.
+
+Overflow and sweeping are independent: overflow decides whether a killing blow's leftover goes on,
+sweeping decides how much a sweep deals at all. To get one kill per hit, switch off
+`sweepingEdgeOverflow` as well as `damageOverflow`.
+
+## Damage from the world
+
+With `environmentDamagePerMob` on (the default), **a fall, fire, lava, drowning, suffocation,
+cramming, magma, a cactus, freezing, the void, poison, an explosion or a falling anvil hurts every mob
+in a stack**, as it would hurt the same mobs standing loose. The ones it kills drop their own loot; the
+survivors keep the wound.
+
+So a fall-damage farm built for single mobs works with stacks: a 30-block drop kills a whole stack of
+ten zombies, not one of them. A hit from a player or a mob stays one hit, with overflow carrying the
+rest.
+
+## Kill feedback
+
+| Setting | Effect | Default |
+|---|---|---|
+| `stackKillActionBar` | A line above the hotbar: how many died and how many are left | on |
+| `stackKillParticles` | A burst of particles that grows with the number killed | on |
+| `stackKillHologram` | A short-lived floating `-N` above the mob | on |
+| `killHologramColor` | The colour of that `-N` | `RED` |
+
+The hologram is never saved with the world, so it cannot get stuck in the air after a restart.

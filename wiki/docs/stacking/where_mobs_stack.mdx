@@ -1,0 +1,38 @@
+# Where mobs stack
+
+`stackMode` decides **where new stacks may form**. It never breaks up stacks that already exist.
+
+| Mode | Mobs stack… |
+|---|---|
+| `off` *(default)* | nowhere. Pick another mode to start. |
+| `regions` | only inside an **allow** region. |
+| `players` | only within `playerStackRadius` blocks (default 12) of a player. |
+| `everywhere` | everywhere. |
+
+```
+/mobstacker set stackMode regions
+/mobstacker set playerStackRadius 24
+```
+
+**A deny region always wins, in every mode.** Use one to keep a place free of stacks, such as a
+village or a zoo, while the rest of the world stacks.
+
+`stackMode` and `playerStackRadius` are the only two settings besides the mob caps and
+`alwaysShowFeedback` that a region cannot change. Everything else can differ inside a region; see
+[Settings per region]($regions/region_settings).
+
+## Choosing a mode
+
+- **`everywhere`** gives the most performance and needs no setup. Combine it with deny regions where
+  mobs should stay single.
+- **`players`** stacks only what is near somebody: farms you are standing at, not wildlife far away.
+- **`regions`** is the most controlled: only your farms stack, each with its own rules.
+
+> [!TIP]
+> Adding an allow region while the mode is `off` switches it to `regions` by itself. It never
+> overrides a mode you set to `everywhere` or `players`.
+
+## Stacking by hand
+
+`/mobstacker stack <radius>` merges whatever may merge around you **now**, whatever `stackMode` and the
+regions say. The rules about the mobs themselves (names, gear, pets, lists) still hold.

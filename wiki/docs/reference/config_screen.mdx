@@ -1,0 +1,46 @@
+# Config screen
+
+Open it with `/mobstackerconfig`, or bind **Open Config GUI** under **Options → Controls → MobStacker:
+Restacked**. It needs the mod on your game (and Fabric API on Fabric).
+
+## What it can edit
+
+| Where you play | What the screen does |
+|---|---|
+| Singleplayer, or hosting a LAN world | Edits your world's config, **whether cheats are on or not**: it is the mod's settings screen, and the file is in your own save folder anyway. |
+| A server with the mod, as an operator | Shows the server's live config and saves your changes on the server. |
+| A server with the mod, not an operator | Shows the server's config, read-only. |
+| A server without the mod | Says so; there is nothing to edit. |
+
+The `/mobstacker` commands follow vanilla's rule instead and always need operator rights.
+
+## Using it
+
+- One **category** per page, switched with the arrow buttons at the top; the mouse wheel scrolls a
+  long page.
+- **Hover** a setting's name for what it does. In red, it also says why the setting cannot be changed
+  right now (a setting it needs is off, or another setting forces it).
+- **On/off and choice buttons** cycle on a left click; a **right click goes one step back**. Colour
+  settings show their value in that colour.
+- **Numbers and item ids** are typed; a value that is not accepted turns red and is not saved. The
+  `separatorItem` box completes item ids as you type.
+- A greyed setting depends on another one that is off. It reads as off, and comes back as you left it
+  once the other is switched on.
+
+## The other screens
+
+- **Regions…**: the selected region's own settings, its colour and priority, its box, and the buttons
+  to create, redraw and delete regions. See [Creating regions]($regions/creating_regions) and
+  [Settings per region]($regions/region_settings).
+- **Mob lists…**: the deny and allow lists and the stack ceilings per mob type, globally or for one
+  region. See [Which mobs stack]($stacking/which_mobs_stack).
+
+## Key bindings
+
+All unbound by default, under **Options → Controls → MobStacker: Restacked**:
+
+| Key | Does |
+|---|---|
+| Open Config GUI | opens this screen |
+| Show/hide all region boxes | the **All** button of the region screen |
+| Region boxes through walls on/off | the **X-ray** button, where the server allows it |

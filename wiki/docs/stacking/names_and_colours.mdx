@@ -1,0 +1,41 @@
+# Names & colours
+
+## The stack's label
+
+A stack is labelled with its kind and count, `Cow x16`, drawn in `stackNameColor` (default white).
+
+Switch on `stackNameColorBySize` and the colour steps up with the size, so a big stack stands out
+across the farm:
+
+| Setting | Default |
+|---|---|
+| `stackNameColor` (the base colour) | `WHITE` |
+| `stackNameColorMedium`, from `stackSizeMediumThreshold` mobs | `YELLOW`, from 16 |
+| `stackNameColorLarge`, from `stackSizeLargeThreshold` mobs | `RED`, from 64 |
+
+Any of the sixteen text colours can be used: `BLACK`, `DARK_BLUE`, `DARK_GREEN`, `DARK_AQUA`,
+`DARK_RED`, `DARK_PURPLE`, `GOLD`, `GRAY`, `DARK_GRAY`, `BLUE`, `GREEN`, `AQUA`, `RED`, `LIGHT_PURPLE`,
+`YELLOW`, `WHITE`. A colour change reaches existing stacks within about a second.
+
+Like every display setting, the colours can differ per region, so the stacks in each farm can have a
+colour of their own.
+
+## Name tags
+
+**A name tag says what you mean**, and the mod remembers it when you use the tag:
+
+- **Rename a stack** and the name becomes its label: `Bella x16`. A named stack keeps the name's own
+  colour (if it has one) instead of `stackNameColor`. The stack
+  keeps accepting mobs, and keeps its name through kills and conversions (a zombie that drowns).
+- **Rename a single mob** and it stays out of stacks. That is how players protect a pet.
+  `stackNamedMobs` (off by default) lets such mobs stack after all, with mobs of the same name only.
+
+The count is only ever added after the name you gave, never read back from it, so a cow you name
+`Cow x5` keeps exactly that name. A mob named some other way (a command, a dispenser) is treated as
+protected.
+
+## Vanilla's name easter eggs
+
+They still work on a stack: `Dinnerbone` and `Grumm` turn it upside down, `jeb_` makes a stack of sheep
+cycle through the dye colours, and `Toast` gives rabbits the memorial skin. They are drawn by the game
+itself, so they need the mod on the player's side.

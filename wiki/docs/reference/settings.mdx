@@ -1,0 +1,136 @@
+# All settings
+
+Every setting, as the config screen groups them. Change one with
+`/mobstacker set <setting> <value>` or in the [config screen]($reference/config_screen), and see one
+with `/mobstacker get <setting>`. `/mobstacker reset <setting>` (or the value `default`) puts it
+back, and wherever a whole number is asked for, `max` means as high as it goes.
+
+**Per region**: whether a [region can set its own value]($regions/region_settings) with
+`/mobstacker region set <region> <setting> <value>`.
+
+> [!NOTE]
+> The deny and allow mob lists and the stack ceilings per mob type are not settings of this kind:
+> see [Which mobs stack]($stacking/which_mobs_stack) and
+> [How stacks form]($stacking/how_stacks_form#how-big-a-stack-may-grow).
+
+## Stacking
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `stackMode` | `OFF` | `off`, `regions`, `players`, `everywhere` | no | Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE. |
+| `maxStackSize` | `16` | 1 to 2147483647 | yes | The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this. |
+| `stackOnSpawn` | `true` | `true`, `false` | yes | Merge a mob into a nearby stack on its first tick, instead of waiting for it to move or for the next scan. Covers spawners, breeding and spawn eggs. |
+| `mobListMode` | `BLACKLIST` | `blacklist`, `whitelist` | yes | Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or WHITELIST (nothing stacks except the allowed lists). |
+| `stackRadius` | `6.0` | 0.1 to 42000.0 | yes | How far apart (in blocks) mobs can be and still merge into the same stack. |
+| `playerStackRadius` | `12.0` | 1.0 to 42000.0 | no | In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack. |
+| `stackScanInterval` | `20` | 0 to 1200 | yes | How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary. |
+| `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
+| `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
+| `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
+| `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
+| `stackHealth` | `false` | `true`, `false` | yes | A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on. |
+| `stackAi` | `NORMAL` | `normal`, `physics_only`, `frozen` | yes | What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, is carried by water, knocked back and kept afloat, so farms keep working (sheep do not eat grass, so their wool does not grow back, and villagers do not work). FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob always keeps its AI. |
+
+## Spawn origin
+
+Which mobs stack, by how they came into the world. See [Which mobs stack]($stacking/which_mobs_stack#spawn-origin).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `stackNaturalMobs` | `true` | `true`, `false` | yes | Stack mobs that spawned on their own - in the dark, with the world, in a patrol or a raid - and mobs whose origin is unknown: spawned before 1.10.0, or hatched from an egg. |
+| `stackSpawnerMobs` | `true` | `true`, `false` | yes | Stack mobs that came from a monster spawner. |
+| `stackBredMobs` | `true` | `true`, `false` | yes | Stack mobs that were born from breeding, vanilla's or a stack's. |
+| `stackPlacedMobs` | `true` | `true`, `false` | yes | Stack mobs a player put there: from a spawn egg, a dispenser, a bucket or /summon. |
+
+## Combat
+
+See [Combat]($gameplay/combat).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `damageOverflow` | `true` | `true`, `false` | yes | Leftover lethal damage carries down onto the mobs below in the stack. |
+| `sweepingEdgeOverflow` | `true` | `true`, `false` | yes | Fold vanilla Sweeping Edge damage back into the hit so it clears a stack. |
+| `sweepingEdgePerMob` | `false` | `true`, `false` | yes | Sweep every mob in the stack for 1 + damage x (level / (level + 1)) each, exactly like a vanilla sweep through a crowd, instead of adding one flat bonus to the hit. Needs `sweepingEdgeOverflow`. |
+| `sweepingEdgeSingleHit` | `false` | `true`, `false` | yes | Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately. Needs `sweepingEdgePerMob`. Does nothing while `killWholeStackOnDeath` is on. |
+| `sweepingEdgeVanillaConditions` | `false` | `true`, `false` | yes | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand. Needs `sweepingEdgeOverflow`. |
+| `sweepingEdgeMaxKills` | `0` | 0 to 2147483647 | yes | Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob. Needs `sweepingEdgeOverflow`. |
+| `environmentDamagePerMob` | `true` | `true`, `false` | yes | Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, explosions - hurts every mob in a stack, as it would a crowd standing loose, so a fall that kills one zombie kills the whole stack. A player's or a mob's hit stays one hit. Does nothing while `killWholeStackOnDeath` is on. |
+
+## Feedback
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `stackKillActionBar` | `true` | `true`, `false` | yes | Show an action-bar line ("Killed Nx Name - M left") when killing from a stack. |
+| `stackKillParticles` | `true` | `true`, `false` | yes | Pop a particle burst scaled to how many mobs a hit killed. |
+| `stackKillHologram` | `true` | `true`, `false` | yes | Float a short-lived "-N" hologram above the mob on a stacked kill. |
+| `killHologramColor` | `RED` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the floating "-N" kill hologram. |
+| `alwaysShowFeedback` | `false` | `true`, `false` | no | Show this mod's command replies to the player who typed the command even while the gamerule sendCommandFeedback is false. Command blocks and functions stay quiet. |
+
+## Stack display
+
+See [Names & colours]($stacking/names_and_colours).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `stackNameColor` | `WHITE` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the "Cow x16" name shown above a stack. A mob named with a name tag keeps its own colour. |
+| `stackNameColorBySize` | `false` | `true`, `false` | yes | Colour the stack name by how big the stack is, so large stacks stand out at a glance. |
+| `stackNameColorMedium` | `YELLOW` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeMediumThreshold (needs stackNameColorBySize). |
+| `stackNameColorLarge` | `RED` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeLargeThreshold (needs stackNameColorBySize). |
+| `stackSizeMediumThreshold` | `16` | 2 to 2147483647 | yes | Stack size at which the name switches to stackNameColorMedium. |
+| `stackSizeLargeThreshold` | `64` | 2 to 2147483647 | yes | Stack size at which the name switches to stackNameColorLarge. |
+
+## Breeding
+
+See [Breeding, shearing & drops]($gameplay/farming).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `enableStackBreeding` | `true` | `true`, `false` | yes | Feeding a stacked animal breeds its members without unstacking them. |
+| `breedOnePerClick` | `false` | `true`, `false` | yes | One click feeds a single member (on) instead of as many as the food in hand (off). |
+| `stackedHarvest` | `true` | `true`, `false` | yes | Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool. |
+| `enableAnimalBabyStacking` | `true` | `true`, `false` | yes | Let baby farm animals stack together. |
+| `enableHostileBabyStacking` | `true` | `true`, `false` | yes | Let baby hostile mobs (e.g. baby zombies) stack together. |
+
+## Drops & XP
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `compactDrops` | `true` | `true`, `false` | yes | Merge a stacked mob's death drops into as few full item stacks as possible. |
+| `compactExperience` | `true` | `true`, `false` | yes | Combine a stacked mob's death experience into a single orb. |
+
+## Mob caps
+
+The spawn caps vanilla uses for each kind of mob, as a setting. **The mod lowers them by default**,
+even while stacking is off (an inheritance from the original MobStacker). Set a cap to its
+vanilla value for vanilla spawning. Global only.
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `monsterMobCap` | `22` | 0 to 128 | no | Vanilla spawn cap for the monster category. Vanilla: 70. |
+| `creatureMobCap` | `5` | 0 to 128 | no | Vanilla spawn cap for the creature (animal) category. Vanilla: 10. |
+| `ambientMobCap` | `7` | 0 to 128 | no | Vanilla spawn cap for the ambient (bat) category. Vanilla: 15. |
+| `axolotlsMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for axolotls. Vanilla: 5. |
+| `undergroundWaterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for underground water creatures (glow squid). Vanilla: 5. |
+| `waterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for water creatures (squid, dolphin). Vanilla: 5. |
+| `waterAmbientMobCap` | `8` | 0 to 128 | no | Vanilla spawn cap for water ambient mobs (fish). Vanilla: 20. |
+
+## Separator
+
+See [Pets & mounts]($gameplay/pets_and_mounts#the-separator-item).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `enableSeparator` | `false` | `true`, `false` | yes | Enable right-clicking a stack with the separator item to split one mob off. |
+| `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. |
+| `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. |
+| `separationCooldown` | `0` | 0 to 3600 | yes | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan. |
+
+## Regions
+
+See [Private regions]($regions/private_regions).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
+
+*This page is generated from the mod's settings registry (54 settings).*

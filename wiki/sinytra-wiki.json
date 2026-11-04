@@ -1,0 +1,17 @@
+{
+    "schema": "1",
+    "id": "mobstacker-restacked",
+    "modid": "mobstacker",
+    "platforms": {
+        "modrinth": "mobstacker-restacked"
+    },
+    "owners": [
+        "michalekjarmark"
+    ],
+    "licenses": {
+        "project": {
+            "id": "LGPL-3.0-only",
+            "url": "https://github.com/michalekjarmark/mob-stacker/blob/main/LICENSE"
+        }
+    }
+}

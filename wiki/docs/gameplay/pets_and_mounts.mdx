@@ -1,0 +1,51 @@
+# Pets & mounts
+
+## What never stacks
+
+**Anything a player has put something into stays out of stacks**, and there is no setting to change
+that:
+
+- tamed or owned mobs,
+- saddled mobs, horse armour, a donkey's or llama's chest,
+- leashed mobs, and anything riding or being ridden,
+- an ocelot that trusts you, a fox that knows you,
+- a horse somebody has started to tame.
+
+A horse's saddle and chest live in an inventory of its own, so a merge would have wiped them along
+with the taming; hence the hard rule. Wild herds still stack, and foals are born wild, so a breeding
+pen keeps stacking what it produces.
+
+## Taking one animal out
+
+When you interact with a stack, **one animal steps out** and everything you do applies to that one:
+
+- **Mounts** (horses, donkeys, mules, llamas, camels, skeleton and zombie horses): right-click the stack
+  and one comes out to be tamed, saddled, fed or ridden.
+- **Taming**: hold a bone to a stack of wolves, cod to cats or seeds to parrots, and one steps out. An
+  empty hand does nothing, as in vanilla.
+- **Buckets**: a bucket takes one fish or axolotl, not the whole school.
+- **Shears** with `stackedHarvest` off: one sheep comes out and is sheared (see
+  [Breeding, shearing & drops]($gameplay/farming)).
+
+The animal walks back into the herd later unless what you did keeps it out (taming, a saddle, a leash).
+`separationCooldown` (seconds, default 0) keeps any mob taken out of a stack, or poured out of a bucket,
+away from stacks for a while.
+
+## Every horse keeps its own stats
+
+**Every horse in a stack keeps its own speed, jump strength and health.** The horse that comes out is
+the next one in line with its own numbers, and when the top horse dies, the next one takes over with
+its own. A good horse merged into a herd is not lost, and a herd merged under a good horse does not
+become a herd of good horses.
+
+## The separator item
+
+With `enableSeparator` on, right-clicking a stack with the `separatorItem` (default
+`minecraft:diamond`) takes one mob out, using up the item if `consumeSeparator` is on. A mob taken out
+this way is named `Lone <mob>`, and named mobs do not stack, so it stays on its own.
+
+| Setting | Default |
+|---|---|
+| `enableSeparator` | off |
+| `separatorItem` | `minecraft:diamond` |
+| `consumeSeparator` | on |

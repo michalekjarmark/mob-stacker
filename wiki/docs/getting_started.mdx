@@ -1,0 +1,73 @@
+# Getting started
+
+## Installing
+
+There is one jar per loader. Take the one for yours from
+[Modrinth](https://modrinth.com/mod/mobstacker-restacked) or the
+[GitHub releases](https://github.com/michalekjarmark/mob-stacker/releases):
+
+| Loader | Jar | Also needs |
+|---|---|---|
+| Fabric | `mobstacker-1.20.1-fabric-<version>.jar` | Fabric Loader 0.15.11 or newer, [Fabric API](https://modrinth.com/mod/fabric-api) |
+| Forge | `mobstacker-1.20.1-forge-<version>.jar` | Forge 47 or newer, nothing else |
+
+Both need **Minecraft 1.20.1** and **Java 17**.
+
+**Where it has to be installed:**
+
+- **On the server** (or in singleplayer): always. Stacking happens there.
+- **On a player's game**: only for the config screen, for seeing region boxes and for a few
+  name-tag easter eggs. A player without the mod can join a server that has it and sees the stacks
+  like any other mob.
+
+> [!NOTE]
+> Fabric and Forge versions of the same release work the same way and keep the same config file, so
+> moving a world from one loader to the other keeps its settings.
+
+## Switching stacking on
+
+On a fresh install **nothing stacks**: the mod waits until you decide where it may. Pick one of the
+[stack modes]($stacking/where_mobs_stack):
+
+```
+/mobstacker set stackMode everywhere   # every mob, everywhere
+/mobstacker set stackMode players      # only near players
+/mobstacker set stackMode regions      # only inside the regions you allow
+```
+
+Or draw a region straight away. Adding an **allow** region while stacking is off switches the mode to
+`regions` for you, so the region works at once:
+
+```
+/mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15
+```
+
+That makes a 31 × 9 × 31 region around where you stand. Mobs inside it that are alike now merge into
+stacks such as `Cow x12`.
+
+The `/mobstacker` commands need operator rights (cheats on, in singleplayer). The config screen does
+not: see below.
+
+## The config screen
+
+Run `/mobstackerconfig`, or bind **Open Config GUI** under **Options → Controls → MobStacker:
+Restacked**. Every setting is there, one category per page, with a description when you hover its
+name. The **Regions…** button opens the region screen, where regions are created, drawn and given
+their own settings.
+
+On a server the screen shows the server's settings; operators may change them, everybody else may only
+look. More in [Config screen]($reference/config_screen).
+
+## Where the config lives
+
+Every world has its own config: `<world folder>/serverconfig/mobstacker.json`. Changing a setting in a
+test world does not touch your survival world. The file is written whenever a setting changes;
+after editing it by hand, run `/mobstacker reload`.
+
+## Next steps
+
+- [Which mobs stack]($stacking/which_mobs_stack): leave some mobs out, or stack only a few.
+- [Regions]($regions/creating_regions): give a farm its own rules.
+- [Combat]($gameplay/combat): what a hit does to a stack.
+- [Removing the mod]($reference/server_owners#removing-the-mod): **read this before you uninstall**,
+  or every stack loses all of its mobs but one.
