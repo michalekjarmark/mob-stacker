@@ -3,6 +3,22 @@
 ## The stack's label
 
 A stack is labelled with its kind and count, `Cow x16`, drawn in `stackNameColor` (default white).
+**The label is never saved on the mob**: each player's game is told it, in that player's own language,
+so the mob keeps its own name and removing the mod leaves no label behind.
+
+- **With the mod on your game**, the label is a line of its own **above the mob's name**, which stays
+  exactly as it is: a stack of sheep called `jeb_` shows `jeb_` and, above it, `Sheep x16`.
+- **Without the mod** (a vanilla client on a server), the count is shown in the name, `Sheep x16` or
+  `Bella x16`, as before 1.12.0.
+
+| Setting | Default | |
+|---|---|---|
+| `showStackLabels` | on | Off, a stack shows no count at all. |
+| `alwaysShowStackLabels` | off | Show labels without looking at the stack. Off, a label shows when you look at the stack, like a name. |
+| `separateStackLabel` | on | Off, players with the mod see the count in the name too. |
+| `stackLabelFormat` | `{type} x{count}` | What the separate label says: `{type}` is the kind of mob, `{count}` the number. `{type} ({count})` gives `Sheep (16)`. |
+
+## Colours
 
 Switch on `stackNameColorBySize` and the colour steps up with the size, so a big stack stands out
 across the farm:
@@ -24,18 +40,20 @@ colour of their own.
 
 **A name tag says what you mean**, and the mod remembers it when you use the tag:
 
-- **Rename a stack** and the name becomes its label: `Bella x16`. A named stack keeps the name's own
-  colour (if it has one) instead of `stackNameColor`. The stack
-  keeps accepting mobs, and keeps its name through kills and conversions (a zombie that drowns).
+- **Rename a stack** and the stack carries the name: with the mod you see `Bella` with `Cow x16` above
+  it, without it `Bella x16` in the name's own colour. The stack keeps accepting mobs, and keeps its
+  name through kills and conversions (a zombie that drowns).
 - **Rename a single mob** and it stays out of stacks. That is how players protect a pet.
   `stackNamedMobs` (off by default) lets such mobs stack after all, with mobs of the same name only.
 
-The count is only ever added after the name you gave, never read back from it, so a cow you name
-`Cow x5` keeps exactly that name. A mob named some other way (a command, a dispenser) is treated as
-protected.
+The count is never part of the name you gave, so a cow you name `Cow x5` keeps exactly that name. A
+mob named some other way (a command, a dispenser) is treated as protected. A world from an older
+version, whose stacks had the label written into their names, is cleaned as its stacks load: a named
+stack gets its own name back, and the rest no name.
 
 ## Vanilla's name easter eggs
 
 They still work on a stack: `Dinnerbone` and `Grumm` turn it upside down, `jeb_` makes a stack of sheep
 cycle through the dye colours, and `Toast` gives rabbits the memorial skin. They are drawn by the game
-itself, so they need the mod on the player's side.
+itself, so they need the mod on the player's side; without it the name arrives as `jeb_ x16`, which
+vanilla does not recognise.

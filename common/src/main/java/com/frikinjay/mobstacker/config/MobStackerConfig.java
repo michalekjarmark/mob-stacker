@@ -47,6 +47,10 @@ public class MobStackerConfig implements MobLists.Holder {
     private StackColor stackNameColorLarge = StackColor.RED;
     private int stackSizeMediumThreshold = 16;
     private int stackSizeLargeThreshold = 64;
+    private boolean showStackLabels = true;
+    private boolean alwaysShowStackLabels = false;
+    private boolean separateStackLabel = true;
+    private String stackLabelFormat = "{type} x{count}";
     private boolean enableStackBreeding = true;
     private boolean stackedHarvest = true;
     private boolean breedOnePerClick = false;
@@ -578,6 +582,26 @@ public class MobStackerConfig implements MobLists.Holder {
     }
 
     public String getIgnoredDataKeys() { return ignoredDataKeys == null ? "" : ignoredDataKeys; }
+
+    public boolean getShowStackLabels() { return showStackLabels; }
+
+    public void setShowStackLabels(boolean showStackLabels) { this.showStackLabels = showStackLabels; }
+
+    public boolean getAlwaysShowStackLabels() { return alwaysShowStackLabels; }
+
+    public void setAlwaysShowStackLabels(boolean alwaysShowStackLabels) { this.alwaysShowStackLabels = alwaysShowStackLabels; }
+
+    public boolean getSeparateStackLabel() { return separateStackLabel; }
+
+    public void setSeparateStackLabel(boolean separateStackLabel) { this.separateStackLabel = separateStackLabel; }
+
+    public String getStackLabelFormat() {
+        return stackLabelFormat == null || stackLabelFormat.isBlank() ? "{type} x{count}" : stackLabelFormat;
+    }
+
+    public void setStackLabelFormat(String stackLabelFormat) {
+        this.stackLabelFormat = stackLabelFormat == null ? "" : stackLabelFormat.trim();
+    }
 
     public void setIgnoredDataKeys(String ignoredDataKeys) {
         this.ignoredDataKeys = ignoredDataKeys == null ? "" : ignoredDataKeys.trim();

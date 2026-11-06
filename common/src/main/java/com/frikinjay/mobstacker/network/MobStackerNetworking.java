@@ -115,6 +115,11 @@ public final class MobStackerNetworking {
     private MobStackerNetworking() {
     }
 
+    /** Whether this player's game listens on the channel - has the mod, in short. */
+    public static boolean canSend(ServerPlayer player, ResourceLocation channel) {
+        return transport != null && transport.canSend(player, channel);
+    }
+
     /** Called once by the loader's entrypoint, before any player can connect. */
     public static void init(Transport loaderTransport) {
         transport = loaderTransport;

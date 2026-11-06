@@ -228,8 +228,28 @@ public final class MobStackerSettings {
                 () -> MobStacker.config.getAlwaysShowFeedback(), v -> MobStacker.config.setAlwaysShowFeedback(v), false));
 
         // --- Stack display ---
+        register(ConfigOption.ofBool("showStackLabels", Category.DISPLAY,
+                "Show how many mobs a stack is (\"Cow x16\") above it. The label is never saved on the mob: "
+                        + "each player's game is told it, in that player's language.",
+                () -> MobStacker.config.getShowStackLabels(), v -> MobStacker.config.setShowStackLabels(v), true));
+        register(ConfigOption.ofBool("alwaysShowStackLabels", Category.DISPLAY,
+                "Show the label without looking at the stack. Off, it shows when you look at it, like a name.",
+                () -> MobStacker.config.getAlwaysShowStackLabels(), v -> MobStacker.config.setAlwaysShowStackLabels(v), false)
+                .requires("showStackLabels"));
+        register(ConfigOption.ofBool("separateStackLabel", Category.DISPLAY,
+                "Players who have the mod see the label as a line of its own above the mob's name, which stays "
+                        + "as it is. Off, or without the mod, the count is shown in the name: \"Bessie x16\".",
+                () -> MobStacker.config.getSeparateStackLabel(), v -> MobStacker.config.setSeparateStackLabel(v), true)
+                .requires("showStackLabels"));
+        register(ConfigOption.ofString("stackLabelFormat", Category.DISPLAY,
+                "What the separate label says: {type} is the kind of mob, in each player's language, and "
+                        + "{count} how many there are. For example \"{type} ({count})\".",
+                false, () -> MobStacker.config.getStackLabelFormat(), v -> MobStacker.config.setStackLabelFormat(v),
+                "{type} x{count}")
+                .withValidator(value -> StackLabelFormat.problem((String) value))
+                .requires("separateStackLabel"));
         register(ConfigOption.ofEnum("stackNameColor", Category.DISPLAY,
-                "Colour of the \"Cow x16\" name shown above a stack. A mob named with a name tag keeps its own colour.",
+                "Colour of the \"Cow x16\" label shown above a stack. A mob named with a name tag keeps its own colour.",
                 StackColor.class, () -> MobStacker.config.getStackNameColor(),
                 v -> MobStacker.config.setStackNameColor(v), StackColor.WHITE));
         register(ConfigOption.ofBool("stackNameColorBySize", Category.DISPLAY,

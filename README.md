@@ -161,6 +161,10 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `stackKillParticles` | Particle pop at the mob, scaling with the number killed | `true` |
 | `stackKillHologram` | Short-lived floating `-N` above the mob | `true` |
 | `killHologramColor` | Colour of that `-N` | `RED` |
+| `showStackLabels` | Show the `Cow x16` label at all. It is never saved on the mob: each player is told it, in their language | `true` |
+| `alwaysShowStackLabels` | Show labels without looking at the stack | `false` |
+| `separateStackLabel` | Players with the mod see the label as its own line above the mob's name; without the mod (or off) the count is in the name | `true` |
+| `stackLabelFormat` | The separate label's text: `{type}`, `{count}` — e.g. `{type} ({count})` | `{type} x{count}` |
 | `stackNameColor` | Colour of the `Cow x16` label (a name-tagged mob keeps its own colour) | `WHITE` |
 | `stackNameColorBySize` | Step the colour up with the stack size | `false` |
 | `stackNameColorMedium` / `stackNameColorLarge` | Colours above each threshold | `YELLOW` / `RED` |
@@ -603,15 +607,19 @@ of it and at full strength where it is in view. Like the style, X-ray is one cho
 
 ## Names & name tags
 
-A stack is labelled `Cow x16`, drawn in `stackNameColor`. Turn on `stackNameColorBySize` and the
+A stack is labelled `Cow x16`, drawn in `stackNameColor`. **The label is never saved on the mob**: a
+player with the mod sees it as a line of its own above the mob's name (a stack of sheep called `jeb_`
+stays `jeb_`, rainbow and all, with `Sheep x16` above it), and a player without the mod sees the count
+in the name, as before. Either way it is in that player's language, and shows when they look at the
+stack unless `alwaysShowStackLabels` is on. Turn on `stackNameColorBySize` and the
 colour steps up with the stack — the base colour, then `stackNameColorMedium` and
 `stackNameColorLarge` at thresholds you set — so a 64-stack is recognisable across the farm. Colour
 changes reach existing stacks within a second (see `stackScanInterval`).
 
-**Name tags say what you mean.** Rename a stack and the name becomes its label — `Bella x16`, in the
-colour you gave it — and **the stack goes on accepting mobs**. Rename a *single* mob and it stays out
+**Name tags say what you mean.** Rename a stack and the stack carries the name — `Bella` under
+`Cow x16` with the mod, `Bella x16` without it — and **the stack goes on accepting mobs**. Rename a *single* mob and it stays out
 of stacks, which is how players protect a pet; `stackNamedMobs` opts those in too, with mobs of the
-same name only. The count is only ever appended to the name you typed, so a cow named `Cow x5` keeps
+same name only. The count is never part of the name you typed, so a cow named `Cow x5` keeps
 that name, and a stack keeps its name through kills and through conversions (zombie → drowned).
 A mob named some other way (`/data`, a dispenser) is treated as protected.
 

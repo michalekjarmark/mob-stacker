@@ -171,6 +171,20 @@ public final class ConfigSelfTest {
                         prerequisite.undo();
                     }
                 }
+                if (option.id().equals("stackLabelFormat")) {
+                    List<Restore> prerequisites = satisfyDependencies(option);
+                    check(report, option.apply("{type} ({count})").status != Status.ERROR,
+                            option.id() + ": refused {type} ({count})");
+                    check(report, option.apply("{type}").status == Status.ERROR,
+                            option.id() + ": accepted a label that does not say how many");
+                    check(report, StackLabelFormat.build("[{count}] {type}s", net.minecraft.network.chat.Component.literal("Cow"), 7)
+                                    .getString().equals("[7] Cows"),
+                            option.id() + ": '[{count}] {type}s' did not read as '[7] Cows'");
+                    option.reset();
+                    for (Restore prerequisite : prerequisites) {
+                        prerequisite.undo();
+                    }
+                }
             }
         }
 
@@ -404,6 +418,7 @@ public final class ConfigSelfTest {
             return;
         }
         MobStacker.setStackSize(cow, 5);
+        testStackLabels(report, cow);
         List<net.minecraft.world.entity.Entity> world = List.of(cow, stand);
         check(report, count(MobStacker.countedForSpawning(world)) == 6,
                 "countStackMembers on: a stack of 5 and an armor stand did not count as 6");
@@ -445,6 +460,35 @@ public final class ConfigSelfTest {
                 "a deny region switched off still stops stacking");
         RegionEdit.delete("selftest_nostack");
         MobStacker.config.setStackMode(mode);
+    }
+
+    /**
+     * 1.12.0 (#46/#56): a stack's label is never written onto the mob, an older version's is taken back
+     * out of its name, and a game without the mod is sent the label in the name instead.
+     */
+    @SuppressWarnings("unchecked")
+    private static void testStackLabels(Report report, net.minecraft.world.entity.Mob cow) {
+        check(report, cow.getCustomName() == null,
+                "a stack of 5 got its label written into its own name: " + cow.getCustomName());
+        cow.setCustomName(net.minecraft.network.chat.Component.literal("Cow x5"));
+        MobStacker.updateStackDisplay(cow);
+        check(report, cow.getCustomName() == null, "the label an older version left in a stack's name stayed");
+        cow.setCustomName(net.minecraft.network.chat.Component.literal("Bessie x5"));
+        MobStacker.updateStackDisplay(cow);
+        check(report, cow.getCustomName() != null && cow.getCustomName().getString().equals("Bessie"),
+                "an older version's count was not taken off a named stack: " + cow.getCustomName());
+
+        net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket sent =
+                com.frikinjay.mobstacker.StackLabels.withLabelInName(cow,
+                        new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(cow.getId(), List.of()));
+        int nameId = com.frikinjay.mobstacker.mixin.EntityAccessor.mobstacker$customNameData().getId();
+        String shown = sent.packedItems().stream().filter(value -> value.id() == nameId)
+                .map(value -> ((java.util.Optional<net.minecraft.network.chat.Component>) value.value())
+                        .map(net.minecraft.network.chat.Component::getString).orElse(""))
+                .findFirst().orElse("");
+        check(report, shown.equals("Bessie x5"), "a game without the mod is not sent the label in the name: '" + shown + "'");
+        check(report, cow.getCustomName().getString().equals("Bessie"), "sending the label changed the mob's own name");
+        cow.setCustomName(null);
     }
 
     private static int count(Iterable<?> items) {

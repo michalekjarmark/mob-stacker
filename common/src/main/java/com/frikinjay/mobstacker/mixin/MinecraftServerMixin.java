@@ -28,6 +28,7 @@ public abstract class MinecraftServerMixin {
         MobStacker.tickKillHolograms();
         StackToolsCommands.tickUnstacking();
         MobStacker.tickCommandAccess((MinecraftServer) (Object) this);
+        com.frikinjay.mobstacker.StackLabels.tick((MinecraftServer) (Object) this);
         // A snapshot has to follow the config, or a player taken off a region's list would go on
         // seeing it until they logged out - and an operator's edit used to reach only that operator.
         MobStackerNetworking.refreshSnapshots((MinecraftServer) (Object) this);
@@ -42,5 +43,6 @@ public abstract class MinecraftServerMixin {
         MobStacker.clearKillHolograms();
         StackToolsCommands.cancelUnstacking();
         MobStackerNetworking.onServerStopped();
+        com.frikinjay.mobstacker.StackLabels.onServerStopped();
     }
 }

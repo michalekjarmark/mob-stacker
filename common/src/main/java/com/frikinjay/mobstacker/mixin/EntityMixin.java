@@ -53,32 +53,7 @@ public class EntityMixin {
         }
     }
 
-    @Inject(method = "setCustomName", at = @At("TAIL"))
-    private void mobstacker$onSetCustomName(@Nullable Component component, CallbackInfo ci) {
-        Entity self = (Entity) (Object) this;
-        if (!self.level().isClientSide && self instanceof Mob) {
-            Component customName = self.getCustomName();
-
-            if (customName != null) {
-                int stackSize = MobStacker.getStackSize((Mob) self);
-                String nameString = customName.getString();
-                Style nameStyle = component != null ? component.getStyle() : Style.EMPTY;
-                String updatedNameString = mobstacker$getString(stackSize, nameString);
-                self.getEntityData().set(DATA_CUSTOM_NAME, Optional.of(
-                        Component.literal(updatedNameString).withStyle(nameStyle)
-                ));
-            }
-        }
-    }
-
-    @Unique
-    private static @NotNull String mobstacker$getString(int stackSize, String nameString) {
-        String stackSizeString = "x" + stackSize;
-
-        if (nameString.endsWith(stackSizeString)) {
-            return nameString.substring(0, nameString.length() - String.valueOf(stackSize).length() - 1) + stackSizeString;
-        }
-
-        return nameString;
-    }
+    // 1.12.0: the setCustomName hook that flattened every mob's name into plain server-language text
+    // is gone. It existed for the label written into the name, which is made per player now
+    // (StackLabels), and it turned other mods' translatable names into the server's language.
 }

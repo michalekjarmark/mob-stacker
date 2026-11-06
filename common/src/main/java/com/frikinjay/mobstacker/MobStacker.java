@@ -1298,61 +1298,55 @@ public final class MobStacker {
         return Component.literal(raw.substring(0, split));
     }
 
+    /**
+     * Keeps what players see of the stack in step with it: its count, colour and settings. Since
+     * 1.12.0 nothing of that is written onto the mob - the label is made per player on its way out
+     * ({@link StackLabels}) - so this only takes a label written by an older version back out of the
+     * mob's own name, names a boss's bar, and tells the players watching when the label changed.
+     */
     public static void updateStackDisplay(Mob entity) {
-        int stackSize = getStackSize(entity);
-        boolean isBoss = isBossEntity(entity);
-
-        Component newName = generateNewDisplayName(entity, stackSize);
-        updateEntityName(entity, newName, isBoss);
-    }
-
-    private static Component generateNewDisplayName(Mob entity, int stackSize) {
-        Component given = playerGivenName(entity);
-        if (given != null) {
-            // Exactly what the player typed on the name tag, plus the live count. Nothing is parsed
-            // back off the label, so a stack named "Cow x5" stays "Cow x5" and gains " x16".
-            return stackSize > 1 ? given.copy().append(" x" + stackSize) : given.copy();
+        if (entity.level().isClientSide) {
+            return;
         }
-        if (entity.hasCustomName() && !matchesStackedName(entity.getCustomName().getString(), entity)) {
-            String baseName = STACKED_NAME_PATTERN.matcher(entity.getCustomName().getString())
-                    .replaceFirst("");
-            return Component.literal(baseName + (stackSize > 1 ? " x" + stackSize : ""))
-                    .withStyle(entity.getCustomName().getStyle());
-        }
-        return stackSize > 1 ?
-                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize)
-                        .withStyle(stackNameColor(entity, stackSize)) :
-                null;
-    }
-
-    private static void updateEntityName(Mob entity, Component newName, boolean isBoss) {
-        if (newName != null) {
-            entity.setCustomName(newName);
-            if (isBoss) {
-                ServerBossEvent bossEvent = getBossField(entity);
-                if (bossEvent != null) {
-                    bossEvent.setName(newName);
-                }
-            }
-        } else if (isBoss) {
-            handleBossNameReset(entity);
-        } else if (entity.hasCustomName()) {
-            entity.setCustomName(null);
-        }
-
-        if (!isBoss && hasNonCustomName(entity)) {
-            entity.setCustomNameVisible(false);
-        }
-    }
-
-    private static void handleBossNameReset(Mob entity) {
-        delayExecution((ServerLevel) entity.level(), 1, () -> {
+        clearOldLabel(entity);
+        if (isBossEntity(entity)) {
             ServerBossEvent bossEvent = getBossField(entity);
             if (bossEvent != null) {
-                bossEvent.setName(Component.literal(entity.getDisplayName().getString()));
-                entity.setCustomName(null);
+                // A boss bar is one for everybody, so it is named in the server's words.
+                bossEvent.setName(StackLabels.shows(entity) ? StackLabels.nameLabel(entity) : entity.getDisplayName());
             }
-        });
+        }
+        StackLabels.refresh(entity);
+    }
+
+    /**
+     * Before 1.12.0 the label was the mob's own name: "Cow x12", or "Bessie x12" for a stack a player
+     * named. This puts the mob's own name back - the player's exactly as they gave it, nothing for the
+     * mod's own label - so a world from an older version comes clean as its stacks are loaded. The
+     * count on any other name is the old label's too: the old display replaced it every time.
+     */
+    private static void clearOldLabel(Mob entity) {
+        Component given = playerGivenName(entity);
+        if (given != null) {
+            if (!given.equals(entity.getCustomName())) {
+                entity.setCustomName(given);
+            }
+            return;
+        }
+        Component current = entity.getCustomName();
+        if (current == null) {
+            return;
+        }
+        String text = current.getString();
+        if (matchesStackedName(text, entity)) {
+            entity.setCustomName(null);
+            entity.setCustomNameVisible(false);
+            return;
+        }
+        java.util.regex.Matcher count = STACKED_NAME_PATTERN.matcher(text);
+        if (count.find()) {
+            entity.setCustomName(Component.literal(text.substring(0, count.start())).withStyle(current.getStyle()));
+        }
     }
 
     public static void updateHealth(Mob target, Mob source) {
@@ -2661,6 +2655,14 @@ public final class MobStacker {
     public static boolean getStrictDataComparison(Entity at) {return setting("strictDataComparison", at, config.getStrictDataComparison());}
 
     public static String getIgnoredDataKeys(Entity at) {return setting("ignoredDataKeys", at, config.getIgnoredDataKeys());}
+
+    public static boolean getShowStackLabels(Entity at) {return setting("showStackLabels", at, config.getShowStackLabels());}
+
+    public static boolean getAlwaysShowStackLabels(Entity at) {return setting("alwaysShowStackLabels", at, config.getAlwaysShowStackLabels());}
+
+    public static boolean getSeparateStackLabel(Entity at) {return setting("separateStackLabel", at, config.getSeparateStackLabel());}
+
+    public static String getStackLabelFormat(Entity at) {return setting("stackLabelFormat", at, config.getStackLabelFormat());}
 
     /** Where the data other mods saved on these two differs (see {@link MobData}), or null. */
     public static String dataDifference(Mob source, Mob target) {

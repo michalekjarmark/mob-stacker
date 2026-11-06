@@ -80,7 +80,11 @@ See [Names & colours]($stacking/names_and_colours).
 
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
-| `stackNameColor` | `WHITE` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the "Cow x16" name shown above a stack. A mob named with a name tag keeps its own colour. |
+| `showStackLabels` | `true` | `true`, `false` | yes | Show how many mobs a stack is ("Cow x16") above it. The label is never saved on the mob: each player's game is told it, in that player's language. |
+| `alwaysShowStackLabels` | `false` | `true`, `false` | yes | Show the label without looking at the stack. Off, it shows when you look at it, like a name. Needs `showStackLabels`. |
+| `separateStackLabel` | `true` | `true`, `false` | yes | Players who have the mod see the label as a line of its own above the mob's name, which stays as it is. Off, or without the mod, the count is shown in the name: "Bessie x16". Needs `showStackLabels`. |
+| `stackLabelFormat` | `{type} x{count}` | text | yes | What the separate label says: &#123;type&#125; is the kind of mob, in each player's language, and &#123;count&#125; how many there are. For example "&#123;type&#125; (&#123;count&#125;)". Needs `separateStackLabel`. |
+| `stackNameColor` | `WHITE` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the "Cow x16" label shown above a stack. A mob named with a name tag keeps its own colour. |
 | `stackNameColorBySize` | `false` | `true`, `false` | yes | Colour the stack name by how big the stack is, so large stacks stand out at a glance. |
 | `stackNameColorMedium` | `YELLOW` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeMediumThreshold (needs stackNameColorBySize). |
 | `stackNameColorLarge` | `RED` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeLargeThreshold (needs stackNameColorBySize). |
@@ -147,4 +151,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (69 settings).*
+*This page is generated from the mod's settings registry (73 settings).*

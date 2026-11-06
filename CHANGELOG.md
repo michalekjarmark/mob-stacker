@@ -72,9 +72,23 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   - **`/mobstacker region list` is clickable** and comes in pages of ten: the name opens
     `region show`, `[on]`/`[off]` switches the region, the arrows turn the page.
   `/mobstacker inspect` says when a region covers the spot but is off or leaves out its biome.
+- **Stack labels are never saved on the mob any more**, and each player sees them the way their game
+  can (thanks to our friend for the idea):
+  - **with the mod**, the label is a line of its own **above the mob's name**, which stays as it is: a
+    stack of sheep called `jeb_` stays `jeb_` - rainbow wool included - with `Sheep x12` above it;
+  - **without the mod**, the count is in the name as before, but only in what that player is sent;
+  - either way **in the player's own language**, and shown when they look at the stack;
+  - new settings: `showStackLabels` (on), `alwaysShowStackLabels` (off), `separateStackLabel` (on)
+    and `stackLabelFormat` (`{type} x{count}`; `{type} ({count})` gives `Sheep (12)`). The colours
+    (`stackNameColor`, by size) apply to the label as before.
 - **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
 - **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
 ### Changed
+- **A stack's name is its own again**: older versions wrote the label into the mob's name
+  (`Cow x12`), where it stayed if the mod was removed and where other mods read it as a real name. A
+  world from an older version is cleaned as its stacks load - a named stack keeps the name it was
+  given, the others lose the label. Another mod's or a command's name is no longer turned into plain
+  text in the server's language.
 - **The spawn caps are vanilla's** (70/10/15/5/5/5/20). They were lowered to 22/5/7/2/2/2/8, even with
   stacking off, which made a fresh install spawn about a third of vanilla's monsters. A config that
   still holds exactly the old numbers is moved to vanilla's the first time it loads (the server log
