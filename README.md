@@ -515,7 +515,8 @@ damaged the way vanilla damages it. That holds under every death mode, and becau
 stored exactly as the game stores them, **other mods' items and any enchantment work without the mod
 knowing anything about them**. The remainder of a killed stack, and a mob pulled out with the
 separator item, take the next member's gear with them. Without `keepMemberEquipment` they wear what
-the stack's top mob spawned with, never what it picked up.
+the stack's top mob spawned with, never what it picked up, and a mob merged into a stack drops what it
+picked up on the ground (what it spawned with is lost).
 
 ## Pets & mounts
 
@@ -530,7 +531,7 @@ breeding pen keeps stacking everything it produces.
 **Right-clicking a stacked mount hands you one animal out of the stack**, and everything you then do
 — taming, a saddle, armour, feeding, climbing on — applies to that one. It walks back into the herd
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
-and zombie horses.
+and zombie horses — and a saddle on a stack of pigs or striders saddles one animal, not the stack.
 
 **Every horse in a stack keeps its own speed, jump and health.** The horse that comes out is the
 next one in line, with its own numbers, and when the top horse dies the next one takes over with

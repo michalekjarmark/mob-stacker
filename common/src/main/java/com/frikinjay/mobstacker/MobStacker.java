@@ -939,6 +939,19 @@ public final class MobStacker {
     }
 
     /**
+     * Whether this is a saddle going onto a stacked pig or strider.
+     *
+     * <p>A saddle is one animal's: on a stack it saddled all sixteen at once, and a saddled stack is
+     * player-bound, so it never took another mob in, the player rode the whole stack, and only one
+     * saddle ever came back. So the stack hands one animal over for it, as a horse does for every
+     * right-click. Horses are handled before this is asked.
+     */
+    public static boolean isSaddlingInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.SADDLE) && mob instanceof Saddleable saddleable
+                && saddleable.isSaddleable() && !saddleable.isSaddled();
+    }
+
+    /**
      * Whether this is somebody scooping one mob into a bucket.
      *
      * <p>Bucketing destroys the entity and hands back an item holding it, which on a stack meant
@@ -1220,8 +1233,10 @@ public final class MobStacker {
             mergedLoadouts.add(captureLoadout(source));
             mergedLoadouts.addAll(getMemberLoadouts(source));
         } else {
+            // Nobody remembers the gear of the mob being merged away, so what it picked up goes on
+            // the ground rather than with it. The survivor keeps what it wears: a merge never
+            // overwrites that (isExcludedNbtKey).
             dropPickedEquipment(source);
-            dropPickedEquipment(target);
         }
 
         copyRelevantNbtData(source, targetNbt);
@@ -1464,26 +1479,27 @@ public final class MobStacker {
     }
 
     /**
-     * Drops any items the mob picked up during its life (tagged {@code picked} in NBT, minus
-     * binding-cursed ones) and clears those slots, so picked-up loot isn't lost when the mob is
-     * discarded on a merge. Naturally-equipped gear (no {@code picked} tag) is left untouched.
+     * Drops what a mob picked up during its life and empties those slots, for a mob about to be merged
+     * away while nobody remembers its gear ({@code keepMemberEquipment} off): it is a player's loot or
+     * another mob's drop, and would otherwise vanish with the mob. What the mob spawned with stays on
+     * it and goes with it, which is what the setting being off means.
+     *
+     * <p>Vanilla marks picked-up gear by a drop chance above 1 ({@code Mob.setGuaranteedDrop}), and
+     * that is how this finds it. Up to 1.12.0 it looked for a {@code picked} item tag instead, which
+     * came from the original mod and which nothing in 1.20.1 writes - so it never dropped anything.
+     * An item with the curse of vanishing vanishes, as it would if the mob died.
      */
-    public static void dropPickedEquipment(LivingEntity entity) {
+    public static void dropPickedEquipment(Mob mob) {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
-            ItemStack stack = entity.getItemBySlot(slot);
-            if (stack.isEmpty()) {
+            ItemStack stack = mob.getItemBySlot(slot);
+            if (stack.isEmpty() || dropChance(mob, slot) <= 1.0F) {
                 continue;
             }
-            CompoundTag tag = stack.getTag();
-            if (tag == null || !tag.contains("picked") || EnchantmentHelper.hasBindingCurse(stack)) {
-                continue;
+            if (!EnchantmentHelper.hasVanishingCurse(stack)) {
+                mob.spawnAtLocation(stack);
             }
-            tag.remove("picked");
-            if (tag.isEmpty()) {
-                stack.setTag(null);
-            }
-            entity.spawnAtLocation(stack);
-            entity.setItemSlot(slot, ItemStack.EMPTY);
+            mob.setItemSlot(slot, ItemStack.EMPTY);
+            setDropChance(mob, slot, NATURAL_DROP_CHANCE);
         }
     }
 

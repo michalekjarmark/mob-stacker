@@ -215,7 +215,8 @@ public abstract class MobMixin extends LivingEntity {
      * climb onto a single entity carrying a whole herd. So a stacked mount steps one mob out of the
      * stack and lets that mob take the interaction instead, for every kind of right-click there is.
      *
-     * <p>A bucket does the same, for the opposite reason: bucketing takes the entity out of the
+     * <p>A saddle on a pig or strider does the same, for the same reason as a horse's
+     * ({@link MobStacker#isSaddlingInteraction}). A bucket does too, for the opposite reason: bucketing takes the entity out of the
      * world and puts it in an item, so on a stack of fish the whole shoal went into one bucket and
      * a single fish came back out of it. Shears do too while {@code stackedHarvest} is off, because
      * shearing changes the mob and the stack is one mob (see
@@ -252,6 +253,7 @@ public abstract class MobMixin extends LivingEntity {
         boolean bucketing = MobStacker.isBucketingInteraction(self, held);
         if (!(self instanceof AbstractHorse)
                 && !MobStacker.isTamingInteraction(self, held)
+                && !MobStacker.isSaddlingInteraction(self, held)
                 && !bucketing
                 && !MobStacker.isShearingOneInteraction(self, held)) {
             return;

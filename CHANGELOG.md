@@ -113,6 +113,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   out of a stack got a new home where it stood.
 - The wound that damage overflow leaves on the next member is no longer lost when the top mob had
   more max health than the rest.
+- **A saddle on a stack of pigs or striders saddled the whole stack**: the player rode all of them, the
+  stack never took another mob in, and only one saddle ever came back. One animal steps out for the
+  saddle now, as a horse does.
+- **With `stackEquippedMobs` on and `keepMemberEquipment` off, what a mob had picked up vanished when
+  it was merged into a stack.** It is dropped on the ground now, as was always intended (the check
+  looked for a marker nothing writes). What the mob spawned with still goes with it.
 - **A stack of endermen carrying a block duplicated the block**: every mob the stack gave back (the
   rest of a stack after a kill, one taken out) carried it again, so each kill dropped one more. And two
   endermen carrying the same block merged and one block was gone.

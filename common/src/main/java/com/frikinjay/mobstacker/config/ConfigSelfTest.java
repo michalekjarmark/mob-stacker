@@ -633,6 +633,30 @@ public final class ConfigSelfTest {
             MobStacker.config.setStackHealth(wasPooled);
             MobStacker.config.setKillWholeStackOnDeath(wasWhole);
         }
+
+        // #58: a saddle on a stacked pig hands one pig over, like a horse.
+        net.minecraft.world.entity.animal.Pig rideable = EntityType.PIG.create(level);
+        if (rideable != null) {
+            net.minecraft.world.item.ItemStack saddle = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE);
+            check(report, MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a stacked pig does not hand one pig over");
+            rideable.equipSaddle(null);
+            check(report, !MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a pig that has one still counts as saddling");
+        }
+        // #57: what a mob merged away picked up is found by its drop chance; what it spawned with stays.
+        net.minecraft.world.entity.monster.Zombie picker = EntityType.ZOMBIE.create(level);
+        if (picker != null) {
+            // Cursed with vanishing, so the check leaves no sword lying in the world.
+            net.minecraft.world.item.ItemStack sword = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD);
+            sword.enchant(net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE, 1);
+            picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, sword);
+            picker.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+            picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
+            MobStacker.dropPickedEquipment(picker);
+            check(report, picker.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(),
+                    "a sword a mob picked up stayed on it as it was merged away");
+            check(report, picker.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.IRON_HELMET),
+                    "dropPickedEquipment took the helmet a mob spawned with");
+        }
     }
 
     private static int count(Iterable<?> items) {
