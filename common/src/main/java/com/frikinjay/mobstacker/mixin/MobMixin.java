@@ -4,10 +4,12 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.StackAi;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
@@ -35,6 +37,16 @@ public abstract class MobMixin extends LivingEntity {
     @Final
     protected GoalSelector goalSelector;
 
+    @Shadow
+    private boolean persistenceRequired;
+
+    @Shadow
+    protected abstract boolean shouldDespawnInPeaceful();
+
+    /** Whether the mob was persistent before the pickup now running (despawnPickedUpMobs). */
+    @Unique
+    private boolean mobstacker$persistentBeforePickup;
+
     /** {@code stackAi} as it applies to this mob, worked out once a tick; see {@link #mobstacker$aiMode}. */
     @Unique
     private StackAi mobstacker$aiMode = StackAi.NORMAL;
@@ -43,6 +55,47 @@ public abstract class MobMixin extends LivingEntity {
 
     protected MobMixin(EntityType<? extends LivingEntity> entityType, Level level) {
         super(entityType, level);
+    }
+
+    // --- despawnPickedUpMobs (1.12.0): picking an item up no longer makes a mob persistent ---
+    // Vanilla's pickup (equipItemIfPossible, a piglin's off hand) ends in setItemSlotAndDropWhenKilled,
+    // which marks the slot as a guaranteed drop and sets persistenceRequired. The mark stays, which is
+    // how dropOnDespawn knows the item later; only the persistence is put back to what it was, so a
+    // mob that was already persistent (named, from a structure, set by a command) stays so.
+
+    @Inject(method = "setItemSlotAndDropWhenKilled", at = @At("HEAD"))
+    private void mobstacker$beforePickup(EquipmentSlot slot, ItemStack stack, CallbackInfo ci) {
+        mobstacker$persistentBeforePickup = persistenceRequired;
+    }
+
+    @Inject(method = "setItemSlotAndDropWhenKilled", at = @At("TAIL"))
+    private void mobstacker$afterPickup(EquipmentSlot slot, ItemStack stack, CallbackInfo ci) {
+        if (!mobstacker$persistentBeforePickup && !level().isClientSide()
+                && MobStacker.getDespawnPickedUpMobs(this)) {
+            persistenceRequired = false;
+        }
+    }
+
+    /**
+     * persistentStackSize: a stack that big does not despawn, treated as vanilla treats a persistent
+     * mob (its idle timer starts over). Peaceful still clears monsters.
+     */
+    @Inject(method = "checkDespawn", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$keepBigStacks(CallbackInfo ci) {
+        if (level().isClientSide() || !MobStacker.keepsFromDespawning((Mob) (Object) this)) {
+            return;
+        }
+        if (level().getDifficulty() == Difficulty.PEACEFUL && shouldDespawnInPeaceful()) {
+            return;
+        }
+        noActionTime = 0;
+        ci.cancel();
+    }
+
+    /** Every despawn in checkDespawn (far away, idle, peaceful) drops what the mob had picked up. */
+    @Inject(method = "checkDespawn", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Mob;discard()V"))
+    private void mobstacker$dropOnDespawn(CallbackInfo ci) {
+        MobStacker.dropOnDespawn((Mob) (Object) this);
     }
 
     /**

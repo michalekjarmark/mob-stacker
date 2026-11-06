@@ -29,7 +29,7 @@ public final class ConfigOption {
         DISPLAY("Stack display"),
         BREEDING("Breeding"),
         DROPS("Drops & XP"),
-        MOBCAPS("Mob caps"),
+        MOBCAPS("Spawning & despawning"),
         SEPARATOR("Separator"),
         REGIONS("Regions");
 

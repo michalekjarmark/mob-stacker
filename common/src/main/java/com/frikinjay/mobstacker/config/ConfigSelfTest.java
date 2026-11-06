@@ -72,6 +72,7 @@ public final class ConfigSelfTest {
             testRegionPrivacy(report);
             if (source != null) {
                 testCommandAccess(report, source);
+                testSpawnCounting(report, source);
             }
         } catch (Exception e) {
             report.checks++;
@@ -365,6 +366,38 @@ public final class ConfigSelfTest {
                 "#mobstacker:bosses was not loaded from the jar (no wither or warden in it)");
         check(report, !EntityType.COW.is(MobStacker.UNSTACKABLE_TAG) && !EntityType.COW.is(MobStacker.BOSSES_TAG),
                 "a cow is in one of the mod's never-stack tags");
+    }
+
+    /**
+     * countStackMembers (1.12.0): the spawn-cap count sees a stack of five as five mobs, and a
+     * non-mob once; off, everything once. The entities are made for the test and never added to the
+     * world.
+     */
+    private static void testSpawnCounting(Report report, CommandSourceStack source) {
+        net.minecraft.world.entity.Mob cow = EntityType.COW.create(source.getLevel());
+        ArmorStand stand = new ArmorStand(EntityType.ARMOR_STAND, source.getLevel());
+        if (cow == null) {
+            check(report, false, "could not create a cow for the spawn-count check");
+            return;
+        }
+        MobStacker.setStackSize(cow, 5);
+        List<net.minecraft.world.entity.Entity> world = List.of(cow, stand);
+        check(report, count(MobStacker.countedForSpawning(world)) == 6,
+                "countStackMembers on: a stack of 5 and an armor stand did not count as 6");
+        MobStacker.config.setCountStackMembers(false);
+        check(report, count(MobStacker.countedForSpawning(world)) == 2,
+                "countStackMembers off: a stack of 5 and an armor stand did not count as 2");
+        MobStacker.config.setCountStackMembers(true);
+        check(report, MobStacker.config.getMonsterMobCap() == 70 && MobStacker.config.getWaterAmbientMobCap() == 20,
+                "a new config does not start with vanilla's spawn caps");
+    }
+
+    private static int count(Iterable<?> items) {
+        int n = 0;
+        for (Object ignored : items) {
+            n++;
+        }
+        return n;
     }
 
     /**

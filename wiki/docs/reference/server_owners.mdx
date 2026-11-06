@@ -47,12 +47,21 @@ not affected. Errors are always shown either way.
 | `-Dmobstacker.overlayDebug=true` | a player's game | logs what the region boxes found, for bug reports about boxes |
 | `-Dmobstacker.selftest=true` | the server | adds `/mobstacker selftest`, which checks every setting against a sandbox config. For development. |
 
-## Mob caps
+## Spawning and despawning
 
-The mod has a setting for each of vanilla's spawn caps (`/mobstacker help mobcaps`). **It lowers them
-by default, even while stacking is off**: monsters 22 instead of vanilla's 70, animals 5 instead of 10,
-and so on (see [All settings]($reference/settings#mob-caps)). This comes from the original MobStacker.
-For vanilla spawning, set each cap to its vanilla value:
+All of these are in `/mobstacker help mobcaps` and on the config screen's **Spawning & despawning**
+page.
+
+### Spawn caps
+
+Vanilla stops spawning a kind of mob once enough of them are around: 70 monsters, 10 animals and so
+on. **Every mob in a stack counts towards that limit** (`countStackMembers`, on), so a world with
+stacks has as many mobs as vanilla, only in fewer entities: the server does less work and the game
+plays the same.
+
+- `countStackMembers false` counts a whole stack as one mob. Far more mobs can then exist at once,
+  and farms that rely on spawning give more.
+- Each cap is a setting of its own, from 0 to 128, global only. The defaults are vanilla's:
 
 ```
 /mobstacker set monsterMobCap 70
@@ -63,6 +72,26 @@ For vanilla spawning, set each cap to its vanilla value:
 /mobstacker set waterCreatureMobCap 5
 /mobstacker set waterAmbientMobCap 20
 ```
+
+> [!NOTE]
+> Before 1.12.0 the mod lowered the caps to 22/5/7/2/2/2/8 even with stacking off, and counted a stack
+> as one mob. A config that still holds exactly those numbers is moved to vanilla's the first time
+> 1.12.0 loads it (the server log says so). Caps somebody changed stay as they are.
+
+### Despawning
+
+- **`despawnPickedUpMobs`** (off): in vanilla a mob that picks up an item, a zombie taking a sword off
+  the ground for instance, never despawns again, and such mobs pile up. With this on it despawns like
+  any other mob and **drops what it picked up** when it goes; an enderman carrying a block drops the
+  block. Gear a mob was born with despawns with it, as in vanilla. A mob that was persistent anyway
+  (named, from a structure) stays. Can be set per region, which is how you exempt a place.
+- **`persistentStackSize`** (0, off): a stack of at least this many mobs never despawns on its own, for
+  pens and farms that keep their mobs. With 0 a stack despawns like a single mob: all at once, which is
+  how often vanilla would have despawned the crowd it stands for. Per region too.
+
+This is the part of [Let Me Despawn](https://modrinth.com/mod/lmd) that matters with stacks. Use one or
+the other: with Let Me Despawn 1.26.10 and newer, a stack's `Cow x16` label counts as a name, so a
+stack that picks something up stays forever under its rules.
 
 ## Removing the mod
 

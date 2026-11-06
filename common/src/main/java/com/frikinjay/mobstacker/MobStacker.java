@@ -84,6 +84,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -2555,6 +2556,104 @@ public final class MobStacker {
     /** True when {@code attacker}'s current swing is one vanilla would have swept with. */
     public static boolean hadVanillaSweepConditions(Entity attacker) {
         return attacker != null && attacker == sweepContextAttacker && sweepContextVanillaSweep;
+    }
+
+    // --- Spawning & despawning (1.12.0, ROADMAP #15 / #41) ---
+
+    /**
+     * A stack counts towards the spawn caps as at most this many mobs. Past any cap a bigger number
+     * changes nothing, and a ceiling may be as large as an int goes.
+     */
+    private static final int SPAWN_COUNT_LIMIT = 4096;
+
+    /**
+     * The world's entities as vanilla's spawn-cap count should see them: a stack of N is handed over
+     * N times (countStackMembers), so the caps, the per-player local caps and the soul sand valley's
+     * spawn charges all count every member, exactly as they would count the crowd standing loose.
+     * Lazy, so nothing is copied; off, it is the iterable it was given.
+     */
+    public static Iterable<Entity> countedForSpawning(Iterable<Entity> entities) {
+        if (!config.getCountStackMembers()) {
+            return entities;
+        }
+        return () -> new Iterator<>() {
+            private final Iterator<Entity> all = entities.iterator();
+            private Entity current;
+            private int repeats;
+
+            @Override
+            public boolean hasNext() {
+                return repeats > 0 || all.hasNext();
+            }
+
+            @Override
+            public Entity next() {
+                if (repeats > 0) {
+                    repeats--;
+                    return current;
+                }
+                if (!all.hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                current = all.next();
+                repeats = current instanceof Mob mob
+                        ? Math.max(0, Math.min(getStackSize(mob), SPAWN_COUNT_LIMIT) - 1) : 0;
+                return current;
+            }
+        };
+    }
+
+    public static boolean getDespawnPickedUpMobs(Entity at) {return setting("despawnPickedUpMobs", at, config.getDespawnPickedUpMobs());}
+
+    public static int getPersistentStackSize(Entity at) {return Math.max(0, setting("persistentStackSize", at, config.getPersistentStackSize()));}
+
+    /** Whether this stack is big enough that {@code persistentStackSize} keeps it from despawning. */
+    public static boolean keepsFromDespawning(Mob mob) {
+        int size = getStackSize(mob);
+        if (size < 2) {
+            return false;
+        }
+        int threshold = getPersistentStackSize(mob);
+        return threshold > 0 && size >= threshold;
+    }
+
+    /**
+     * Just before a mob despawns, with {@code despawnPickedUpMobs} on: everything it picked up goes
+     * back on the ground - the slots vanilla marked as a guaranteed drop, which is what picking an
+     * item up does - and so does every member's, and an enderman's block. Natural gear (a zombie
+     * born with a helmet) despawns with the mob as in vanilla.
+     */
+    public static void dropOnDespawn(Mob mob) {
+        if (mob.level().isClientSide() || !getDespawnPickedUpMobs(mob)) {
+            return;
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = mob.getItemBySlot(slot);
+            if (!stack.isEmpty() && dropChance(mob, slot) > 1.0F && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                mob.spawnAtLocation(stack.copy());
+                mob.setItemSlot(slot, ItemStack.EMPTY);
+            }
+        }
+        ListTag members = getMemberLoadouts(mob);
+        for (int i = 0; i < members.size(); i++) {
+            CompoundTag loadout = members.getCompound(i);
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                String key = slot.getName();
+                if (loadout.contains(key, Tag.TAG_COMPOUND) && loadout.getFloat(key + DROP_CHANCE_SUFFIX) > 1.0F) {
+                    ItemStack stack = ItemStack.of(loadout.getCompound(key));
+                    if (!stack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                        mob.spawnAtLocation(stack);
+                    }
+                }
+            }
+        }
+        if (mob instanceof EnderMan enderMan && enderMan.getCarriedBlock() != null) {
+            ItemStack block = new ItemStack(enderMan.getCarriedBlock().getBlock());
+            if (!block.isEmpty()) {
+                mob.spawnAtLocation(block);
+            }
+            enderMan.setCarriedBlock(null);
+        }
     }
 
     public static boolean getStackBosses(Entity at) {return setting("stackBosses", at, config.getStackBosses());}

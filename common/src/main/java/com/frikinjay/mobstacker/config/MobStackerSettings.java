@@ -27,7 +27,7 @@ public final class MobStackerSettings {
     // caps are world-level spawn limits rather than a property of a place. Everything else can be
     // given a different value inside a region.
     private static final java.util.Set<String> GLOBAL_ONLY = java.util.Set.of(
-            "stackMode", "playerStackRadius", "alwaysShowFeedback",
+            "stackMode", "playerStackRadius", "alwaysShowFeedback", "countStackMembers",
             "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
             "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
     // Settings a region gives about itself rather than about the mobs in it. An override of one of
@@ -265,21 +265,37 @@ public final class MobStackerSettings {
                 0, 3600, () -> MobStacker.config.getSeparationCooldown(),
                 v -> MobStacker.config.setSeparationCooldown(v), 0));
 
-        // --- Mob caps (vanilla spawn caps per category) ---
-        register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Vanilla spawn cap for the monster category.",
-                0, 128, () -> MobStacker.config.getMonsterMobCap(), v -> MobStacker.config.setMonsterMobCap(v), 22));
-        register(ConfigOption.ofInt("creatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for the creature (animal) category.",
-                0, 128, () -> MobStacker.config.getCreatureMobCap(), v -> MobStacker.config.setCreatureMobCap(v), 5));
-        register(ConfigOption.ofInt("ambientMobCap", Category.MOBCAPS, "Vanilla spawn cap for the ambient (bat) category.",
-                0, 128, () -> MobStacker.config.getAmbientMobCap(), v -> MobStacker.config.setAmbientMobCap(v), 7));
-        register(ConfigOption.ofInt("axolotlsMobCap", Category.MOBCAPS, "Vanilla spawn cap for axolotls.",
-                0, 128, () -> MobStacker.config.getAxolotlsMobCap(), v -> MobStacker.config.setAxolotlsMobCap(v), 2));
-        register(ConfigOption.ofInt("undergroundWaterCreatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for underground water creatures (glow squid).",
-                0, 128, () -> MobStacker.config.getUndergroundWaterCreatureMobCap(), v -> MobStacker.config.setUndergroundWaterCreatureMobCap(v), 2));
-        register(ConfigOption.ofInt("waterCreatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for water creatures (squid, dolphin).",
-                0, 128, () -> MobStacker.config.getWaterCreatureMobCap(), v -> MobStacker.config.setWaterCreatureMobCap(v), 2));
-        register(ConfigOption.ofInt("waterAmbientMobCap", Category.MOBCAPS, "Vanilla spawn cap for water ambient mobs (fish).",
-                0, 128, () -> MobStacker.config.getWaterAmbientMobCap(), v -> MobStacker.config.setWaterAmbientMobCap(v), 8));
+        // --- Spawning & despawning: the vanilla spawn caps per category, and despawning (1.12.0) ---
+        register(ConfigOption.ofBool("countStackMembers", Category.MOBCAPS,
+                "Every mob in a stack counts towards the spawn caps, so a world with stacks has as many mobs "
+                        + "as vanilla, in fewer entities. Off: a whole stack counts as one mob, so far more mobs "
+                        + "can exist at once (and farms that spawn give more).",
+                () -> MobStacker.config.getCountStackMembers(), v -> MobStacker.config.setCountStackMembers(v), true));
+        register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Spawn cap for the monster category (vanilla 70).",
+                0, 128, () -> MobStacker.config.getMonsterMobCap(), v -> MobStacker.config.setMonsterMobCap(v), 70));
+        register(ConfigOption.ofInt("creatureMobCap", Category.MOBCAPS, "Spawn cap for the creature (animal) category (vanilla 10).",
+                0, 128, () -> MobStacker.config.getCreatureMobCap(), v -> MobStacker.config.setCreatureMobCap(v), 10));
+        register(ConfigOption.ofInt("ambientMobCap", Category.MOBCAPS, "Spawn cap for the ambient (bat) category (vanilla 15).",
+                0, 128, () -> MobStacker.config.getAmbientMobCap(), v -> MobStacker.config.setAmbientMobCap(v), 15));
+        register(ConfigOption.ofInt("axolotlsMobCap", Category.MOBCAPS, "Spawn cap for axolotls (vanilla 5).",
+                0, 128, () -> MobStacker.config.getAxolotlsMobCap(), v -> MobStacker.config.setAxolotlsMobCap(v), 5));
+        register(ConfigOption.ofInt("undergroundWaterCreatureMobCap", Category.MOBCAPS, "Spawn cap for underground water creatures, i.e. glow squid (vanilla 5).",
+                0, 128, () -> MobStacker.config.getUndergroundWaterCreatureMobCap(), v -> MobStacker.config.setUndergroundWaterCreatureMobCap(v), 5));
+        register(ConfigOption.ofInt("waterCreatureMobCap", Category.MOBCAPS, "Spawn cap for water creatures: squid, dolphins (vanilla 5).",
+                0, 128, () -> MobStacker.config.getWaterCreatureMobCap(), v -> MobStacker.config.setWaterCreatureMobCap(v), 5));
+        register(ConfigOption.ofInt("waterAmbientMobCap", Category.MOBCAPS, "Spawn cap for water ambient mobs: fish (vanilla 20).",
+                0, 128, () -> MobStacker.config.getWaterAmbientMobCap(), v -> MobStacker.config.setWaterAmbientMobCap(v), 20));
+        register(ConfigOption.ofBool("despawnPickedUpMobs", Category.MOBCAPS,
+                "A mob that picks up an item (a zombie taking a sword off the ground) can still despawn, and "
+                        + "drops what it picked up when it goes; an enderman carrying a block drops the block. "
+                        + "Vanilla keeps such a mob forever. What Let Me Despawn does, in short.",
+                () -> MobStacker.config.getDespawnPickedUpMobs(), v -> MobStacker.config.setDespawnPickedUpMobs(v), false));
+        register(ConfigOption.ofInt("persistentStackSize", Category.MOBCAPS,
+                "A stack of at least this many mobs never despawns on its own, for pens and farms that keep "
+                        + "their mobs. 0: a stack despawns like any single mob, as vanilla would despawn the "
+                        + "crowd it stands for.",
+                0, Integer.MAX_VALUE, () -> MobStacker.config.getPersistentStackSize(),
+                v -> MobStacker.config.setPersistentStackSize(v), 0));
     }
 
     private MobStackerSettings() {

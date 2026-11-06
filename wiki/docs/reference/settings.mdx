@@ -100,21 +100,23 @@ See [Breeding, shearing & drops]($gameplay/farming).
 | `compactDrops` | `true` | `true`, `false` | yes | Merge a stacked mob's death drops into as few full item stacks as possible. |
 | `compactExperience` | `true` | `true`, `false` | yes | Combine a stacked mob's death experience into a single orb. |
 
-## Mob caps
+## Spawning & despawning
 
-The spawn caps vanilla uses for each kind of mob, as a setting. **The mod lowers them by default**,
-even while stacking is off (an inheritance from the original MobStacker). Set a cap to its
-vanilla value for vanilla spawning. Global only.
+Vanilla's spawn caps, each as a setting (global only), with every mob in a stack counted towards
+them, and what despawns. See [For server owners]($reference/server_owners#spawning-and-despawning).
 
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
-| `monsterMobCap` | `22` | 0 to 128 | no | Vanilla spawn cap for the monster category. Vanilla: 70. |
-| `creatureMobCap` | `5` | 0 to 128 | no | Vanilla spawn cap for the creature (animal) category. Vanilla: 10. |
-| `ambientMobCap` | `7` | 0 to 128 | no | Vanilla spawn cap for the ambient (bat) category. Vanilla: 15. |
-| `axolotlsMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for axolotls. Vanilla: 5. |
-| `undergroundWaterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for underground water creatures (glow squid). Vanilla: 5. |
-| `waterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for water creatures (squid, dolphin). Vanilla: 5. |
-| `waterAmbientMobCap` | `8` | 0 to 128 | no | Vanilla spawn cap for water ambient mobs (fish). Vanilla: 20. |
+| `countStackMembers` | `true` | `true`, `false` | no | Every mob in a stack counts towards the spawn caps, so a world with stacks has as many mobs as vanilla, in fewer entities. Off: a whole stack counts as one mob, so far more mobs can exist at once (and farms that spawn give more). |
+| `monsterMobCap` | `70` | 0 to 128 | no | Spawn cap for the monster category (vanilla 70). |
+| `creatureMobCap` | `10` | 0 to 128 | no | Spawn cap for the creature (animal) category (vanilla 10). |
+| `ambientMobCap` | `15` | 0 to 128 | no | Spawn cap for the ambient (bat) category (vanilla 15). |
+| `axolotlsMobCap` | `5` | 0 to 128 | no | Spawn cap for axolotls (vanilla 5). |
+| `undergroundWaterCreatureMobCap` | `5` | 0 to 128 | no | Spawn cap for underground water creatures, i.e. glow squid (vanilla 5). |
+| `waterCreatureMobCap` | `5` | 0 to 128 | no | Spawn cap for water creatures: squid, dolphins (vanilla 5). |
+| `waterAmbientMobCap` | `20` | 0 to 128 | no | Spawn cap for water ambient mobs: fish (vanilla 20). |
+| `despawnPickedUpMobs` | `false` | `true`, `false` | yes | A mob that picks up an item (a zombie taking a sword off the ground) can still despawn, and drops what it picked up when it goes; an enderman carrying a block drops the block. Vanilla keeps such a mob forever. What Let Me Despawn does, in short. |
+| `persistentStackSize` | `0` | 0 to 2147483647 | yes | A stack of at least this many mobs never despawns on its own, for pens and farms that keep their mobs. 0: a stack despawns like any single mob, as vanilla would despawn the crowd it stands for. |
 
 ## Separator
 
@@ -135,4 +137,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (56 settings).*
+*This page is generated from the mod's settings registry (59 settings).*

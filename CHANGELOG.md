@@ -36,9 +36,21 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   mod's or data pack's tag next to single mobs - in the commands (`/mobstacker list deny entity add
   #raiders`), in the GUI (the entry box completes tags too) and per region. A tag that is not loaded
   is kept and marked, like a modded mob.
+- **Every mob in a stack counts towards the spawn caps** (`countStackMembers`, on, global): a world with
+  stacks has as many mobs as vanilla, in fewer entities. Off, a whole stack counts as one mob, as
+  before, and far more mobs can exist.
+- **`despawnPickedUpMobs` (off)**: a mob that picks up an item can still despawn, and drops what it
+  picked up when it goes; an enderman carrying a block drops the block. Vanilla keeps such mobs
+  forever. The part of Let Me Despawn that matters with stacks; use one or the other, not both.
+- **`persistentStackSize` (0, off)**: a stack of at least this many mobs never despawns on its own.
 - **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
 - **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
 ### Changed
+- **The spawn caps are vanilla's** (70/10/15/5/5/5/20). They were lowered to 22/5/7/2/2/2/8, even with
+  stacking off, which made a fresh install spawn about a third of vanilla's monsters. A config that
+  still holds exactly the old numbers is moved to vanilla's the first time it loads (the server log
+  says so); caps somebody changed stay. The config page is called "Spawning & despawning" now.
+- The Fabric jar no longer suggests installing Let Me Despawn.
 - **New configs leave `cobblemon` and `pixelmon` mobs alone** (the deny mod list), as the original
   mod does: a Pokémon's identity lives in its own data, which no stack can keep. An existing config
   keeps its list.

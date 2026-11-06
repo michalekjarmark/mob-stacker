@@ -29,7 +29,7 @@ preserved — the mobs are still there, they just travel together.
 > (47 and up) nothing at all. Stacking itself is server-side — a client only needs the mod for the GUI
 > and the region boxes. Use the jar for your loader: `mobstacker-1.20.1-fabric-…` or
 > `mobstacker-1.20.1-forge-…`.
-> *Let Me Despawn* is an optional companion, never a requirement.
+> *Let Me Despawn* is not needed: its part that matters with stacks is built in (`despawnPickedUpMobs`).
 
 > 📝 **Changelog:** see [CHANGELOG.md](CHANGELOG.md).
 
@@ -60,6 +60,9 @@ preserved — the mobs are still there, they just travel together.
   out of stacks, the way players expect. Vanilla's easter-egg names still work.
 - 🐴 **Pets and mounts are left alone** — nothing you have tamed, saddled, loaded or leashed is ever
   stacked, and touching a wild herd hands you one animal out of it.
+- 🌱 **Vanilla's number of mobs, in fewer entities** — every mob in a stack counts towards the spawn
+  caps, so stacking saves the server work without changing how many mobs there are (or switch it off
+  for more). Mobs that picked something up can despawn again, dropping it, and big stacks can be kept.
 - 🏘️ **Villages, raids and bosses keep working** — a villager with a bed or a job, an animal being
   bred, a raider in a raid, an enderman with a block and a player's iron golem stay single; bosses
   stack only if you allow it. A stack that claims a bed hands it to one villager, who steps out.
@@ -77,10 +80,11 @@ preserved — the mobs are still there, they just travel together.
 - 🧩 **Fabric and Forge** — the same mod on both loaders since 1.11.0: Fabric API on Fabric, nothing at
   all on Forge. The old *Almanac* dependency is built in.
 
-> 🔗 **Good companions:** [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn)
-> for vanilla-style despawning, and
+> 🔗 **Good companions:**
 > [Spawncap Control Utility](https://www.curseforge.com/minecraft/mc-mods/spawncapcontrolutility) or
 > [In Control!](https://www.curseforge.com/minecraft/mc-mods/in-control) for finer spawn control.
+> [Let Me Despawn](https://modrinth.com/mod/lmd) works too, but use it **or** `despawnPickedUpMobs`, not
+> both.
 
 ## Configuration
 
@@ -172,8 +176,18 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `separatorItem` | Which item splits a stack (the GUI completes item ids as you type) | `minecraft:diamond` |
 | `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
-The vanilla per-category spawn caps are settings too (category `mobcaps`, global only):
-`/mobstacker set monsterMobCap <0-128>`, and `/mobstacker help mobcaps` lists them all.
+### Spawning & despawning
+
+| Setting | Description | Default |
+|---|---|---|
+| `countStackMembers` | Every mob in a stack counts towards the spawn caps, so a world with stacks has vanilla's number of mobs. `false`: a stack counts as one mob, and far more mobs can exist. Global only | `true` |
+| `monsterMobCap` … `waterAmbientMobCap` | The seven vanilla spawn caps, `0`-`128`, global only (`/mobstacker help mobcaps`) | vanilla's: `70`, `10`, `15`, `5`, `5`, `5`, `20` |
+| `despawnPickedUpMobs` | A mob that picked up an item can still despawn, and drops what it picked up; an enderman drops its block. Vanilla keeps such mobs forever | `false` |
+| `persistentStackSize` | A stack of at least this many mobs never despawns on its own. `0` = stacks despawn like single mobs | `0` |
+
+Before 1.12.0 the caps were lowered to 22/5/7/2/2/2/8 even with stacking off, and a stack counted as
+one mob. A config still holding exactly those numbers is moved to vanilla's the first time 1.12.0
+loads it; caps somebody changed stay.
 
 ## Commands
 
@@ -373,7 +387,7 @@ region…** and **Edit area…** open an editor for a region's kind, dimension a
 **Here** button that fills a corner from where you are standing; the same screen deletes a region,
 behind a second click. Redrawing a region keeps its settings and its priority.
 
-Only `stackMode`, `playerStackRadius` and the mob caps stay global — the first two decide where the
+Only `stackMode`, `playerStackRadius`, the mob caps with `countStackMembers` and `alwaysShowFeedback` stay global — the first two decide where the
 region system applies at all, and the caps are world-level spawn limits rather than a property of a
 place.
 

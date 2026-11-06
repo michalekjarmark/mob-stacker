@@ -66,6 +66,10 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean privateRegions = true;
     // Off by default: vanilla's sendCommandFeedback gamerule decides, as for every other command.
     private boolean alwaysShowFeedback = false;
+    // 1.12.0, spawning and despawning (ROADMAP #15 / #41).
+    private boolean countStackMembers = true;
+    private boolean despawnPickedUpMobs = false;
+    private int persistentStackSize = 0;
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -118,6 +122,7 @@ public class MobStackerConfig implements MobLists.Holder {
             try (FileReader reader = new FileReader(file)) {
                 MobStackerConfig loaded = GSON.fromJson(reader, MobStackerConfig.class);
                 if (loaded != null) {
+                    loaded.migrateOldCapDefaults();
                     return loaded;
                 }
             } catch (Exception e) {
@@ -125,6 +130,21 @@ public class MobStackerConfig implements MobLists.Holder {
             }
         }
         return new MobStackerConfig();
+    }
+
+    /**
+     * A config written before 1.12.0 holds the lowered caps whether or not anybody chose them, since
+     * every field is written out. Exactly those seven numbers mean nobody touched them, so they move
+     * to vanilla's, which with countStackMembers give vanilla's number of mobs. Any other numbers
+     * were somebody's choice and stay. The next save writes the new ones, so this happens once.
+     */
+    private void migrateOldCapDefaults() {
+        if (mobCaps != null && mobCaps.isOldDefault()) {
+            mobCaps.setVanilla();
+            MobStacker.logger.info("MobStacker: the spawn caps were the old lowered defaults (22/5/7/2/2/2/8) "
+                    + "and are vanilla's now (70/10/15/5/5/5/20): every mob in a stack counts towards them "
+                    + "since 1.12.0 (countStackMembers). Set them again to keep the old ones.");
+        }
     }
 
     public void save() {
@@ -517,6 +537,27 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public boolean getAlwaysShowFeedback() { return alwaysShowFeedback; }
 
+    public boolean getCountStackMembers() { return countStackMembers; }
+
+    public void setCountStackMembers(boolean countStackMembers) {
+        this.countStackMembers = countStackMembers;
+        save();
+    }
+
+    public boolean getDespawnPickedUpMobs() { return despawnPickedUpMobs; }
+
+    public void setDespawnPickedUpMobs(boolean despawnPickedUpMobs) {
+        this.despawnPickedUpMobs = despawnPickedUpMobs;
+        save();
+    }
+
+    public int getPersistentStackSize() { return persistentStackSize; }
+
+    public void setPersistentStackSize(int persistentStackSize) {
+        this.persistentStackSize = Math.max(0, persistentStackSize);
+        save();
+    }
+
     public boolean getStackBosses() { return stackBosses; }
 
     public void setStackBosses(boolean stackBosses) {
@@ -664,13 +705,32 @@ public class MobStackerConfig implements MobLists.Holder {
     public void setWaterAmbientMobCap(int value) { mobCaps.setWaterAmbient(value); save(); }
 
     private static class MobCaps {
-        private int monster = 22;
-        private int creature = 5;
-        private int ambient = 7;
-        private int axolotls = 2;
-        private int undergroundWaterCreature = 2;
-        private int waterCreature = 2;
-        private int waterAmbient = 8;
+        // Vanilla's since 1.12.0. They were 22/5/7/2/2/2/8, inherited from the original mod, which
+        // lowered them because a stack counted as one mob; every member counts now
+        // (countStackMembers), so vanilla's numbers mean vanilla's number of mobs.
+        private int monster = 70;
+        private int creature = 10;
+        private int ambient = 15;
+        private int axolotls = 5;
+        private int undergroundWaterCreature = 5;
+        private int waterCreature = 5;
+        private int waterAmbient = 20;
+
+        /** Whether these are exactly the lowered caps every config before 1.12.0 was written with. */
+        private boolean isOldDefault() {
+            return monster == 22 && creature == 5 && ambient == 7 && axolotls == 2
+                    && undergroundWaterCreature == 2 && waterCreature == 2 && waterAmbient == 8;
+        }
+
+        private void setVanilla() {
+            monster = 70;
+            creature = 10;
+            ambient = 15;
+            axolotls = 5;
+            undergroundWaterCreature = 5;
+            waterCreature = 5;
+            waterAmbient = 20;
+        }
 
         private void setMonster(int value) { monster = validateCap(value); }
         private void setCreature(int value) { creature = validateCap(value); }
