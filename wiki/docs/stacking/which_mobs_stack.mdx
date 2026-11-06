@@ -18,17 +18,22 @@ have a look never rewrites a list you built:
 | List | Default |
 |---|---|
 | deny, entity | `minecraft:ender_dragon`, `minecraft:vex` |
-| deny, mod | `corpse` |
+| deny, mod | `corpse`, `cobblemon`, `pixelmon` (a config made before 1.12.0: `corpse`) |
 | allow, entity | empty |
 | allow, mod | empty |
 
 ```
 /mobstacker list deny entity add minecraft:iron_golem
+/mobstacker list deny entity add #minecraft:raiders  # every mob in that tag
 /mobstacker list deny mod add alexsmobs           # every mob from that mod
 /mobstacker list allow entity add minecraft:cow
 /mobstacker set mobListMode whitelist
 /mobstacker list deny entity list
 ```
+
+An entity list takes **tags** as well as single mobs (since 1.12.0): vanilla's (`#minecraft:raiders`,
+`#minecraft:skeletons`), or any tag a mod or a data pack adds. `#raiders` is short for
+`#minecraft:raiders`, the way `cow` is short for `minecraft:cow`.
 
 `/mobstacker ignore …` still works as the old name for `list deny …`.
 
@@ -38,7 +43,8 @@ In the config screen the lists are behind **Mob lists…**. The entry box comple
 
 A `minecraft:` id that names no mob is a typo and is refused. An id from **another mod** is accepted
 even when that mod is not installed (a list has to survive its mod being removed for a while), but it
-is shown as `(not loaded)` so you can tell it does nothing right now.
+is shown as `(not loaded)` so you can tell it does nothing right now. A tag is treated the same way:
+one that is not loaded is kept and marked.
 
 ### Lists per region
 
@@ -54,6 +60,49 @@ copy of the global list:
 Entity lists and mod lists are taken over separately. Adding to a list the region only inherits is
 refused rather than silently turned into a list with one entry, which would drop everything you could
 see in it. The **Mob lists…** button on the region screen does the same.
+
+## Never, whatever the lists say
+
+Some mobs stay single even when a list lets them in (1.12.0):
+
+| What | Why |
+|---|---|
+| The kinds in the tag `#mobstacker:unstackable`: the wandering trader, the allay, the bee, the vex | Each is one of a kind: its trades, what it holds, its hive, its evoker |
+| An animal in love mode | Somebody is breeding it |
+| An iron golem a player built | It guards somebody's base. A village's golems, an iron farm's included, still stack |
+| A raider in an active raid, a patrol leader | A raid counts its raiders one by one, and a wave could end early |
+| A villager that has claimed a bed, a workstation or a bell | One bed, one job, one villager |
+| An enderman carrying a block | The block belongs to that one |
+| A mob with the `NoAI` flag | Somebody froze it on purpose |
+| A boss, unless `stackBosses` is on | See below |
+
+When a **stack** claims a bed or a workstation, or picks up a block, one member takes it and steps
+out of the stack; the rest stay stacked. So a breeder, a trading hall or an iron farm counts its
+villagers one by one. A villager caught after it already took the job takes the profession and its
+trades with it.
+
+The `#mobstacker:unstackable` tag comes with the mod and a data pack can change it, like any tag. To
+let bees stack, for example, put this in a data pack as `data/mobstacker/tags/entity_types/unstackable.json`:
+
+```json
+{
+  "replace": true,
+  "values": ["minecraft:wandering_trader", "minecraft:allay", "minecraft:vex"]
+}
+```
+
+### Bosses
+
+`stackBosses` is off by default. A boss is any of these:
+
+- a mob with a boss bar of its own (the wither, and many modded bosses);
+- a kind in the tag `#mobstacker:bosses`: the ender dragon, the wither, the warden, the elder
+  guardian, plus the loader's own `#c:bosses` (Fabric) or `#forge:bosses` (Forge);
+- a kind whose base max health is at least `bossHealthThreshold` (default 150; vanilla's are the
+  wither 300, the dragon 200, a ravager 100). It catches other mods' bosses without a boss bar. `0`
+  turns this test off.
+
+Both settings can differ per region, like any other.
 
 ## Spawn origin
 

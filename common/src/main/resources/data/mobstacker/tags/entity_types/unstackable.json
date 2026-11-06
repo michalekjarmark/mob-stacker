@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:wandering_trader",
+    "minecraft:allay",
+    "minecraft:bee",
+    "minecraft:vex"
+  ]
+}

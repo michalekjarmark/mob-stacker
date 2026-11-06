@@ -169,9 +169,15 @@ public final class MobVariants {
             rule(SnowGolem.class, "one of them has lost its pumpkin",
                     (a, b) -> a.hasPumpkin() == b.hasPumpkin(),
                     (from, to) -> copyNbtKeys(from, to, "Pumpkin")),
-            rule(EnderMan.class, "the block it carries",
-                    (a, b) -> Objects.equals(a.getCarriedBlock(), b.getCarriedBlock()),
-                    (from, to) -> copyNbtKeys(from, to, "carriedBlockState"))
+            // An enderman carrying a block never stacks at all (StackRefusal.CARRIES_BLOCK), and one
+            // that picks a block up while stacked leaves the stack with it (MobStacker#shedClaims).
+            // This rule is the second lock on the same door, and it copies nothing on purpose: up
+            // to 1.11.0 two endermen carrying dirt merged and one dirt block was gone, and every mob
+            // made out of a stack - the remainder after a kill included - got the block again, so
+            // each kill of a carrying stack dropped one more.
+            rule(EnderMan.class, "one of them carries a block",
+                    (a, b) -> a.getCarriedBlock() == null && b.getCarriedBlock() == null,
+                    (from, to) -> { })
     );
 
     private MobVariants() {}

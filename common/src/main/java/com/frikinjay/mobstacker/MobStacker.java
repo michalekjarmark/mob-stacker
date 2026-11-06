@@ -6,6 +6,7 @@ import com.frikinjay.mobstacker.config.MobStackerConfig;
 import com.frikinjay.mobstacker.config.StackAi;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
+import com.frikinjay.mobstacker.mixin.AbstractVillagerAccessor;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
@@ -16,7 +17,9 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
@@ -28,13 +31,18 @@ import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
@@ -47,18 +55,25 @@ import net.minecraft.world.entity.animal.Cat;
 import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.PatrollingMonster;
 import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -149,6 +164,29 @@ public final class MobStacker {
 
     private static final WeakHashMap<Class<?>, Boolean> bossEntityCache = new WeakHashMap<>();
     private static final WeakHashMap<Class<?>, Field> bossFieldCache = new WeakHashMap<>();
+
+    /**
+     * Kinds that never stack, whatever the settings say (1.12.0): a mob whose whole point is being
+     * one of a kind - a wandering trader and its trades, an allay and what it holds, a vex and its
+     * evoker, a bee and its hive. Shipped as a data pack tag so a server can change it without a
+     * new jar; see data/mobstacker/tags/entity_types/unstackable.json.
+     */
+    public static final TagKey<EntityType<?>> UNSTACKABLE_TAG =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "unstackable"));
+    /**
+     * Bosses, which stack only while {@code stackBosses} is on. Also pulls in the loaders' own
+     * {@code #c:bosses} (Fabric) and {@code #forge:bosses} when they exist.
+     */
+    public static final TagKey<EntityType<?>> BOSSES_TAG =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "bosses"));
+    /**
+     * A kind's base max health as registered, per type. Read off the type and not the mob, because
+     * stackHealth raises a stack's own max health with every member: twenty cows would read as a
+     * 200-health boss.
+     */
+    private static final Map<EntityType<?>, Double> BASE_MAX_HEALTH = new ConcurrentHashMap<>();
+    /** How often (ticks) a stack checks whether one of its members has to leave it (shedClaims). */
+    private static final int SHED_INTERVAL = 20;
 
     private static final Pattern STACKED_NAME_PATTERN = Pattern.compile(" x\\d+$");
 
@@ -265,6 +303,19 @@ public final class MobStacker {
             return StackRefusal.DYING;
         }
 
+        // Kinds that never stack (1.12.0). The tag is the server's to change, through a data pack.
+        if (entity.getType().is(UNSTACKABLE_TAG)) {
+            return StackRefusal.UNSTACKABLE;
+        }
+        if (!getStackBosses(entity) && isBoss(entity)) {
+            return StackRefusal.BOSS;
+        }
+        // stackAi never sets this flag (it would outlive the mod), so a mob with it was frozen by a
+        // player or a map on purpose: a display, a statue, a puzzle piece.
+        if (entity.isNoAi()) {
+            return StackRefusal.NO_AI;
+        }
+
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
@@ -274,6 +325,11 @@ public final class MobStacker {
 
         if (isPlayerBound(entity)) {
             return StackRefusal.PLAYER_BOUND;
+        }
+
+        StackRefusal busy = busyRefusal(entity);
+        if (busy != null) {
+            return busy;
         }
 
         // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
@@ -395,6 +451,11 @@ public final class MobStacker {
         if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
             return true;
         }
+        // A golem somebody built to guard their base. The ones an iron farm makes are the village's,
+        // not a player's, so the farm still stacks.
+        if (entity instanceof IronGolem golem && golem.isPlayerCreated()) {
+            return true;
+        }
         // Trust is the other way a player owns an animal without owning it. An ocelot is never tamed
         // and a fox remembers who bred it by UUID, so neither has an owner field for the checks above
         // to notice - and a merge would hand one wild mob's indifference to the whole stack.
@@ -402,6 +463,133 @@ public final class MobStacker {
             return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
         }
         return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();
+    }
+
+    /**
+     * Something the mob is in the middle of that a merge would cut short (1.12.0): an animal a
+     * player is breeding, a raider counted by its raid, a villager holding a claim, an enderman
+     * holding a block. Each would lose the thing to the merge - the love, the raid's tally, the bed
+     * or workstation, the block itself.
+     */
+    public static StackRefusal busyRefusal(Mob entity) {
+        if (entity instanceof Animal animal && animal.isInLove()) {
+            return StackRefusal.IN_LOVE;
+        }
+        // A raid counts its raiders one entity at a time: one merged away is one the raid thinks is
+        // gone, so a wave could end early, and the stack left behind would no longer belong to it.
+        if (entity instanceof Raider raider && raider.hasActiveRaid()) {
+            return StackRefusal.RAID;
+        }
+        if (entity instanceof PatrollingMonster patrol && patrol.isPatrolLeader()) {
+            return StackRefusal.RAID;
+        }
+        if (entity instanceof Villager villager && hasVillagerClaim(villager)) {
+            return StackRefusal.VILLAGER_CLAIM;
+        }
+        if (entity instanceof EnderMan enderMan && enderMan.getCarriedBlock() != null) {
+            return StackRefusal.CARRIES_BLOCK;
+        }
+        return null;
+    }
+
+    /** The claims a villager holds on the world: a bed, a workstation (or one it is walking to), a bell. */
+    private static final List<MemoryModuleType<GlobalPos>> VILLAGER_CLAIMS = List.of(
+            MemoryModuleType.HOME, MemoryModuleType.JOB_SITE, MemoryModuleType.POTENTIAL_JOB_SITE,
+            MemoryModuleType.MEETING_POINT);
+
+    private static boolean hasVillagerClaim(Villager villager) {
+        Brain<Villager> brain = villager.getBrain();
+        for (MemoryModuleType<GlobalPos> claim : VILLAGER_CLAIMS) {
+            if (brain.hasMemoryValue(claim)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A boss, for {@code stackBosses}: anything with a boss bar of its own, anything in
+     * {@code #mobstacker:bosses}, and any kind whose base max health reaches
+     * {@code bossHealthThreshold} (0 turns that last test off).
+     */
+    public static boolean isBoss(Mob mob) {
+        if (mob.getType().is(BOSSES_TAG) || isBossEntity(mob)) {
+            return true;
+        }
+        int threshold = getBossHealthThreshold(mob);
+        return threshold > 0 && baseMaxHealth(mob.getType()) >= threshold;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static double baseMaxHealth(EntityType<?> type) {
+        return BASE_MAX_HEALTH.computeIfAbsent(type, t -> {
+            try {
+                if (DefaultAttributes.hasSupplier(t)) {
+                    AttributeSupplier attributes = DefaultAttributes.getSupplier((EntityType<? extends LivingEntity>) t);
+                    if (attributes.hasAttribute(Attributes.MAX_HEALTH)) {
+                        return attributes.getBaseValue(Attributes.MAX_HEALTH);
+                    }
+                }
+            } catch (RuntimeException e) {
+                logger.debug("MobStacker: no default attributes for {}", t, e);
+            }
+            return 0.0;
+        });
+    }
+
+    /**
+     * A stacked villager that has claimed a bed, a workstation or a bell, or a stacked enderman
+     * that has picked up a block, hands that over to one member, which leaves the stack with it
+     * (1.12.0). The stack is one entity, so it is the stack that claims or picks up - and every
+     * member would then share the one bed, the one block, or one workstation's trades. Taking it
+     * out at once keeps trading halls, breeders and iron farms counting villagers one by one, and
+     * stops a block being carried by twenty endermen.
+     *
+     * <p>On a timer of its own rather than the stack scan's, which may be switched off.
+     */
+    private static void shedClaims(Mob mob) {
+        if (!(mob instanceof Villager) && !(mob instanceof EnderMan)) {
+            return;
+        }
+        if ((mob.tickCount + mob.getId()) % SHED_INTERVAL != 0 || getStackSize(mob) <= 1) {
+            return;
+        }
+        if (mob instanceof EnderMan stack) {
+            BlockState carried = stack.getCarriedBlock();
+            if (carried == null) {
+                return;
+            }
+            if (separateOne(stack, false) instanceof EnderMan leaving) {
+                leaving.setCarriedBlock(carried);
+                stack.setCarriedBlock(null);
+            }
+            return;
+        }
+        Villager stack = (Villager) mob;
+        if (!hasVillagerClaim(stack)) {
+            return;
+        }
+        if (!(separateOne(stack, false) instanceof Villager leaving)) {
+            return;
+        }
+        Brain<Villager> from = stack.getBrain();
+        Brain<Villager> to = leaving.getBrain();
+        for (MemoryModuleType<GlobalPos> claim : VILLAGER_CLAIMS) {
+            from.getMemory(claim).ifPresent(pos -> to.setMemory(claim, pos));
+            from.eraseMemory(claim);
+        }
+        // Caught after the job was already taken (a workstation right next to the stack): the
+        // profession, its trades and its experience go with the claim, and the rest of the stack is
+        // jobless again, as it was before.
+        if (stack.getVillagerData().getProfession() != VillagerProfession.NONE) {
+            leaving.setVillagerData(stack.getVillagerData());
+            AbstractVillagerAccessor stackTrades = (AbstractVillagerAccessor) stack;
+            ((AbstractVillagerAccessor) leaving).mobstacker$setOffers(stackTrades.mobstacker$offers());
+            leaving.setVillagerXp(stack.getVillagerXp());
+            stack.setVillagerData(stack.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            stackTrades.mobstacker$setOffers(null);
+            stack.setVillagerXp(0);
+        }
     }
 
     /**
@@ -934,6 +1122,8 @@ public final class MobStacker {
         // Cheap: an int out of a tag the mob already carries, and it short-circuits to nothing for
         // every mob that was never separated, which is very nearly all of them.
         tickSeparationGrace(mob);
+        // Two instanceof checks for every other mob.
+        shedClaims(mob);
 
         int interval = getStackScanInterval(mob);
         if (interval <= 0) {
@@ -2366,6 +2556,10 @@ public final class MobStacker {
     public static boolean hadVanillaSweepConditions(Entity attacker) {
         return attacker != null && attacker == sweepContextAttacker && sweepContextVanillaSweep;
     }
+
+    public static boolean getStackBosses(Entity at) {return setting("stackBosses", at, config.getStackBosses());}
+
+    public static int getBossHealthThreshold(Entity at) {return setting("bossHealthThreshold", at, config.getBossHealthThreshold());}
 
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 

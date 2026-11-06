@@ -26,9 +26,11 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.commands.arguments.ResourceOrTagKeyArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -530,6 +532,18 @@ public class MobStackerCommands {
         return builder.buildFuture();
     }
 
+    /** The mobs, then every entity tag the game knows ({@code #minecraft:raiders}), for a mob list. */
+    private static CompletableFuture<Suggestions> suggestEntitiesAndTags(CommandContext<CommandSourceStack> context,
+                                                                       SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        for (String tag : MobLists.tagEntries()) {
+            if (tag.startsWith(remaining) || tag.substring(tag.indexOf(':') + 1).startsWith(remaining)) {
+                builder.suggest(tag);
+            }
+        }
+        return suggestEntities(context, builder);
+    }
+
     private static CompletableFuture<Suggestions> suggestMods(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase();
         Set<String> modsWithMobs = new HashSet<>();
@@ -797,14 +811,17 @@ public class MobStackerCommands {
         boolean entities = kind.flavour() == MobListKind.Flavour.ENTITY;
         String argName = entities ? "entityId" : "modId";
         LiteralArgumentBuilder<CommandSourceStack> node = literal(entities ? "entity" : "mod")
+                // An entity entry is one mob (minecraft:cow) or, since 1.12.0, a tag of them
+                // (#minecraft:raiders): vanilla's resource-or-tag argument reads both.
                 .then(literal("add")
                         .then((entities
-                                ? argument(argName, ResourceLocationArgument.id()).suggests(MobStackerCommands::suggestEntities)
+                                ? argument(argName, ResourceOrTagKeyArgument.resourceOrTagKey(Registries.ENTITY_TYPE))
+                                        .suggests(MobStackerCommands::suggestEntitiesAndTags)
                                 : argument(argName, StringArgumentType.word()).suggests(MobStackerCommands::suggestMods))
                                 .executes(ctx -> editList(ctx, kind, regionArg, true))))
                 .then(literal("remove")
                         .then((entities
-                                ? argument(argName, ResourceLocationArgument.id())
+                                ? argument(argName, ResourceOrTagKeyArgument.resourceOrTagKey(Registries.ENTITY_TYPE))
                                 : argument(argName, StringArgumentType.word()))
                                 .suggests((ctx, builder) -> suggestListed(ctx, builder, kind, regionArg))
                                 .executes(ctx -> editList(ctx, kind, regionArg, false))))
@@ -842,8 +859,10 @@ public class MobStackerCommands {
     }
 
     private static String listEntry(CommandContext<CommandSourceStack> context, MobListKind kind) {
+        // asPrintable() is "minecraft:cow" for a mob and "#minecraft:raiders" for a tag - the very
+        // spelling a list stores.
         return kind.flavour() == MobListKind.Flavour.ENTITY
-                ? ResourceLocationArgument.getId(context, "entityId").toString()
+                ? context.getArgument("entityId", ResourceOrTagKeyArgument.Result.class).asPrintable()
                 : StringArgumentType.getString(context, "modId");
     }
 

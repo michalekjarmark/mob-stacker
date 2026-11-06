@@ -27,6 +27,8 @@ back, and wherever a whole number is asked for, `max` means as high as it goes.
 | `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
 | `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
 | `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
+| `stackBosses` | `false` | `true`, `false` | yes | Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's #c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold. |
+| `bossHealthThreshold` | `150` | 0 to 1000000 | yes | A mob kind whose base max health is at least this counts as a boss, which catches other mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager 100). 0: only boss bars and the tag count. Does nothing while `stackBosses` is on. |
 | `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
 | `stackHealth` | `false` | `true`, `false` | yes | A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on. |
 | `stackAi` | `NORMAL` | `normal`, `physics_only`, `frozen` | yes | What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, is carried by water, knocked back and kept afloat, so farms keep working (sheep do not eat grass, so their wool does not grow back, and villagers do not work). FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob always keeps its AI. |
@@ -133,4 +135,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (54 settings).*
+*This page is generated from the mod's settings registry (56 settings).*

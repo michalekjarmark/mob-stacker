@@ -57,7 +57,7 @@ Only mobs that look and behave the same merge, so a stack never changes what a m
 | Tropical fish | the pattern or colours differ |
 | Creeper | one of them is charged |
 | Snow golem | one of them has lost its pumpkin |
-| Enderman | it carries a different block |
+| Enderman | one of them carries a block |
 
 Babies and adults never mix. Loose babies stack with each other if
 `enableAnimalBabyStacking` (farm animals, matched by age) or `enableHostileBabyStacking` (baby
@@ -67,10 +67,17 @@ Some mobs never stack at all, with no setting to change it:
 
 - **anything a player has made theirs**: tamed or owned, saddled, wearing horse armour, carrying a
   chest, leashed, riding or being ridden, an ocelot that trusts you, a fox that knows you, a horse
-  being tamed. See [Pets & mounts]($gameplay/pets_and_mounts);
+  being tamed, an iron golem a player built. See [Pets & mounts]($gameplay/pets_and_mounts);
+- **a mob that is busy with something a merge would cut short**: an animal in love mode, a raider in
+  an active raid or a patrol leader, a villager with a bed, a workstation or a bell, an enderman
+  carrying a block;
+- the kinds in the data pack tag `#mobstacker:unstackable` (the wandering trader, the allay, the bee,
+  the vex), and a mob with the `NoAI` flag;
 - an entity tagged with `{StackData:{CanStack:0b}}`.
 
-The ender dragon and the vex are on the default [deny list]($stacking/which_mobs_stack). A boss that
+**Bosses** stack only while `stackBosses` is on. All of this, and how a stack hands a bed or a block
+to one member, is on [Which mobs stack]($stacking/which_mobs_stack#never-whatever-the-lists-say). The
+ender dragon and the vex are also on the default [deny list]($stacking/which_mobs_stack). A boss that
 does stack keeps its health bar, which shows the stack's name.
 
 Others stay out by default and can be let in: mobs with **equipment** (`stackEquippedMobs`, see

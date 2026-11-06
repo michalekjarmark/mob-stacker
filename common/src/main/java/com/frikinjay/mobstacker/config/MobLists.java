@@ -3,12 +3,18 @@ package com.frikinjay.mobstacker.config;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.StackRefusal;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The one place that answers "is this kind of mob allowed to stack here".
@@ -30,6 +36,18 @@ public final class MobLists {
 
     private MobLists() {
     }
+
+    /** What an entity entry starts with when it names a tag of mobs rather than one mob (1.12.0). */
+    public static final String TAG_PREFIX = "#";
+
+    /**
+     * Parsed tag entries, keyed by the text stored in a list. {@link #listed} runs for every mob of
+     * every scan, and a list is a handful of strings that change a few times a server's lifetime,
+     * so parsing each entry once is enough. An entry that does not parse maps to {@link #NO_TAG}.
+     */
+    private static final Map<String, TagKey<EntityType<?>>> TAGS = new ConcurrentHashMap<>();
+    private static final TagKey<EntityType<?>> NO_TAG =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("mobstacker", "not_a_tag"));
 
     /**
      * Anything that carries the four lists: the global config, and each region.
@@ -70,15 +88,15 @@ public final class MobLists {
 
     /** Which list keeps the mob's type out of stacks where it stands, or null when none does. */
     public static StackRefusal refusal(Entity entity) {
-        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        EntityType<?> type = entity.getType();
         // The region is found once and then used for both halves of the answer. Going through
         // MobStacker.setting for the mode would search the region list a second time, and this runs
         // for every mob of every scan.
         StackRegion region = MobStacker.regionAt(entity);
         if (modeIn(region) == MobListMode.WHITELIST) {
-            return listed(MobListKind.Half.ALLOW, region, id) ? null : StackRefusal.NOT_ALLOW_LISTED;
+            return listed(MobListKind.Half.ALLOW, region, type) ? null : StackRefusal.NOT_ALLOW_LISTED;
         }
-        return listed(MobListKind.Half.DENY, region, id) ? StackRefusal.DENY_LISTED : null;
+        return listed(MobListKind.Half.DENY, region, type) ? StackRefusal.DENY_LISTED : null;
     }
 
     /** The list mode in force inside {@code region}: its own override, or the global one. */
@@ -94,11 +112,48 @@ public final class MobLists {
         return MobStacker.config.getMobListMode();
     }
 
-    /** Whether {@code id} appears on either list of this half, by its own name or by its mod. */
-    public static boolean listed(MobListKind.Half half, StackRegion region, ResourceLocation id) {
+    /**
+     * Whether {@code type} appears on either list of this half: by its own id, by a tag it is in
+     * ({@code #minecraft:raiders}), or by its mod.
+     */
+    public static boolean listed(MobListKind.Half half, StackRegion region, EntityType<?> type) {
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         List<String> entities = effective(MobListKind.of(half, MobListKind.Flavour.ENTITY), region);
         List<String> mods = effective(MobListKind.of(half, MobListKind.Flavour.MOD), region);
-        return contains(entities, id.toString()) || contains(mods, id.getNamespace());
+        return contains(entities, id.toString()) || inListedTag(entities, type) || contains(mods, id.getNamespace());
+    }
+
+    private static boolean inListedTag(List<String> entities, EntityType<?> type) {
+        for (String entry : entities) {
+            if (entry.startsWith(TAG_PREFIX)) {
+                TagKey<EntityType<?>> tag = tagOf(entry);
+                if (tag != NO_TAG && type.is(tag)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The tag a {@code #namespace:path} entry names, or {@link #NO_TAG} when it names none. */
+    private static TagKey<EntityType<?>> tagOf(String entry) {
+        return TAGS.computeIfAbsent(entry.toLowerCase(Locale.ROOT), text -> {
+            ResourceLocation id = ResourceLocation.tryParse(text.substring(TAG_PREFIX.length()));
+            return id == null ? NO_TAG : TagKey.create(Registries.ENTITY_TYPE, id);
+        });
+    }
+
+    /** Whether a stored entity entry names a tag rather than one mob. */
+    public static boolean isTag(String entry) {
+        return entry != null && entry.startsWith(TAG_PREFIX);
+    }
+
+    /** Every entity tag the running game knows, as list entries ({@code #minecraft:raiders}), sorted. */
+    public static List<String> tagEntries() {
+        List<String> out = new ArrayList<>();
+        BuiltInRegistries.ENTITY_TYPE.getTagNames().forEach(tag -> out.add(TAG_PREFIX + tag.location()));
+        out.sort(String::compareTo);
+        return out;
     }
 
     /**
@@ -131,7 +186,10 @@ public final class MobLists {
     public static String normalise(MobListKind kind, String entry) {
         String trimmed = entry == null ? "" : entry.trim().toLowerCase(Locale.ROOT);
         if (kind.flavour() == MobListKind.Flavour.ENTITY && !trimmed.isEmpty() && !trimmed.contains(":")) {
-            return "minecraft:" + trimmed;
+            // "#raiders" is vanilla's tag the same way "cow" is vanilla's mob.
+            return trimmed.startsWith(TAG_PREFIX)
+                    ? TAG_PREFIX + "minecraft:" + trimmed.substring(TAG_PREFIX.length())
+                    : "minecraft:" + trimmed;
         }
         return trimmed;
     }
@@ -168,6 +226,11 @@ public final class MobLists {
                     ? "'" + normalised + "' names one mob, not a mod. Use just the part before the colon."
                     : null;
         }
+        if (isTag(normalised)) {
+            // Any well-formed tag is taken on trust, a minecraft: one included: tags come from data
+            // packs, which can be added and removed while the list stays. entryNote says so out loud.
+            return tagOf(normalised) == NO_TAG ? "'" + normalised + "' is not a usable tag." : null;
+        }
         return entityProblem(normalised);
     }
 
@@ -197,6 +260,9 @@ public final class MobLists {
         if (isLoaded(kind, normalised)) {
             return null;
         }
+        if (kind.flavour() == MobListKind.Flavour.ENTITY && isTag(normalised)) {
+            return "No tag called '" + normalised + "' is loaded — kept, in case the data pack or mod that adds it comes back.";
+        }
         return kind.flavour() == MobListKind.Flavour.ENTITY
                 ? "Nothing in this game is called '" + normalised + "' — kept, in case the mod that adds it comes back."
                 : "No mob in this game comes from '" + normalised + "' — kept, in case the mod that adds them comes back.";
@@ -214,6 +280,10 @@ public final class MobLists {
                 }
             }
             return false;
+        }
+        if (isTag(normalised)) {
+            TagKey<EntityType<?>> tag = tagOf(normalised);
+            return tag != NO_TAG && BuiltInRegistries.ENTITY_TYPE.getTag(tag).isPresent();
         }
         ResourceLocation id = ResourceLocation.tryParse(normalised);
         return id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id);

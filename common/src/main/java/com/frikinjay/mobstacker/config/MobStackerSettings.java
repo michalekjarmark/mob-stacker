@@ -77,6 +77,18 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("stackNamedMobs", Category.STACKING,
                 "Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way.",
                 () -> MobStacker.config.getStackNamedMobs(), v -> MobStacker.config.setStackNamedMobs(v), false));
+        register(ConfigOption.ofBool("stackBosses", Category.STACKING,
+                "Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses "
+                        + "tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's "
+                        + "#c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold.",
+                () -> MobStacker.config.getStackBosses(), v -> MobStacker.config.setStackBosses(v), false));
+        register(ConfigOption.ofInt("bossHealthThreshold", Category.STACKING,
+                "A mob kind whose base max health is at least this counts as a boss, which catches other "
+                        + "mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager "
+                        + "100). 0: only boss bars and the tag count.",
+                0, 1000000, () -> MobStacker.config.getBossHealthThreshold(),
+                v -> MobStacker.config.setBossHealthThreshold(v), 150)
+                .redundantWhen("stackBosses"));
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)

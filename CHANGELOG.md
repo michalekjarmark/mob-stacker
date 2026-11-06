@@ -7,6 +7,46 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.12.0] - 2026-11-06
+### Added
+- **Mobs that should stay single now do, without any setting** (stacks that already exist are left
+  as they are; `/mobstacker unstack` splits them):
+  - **a datapack tag, `#mobstacker:unstackable`**: the wandering trader (its trades), the allay (what
+    it holds), the bee (its hive) and the vex (its evoker). A data pack can add to it or empty it;
+  - **an animal in love mode**: two cows a player is breeding no longer merge into the stack next to
+    them;
+  - **an iron golem a player built**. The ones a village makes, an iron farm's included, still stack;
+  - **a raider in an active raid, and a patrol leader**. A raid counts its raiders one by one, so a
+    merged one looked dead to it and a wave could end early;
+  - **a villager that has claimed a bed, a workstation or a bell**;
+  - **an enderman carrying a block**;
+  - **a mob with the `NoAI` flag**, which a player or a map set on purpose.
+- **A stack hands a claim over to one member, who leaves the stack with it.** A stacked villager that
+  claims a bed or a workstation, or a stacked enderman that picks up a block, used to do it for the
+  whole stack: twenty villagers shared one bed and one set of trades, and twenty endermen one block.
+  Now one member takes it and steps out, and the rest stay stacked, so breeders, trading halls and
+  iron farms count their villagers one by one again. A villager caught after it already took the job
+  takes the profession, the trades and the experience with it.
+- **Bosses do not stack unless `stackBosses` is on** (off by default). A boss is a mob with a boss
+  bar of its own, one in the new `#mobstacker:bosses` tag (the ender dragon, the wither, the warden,
+  the elder guardian, plus the loaders' own `#c:bosses` / `#forge:bosses`), or one whose base health
+  reaches **`bossHealthThreshold`** (150; 0 turns that test off), which catches other mods' bosses
+  that have no boss bar. Both settings can differ per region.
+- **Tags in the mob lists**: an entity list takes `#minecraft:raiders`, `#minecraft:skeletons` or any
+  mod's or data pack's tag next to single mobs - in the commands (`/mobstacker list deny entity add
+  #raiders`), in the GUI (the entry box completes tags too) and per region. A tag that is not loaded
+  is kept and marked, like a modded mob.
+- **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
+- **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
+### Changed
+- **New configs leave `cobblemon` and `pixelmon` mobs alone** (the deny mod list), as the original
+  mod does: a Pokémon's identity lives in its own data, which no stack can keep. An existing config
+  keeps its list.
+### Fixed
+- **A stack of endermen carrying a block duplicated the block**: every mob the stack gave back (the
+  rest of a stack after a kill, one taken out) carried it again, so each kill dropped one more. And two
+  endermen carrying the same block merged and one block was gone.
+
 ## [1.11.0] - 2026-11-04
 ### Added
 - **A Forge version for Minecraft 1.20.1** (Forge 47 and up; it needs nothing else). Same features

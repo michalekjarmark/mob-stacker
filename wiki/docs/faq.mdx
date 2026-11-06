@@ -37,6 +37,11 @@ A single mob renamed with a name tag is protected; a renamed stack keeps growing
 Anything a player has tamed, saddled, leashed or loaded never stacks. See
 [Pets & mounts]($gameplay/pets_and_mounts).
 
+**Bees, villagers, wandering traders or a boss do not stack.**
+Since 1.12.0 some mobs stay single on purpose: the kinds in `#mobstacker:unstackable`, villagers with a
+bed or a job, animals being bred, raiders in a raid, bosses unless `stackBosses` is on, and a few more.
+See [Which mobs stack]($stacking/which_mobs_stack#never-whatever-the-lists-say).
+
 **`maxstack list` says 64 but the config screen says 5000.**
 Both are right: a mob type with its own ceiling ignores `maxStackSize`. See
 [How stacks form]($stacking/how_stacks_form#how-big-a-stack-may-grow).

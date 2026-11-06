@@ -355,8 +355,17 @@ public final class MobStackerListScreen extends Screen {
 
     /** The entry box's completion. The list of ids it offers follows the tab. */
     private List<String> candidates() {
-        boolean mods = tab != CEILINGS_TAB && TABS[tab].flavour() == MobListKind.Flavour.MOD;
-        return mods ? IdCompletion.modIds() : IdCompletion.entityIds();
+        if (tab == CEILINGS_TAB) {
+            return IdCompletion.entityIds();
+        }
+        if (TABS[tab].flavour() == MobListKind.Flavour.MOD) {
+            return IdCompletion.modIds();
+        }
+        // A mob list also takes tags (1.12.0). Asked afresh each time: the tags are the server's,
+        // and they change with its data packs, so they cannot be cached for the game like the ids.
+        List<String> all = new ArrayList<>(IdCompletion.entityIds());
+        all.addAll(MobLists.tagEntries());
+        return all;
     }
 
     private void updateSuggestions(String typed) {

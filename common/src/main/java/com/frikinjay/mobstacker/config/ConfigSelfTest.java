@@ -338,6 +338,33 @@ public final class ConfigSelfTest {
                 "an absent modded id was accepted without a word");
         check(report, MobLists.entityProblem("minecraft:not_a_mob") != null,
                 "a stack ceiling accepted a vanilla id nothing answers to");
+
+        // Tags in the mob lists (1.12.0).
+        check(report, "#minecraft:raiders".equals(MobLists.normalise(MobListKind.DENY_ENTITIES, "#Raiders")),
+                "'#Raiders' was not stored as #minecraft:raiders");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "#minecraft:raiders") == null,
+                "an entity list refused a vanilla tag");
+        check(report, MobLists.entryProblem(MobListKind.ALLOW_ENTITIES, "#somemod:whatever") == null,
+                "an entity list refused a tag that is not loaded, which a data pack may add later");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "#not a tag") != null,
+                "an entity list accepted a malformed tag");
+        check(report, MobLists.entityProblem("#minecraft:raiders") != null,
+                "a stack ceiling accepted a tag, which only the mob lists understand");
+        check(report, MobLists.isLoaded(MobListKind.DENY_ENTITIES, "#minecraft:raiders"),
+                "#minecraft:raiders is not reported as loaded");
+        check(report, !MobLists.isLoaded(MobListKind.DENY_ENTITIES, "#somemod:whatever"),
+                "an absent tag is reported as loaded");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "#somemod:whatever") != null,
+                "an absent tag was accepted without a word");
+
+        // The mod's own tags have to come out of the jar on both loaders (a Forge jar without a
+        // pack.mcmeta loads none of its data).
+        check(report, EntityType.BEE.is(MobStacker.UNSTACKABLE_TAG),
+                "#mobstacker:unstackable was not loaded from the jar (no bee in it)");
+        check(report, EntityType.WITHER.is(MobStacker.BOSSES_TAG) && EntityType.WARDEN.is(MobStacker.BOSSES_TAG),
+                "#mobstacker:bosses was not loaded from the jar (no wither or warden in it)");
+        check(report, !EntityType.COW.is(MobStacker.UNSTACKABLE_TAG) && !EntityType.COW.is(MobStacker.BOSSES_TAG),
+                "a cow is in one of the mod's never-stack tags");
     }
 
     /**

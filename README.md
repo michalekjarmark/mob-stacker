@@ -60,6 +60,9 @@ preserved — the mobs are still there, they just travel together.
   out of stacks, the way players expect. Vanilla's easter-egg names still work.
 - 🐴 **Pets and mounts are left alone** — nothing you have tamed, saddled, loaded or leashed is ever
   stacked, and touching a wild herd hands you one animal out of it.
+- 🏘️ **Villages, raids and bosses keep working** — a villager with a bed or a job, an animal being
+  bred, a raider in a raid, an enderman with a block and a player's iron golem stay single; bosses
+  stack only if you allow it. A stack that claims a bed hands it to one villager, who steps out.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop and a floating `-N` hologram.
 - 🐣 **Stack breeding & baby stacks** — breed a stacked animal into a single baby-stack; loose babies
   stack too.
@@ -98,13 +101,15 @@ given its own value inside a region.
 | `stackEquippedMobs` | Let mobs holding or wearing items stack at all | `false` |
 | `keepMemberEquipment` | Remember each member's gear so it drops when *that* mob dies. Needs `stackEquippedMobs` | `true` |
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
+| `stackBosses` | Let bosses stack: a boss bar, the `#mobstacker:bosses` tag, or base health of at least `bossHealthThreshold` — see [Which mobs may stack](#which-mobs-may-stack) | `false` |
+| `bossHealthThreshold` | Base max health from which a mob kind counts as a boss (`0` = only boss bars and the tag) | `150` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |
 | `stackHealth` | The stack shares one health bar, scaled to its size. Forces `killWholeStackOnDeath` on | `false` |
 | `stackAi` | What a stack of two or more does with its AI: `NORMAL`, `PHYSICS_ONLY` or `FROZEN` — see [Stacks without AI](#stacks-without-ai) | `NORMAL` |
 | `mobListMode` | `BLACKLIST` (everything stacks except the ignored lists) or `WHITELIST` (nothing stacks except the allowed lists) | `BLACKLIST` |
-| `ignoredEntities` | Entity ids that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
-| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse"]` |
-| `allowedEntities` | The only entity ids that stack, in `WHITELIST` mode | `[]` |
+| `ignoredEntities` | Entity ids (or tags, `#minecraft:raiders`) that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
+| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse", "cobblemon", "pixelmon"]` (before 1.12.0: `["corpse"]`) |
+| `allowedEntities` | The only entity ids (or tags) that stack, in `WHITELIST` mode | `[]` |
 | `allowedMods` | Mod ids whose entities stack, in `WHITELIST` mode | `[]` |
 | `maxStackSizes` | A ceiling for one mob type, e.g. `{"minecraft:cow": 64}`. Anything unlisted follows `maxStackSize` | `{}` |
 | `regions` | Allow/deny cuboids — see [Regions](#regions--modes) | `[]` |
@@ -186,7 +191,7 @@ commands answer whoever typed them again.
 /mobstacker reset <setting> | all
 /mobstacker reload                   # re-read the JSON after editing it by hand
 
-/mobstacker list deny|allow entity|mod add|remove|list <id>
+/mobstacker list deny|allow entity|mod add|remove|list <id>   # an entity id or a tag, #minecraft:raiders
 /mobstacker maxstack <entity> <n|max|default>   # a ceiling for one mob type
 /mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
@@ -253,6 +258,21 @@ Because inheriting and overriding are different states, a region takes a list ov
 /mobstacker region mobs sheep_pen allow entity add minecraft:sheep
 /mobstacker region mobs sheep_pen allow entity inherit    # back to following the global list
 ```
+
+An entity list also takes **tags** (since 1.12.0): `#minecraft:raiders`, `#minecraft:skeletons`, or
+any tag a mod or a data pack adds (`/mobstacker list deny entity add #raiders`).
+
+**Some mobs never stack, whatever the lists say** (1.12.0): the kinds in the data pack tag
+`#mobstacker:unstackable` (the wandering trader, the allay, the bee and the vex — a data pack can
+change it), an animal in love mode, an iron golem a player built, a raider in an active raid and a
+patrol leader, a villager that has claimed a bed, a workstation or a bell, an enderman carrying a
+block, and a mob with the `NoAI` flag. When a stack itself claims a bed or a workstation, or picks up a
+block, **one member takes it and steps out**, and the rest stay stacked.
+
+**Bosses stack only while `stackBosses` is on.** A boss is a mob with a boss bar of its own, one in
+the tag `#mobstacker:bosses` (the ender dragon, the wither, the warden and the elder guardian, plus the
+loader's `#c:bosses` or `#forge:bosses`), or a kind whose base max health is at least
+`bossHealthThreshold` (150), which catches other mods' bosses without a boss bar.
 
 Adding straight to an inherited list is refused rather than silently turned into a one-entry
 override — the ten entries you were looking at would have gone. Handing a region's list back to the

@@ -10,6 +10,7 @@
     "client.SheepFurLayerMixin"
   ],
   "mixins": [
+    "AbstractVillagerAccessor",
     "AnimalMixin",
     "ArmorStandAccessor",
     "ArmorStandMixin",

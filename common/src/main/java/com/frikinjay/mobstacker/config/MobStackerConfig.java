@@ -31,6 +31,9 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean stackEquippedMobs = false;
     private boolean keepMemberEquipment = true;
     private boolean stackNamedMobs = false;
+    // 1.12.0: bosses stay single unless this is on; what counts as one is MobStacker#isBoss.
+    private boolean stackBosses = false;
+    private int bossHealthThreshold = 150;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
@@ -81,8 +84,13 @@ public class MobStackerConfig implements MobLists.Holder {
             "minecraft:ender_dragon",
             "minecraft:vex"
     ));
+    // cobblemon and pixelmon since 1.12.0, as the original mod has them: a Pokémon carries its
+    // whole identity (species stats, moves, owner) in its own data, which no stack can keep. Only
+    // a config written from now on gets them; an existing one keeps the list it has.
     private volatile List<String> ignoredMods = new ArrayList<>(Arrays.asList(
-            "corpse"
+            "corpse",
+            "cobblemon",
+            "pixelmon"
     ));
     // The other half, consulted only while mobListMode is WHITELIST. Empty by default, which is why
     // switching a fresh config to WHITELIST stacks nothing until something is added - deliberate:
@@ -508,6 +516,20 @@ public class MobStackerConfig implements MobLists.Holder {
     public boolean getPrivateRegions() { return privateRegions; }
 
     public boolean getAlwaysShowFeedback() { return alwaysShowFeedback; }
+
+    public boolean getStackBosses() { return stackBosses; }
+
+    public void setStackBosses(boolean stackBosses) {
+        this.stackBosses = stackBosses;
+        save();
+    }
+
+    public int getBossHealthThreshold() { return bossHealthThreshold; }
+
+    public void setBossHealthThreshold(int bossHealthThreshold) {
+        this.bossHealthThreshold = Math.max(0, bossHealthThreshold);
+        save();
+    }
 
     public void setAlwaysShowFeedback(boolean alwaysShowFeedback) {
         this.alwaysShowFeedback = alwaysShowFeedback;

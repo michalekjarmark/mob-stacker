@@ -17,9 +17,17 @@ public enum StackRefusal {
     BABY_ANIMAL("it is a baby, and enableAnimalBabyStacking is off here"),
     BABY_HOSTILE("it is a baby, and enableHostileBabyStacking is off here"),
     DYING("it is dying"),
+    UNSTACKABLE("its kind is in the #mobstacker:unstackable tag (a data pack can change that)"),
+    BOSS("it is a boss (a boss bar, the #mobstacker:bosses tag, or bossHealthThreshold), "
+            + "and stackBosses is off here"),
+    NO_AI("its NoAI flag is set: somebody froze it on purpose"),
     EQUIPPED("it holds or wears something, and stackEquippedMobs is off here"),
     PLAYER_BOUND("a player has a claim on it: tamed, owned, saddled, leashed, riding or ridden, "
-            + "trusting, or halfway through being tamed"),
+            + "trusting, halfway through being tamed, or built by a player"),
+    IN_LOVE("it is in love mode: somebody is breeding it"),
+    RAID("it fights in a raid or leads a patrol"),
+    VILLAGER_CLAIM("it has claimed a bed, a workstation or a meeting point"),
+    CARRIES_BLOCK("it carries a block"),
     SEPARATION_GRACE("it was handed to a player a moment ago (separationCooldown)"),
     STACKING_OFF("stackMode is OFF"),
     DENY_REGION("it stands in a DENY region"),
