@@ -46,7 +46,14 @@ public final class MobStackerClientNetworking {
     public record RegionInfo(String name, String type, String dimension,
                              int x1, int y1, int z1, int x2, int y2, int z2,
                              int priority, String color, Map<String, String> settings,
-                             Map<MobListKind, List<String>> lists, Map<String, Integer> ceilings) {
+                             Map<MobListKind, List<String>> lists, Map<String, Integer> ceilings,
+                             boolean enabled, boolean wholeDimension, List<String> biomes) {
+        /** The same region with its on/off switch, whole-dimension flag and biomes as the server sent them. */
+        RegionInfo withFlags(boolean on, boolean whole, List<String> biomeFilter) {
+            return new RegionInfo(name, type, dimension, x1, y1, z1, x2, y2, z2, priority, color,
+                    settings, lists, ceilings, on, whole, List.copyOf(biomeFilter));
+        }
+
         /** Whether this region overrides that list, as opposed to inheriting the global one. */
         public boolean hasList(MobListKind kind) {
             return lists.containsKey(kind);
@@ -170,11 +177,28 @@ public final class MobStackerClientNetworking {
             }
             incomingRegions.add(new RegionInfo(name, type, dimension,
                     x1, y1, z1, x2, y2, z2, priority, color, overrides,
-                    regionLists, regionCeilings));
+                    regionLists, regionCeilings, true, false, List.of()));
         }
         // Written last by 1.9.1 and later; a server older than that sends nothing here, and a
         // server that has not said yes has said no.
         boolean incomingXray = buf.isReadable() && buf.readBoolean();
+        // 1.12.0 and later: each region's on/off switch, whole-dimension flag and biome filter, in
+        // the same order. Nothing here from an older server, whose regions are all on, all boxes and
+        // in every biome.
+        if (buf.isReadable()) {
+            int flagged = Math.min(buf.readVarInt(), incomingRegions.size());
+            for (int i = 0; i < flagged; i++) {
+                RegionInfo info = incomingRegions.get(i);
+                boolean on = buf.readBoolean();
+                boolean whole = buf.readBoolean();
+                int biomeCount = buf.readVarInt();
+                List<String> biomes = new ArrayList<>(biomeCount);
+                for (int b = 0; b < biomeCount; b++) {
+                    biomes.add(buf.readUtf());
+                }
+                incomingRegions.set(i, info.withFlags(on, whole, biomes));
+            }
+        }
         client.execute(() -> {
             authorized = incomingAuth;
             xrayAllowed = incomingXray;
@@ -311,7 +335,8 @@ public final class MobStackerClientNetworking {
             }
             REGIONS.set(i, new RegionInfo(info.name(), info.type(), info.dimension(),
                     info.x1(), info.y1(), info.z1(), info.x2(), info.y2(), info.z2(),
-                    info.priority(), info.color(), settings, info.lists(), info.ceilings()));
+                    info.priority(), info.color(), settings, info.lists(), info.ceilings(),
+                    info.enabled(), info.wholeDimension(), info.biomes()));
             return;
         }
     }

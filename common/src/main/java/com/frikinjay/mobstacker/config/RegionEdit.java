@@ -2,6 +2,8 @@ package com.frikinjay.mobstacker.config;
 
 import com.frikinjay.mobstacker.MobStacker;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -36,14 +38,31 @@ public final class RegionEdit {
     /**
      * A region's whole shape as one string, so the config GUI can create or redraw a region over the
      * existing two-string edit packet instead of needing a channel of its own:
-     * {@code ALLOW;minecraft:overworld;-10,60,-10;10,90,10}.
+     * {@code ALLOW;minecraft:overworld;-10,60,-10;10,90,10}. Since 1.12.0 it may go on with
+     * {@code ;whole} for a region that is its whole dimension (the corners still travel, as the box it
+     * keeps) and {@code ;biomes=minecraft:plains,#minecraft:is_forest} for its biome filter, where an
+     * empty list clears the filter and no part at all leaves it as it is.
+     *
+     * @param biomes the biome filter to store, or null to keep the one the region has
      */
     public record Definition(StackRegion.Type type, String dimension,
-                             int x1, int y1, int z1, int x2, int y2, int z2) {
+                             int x1, int y1, int z1, int x2, int y2, int z2, boolean wholeDimension,
+                             List<String> biomes) {
+        /** What the trailing part says for a whole-dimension region. */
+        private static final String WHOLE = "whole";
+        private static final String BIOMES = "biomes=";
+
+        public Definition(StackRegion.Type type, String dimension,
+                          int x1, int y1, int z1, int x2, int y2, int z2) {
+            this(type, dimension, x1, y1, z1, x2, y2, z2, false, null);
+        }
+
         public String encode() {
             return type.name() + ';' + dimension + ';'
                     + x1 + ',' + y1 + ',' + z1 + ';'
-                    + x2 + ',' + y2 + ',' + z2;
+                    + x2 + ',' + y2 + ',' + z2
+                    + (wholeDimension ? ";" + WHOLE : "")
+                    + (biomes != null ? ";" + BIOMES + String.join(",", biomes) : "");
         }
 
         /** @return the decoded definition, or null when the text is not one */
@@ -52,8 +71,20 @@ public final class RegionEdit {
                 return null;
             }
             String[] parts = raw.split(";");
-            if (parts.length != 4) {
+            if (parts.length < 4 || parts.length > 6) {
                 return null;
+            }
+            boolean whole = false;
+            List<String> biomes = null;
+            for (int i = 4; i < parts.length; i++) {
+                String part = parts[i].trim();
+                if (WHOLE.equals(part) && !whole) {
+                    whole = true;
+                } else if (part.startsWith(BIOMES) && biomes == null) {
+                    biomes = RegionBiomes.parseList(part.substring(BIOMES.length()));
+                } else {
+                    return null;
+                }
             }
             String[] first = parts[2].split(",");
             String[] second = parts[3].split(",");
@@ -64,7 +95,8 @@ public final class RegionEdit {
                 StackRegion.Type type = StackRegion.Type.valueOf(parts[0].trim().toUpperCase(java.util.Locale.ROOT));
                 return new Definition(type, parts[1].trim(),
                         Integer.parseInt(first[0].trim()), Integer.parseInt(first[1].trim()), Integer.parseInt(first[2].trim()),
-                        Integer.parseInt(second[0].trim()), Integer.parseInt(second[1].trim()), Integer.parseInt(second[2].trim()));
+                        Integer.parseInt(second[0].trim()), Integer.parseInt(second[1].trim()), Integer.parseInt(second[2].trim()),
+                        whole, biomes);
             } catch (IllegalArgumentException e) {
                 return null;
             }
@@ -80,7 +112,18 @@ public final class RegionEdit {
      */
     public static Result apply(String name, StackRegion.Type type, String dimension,
                                int x1, int y1, int z1, int x2, int y2, int z2) {
-        return apply(name, type, dimension, x1, y1, z1, x2, y2, z2, false);
+        return apply(name, type, dimension, false, x1, y1, z1, x2, y2, z2, null, false);
+    }
+
+    /**
+     * Creates or reshapes a region that is the whole of {@code dimension}. A new one gets
+     * {@link StackRegion#WHOLE_DIMENSION_CORNERS}; an existing one keeps the corners it had, so making
+     * it a box again later brings its old box back.
+     */
+    public static Result applyWholeDimension(String name, StackRegion.Type type, String dimension) {
+        StackRegion existing = MobStacker.config.getRegion(name == null ? "" : name.trim());
+        int[] c = existing != null ? existing.getCorners() : StackRegion.WHOLE_DIMENSION_CORNERS;
+        return apply(name, type, dimension, true, c[0], c[1], c[2], c[3], c[4], c[5], null, false);
     }
 
     /**
@@ -93,11 +136,17 @@ public final class RegionEdit {
      * {@code /mobstacker region add} has always refused that and pointed at {@code region bounds};
      * the GUI now goes through the same door.
      *
+     * @param wholeDimension the region is all of its dimension; the corners are kept beside that
+     * @param biomes its biome filter, or null to keep the one it has (a new region: none)
      * @param mustBeNew refuse rather than reshape when the name is taken
      */
-    public static Result apply(String name, StackRegion.Type type, String dimension,
-                               int x1, int y1, int z1, int x2, int y2, int z2, boolean mustBeNew) {
+    public static Result apply(String name, StackRegion.Type type, String dimension, boolean wholeDimension,
+                               int x1, int y1, int z1, int x2, int y2, int z2, List<String> biomes,
+                               boolean mustBeNew) {
         String problem = problem(name, type, dimension, x1, y1, z1, x2, y2, z2);
+        if (problem == null) {
+            problem = RegionBiomes.listProblem(biomes);
+        }
         if (problem != null) {
             return Result.failed(problem);
         }
@@ -111,11 +160,16 @@ public final class RegionEdit {
         }
         if (created) {
             region = new StackRegion(trimmed, dimension, type, x1, y1, z1, x2, y2, z2);
+            region.setWholeDimension(wholeDimension);
             MobStacker.config.addRegion(region);
         } else {
             region.setBounds(x1, y1, z1, x2, y2, z2);
             region.setType(type);
             region.setDimension(dimension);
+            region.setWholeDimension(wholeDimension);
+        }
+        if (biomes != null) {
+            region.setBiomes(biomes);
         }
 
         // Drawing an allow region while stacking is off is almost certainly meant to turn it on —
@@ -130,6 +184,7 @@ public final class RegionEdit {
 
         String what = created ? "Added " + type + " region '" : "Reshaped region '";
         String message = what + trimmed + "' in " + dimension + " " + region.describeBounds()
+                + (region.hasBiomeFilter() ? ", in " + RegionBiomes.join(region.getBiomes()) : "")
                 + (created ? "" : " (its settings were kept)")
                 + (switchedMode ? "  -  stackMode was OFF, switched to REGIONS so it takes effect." : "");
         return new Result(true, message);
@@ -145,9 +200,9 @@ public final class RegionEdit {
         if (definition == null) {
             return Result.failed("Malformed region definition.");
         }
-        return apply(name, definition.type(), definition.dimension(),
+        return apply(name, definition.type(), definition.dimension(), definition.wholeDimension(),
                 definition.x1(), definition.y1(), definition.z1(),
-                definition.x2(), definition.y2(), definition.z2(), mustBeNew);
+                definition.x2(), definition.y2(), definition.z2(), definition.biomes(), mustBeNew);
     }
 
     /**
@@ -192,6 +247,68 @@ public final class RegionEdit {
             return "'" + trimmed + "' is not a usable region name (letters, digits, _ . - only).";
         }
         return null;
+    }
+
+    /**
+     * Switches a region on or off, keeping everything it carries. Off, it is not there for anything:
+     * stacking, its settings, lists and ceilings all act as if it had been deleted.
+     */
+    public static Result setEnabled(String name, boolean enabled) {
+        String trimmed = name == null ? "" : name.trim();
+        StackRegion region = MobStacker.config.getRegion(trimmed);
+        if (region == null) {
+            return Result.failed("Region '" + trimmed + "' does not exist");
+        }
+        if (region.isEnabled() == enabled) {
+            return new Result(false, "Region '" + trimmed + "' is already " + (enabled ? "on" : "off"));
+        }
+        region.setEnabled(enabled);
+        MobStacker.config.save();
+        return new Result(true, enabled
+                ? "Region '" + trimmed + "' is on again"
+                : "Region '" + trimmed + "' is off - kept with everything it carries, but it does nothing until switched on");
+    }
+
+    /**
+     * Adds biomes to a region's filter, or takes them off it ({@code add} false). An emptied filter
+     * covers every biome again.
+     */
+    public static Result editBiomes(String name, List<String> entries, boolean add) {
+        String trimmed = name == null ? "" : name.trim();
+        StackRegion region = MobStacker.config.getRegion(trimmed);
+        if (region == null) {
+            return Result.failed("Region '" + trimmed + "' does not exist");
+        }
+        List<String> next = new ArrayList<>(region.getBiomes());
+        List<String> changed = new ArrayList<>();
+        for (String entry : entries) {
+            String value = RegionBiomes.normalise(entry);
+            if (add) {
+                String problem = RegionBiomes.entryProblem(value);
+                if (problem != null) {
+                    return Result.failed(problem);
+                }
+                if (!next.contains(value)) {
+                    next.add(value);
+                    changed.add(value);
+                }
+            } else if (next.remove(value)) {
+                changed.add(value);
+            }
+        }
+        if (changed.isEmpty()) {
+            return new Result(false, add ? "Region '" + trimmed + "' already has " + String.join(", ", entries)
+                    : "Region '" + trimmed + "' has no " + String.join(", ", entries) + " in its biomes");
+        }
+        String problem = RegionBiomes.listProblem(next);
+        if (problem != null) {
+            return Result.failed(problem);
+        }
+        region.setBiomes(next);
+        MobStacker.config.save();
+        return new Result(true, trimmed + ": " + (region.hasBiomeFilter()
+                ? "only in " + RegionBiomes.join(region.getBiomes())
+                : "every biome again"));
     }
 
     /** Removes a region and everything it carried. */

@@ -59,6 +59,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   - the **assimilator** (`enableAssimilator` off, `assimilatorItem` emerald, `consumeAssimilator` on):
     sneak and right-click a mob with it to switch whether that mob or stack may stack. Sneaking,
     unlike the original, so that trading with emeralds in hand does not switch a villager.
+- **Regions beyond boxes:**
+  - **a whole dimension**: `/mobstacker region add <name> <allow|deny> dimension [dimension]`, or
+    "whole dimension" in the area editor. No box is drawn; a box inside it wins at the same priority,
+    as a smaller region always does;
+  - **biome filters**: `/mobstacker region biomes <name> add <biome|#tag>` (and `remove`, `clear`), or
+    the editor's "only in biomes" box. The region then covers only the parts of its box, or of its
+    dimension, in those biomes: `#minecraft:is_forest`, `minecraft:desert`, any mod's biome or tag;
+  - **an on/off switch**: `/mobstacker region disable <name>` (and `enable`), or the button on the
+    region screen. A region that is off keeps everything it carries and does nothing - its box is
+    drawn grey;
+  - **`/mobstacker region list` is clickable** and comes in pages of ten: the name opens
+    `region show`, `[on]`/`[off]` switches the region, the arrows turn the page.
+  `/mobstacker inspect` says when a region covers the spot but is off or leaves out its biome.
 - **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
 - **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
 ### Changed

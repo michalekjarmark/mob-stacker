@@ -39,11 +39,16 @@ An entity `[id]` can also be a tag, `#minecraft:raiders` (1.12.0). `maxstack` ta
 
 ```
 /mobstacker region add <name> <allow|deny> <x1 y1 z1> <x2 y2 z2>
+/mobstacker region add <name> <allow|deny> dimension [dimension]   # a whole dimension
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>      # move or resize
+/mobstacker region bounds <name> dimension [dimension]      # make it a whole dimension
+/mobstacker region biomes <name> [add|remove <biome|#tag>|clear]   # only these biomes
+/mobstacker region enable <name>
+/mobstacker region disable <name>                           # keeps everything, does nothing
 /mobstacker region type <name> <allow|deny>
 /mobstacker region rename <name> <new name>
 /mobstacker region remove <name>
-/mobstacker region list
+/mobstacker region list [page]                              # clickable, ten a page
 /mobstacker region show <name>                              # corners, priority and its own settings
 /mobstacker region priority <name> <n>                      # higher wins where regions overlap
 /mobstacker region color <name> <colour|auto>               # the colour its box is drawn in

@@ -140,6 +140,26 @@ public final class StackToolsCommands {
                 : label("region ").append(value(region.getName()))
                         .append(label(" (" + region.getType() + ", priority " + region.getPriority() + ")")));
         CommandFeedback.success(source, () -> where, false);
+        // What a region does NOT cover here and why, since the answer above cannot say: switched off,
+        // or the spot is inside its area but in a biome its filter leaves out (1.12.0).
+        String dimension = mob.level().dimension().location().toString();
+        String biome = mob.level().getBiome(pos).unwrapKey().map(key -> key.location().toString()).orElse("?");
+        for (StackRegion other : MobStacker.config.getRegions()) {
+            if (other == region) {
+                continue;
+            }
+            if (!other.coversArea(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+                continue;
+            }
+            String why = !other.isEnabled() ? "is switched off"
+                    : !other.contains(mob.level(), pos) ? "leaves out this biome (" + biome + ")"
+                    : null;
+            if (why != null) {
+                String reason = why;
+                CommandFeedback.success(source, () -> label("  Region ").append(value(other.getName()))
+                        .append(label(" covers this spot but " + reason)), false);
+            }
+        }
 
         CommandFeedback.success(source, () -> label("Ceiling here: ").append(value(String.valueOf(MobStacker.getMaxMobStackSize(mob))))
                 .append(label(" (" + ceilingSource(mob, region) + ")"))

@@ -4,6 +4,7 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.network.MobStackerNetworking;
@@ -68,8 +69,12 @@ public final class MobStackerRegionScreen extends Screen {
     private static final int PRIORITY_W = 60;
     private static final int COLOR_X = 94;
     private static final int COLOR_W = 76;
+    // The on/off switch, between the "priority" label and its box.
+    private static final int SWITCH_X = -84;
+    private static final int SWITCH_W = 104;
 
     private Button colorButton;
+    private Button switchButton;
     /** The last local edit's answer, shown where a server's status line would be. */
     private String localStatus = "";
     private Button overlayBox;
@@ -203,8 +208,8 @@ public final class MobStackerRegionScreen extends Screen {
         }
         this.minecraft.setScreen(view == null
                 ? MobStackerRegionEditScreen.forNewRegion(this, remote, editable)
-                : MobStackerRegionEditScreen.forRegion(this, view.name(), view.type(),
-                        view.dimension(), view.corners(), remote, editable));
+                : MobStackerRegionEditScreen.forRegion(this, view.name(), view.type(), view.wholeDimension(),
+                        view.dimension(), view.corners(), view.biomes(), remote, editable));
     }
 
     /**
@@ -271,6 +276,34 @@ public final class MobStackerRegionScreen extends Screen {
         });
         addRenderableWidget(box);
         addColorButton();
+        addSwitchButton();
+    }
+
+    /**
+     * Switches the region off without deleting it, or back on. A property of the region like its
+     * priority and colour, so it sits on their row.
+     */
+    private void addSwitchButton() {
+        Button button = Button.builder(switchLabel(), b ->
+                applyEdit(MobStackerNetworking.REGION_ENABLED, String.valueOf(!currentRegion().enabled())))
+                .bounds(this.width / 2 + SWITCH_X, 68, SWITCH_W, 20).build();
+        button.active = editable;
+        this.switchButton = button;
+        addRenderableWidget(button);
+    }
+
+    private Component switchLabel() {
+        boolean on = currentRegion().enabled();
+        return Component.literal("region: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(on ? "on" : "OFF")
+                        .withStyle(on ? ChatFormatting.GREEN : ChatFormatting.RED));
+    }
+
+    /** True over the on/off switch, which explains itself in a tooltip. */
+    private boolean overSwitch(int mouseX, int mouseY) {
+        return showRows
+                && mouseX >= this.width / 2 + SWITCH_X && mouseX <= this.width / 2 + SWITCH_X + SWITCH_W
+                && mouseY >= 68 && mouseY <= 88;
     }
 
     /**
@@ -369,6 +402,7 @@ public final class MobStackerRegionScreen extends Screen {
             MobStackerRegionOverlay.toggle(currentRegion().name());
             rebuildOverlayRow();
         }).bounds(left, y, OVERLAY_BOX_W, 20).build();
+        box.active = currentRegion().hasBox();
         this.overlayBox = box;
         addRenderableWidget(box);
 
@@ -420,8 +454,13 @@ public final class MobStackerRegionScreen extends Screen {
         if (colorButton != null) {
             colorButton.setMessage(colorLabel());
         }
+        if (switchButton != null) {
+            switchButton.setMessage(switchLabel());
+        }
         if (overlayBox != null) {
             overlayBox.setMessage(overlayBoxLabel());
+            // A whole-dimension region has no box; its line at the top of the screen still follows.
+            overlayBox.active = currentRegion().hasBox();
         }
         if (overlayAll != null) {
             overlayAll.setMessage(overlayAllLabel());
@@ -435,6 +474,9 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     private Component overlayBoxLabel() {
+        if (!currentRegion().hasBox()) {
+            return Component.literal("Box: none").withStyle(ChatFormatting.GRAY);
+        }
         boolean shown = MobStackerRegionOverlay.isShown(currentRegion().name());
         return Component.literal("Box: " + (shown ? "shown" : "hidden"))
                 .withStyle(shown ? currentRegion().color().format() : ChatFormatting.GRAY);
@@ -696,7 +738,8 @@ public final class MobStackerRegionScreen extends Screen {
      * bookkeeping that the setting rows need.
      */
     private static boolean isRegionProperty(String id) {
-        return MobStackerNetworking.REGION_PRIORITY.equals(id) || MobStackerNetworking.REGION_COLOR.equals(id);
+        return MobStackerNetworking.REGION_PRIORITY.equals(id) || MobStackerNetworking.REGION_COLOR.equals(id)
+                || MobStackerNetworking.REGION_ENABLED.equals(id);
     }
 
     private void applyEdit(String id, String raw) {
@@ -753,6 +796,10 @@ public final class MobStackerRegionScreen extends Screen {
         if (MobStackerNetworking.REGION_COLOR.equals(id)) {
             region.setColor(raw.isEmpty() ? null : StackColor.valueOf(raw));
             MobStacker.config.save();
+            return;
+        }
+        if (MobStackerNetworking.REGION_ENABLED.equals(id)) {
+            RegionEdit.setEnabled(regionName, Boolean.parseBoolean(raw));
             return;
         }
         if (raw.isEmpty()) {
@@ -875,9 +922,11 @@ public final class MobStackerRegionScreen extends Screen {
         }
 
         MobStackerClientRegions.View region = currentRegion();
-        ChatFormatting typeColor = region.type() == StackRegion.Type.DENY ? ChatFormatting.RED : ChatFormatting.GREEN;
+        ChatFormatting typeColor = !region.enabled() ? ChatFormatting.GRAY
+                : region.type() == StackRegion.Type.DENY ? ChatFormatting.RED : ChatFormatting.GREEN;
         guiGraphics.drawCenteredString(this.font,
-                Component.literal(region.name() + "  [" + region.type() + "]").withStyle(typeColor),
+                Component.literal(region.name() + "  [" + region.type() + "]" + (region.enabled() ? "" : "  (off)"))
+                        .withStyle(typeColor),
                 this.width / 2, 26, 0xFFFFFF);
         // The scroll range rides along with the category, because the only gap below it belongs
         // to the priority box and the overlay row.
@@ -912,6 +961,16 @@ public final class MobStackerRegionScreen extends Screen {
                     Component.literal("'auto' = green for an allow region, red for a deny one.")
                             .withStyle(ChatFormatting.DARK_GRAY),
                     Component.literal("Right-click to go back one.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+            return;
+        }
+
+        if (overSwitch(mouseX, mouseY)) {
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
+                    Component.literal("on / off").withStyle(ChatFormatting.WHITE),
+                    Component.literal("Off, the region is kept with everything it carries - its area, settings, mob lists and ceilings - but does nothing, as if it had been deleted.")
+                            .withStyle(ChatFormatting.GRAY),
+                    Component.literal("Its box is drawn grey while it is off.")
                             .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
             return;
         }
@@ -1000,7 +1059,9 @@ public final class MobStackerRegionScreen extends Screen {
     private void renderFooter(GuiGraphics guiGraphics) {
         MobStackerClientRegions.View region = currentRegion();
         // Readable grey, not the dark grey that looks like a disabled line lying behind the screen.
-        Component footer = Component.literal(region.dimension() + "  " + region.bounds())
+        Component footer = Component.literal(region.dimension() + "  " + region.bounds()
+                        + (region.biomes().isEmpty() ? "" : "  in " + region.biomes().size()
+                        + (region.biomes().size() == 1 ? " biome" : " biomes")))
                 .withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("   -   ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal("gold").withStyle(ChatFormatting.GOLD))

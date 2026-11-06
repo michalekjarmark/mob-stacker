@@ -9,6 +9,7 @@ import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
 import com.frikinjay.mobstacker.config.StackMode;
+import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
@@ -23,6 +24,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
@@ -31,7 +33,9 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -145,17 +149,41 @@ public class MobStackerCommands {
                                         .then(literal("allow")
                                                 .then(argument("corner1", BlockPosArgument.blockPos())
                                                         .then(argument("corner2", BlockPosArgument.blockPos())
-                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.ALLOW)))))
+                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.ALLOW))))
+                                                .then(wholeDimension(ctx -> addWholeDimension(ctx, StackRegion.Type.ALLOW))))
                                         .then(literal("deny")
                                                 .then(argument("corner1", BlockPosArgument.blockPos())
                                                         .then(argument("corner2", BlockPosArgument.blockPos())
-                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.DENY)))))))
+                                                                .executes(ctx -> addRegion(ctx, StackRegion.Type.DENY))))
+                                                .then(wholeDimension(ctx -> addWholeDimension(ctx, StackRegion.Type.DENY))))))
                         .then(literal("bounds").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .then(argument("corner1", BlockPosArgument.blockPos())
                                                 .then(argument("corner2", BlockPosArgument.blockPos())
-                                                        .executes(MobStackerCommands::setRegionBounds)))))
+                                                        .executes(MobStackerCommands::setRegionBounds)))
+                                        .then(wholeDimension(MobStackerCommands::setRegionWholeDimension))))
+                        .then(literal("biomes").requires(MobStackerCommands::isAdmin)
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(MobStackerCommands::showRegionBiomes)
+                                        .then(literal("add")
+                                                .then(argument("biome", ResourceOrTagKeyArgument.resourceOrTagKey(Registries.BIOME))
+                                                        .suggests(MobStackerCommands::suggestBiomes)
+                                                        .executes(ctx -> editRegionBiomes(ctx, true))))
+                                        .then(literal("remove")
+                                                .then(argument("biome", ResourceOrTagKeyArgument.resourceOrTagKey(Registries.BIOME))
+                                                        .suggests(MobStackerCommands::suggestRegionBiomes)
+                                                        .executes(ctx -> editRegionBiomes(ctx, false))))
+                                        .then(literal("clear").executes(MobStackerCommands::clearRegionBiomes))))
+                        .then(literal("enable").requires(MobStackerCommands::isAdmin)
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(ctx -> setRegionEnabled(ctx, true))))
+                        .then(literal("disable").requires(MobStackerCommands::isAdmin)
+                                .then(argument("name", StringArgumentType.word())
+                                        .suggests(MobStackerCommands::suggestRegions)
+                                        .executes(ctx -> setRegionEnabled(ctx, false))))
                         .then(literal("type").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -168,7 +196,9 @@ public class MobStackerCommands {
                                         .suggests(MobStackerCommands::suggestRegions)
                                         .executes(MobStackerCommands::removeRegion)))
                         .then(literal("list").requires(MobStackerCommands::isAdmin)
-                                .executes(MobStackerCommands::listRegions))
+                                .executes(ctx -> listRegions(ctx, 1))
+                                .then(argument("page", IntegerArgumentType.integer(1))
+                                        .executes(ctx -> listRegions(ctx, IntegerArgumentType.getInteger(ctx, "page")))))
                         .then(literal("show").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -407,7 +437,11 @@ public class MobStackerCommands {
                 .append(Component.literal("  which mobs stack; see mobListMode").withStyle(ChatFormatting.GRAY)), false);
         CommandFeedback.success(source, () -> Component.literal("/mobstacker maxstack <entity> <n|default> | maxstack list").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  a ceiling for one mob type").withStyle(ChatFormatting.GRAY)), false);
-        CommandFeedback.success(source, () -> Component.literal("/mobstacker region <add|bounds|type|color|rename|remove|list|show|set|unset|priority|mobs|maxstack|owner|share>").withStyle(ChatFormatting.YELLOW), false);
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region <add|bounds|biomes|type|enable|disable|color|rename|remove|list|show|set|unset|priority|mobs|maxstack|owner|share>").withStyle(ChatFormatting.YELLOW), false);
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region add <name> <allow|deny> dimension [dimension]").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  a region that is a whole dimension, with no box").withStyle(ChatFormatting.GRAY)), false);
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker region biomes <name> [add|remove <biome|#tag>|clear]").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  only the parts of a region in these biomes").withStyle(ChatFormatting.GRAY)), false);
         CommandFeedback.success(source, () -> Component.literal("/mobstacker region owner <name> <player|none> | region share <name> <add|remove> <player>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  who besides admins sees a region (privateRegions)").withStyle(ChatFormatting.GRAY)), false);
         CommandFeedback.success(source, () -> Component.literal("/mobstacker inspect [target]").withStyle(ChatFormatting.YELLOW)
@@ -1166,14 +1200,14 @@ public class MobStackerCommands {
      */
     private static boolean stacksNowhere() {
         return MobStacker.config.getStackMode() == StackMode.REGIONS
-                && MobStacker.config.getRegions().stream().noneMatch(StackRegion::isAllow);
+                && MobStacker.config.getRegions().stream().noneMatch(r -> r.isAllow() && r.isEnabled());
     }
 
     /** Emits a yellow heads-up when the current config would stack nowhere (see {@link #stacksNowhere()}). */
     private static void warnIfStacksNowhere(CommandSourceStack source) {
         if (stacksNowhere()) {
             CommandFeedback.success(source, () -> Component.literal(
-                    "Note: stackMode is REGIONS but no ALLOW region is defined - nothing will stack anywhere. "
+                    "Note: stackMode is REGIONS but no ALLOW region is defined (or every one is off) - nothing will stack anywhere. "
                             + "Add one with /mobstacker region add <name> allow <c1> <c2>, or /mobstacker set stackMode everywhere."
             ).withStyle(ChatFormatting.YELLOW), false);
         }
@@ -1195,6 +1229,145 @@ public class MobStackerCommands {
         return reportRegionEdit(context, RegionEdit.apply(name, type, dimension,
                 corner1.getX(), corner1.getY(), corner1.getZ(),
                 corner2.getX(), corner2.getY(), corner2.getZ()));
+    }
+
+    /**
+     * The {@code dimension [<dimension>]} tail of {@code region add} and {@code region bounds}: the
+     * region becomes the whole of the dimension named, or of the one the command is run in.
+     */
+    private static LiteralArgumentBuilder<CommandSourceStack> wholeDimension(
+            com.mojang.brigadier.Command<CommandSourceStack> command) {
+        return literal("dimension")
+                .executes(command)
+                .then(argument("dimension", DimensionArgument.dimension()).executes(command));
+    }
+
+    /** The dimension named after {@code dimension}, or the one the command was run in. */
+    private static String dimensionArgument(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        try {
+            return DimensionArgument.getDimension(context, "dimension").dimension().location().toString();
+        } catch (IllegalArgumentException notGiven) {
+            // Brigadier's answer to asking for an argument the command was typed without.
+            return context.getSource().getLevel().dimension().location().toString();
+        }
+    }
+
+    private static int addWholeDimension(CommandContext<CommandSourceStack> context, StackRegion.Type type)
+            throws CommandSyntaxException {
+        String name = StringArgumentType.getString(context, "name");
+        if (MobStacker.config.getRegion(name) != null) {
+            context.getSource().sendFailure(Component.literal("Region '" + name + "' already exists. "
+                    + "Use /mobstacker region bounds " + name + " dimension to make it a whole dimension, "
+                    + "which keeps its settings.").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        return reportRegionEdit(context, RegionEdit.applyWholeDimension(name, type, dimensionArgument(context)));
+    }
+
+    /** Makes an existing region its whole dimension; the box it had is kept for going back to one. */
+    private static int setRegionWholeDimension(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        return reportRegionEdit(context, RegionEdit.applyWholeDimension(region.getName(), region.getType(),
+                dimensionArgument(context)));
+    }
+
+    // --- biome filters (1.12.0) -------------------------------------------------------------------
+
+    private static int showRegionBiomes(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        CommandFeedback.success(context.getSource(), () -> region.hasBiomeFilter()
+                ? Component.literal(region.getName() + " covers only " + RegionBiomes.join(region.getBiomes()))
+                        .withStyle(ChatFormatting.AQUA)
+                : Component.literal(region.getName() + " covers every biome. Narrow it with /mobstacker region biomes "
+                        + region.getName() + " add <biome|#tag>").withStyle(ChatFormatting.GRAY), false);
+        return 1;
+    }
+
+    private static int editRegionBiomes(CommandContext<CommandSourceStack> context, boolean add) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        String entry = context.getArgument("biome", ResourceOrTagKeyArgument.Result.class).asPrintable();
+        RegionEdit.Result result = RegionEdit.editBiomes(region.getName(), List.of(entry), add);
+        if (!result.ok() && MobStacker.config.getRegion(region.getName()) != null
+                && RegionBiomes.entryProblem(entry) == null) {
+            // Nothing to change: said in yellow, like every other "already".
+            CommandFeedback.success(context.getSource(), () -> Component.literal(result.message())
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return 0;
+        }
+        int outcome = reportRegionEdit(context, result);
+        if (outcome == 1 && add) {
+            String note = RegionBiomes.entryNote(entry, context.getSource().getServer().registryAccess()
+                    .registryOrThrow(Registries.BIOME));
+            if (note != null) {
+                CommandFeedback.success(context.getSource(), () -> Component.literal(" " + note)
+                        .withStyle(ChatFormatting.YELLOW), false);
+            }
+        }
+        return outcome;
+    }
+
+    private static int clearRegionBiomes(CommandContext<CommandSourceStack> context) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        if (!region.hasBiomeFilter()) {
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
+                    region.getName() + " already covers every biome").withStyle(ChatFormatting.YELLOW), false);
+            return 0;
+        }
+        return reportRegionEdit(context, RegionEdit.editBiomes(region.getName(), region.getBiomes(), false));
+    }
+
+    /** Every biome and biome tag this server knows, tags first, matched with or without a namespace. */
+    private static CompletableFuture<Suggestions> suggestBiomes(CommandContext<CommandSourceStack> context,
+                                                                SuggestionsBuilder builder) {
+        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        var biomes = context.getSource().getServer().registryAccess().registryOrThrow(Registries.BIOME);
+        List<String> all = new ArrayList<>();
+        biomes.getTagNames().forEach(tag -> all.add(RegionBiomes.TAG_PREFIX + tag.location()));
+        biomes.keySet().forEach(id -> all.add(id.toString()));
+        for (String entry : all) {
+            String bare = entry.startsWith(RegionBiomes.TAG_PREFIX) ? entry.substring(1) : entry;
+            if (entry.startsWith(remaining) || bare.substring(bare.indexOf(':') + 1).startsWith(remaining)) {
+                builder.suggest(entry);
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    private static CompletableFuture<Suggestions> suggestRegionBiomes(CommandContext<CommandSourceStack> context,
+                                                                      SuggestionsBuilder builder) {
+        StackRegion region = MobStacker.config.getRegion(StringArgumentType.getString(context, "name"));
+        if (region != null) {
+            String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+            region.getBiomes().stream().filter(entry -> entry.startsWith(remaining)).forEach(builder::suggest);
+        }
+        return builder.buildFuture();
+    }
+
+    private static int setRegionEnabled(CommandContext<CommandSourceStack> context, boolean enabled) {
+        StackRegion region = requireRegion(context);
+        if (region == null) {
+            return 0;
+        }
+        if (region.isEnabled() == enabled) {
+            CommandFeedback.success(context.getSource(), () -> Component.literal(
+                    "Region '" + region.getName() + "' is already " + (enabled ? "on" : "off")).withStyle(ChatFormatting.YELLOW), false);
+            return 0;
+        }
+        int result = reportRegionEdit(context, RegionEdit.setEnabled(region.getName(), enabled));
+        warnIfStacksNowhere(context.getSource());
+        return result;
     }
 
     /**
@@ -1239,10 +1412,11 @@ public class MobStackerCommands {
                     "Region '" + name + "' is already " + type).withStyle(ChatFormatting.YELLOW), false);
             return 0;
         }
-        // The corners as they were given, so changing the type does not quietly sort them.
+        // The corners as they were given, so changing the type does not quietly sort them - and a
+        // whole-dimension region stays one.
         int[] c = region.getCorners();
-        RegionEdit.Result result = RegionEdit.apply(name, type, region.getDimension(),
-                c[0], c[1], c[2], c[3], c[4], c[5]);
+        RegionEdit.Result result = RegionEdit.apply(name, type, region.getDimension(), region.isWholeDimension(),
+                c[0], c[1], c[2], c[3], c[4], c[5], null, false);
         if (!result.ok()) {
             context.getSource().sendFailure(Component.literal(result.message()).withStyle(ChatFormatting.RED));
             return 0;
@@ -1265,6 +1439,10 @@ public class MobStackerCommands {
     /** The "priority 5, 3 settings" tail shown after a region's bounds, omitted when there is none. */
     private static String describeRegionExtras(StackRegion region) {
         StringBuilder out = new StringBuilder();
+        if (region.hasBiomeFilter()) {
+            int biomes = region.getBiomes().size();
+            out.append("  in ").append(biomes).append(biomes == 1 ? " biome" : " biomes");
+        }
         if (region.getPriority() != 0) {
             out.append("  priority ").append(region.getPriority());
         }
@@ -1296,26 +1474,72 @@ public class MobStackerCommands {
         return 1;
     }
 
-    private static int listRegions(CommandContext<CommandSourceStack> context) {
+    /** How many regions one page of {@code region list} shows. */
+    private static final int REGIONS_PER_PAGE = 10;
+
+    /**
+     * The regions, a page at a time, each line clickable: the name opens {@code region show}, and
+     * the switch at the end turns the region off or on. The arrows at the bottom turn the page. Click
+     * events do nothing in the server console, which still reads the same text.
+     */
+    private static int listRegions(CommandContext<CommandSourceStack> context, int requestedPage) {
         List<StackRegion> regions = MobStacker.config.getRegions();
         String mode = String.valueOf(MobStacker.config.getStackMode());
+        CommandSourceStack source = context.getSource();
 
         if (regions.isEmpty()) {
-            CommandFeedback.success(context.getSource(), () -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
-            warnIfStacksNowhere(context.getSource());
+            CommandFeedback.success(source, () -> Component.literal("No regions defined (current mode: " + mode + ")").withStyle(ChatFormatting.YELLOW), false);
+            warnIfStacksNowhere(source);
             return 1;
         }
 
-        CommandFeedback.success(context.getSource(), () -> Component.literal("Stacking regions (mode: " + mode + "):").withStyle(ChatFormatting.AQUA), false);
-        for (StackRegion region : regions) {
-            ChatFormatting color = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
-            CommandFeedback.success(context.getSource(), () -> Component.literal(
-                    " - " + region.getName() + " [" + region.getType() + "] " + region.getDimension() + " "
-                            + region.describeBounds() + describeRegionExtras(region)
-            ).withStyle(color), false);
+        int pages = (regions.size() + REGIONS_PER_PAGE - 1) / REGIONS_PER_PAGE;
+        int page = Math.min(requestedPage, pages);
+        String pageNote = pages > 1 ? ", page " + page + " of " + pages : "";
+        CommandFeedback.success(source, () -> Component.literal("Stacking regions (mode: " + mode + pageNote + "):")
+                .withStyle(ChatFormatting.AQUA), false);
+        int from = (page - 1) * REGIONS_PER_PAGE;
+        for (StackRegion region : regions.subList(from, Math.min(regions.size(), from + REGIONS_PER_PAGE))) {
+            CommandFeedback.success(source, () -> regionListLine(region), false);
         }
-        warnIfStacksNowhere(context.getSource());
+        if (pages > 1) {
+            MutableComponent nav = Component.literal(" ");
+            nav.append(page > 1
+                    ? clickable("\u00ab previous", ChatFormatting.YELLOW, "/mobstacker region list " + (page - 1), "Page " + (page - 1))
+                    : Component.literal("\u00ab previous").withStyle(ChatFormatting.DARK_GRAY));
+            nav.append(Component.literal("   " + page + " / " + pages + "   ").withStyle(ChatFormatting.GRAY));
+            nav.append(page < pages
+                    ? clickable("next \u00bb", ChatFormatting.YELLOW, "/mobstacker region list " + (page + 1), "Page " + (page + 1))
+                    : Component.literal("next \u00bb").withStyle(ChatFormatting.DARK_GRAY));
+            CommandFeedback.success(source, () -> nav, false);
+        }
+        warnIfStacksNowhere(source);
         return 1;
+    }
+
+    /** One region in {@code region list}: its name (click: details), what it is, and its on/off switch. */
+    private static Component regionListLine(StackRegion region) {
+        boolean on = region.isEnabled();
+        ChatFormatting color = !on ? ChatFormatting.GRAY : region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
+        MutableComponent line = Component.literal(" - ").withStyle(color);
+        line.append(clickable(region.getName(), color, "/mobstacker region show " + region.getName(),
+                "Show everything about " + region.getName()));
+        line.append(Component.literal(" [" + region.getType() + "] " + region.getDimension() + " "
+                + region.describeBounds() + describeRegionExtras(region)).withStyle(color));
+        line.append(Component.literal("  "));
+        line.append(on
+                ? clickable("[on]", ChatFormatting.GREEN, "/mobstacker region disable " + region.getName(),
+                        "Click to switch " + region.getName() + " off (it is kept with everything it carries)")
+                : clickable("[off]", ChatFormatting.DARK_GRAY, "/mobstacker region enable " + region.getName(),
+                        "Click to switch " + region.getName() + " back on"));
+        return line;
+    }
+
+    /** Text that runs {@code command} when clicked in chat, with {@code hover} as its tooltip. */
+    private static MutableComponent clickable(String text, ChatFormatting color, String command, String hover) {
+        return Component.literal(text).withStyle(style -> style.withColor(color)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(hover))));
     }
 
     // --- per-region settings -------------------------------------------------------------------
@@ -1493,9 +1717,19 @@ public class MobStackerCommands {
         CommandSourceStack source = context.getSource();
         ChatFormatting typeColor = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
         CommandFeedback.success(source, () -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        CommandFeedback.success(source, () -> region.isEnabled()
+                ? Component.literal(" switched: on  ").withStyle(ChatFormatting.GREEN)
+                        .append(clickable("[switch off]", ChatFormatting.YELLOW, "/mobstacker region disable " + region.getName(),
+                                "Keeps the region with everything it carries, but it does nothing until switched on"))
+                : Component.literal(" switched: OFF - it does nothing until switched on  ").withStyle(ChatFormatting.GRAY)
+                        .append(clickable("[switch on]", ChatFormatting.YELLOW, "/mobstacker region enable " + region.getName(),
+                                "Switch " + region.getName() + " back on")), false);
         CommandFeedback.success(source, () -> Component.literal(" type: " + region.getType()).withStyle(typeColor), false);
         CommandFeedback.success(source, () -> Component.literal(
                 " at: " + region.getDimension() + " " + region.describeBounds()).withStyle(ChatFormatting.GRAY), false);
+        CommandFeedback.success(source, () -> region.hasBiomeFilter()
+                ? Component.literal(" biomes: only " + RegionBiomes.join(region.getBiomes())).withStyle(ChatFormatting.GOLD)
+                : Component.literal(" biomes: every one").withStyle(ChatFormatting.DARK_GRAY), false);
         CommandFeedback.success(source, () -> Component.literal(
                 " priority: " + region.getPriority() + " (higher wins where regions overlap)").withStyle(ChatFormatting.GRAY), false);
         StackColor color = region.effectiveColor();

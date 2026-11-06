@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.network.MobStackerNetworking;
@@ -38,16 +39,19 @@ public final class MobStackerRegionEditScreen extends Screen {
     // One ladder of rows, read by init() for the widgets and by render() for the text beside them.
     // They used to be two sets of loose numbers in two methods, and nothing in the code noticed when
     // the X/Y/Z header landed on top of the dimension button.
+    // Tightened by 1.12.0 to make room for the biome row and still leave the note clear of the
+    // bottom buttons on a 240-pixel-high screen (720p at GUI scale 3): the buttons start at 212.
     private static final int ROW_HEIGHT = 20;
-    private static final int NAME_Y = 30;
-    private static final int TYPE_Y = 58;
-    private static final int DIMENSION_Y = 82;
+    private static final int NAME_Y = 26;
+    private static final int TYPE_Y = 50;
+    private static final int DIMENSION_Y = 74;
     /** Between the dimension button (ends at DIMENSION_Y + ROW_HEIGHT) and the first corner row. */
-    private static final int AXIS_HEADER_Y = 106;
-    private static final int CORNER1_Y = 118;
-    private static final int CORNER2_Y = 142;
-    private static final int PICK_Y = 166;
-    private static final int NOTE_Y = 192;
+    private static final int AXIS_HEADER_Y = 97;
+    private static final int CORNER1_Y = 108;
+    private static final int CORNER2_Y = 130;
+    private static final int PICK_Y = 152;
+    private static final int BIOMES_Y = 176;
+    private static final int NOTE_Y = 201;
     /** A label sits this far below the top of the row it names, so it lines up inside the widget. */
     private static final int LABEL_INSET = 6;
 
@@ -61,25 +65,33 @@ public final class MobStackerRegionEditScreen extends Screen {
 
     private final List<String> dimensions = new ArrayList<>();
     private StackRegion.Type type;
+    /** The region is all of its dimension; the corner boxes are kept, greyed out, as the box it keeps. */
+    private boolean wholeDimension;
     private int dimensionIndex;
     private String name;
     private final int[] corners = new int[6];
+    /** The biome filter as typed: ids and #tags, separated by commas or spaces. */
+    private String biomeText;
 
     private EditBox nameBox;
     private final EditBox[] cornerBoxes = new EditBox[6];
+    /** Everything that only means something for a box: the corner rows' "Here" buttons and the picker. */
+    private final List<Button> boxButtons = new ArrayList<>();
     private String message = "";
     private boolean messageIsError;
     /** Set after the first click on Delete, so the second one is the one that means it. */
     private boolean deleteArmed;
 
     private MobStackerRegionEditScreen(MobStackerRegionScreen parent, String existingName,
-                                       StackRegion.Type type, String dimension, int[] corners,
-                                       boolean remote, boolean editable) {
+                                       StackRegion.Type type, boolean wholeDimension, String dimension, int[] corners,
+                                       List<String> biomes, boolean remote, boolean editable) {
         super(Component.literal(existingName == null ? "New region" : "Region: " + existingName));
         this.parent = parent;
         this.existingName = existingName;
         this.name = existingName == null ? "" : existingName;
         this.type = type;
+        this.wholeDimension = wholeDimension;
+        this.biomeText = RegionBiomes.join(biomes);
         this.remote = remote;
         this.editable = editable;
         System.arraycopy(corners, 0, this.corners, 0, 6);
@@ -88,9 +100,10 @@ public final class MobStackerRegionEditScreen extends Screen {
 
     /** Redraws an existing region, keeping everything else about it. */
     public static MobStackerRegionEditScreen forRegion(MobStackerRegionScreen parent, String name,
-                                                       StackRegion.Type type, String dimension,
-                                                       int[] corners, boolean remote, boolean editable) {
-        return new MobStackerRegionEditScreen(parent, name, type, dimension, corners, remote, editable);
+                                                       StackRegion.Type type, boolean wholeDimension, String dimension,
+                                                       int[] corners, List<String> biomes, boolean remote, boolean editable) {
+        return new MobStackerRegionEditScreen(parent, name, type, wholeDimension, dimension, corners, biomes,
+                remote, editable);
     }
 
     /** Starts a new region around the player, which is nearly always where they want it. */
@@ -101,13 +114,14 @@ public final class MobStackerRegionEditScreen extends Screen {
         String dimension = client.level != null ? client.level.dimension().location().toString() : "";
         int[] corners = {pos.getX() - 8, pos.getY() - 4, pos.getZ() - 8,
                 pos.getX() + 8, pos.getY() + 12, pos.getZ() + 8};
-        return new MobStackerRegionEditScreen(parent, null, StackRegion.Type.ALLOW, dimension,
-                corners, remote, editable);
+        return new MobStackerRegionEditScreen(parent, null, StackRegion.Type.ALLOW, false, dimension,
+                corners, List.of(), remote, editable);
     }
 
     @Override
     protected void init() {
         loadDimensions();
+        boxButtons.clear();
 
         // Editable for an existing region too: renaming keeps its area, settings, priority and
         // colour, which deleting and re-adding it never did.
@@ -121,12 +135,21 @@ public final class MobStackerRegionEditScreen extends Screen {
         });
         addRenderableWidget(nameBox);
 
-        Button typeButton = new StepButton(this.width / 2 - 40, TYPE_Y, 190, ROW_HEIGHT, typeLabel(), (b, direction) -> {
+        // Type and area share a row: allow/deny on the left, a box or the whole dimension on the right.
+        Button typeButton = new StepButton(this.width / 2 - 40, TYPE_Y, 80, ROW_HEIGHT, typeLabel(), (b, direction) -> {
             type = type == StackRegion.Type.ALLOW ? StackRegion.Type.DENY : StackRegion.Type.ALLOW;
             b.setMessage(typeLabel());
         });
         typeButton.active = editable;
         addRenderableWidget(typeButton);
+
+        Button areaButton = new StepButton(this.width / 2 + 44, TYPE_Y, 106, ROW_HEIGHT, areaLabel(), (b, direction) -> {
+            wholeDimension = !wholeDimension;
+            b.setMessage(areaLabel());
+            updateBoxWidgets();
+        });
+        areaButton.active = editable;
+        addRenderableWidget(areaButton);
 
         Button dimensionButton = new StepButton(this.width / 2 - 40, DIMENSION_Y, 190, ROW_HEIGHT, dimensionLabel(),
                 (b, direction) -> {
@@ -143,7 +166,21 @@ public final class MobStackerRegionEditScreen extends Screen {
                         b -> MobStackerRegionPicker.begin(this))
                 .bounds(this.width / 2 - 90, PICK_Y, 240, ROW_HEIGHT).build();
         pick.active = editable && this.minecraft != null && this.minecraft.player != null;
+        boxButtons.add(pick);
         addRenderableWidget(pick);
+        updateBoxWidgets();
+
+        EditBox biomeBox = new EditBox(this.font, this.width / 2 - 40, BIOMES_Y, 190, ROW_HEIGHT,
+                Component.literal("biomes"));
+        biomeBox.setMaxLength(RegionBiomes.MAX_TEXT_LENGTH);
+        biomeBox.setValue(biomeText);
+        biomeBox.setHint(Component.literal("every biome").withStyle(ChatFormatting.DARK_GRAY));
+        biomeBox.setEditable(editable);
+        biomeBox.setResponder(text -> {
+            biomeText = text;
+            biomeBox.setTextColor(RegionBiomes.listProblem(RegionBiomes.parseList(text)) == null ? NORMAL_TEXT : ERROR_TEXT);
+        });
+        addRenderableWidget(biomeBox);
 
         // Two buttons on a new region, three on an existing one - centred either way, so the row
         // never looks like it is missing the one that is not there. The button that leaves (Cancel
@@ -197,7 +234,25 @@ public final class MobStackerRegionEditScreen extends Screen {
         Button here = Button.builder(Component.literal("Here"), b -> fillFromPlayer(offset))
                 .bounds(this.width / 2 + 62, y, 88, ROW_HEIGHT).build();
         here.active = editable && this.minecraft != null && this.minecraft.player != null;
+        boxButtons.add(here);
         addRenderableWidget(here);
+    }
+
+    /**
+     * Greys out what only a box has while the region is a whole dimension. The corners stay filled
+     * in and are saved with it: they are the box the region goes back to if it is made one again.
+     */
+    private void updateBoxWidgets() {
+        boolean box = editable && !wholeDimension;
+        for (EditBox corner : cornerBoxes) {
+            if (corner != null) {
+                corner.setEditable(box);
+            }
+        }
+        boolean player = this.minecraft != null && this.minecraft.player != null;
+        for (Button button : boxButtons) {
+            button.active = box && player;
+        }
     }
 
     /**
@@ -286,14 +341,18 @@ public final class MobStackerRegionEditScreen extends Screen {
             }
         }
         String dimension = dimensions.get(dimensionIndex);
+        List<String> biomes = RegionBiomes.parseList(biomeText);
         String problem = RegionEdit.problem(name, type, dimension,
                 corners[0], corners[1], corners[2], corners[3], corners[4], corners[5]);
+        if (problem == null) {
+            problem = RegionBiomes.listProblem(biomes);
+        }
         if (problem != null) {
             fail(problem);
             return;
         }
         RegionEdit.Definition definition = new RegionEdit.Definition(type, dimension,
-                corners[0], corners[1], corners[2], corners[3], corners[4], corners[5]);
+                corners[0], corners[1], corners[2], corners[3], corners[4], corners[5], wholeDimension, biomes);
         String target = name.trim();
         // A rename has to land before the area does, or applying the definition under the new name
         // would create a second region beside the one being edited.
@@ -393,6 +452,12 @@ public final class MobStackerRegionEditScreen extends Screen {
                 : Component.literal("ALLOW").withStyle(ChatFormatting.GREEN);
     }
 
+    private Component areaLabel() {
+        return wholeDimension
+                ? Component.literal("whole dimension").withStyle(ChatFormatting.GOLD)
+                : Component.literal("box").withStyle(ChatFormatting.AQUA);
+    }
+
     private Component dimensionLabel() {
         String value = dimensions.isEmpty() ? "?" : dimensions.get(Math.min(dimensionIndex, dimensions.size() - 1));
         return Component.literal(value).withStyle(ChatFormatting.AQUA);
@@ -412,10 +477,11 @@ public final class MobStackerRegionEditScreen extends Screen {
 
         int labelX = this.width / 2 + LABEL_X_OFFSET;
         drawLabel(guiGraphics, "name", labelX, NAME_Y + LABEL_INSET);
-        drawLabel(guiGraphics, "type", labelX, TYPE_Y + LABEL_INSET);
+        drawLabel(guiGraphics, "type, area", labelX, TYPE_Y + LABEL_INSET);
         drawLabel(guiGraphics, "dimension", labelX, DIMENSION_Y + LABEL_INSET);
         drawLabel(guiGraphics, "corner 1", labelX, CORNER1_Y + LABEL_INSET);
         drawLabel(guiGraphics, "corner 2", labelX, CORNER2_Y + LABEL_INSET);
+        drawLabel(guiGraphics, "only in biomes", labelX, BIOMES_Y + LABEL_INSET);
         // In the gap between the dimension button and the first corner row, not across either. The
         // same grey as the labels beside it: dark grey disappeared into the dirt background.
         guiGraphics.drawString(this.font,
@@ -429,6 +495,12 @@ public final class MobStackerRegionEditScreen extends Screen {
         if (!message.isEmpty()) {
             note = Component.literal(message)
                     .withStyle(messageIsError ? ChatFormatting.RED : ChatFormatting.GREEN);
+        } else if (!editable) {
+            // Where the note goes: the line it used to have, at the bottom, is under the biome row now.
+            note = Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY);
+        } else if (wholeDimension) {
+            note = Component.literal("All of this dimension, with no box. The corners are kept for going back to a box.")
+                    .withStyle(ChatFormatting.GRAY);
         } else {
             note = Component.literal(existingName == null
                             ? "The corners are inclusive; the region covers both blocks and everything between them."
@@ -436,12 +508,6 @@ public final class MobStackerRegionEditScreen extends Screen {
                     .withStyle(ChatFormatting.GRAY);
         }
         guiGraphics.drawCenteredString(this.font, note, this.width / 2, NOTE_Y, 0xFFFFFF);
-
-        if (!editable) {
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height - 46, 0xFFFFFF);
-        }
     }
 
     private void drawLabel(GuiGraphics guiGraphics, String text, int x, int y) {

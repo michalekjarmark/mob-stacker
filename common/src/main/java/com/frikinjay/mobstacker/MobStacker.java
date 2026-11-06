@@ -382,15 +382,12 @@ public final class MobStacker {
             return StackRefusal.STACKING_OFF;
         }
 
-        String dimension = entity.level().dimension().location().toString();
         BlockPos pos = entity.blockPosition();
-        int x = pos.getX();
-        int y = pos.getY();
-        int z = pos.getZ();
 
         boolean insideAllowRegion = false;
         for (StackRegion region : config.getRegions()) {
-            if (region.contains(dimension, x, y, z)) {
+            // With the level, so a region's biome filter (1.12.0) is part of the answer.
+            if (region.contains(entity.level(), pos)) {
                 if (region.isDeny()) {
                     return StackRefusal.DENY_REGION; // DENY overrides everything, in every mode.
                 }
@@ -2335,11 +2332,10 @@ public final class MobStacker {
         if (entity == null || regions.isEmpty()) {
             return null;
         }
-        String dimension = entity.level().dimension().location().toString();
         BlockPos pos = entity.blockPosition();
         StackRegion best = null;
         for (StackRegion region : regions) {
-            if (!region.contains(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+            if (!region.contains(entity.level(), pos)) {
                 continue;
             }
             if (best == null || region.getPriority() > best.getPriority()

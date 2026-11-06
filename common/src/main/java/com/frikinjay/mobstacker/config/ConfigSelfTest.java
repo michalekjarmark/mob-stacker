@@ -413,6 +413,38 @@ public final class ConfigSelfTest {
         MobStacker.config.setCountStackMembers(true);
         check(report, MobStacker.config.getMonsterMobCap() == 70 && MobStacker.config.getWaterAmbientMobCap() == 20,
                 "a new config does not start with vanilla's spawn caps");
+
+        // A whole-dimension deny region refuses stacking anywhere in it, and nothing while it is off.
+        String dimension = source.getLevel().dimension().location().toString();
+        cow.setPos(1_234_567, 100, -7_654_321);
+        StackMode mode = MobStacker.config.getStackMode();
+        MobStacker.config.setStackMode(StackMode.EVERYWHERE);
+        RegionEdit.applyWholeDimension("selftest_nostack", StackRegion.Type.DENY, dimension);
+        check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                "a mob far out in a whole-dimension deny region may still stack");
+        check(report, MobStacker.regionAt(cow) != null, "regionAt does not find a whole-dimension region");
+        // Its biome filter, judged on whatever biome is really at that spot in this world.
+        net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> here = source.getLevel().getBiome(cow.blockPosition());
+        String hereId = here.unwrapKey().map(key -> key.location().toString()).orElse("minecraft:plains");
+        String elsewhere = "minecraft:the_void".equals(hereId) ? "minecraft:plains" : "minecraft:the_void";
+        RegionEdit.editBiomes("selftest_nostack", List.of(elsewhere), true);
+        check(report, MobStacker.locationRefusal(cow) == null,
+                "a deny region narrowed to " + elsewhere + " still stops stacking in " + hereId);
+        RegionEdit.editBiomes("selftest_nostack", List.of(hereId), true);
+        check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                "a deny region that lists " + hereId + " does not stop stacking there");
+        java.util.Optional<String> hereTag = here.tags().findFirst().map(tag -> RegionBiomes.TAG_PREFIX + tag.location());
+        if (hereTag.isPresent()) {
+            RegionEdit.editBiomes("selftest_nostack", List.of(elsewhere, hereId), false);
+            RegionEdit.editBiomes("selftest_nostack", List.of(hereTag.get()), true);
+            check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                    "a deny region that lists " + hereTag.get() + " does not stop stacking in " + hereId);
+        }
+        RegionEdit.setEnabled("selftest_nostack", false);
+        check(report, MobStacker.locationRefusal(cow) == null && MobStacker.regionAt(cow) == null,
+                "a deny region switched off still stops stacking");
+        RegionEdit.delete("selftest_nostack");
+        MobStacker.config.setStackMode(mode);
     }
 
     private static int count(Iterable<?> items) {
@@ -435,18 +467,18 @@ public final class ConfigSelfTest {
         RegionEdit.delete(name);
 
         RegionEdit.Result created = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 0, 0, 0, 4, 4, 4, true);
+                "minecraft:overworld", false, 0, 0, 0, 4, 4, 4, null, true);
         check(report, created.ok(), "a new region was refused: " + created.message());
 
         RegionEdit.Result again = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 100, 0, 100, 104, 4, 104, true);
+                "minecraft:overworld", false, 100, 0, 100, 104, 4, 104, null, true);
         check(report, !again.ok(), "'New region' overwrote a region that already existed");
         StackRegion kept = MobStacker.config.getRegion(name);
         check(report, kept != null && kept.getMinX() == 0,
                 "the refused create moved the existing region anyway");
 
         RegionEdit.Result reshaped = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 100, 0, 100, 104, 4, 104, false);
+                "minecraft:overworld", false, 100, 0, 100, 104, 4, 104, null, false);
         check(report, reshaped.ok(), "redrawing an existing region was refused: " + reshaped.message());
         StackRegion moved = MobStacker.config.getRegion(name);
         check(report, moved != null && moved.getMinX() == 100,
@@ -457,6 +489,93 @@ public final class ConfigSelfTest {
                 "the self-test's own region survived being deleted");
 
         testRegionCorners(report);
+        testRegionSwitchAndDimension(report);
+    }
+
+    /**
+     * 1.12.0: a region switched off is not there for anything, and a whole-dimension region covers
+     * every block of its dimension and nothing of any other. Both ride {@code StackRegion.contains},
+     * so that is what is checked, plus the GUI's wire form and what the config file says.
+     */
+    private static void testRegionSwitchAndDimension(Report report) {
+        String name = "selftest_switch";
+        RegionEdit.delete(name);
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        StackRegion region = MobStacker.config.getRegion(name);
+        if (region == null) {
+            check(report, false, "could not create the region for the on/off check");
+            return;
+        }
+        String jsonOn = new com.google.gson.Gson().toJson(region);
+        check(report, !jsonOn.contains("disabled") && !jsonOn.contains("wholeDimension"),
+                "a region that is on and a box writes new keys to the config: " + jsonOn);
+        check(report, RegionEdit.setEnabled(name, false).ok() && !region.isEnabled()
+                        && !region.contains("minecraft:overworld", 2, 2, 2),
+                "a region switched off still covers its blocks");
+        check(report, new com.google.gson.Gson().toJson(region).contains("\"disabled\":true"),
+                "a region switched off does not say so in the config");
+        check(report, !RegionEdit.setEnabled(name, false).ok(), "switching a region off twice reported a change");
+        check(report, RegionEdit.setEnabled(name, true).ok() && region.contains("minecraft:overworld", 2, 2, 2),
+                "a region switched back on does not cover its blocks again");
+
+        RegionEdit.Result whole = RegionEdit.applyWholeDimension(name, StackRegion.Type.ALLOW, "minecraft:the_nether");
+        check(report, whole.ok() && region.isWholeDimension()
+                        && region.contains("minecraft:the_nether", 2_000_000, 200, -2_000_000)
+                        && !region.contains("minecraft:overworld", 2, 2, 2),
+                "a whole-dimension region does not cover exactly its dimension: " + whole.message());
+        check(report, java.util.Arrays.equals(region.getCorners(), new int[]{0, 0, 0, 4, 4, 4}),
+                "making a region its whole dimension lost the box it had");
+        check(report, region.volume() == Long.MAX_VALUE, "a whole dimension is not bigger than every box");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        check(report, !region.isWholeDimension() && !region.contains("minecraft:overworld", 9, 2, 2),
+                "giving a whole-dimension region corners did not make it a box again");
+        RegionEdit.delete(name);
+
+        RegionEdit.applyWholeDimension(name, StackRegion.Type.DENY, "minecraft:the_end");
+        StackRegion fresh = MobStacker.config.getRegion(name);
+        check(report, fresh != null && fresh.isWholeDimension()
+                        && java.util.Arrays.equals(fresh.getCorners(), StackRegion.WHOLE_DIMENSION_CORNERS),
+                "a new whole-dimension region did not start with the whole-world corners");
+        int[] c = StackRegion.WHOLE_DIMENSION_CORNERS;
+        // What an older version computes for it, knowing nothing of the flag: has to stay positive.
+        long oldVolume = (long) (c[3] - c[0] + 1) * (c[4] - c[1] + 1) * (c[5] - c[2] + 1);
+        check(report, oldVolume > 0, "an older version would read the whole-world corners with an overflowing volume");
+        RegionEdit.delete(name);
+
+        RegionEdit.Definition sent = new RegionEdit.Definition(StackRegion.Type.DENY, "minecraft:the_nether",
+                1, 2, 3, 4, 5, 6, true, List.of("minecraft:plains", "#minecraft:is_forest"));
+        RegionEdit.Definition read = RegionEdit.Definition.decode(sent.encode());
+        check(report, sent.equals(read), "a whole-dimension region does not survive the GUI's wire form: " + sent.encode());
+        RegionEdit.Definition cleared = RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6;biomes=");
+        check(report, cleared != null && cleared.biomes() != null && cleared.biomes().isEmpty(),
+                "an empty biome part does not clear the filter");
+        RegionEdit.Definition old = RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6");
+        check(report, old != null && !old.wholeDimension() && old.biomes() == null,
+                "the GUI's old wire form no longer reads as a box that keeps its biomes");
+
+        // The biome filter, as text.
+        check(report, RegionBiomes.parseList("plains,  #is_forest minecraft:plains").equals(
+                        List.of("minecraft:plains", "#minecraft:is_forest")),
+                "the biome box is not read as normalised entries without repeats: "
+                        + RegionBiomes.parseList("plains,  #is_forest minecraft:plains"));
+        check(report, RegionBiomes.entryProblem("#Bad Tag!") != null && RegionBiomes.entryProblem("modded:swamp_x") == null,
+                "biome entries are not judged by their shape");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        check(report, RegionEdit.editBiomes(name, List.of("plains"), true).ok()
+                        && MobStacker.config.getRegion(name).getBiomes().equals(List.of("minecraft:plains")),
+                "a biome could not be added to a region");
+        check(report, !RegionEdit.editBiomes(name, List.of("minecraft:plains"), true).ok(),
+                "adding a biome a region already has reported a change");
+        check(report, !RegionEdit.editBiomes(name, List.of("not a biome!"), true).ok(),
+                "a malformed biome was added to a region");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 1, 1, 1, 5, 5, 5);
+        check(report, MobStacker.config.getRegion(name).hasBiomeFilter(), "reshaping a region by command dropped its biomes");
+        check(report, RegionEdit.editBiomes(name, List.of("minecraft:plains"), false).ok()
+                        && !MobStacker.config.getRegion(name).hasBiomeFilter(),
+                "taking a region's last biome off did not make it cover every biome");
+        RegionEdit.delete(name);
+        check(report, RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6;nonsense") == null,
+                "an unknown trailing part of a region definition was accepted");
     }
 
     /**

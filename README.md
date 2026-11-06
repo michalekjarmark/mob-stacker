@@ -35,8 +35,9 @@ preserved — the mobs are still there, they just travel together.
 
 ## ✨ What this fork adds
 
-- 🗺️ **Where-to-stack modes** — `OFF` (default), `EVERYWHERE`, `REGIONS` (allow/deny cuboids) or
-  `PLAYERS` (only near players). Stacking ships **off** until you opt in.
+- 🗺️ **Where-to-stack modes** — `OFF` (default), `EVERYWHERE`, `REGIONS` (allow/deny regions: boxes,
+  whole dimensions, either one narrowed to some biomes, and each can be switched off) or `PLAYERS`
+  (only near players). Stacking ships **off** until you opt in.
 - 🧩 **Settings per region** — almost every setting can differ inside a region, so a cow farm and a
   grinder in the same world behave differently. Regions are created, redrawn and deleted from the
   GUI or the commands, and can be **drawn in the world** in a colour of their own, with their names.
@@ -346,14 +347,19 @@ The mode decides *where* new stacks may form. It never affects mobs that are alr
 
 A `deny` region always wins, in every mode. Regions are axis-aligned cuboids tied to the dimension
 you run the command in; corners take absolute or `~` coordinates, and custom shapes are approximated
-with several cuboids.
+with several cuboids. A region can also be **a whole dimension** (no box), be **narrowed to some
+biomes** (ids or `#tags`), and be **switched off** without losing anything it carries.
 
 ```bash
 /mobstacker set stackMode <off|regions|players|everywhere>
 
 /mobstacker region add <name> <allow|deny> <x1 y1 z1> <x2 y2 z2>
 /mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15   # around where you stand
+/mobstacker region add <name> <allow|deny> dimension [dimension] # a whole dimension, no box
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
+/mobstacker region bounds <name> dimension [dimension]          # make it the whole dimension
+/mobstacker region biomes <name> [add|remove <biome|#tag>|clear] # only the parts in these biomes
+/mobstacker region enable|disable <name>                        # switch it on or off, keeping it
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
 /mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit>
@@ -362,7 +368,7 @@ with several cuboids.
 /mobstacker list <deny|allow> <entity|mod> <add|remove|list>    # which mobs may stack at all
 /mobstacker maxstack <entity> <n|max|default> | maxstack list   # a ceiling for one mob type
 /mobstacker region remove <name>
-/mobstacker region list
+/mobstacker region list [page]                                   # clickable: show, switch, turn the page
 /mobstacker region show <name>                                  # bounds, priority and its overrides
 /mobstacker region owner <name> <player|none>                   # who owns it (see below)
 /mobstacker region share <name> [add|remove <player>]           # who else sees it - its owner may too

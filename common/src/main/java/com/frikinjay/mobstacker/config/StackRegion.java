@@ -1,5 +1,8 @@
 package com.frikinjay.mobstacker.config;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -8,7 +11,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * An axis-aligned cuboid region bound to a single dimension.
+ * An axis-aligned cuboid region bound to a single dimension - or, since 1.12.0, that whole dimension
+ * ({@link #isWholeDimension}), and it can be switched off without being deleted ({@link #isEnabled}).
  * Regions are either {@link Type#ALLOW} (stacking is permitted here) or
  * {@link Type#DENY} (stacking is forbidden here, overriding everything else).
  * Custom shapes can be approximated by adding several cuboid regions.
@@ -69,6 +73,26 @@ public class StackRegion implements MobLists.Holder {
     private String owner;
     private String ownerName;
     private volatile Map<String, String> sharedWith;
+    // Switched off without being deleted: a region that is off is not there for anything - stacking,
+    // its settings, its lists, its ceilings - and keeps all of them for when it is switched back on.
+    // Null (never written) means on, so every region saved before 1.12.0 is on.
+    private Boolean disabled;
+    // The whole dimension rather than the box: every block of it is inside, and no box is drawn. The
+    // corners are still kept - what an older version of the mod reads, and what the region goes back
+    // to if it is made a box again. Null (never written) means a box.
+    private Boolean wholeDimension;
+    // Biome ids and #tags: the region covers only the blocks of its box (or dimension) in one of
+    // them (RegionBiomes). Null when it covers every biome. Copy-on-write like the lists.
+    private volatile List<String> biomes;
+
+    /**
+     * The corners a region made for a whole dimension starts with: the whole world inside the border
+     * horizontally and more height than any dimension has, so that an older version of the mod, which
+     * knows nothing of whole-dimension regions, reads it as a box covering everything that matters.
+     * Kept small enough vertically that the old volume sum does not overflow a long.
+     */
+    public static final int[] WHOLE_DIMENSION_CORNERS =
+            {-30_000_000, -1024, -30_000_000, 30_000_000, 1023, 30_000_000};
 
     // Required for Gson deserialization.
     public StackRegion() {
@@ -175,11 +199,85 @@ public class StackRegion implements MobLists.Holder {
         this.dimension = dimension;
     }
 
+    /**
+     * Whether this block is inside the region - never, while it is switched off. Every rule that
+     * asks "which regions apply here" comes through this, so switching a region off takes it out of
+     * all of them at once.
+     */
     public boolean contains(String dimension, int x, int y, int z) {
-        return this.dimension != null && this.dimension.equals(dimension)
-                && x >= minX && x <= maxX
+        return isEnabled() && coversArea(dimension, x, y, z);
+    }
+
+    /**
+     * The area alone - the box, or the whole dimension - whether the region is on or not and
+     * whatever the biome. What {@code /mobstacker inspect} uses to say which region would apply here
+     * but does not.
+     */
+    public boolean coversArea(String dimension, int x, int y, int z) {
+        if (this.dimension == null || !this.dimension.equals(dimension)) {
+            return false;
+        }
+        return isWholeDimension()
+                || (x >= minX && x <= maxX
                 && y >= minY && y <= maxY
-                && z >= minZ && z <= maxZ;
+                && z >= minZ && z <= maxZ);
+    }
+
+    /**
+     * Whether this block of this level is inside the region: {@link #contains(String, int, int, int)}
+     * plus the biome filter, which needs the level to look the biome up. What every gameplay rule
+     * asks; the plain form is for the area alone.
+     */
+    public boolean contains(Level level, BlockPos pos) {
+        if (!contains(level.dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ())) {
+            return false;
+        }
+        List<String> filter = biomes;
+        return filter == null || RegionBiomes.matches(level.getBiome(pos), filter);
+    }
+
+    /** The biome filter, ids and #tags. Empty when the region covers every biome. */
+    public List<String> getBiomes() {
+        List<String> filter = biomes;
+        return filter == null ? Collections.emptyList() : Collections.unmodifiableList(filter);
+    }
+
+    public boolean hasBiomeFilter() {
+        List<String> filter = biomes;
+        return filter != null && !filter.isEmpty();
+    }
+
+    /** Replaces the filter with these entries, normalised; an empty list covers every biome again. */
+    public void setBiomes(List<String> entries) {
+        List<String> next = new ArrayList<>();
+        if (entries != null) {
+            for (String entry : entries) {
+                String value = RegionBiomes.normalise(entry);
+                if (!value.isEmpty() && !next.contains(value)) {
+                    next.add(value);
+                }
+            }
+        }
+        biomes = next.isEmpty() ? null : next;
+    }
+
+    /** False while the region is switched off: it is kept, with everything it carries, but does nothing. */
+    public boolean isEnabled() {
+        return disabled == null || !disabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        // Only "off" is ever written, so a config of regions that are all on looks as it always did.
+        this.disabled = enabled ? null : Boolean.TRUE;
+    }
+
+    /** Whether the region is its whole dimension rather than the box between its corners. */
+    public boolean isWholeDimension() {
+        return wholeDimension != null && wholeDimension;
+    }
+
+    public void setWholeDimension(boolean whole) {
+        this.wholeDimension = whole ? Boolean.TRUE : null;
     }
 
     /** The colour explicitly set for this region, or null if none was. */
@@ -211,8 +309,14 @@ public class StackRegion implements MobLists.Holder {
         this.priority = priority;
     }
 
-    /** How many blocks this region covers, used to let a smaller region win an overlap. */
+    /**
+     * How many blocks this region covers, used to let a smaller region win an overlap. A whole
+     * dimension is bigger than any box, so a box inside it wins at the same priority.
+     */
     public long volume() {
+        if (isWholeDimension()) {
+            return Long.MAX_VALUE;
+        }
         return (long) (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
     }
 
@@ -450,6 +554,9 @@ public class StackRegion implements MobLists.Holder {
     }
 
     public String describeBounds() {
+        if (isWholeDimension()) {
+            return "(the whole dimension)";
+        }
         int[] c = getCorners();
         return "[" + c[0] + ", " + c[1] + ", " + c[2] + "] -> [" + c[3] + ", " + c[4] + ", " + c[5] + "]";
     }
