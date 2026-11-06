@@ -147,7 +147,20 @@ public final class ConfigSelfTest {
                 option.reset();
             }
             case STRING -> {
-                // Free-form; nothing to assert beyond the reset baseline above.
+                // Free-form, unless the setting has a validator of its own (ignoredDataKeys).
+                if (option.id().equals("ignoredDataKeys")) {
+                    List<Restore> prerequisites = satisfyDependencies(option);
+                    check(report, option.apply("ForgeCaps.somemod:timer, somemod_age").status != Status.ERROR,
+                            option.id() + ": refused a well-formed key list");
+                    check(report, option.apply("not a key!").status == Status.ERROR,
+                            option.id() + ": accepted a key with spaces in it");
+                    check(report, com.frikinjay.mobstacker.MobData.parseIgnored(" A , B.c ,, ").size() == 2,
+                            option.id() + ": did not read ' A , B.c ,, ' as two keys");
+                    option.reset();
+                    for (Restore prerequisite : prerequisites) {
+                        prerequisite.undo();
+                    }
+                }
             }
         }
 

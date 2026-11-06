@@ -311,6 +311,9 @@ public final class StackToolsCommands {
         if (refusal == StackRefusal.DIFFERENT_VARIANT) {
             return line.append(no(refusal.reason() + ": " + MobVariants.variantDifference(source, target)));
         }
+        if (refusal == StackRefusal.DIFFERENT_DATA) {
+            return line.append(no(refusal.reason() + ": '" + MobStacker.dataDifference(source, target) + "'"));
+        }
         if (refusal != null) {
             return line.append(no(refusal.reason()));
         }

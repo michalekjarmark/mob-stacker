@@ -59,6 +59,19 @@ Only mobs that look and behave the same merge, so a stack never changes what a m
 | Snow golem | one of them has lost its pumpkin |
 | Enderman | one of them carries a block |
 
+**Data other mods saved** on a mob must match too (`strictDataComparison`, on): a level, an affix, a
+champion's rank. A merge keeps only the survivor's, so mobs that differ there stay apart. Vanilla's own
+data is not compared this way (the table above covers what of it matters). If a mod keeps something
+like a timer on every mob and its mobs stop stacking, `/mobstacker inspect` names the key, and
+`ignoredDataKeys` lets it through:
+
+```
+/mobstacker set ignoredDataKeys ForgeCaps.somemod:timer, somemod_age
+```
+
+`Key` ignores a whole key, `Container.key` one entry inside a compound such as `ForgeData` or
+`ForgeCaps`. Both settings can differ per region.
+
 Babies and adults never mix. Loose babies stack with each other if
 `enableAnimalBabyStacking` (farm animals, matched by age) or `enableHostileBabyStacking` (baby
 zombies and the like) allows it, both on by default.

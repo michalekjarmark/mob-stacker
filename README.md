@@ -105,6 +105,8 @@ given its own value inside a region.
 | `stackEquippedMobs` | Let mobs holding or wearing items stack at all | `false` |
 | `keepMemberEquipment` | Remember each member's gear so it drops when *that* mob dies. Needs `stackEquippedMobs` | `true` |
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
+| `strictDataComparison` | Merge only mobs whose data from **other mods** matches (levels, affixes, a champion's rank), so a merge never throws it away. `/mobstacker inspect` names the key that differs | `true` |
+| `ignoredDataKeys` | Other mods' data keys `strictDataComparison` leaves out, comma-separated: `Key`, or `Container.key` for one entry in e.g. `ForgeCaps` | `""` |
 | `stackBosses` | Let bosses stack: a boss bar, the `#mobstacker:bosses` tag, or base health of at least `bossHealthThreshold` — see [Which mobs may stack](#which-mobs-may-stack) | `false` |
 | `bossHealthThreshold` | Base max health from which a mob kind counts as a boss (`0` = only boss bars and the tag) | `150` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |

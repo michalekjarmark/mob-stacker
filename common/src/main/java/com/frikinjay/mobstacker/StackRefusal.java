@@ -45,6 +45,7 @@ public enum StackRefusal {
     BABY_AND_ADULT("one is a baby and the other is not"),
     DIFFERENT_NAME("a player gave one of them a name the other does not share"),
     DIFFERENT_VARIANT("they differ in something a stack cannot keep apart"),
+    DIFFERENT_DATA("another mod saved different data on them (strictDataComparison; ignoredDataKeys lets a key through)"),
     OTHER_MOD("another mod's merge rule says no");
 
     private final String reason;

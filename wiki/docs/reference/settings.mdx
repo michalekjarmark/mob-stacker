@@ -27,6 +27,8 @@ back, and wherever a whole number is asked for, `max` means as high as it goes.
 | `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
 | `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
 | `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
+| `strictDataComparison` | `true` | `true`, `false` | yes | Mobs merge only if the data other mods saved on them is the same - a level, an affix, a champion's rank - so a merge never throws it away. Vanilla's own data is matched by the mod's own rules. /mobstacker inspect names the key that differs. |
+| `ignoredDataKeys` | empty | text | yes | Keys of other mods' data that strictDataComparison leaves out, comma-separated: Key, or Container.key for one entry inside a compound such as ForgeCaps. For a mod that keeps a timer on every mob, which would otherwise stop its mobs from stacking. Needs `strictDataComparison`. |
 | `stackBosses` | `false` | `true`, `false` | yes | Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's #c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold. |
 | `bossHealthThreshold` | `150` | 0 to 1000000 | yes | A mob kind whose base max health is at least this counts as a boss, which catches other mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager 100). 0: only boss bars and the tag count. Does nothing while `stackBosses` is on. |
 | `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
@@ -137,4 +139,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (59 settings).*
+*This page is generated from the mod's settings registry (61 settings).*

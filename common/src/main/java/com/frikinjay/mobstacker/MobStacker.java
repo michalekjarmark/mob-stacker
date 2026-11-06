@@ -656,6 +656,11 @@ public final class MobStacker {
             return StackRefusal.DIFFERENT_VARIANT;
         }
 
+        // Last of the mod's own rules, being the one that has to serialise both mobs.
+        if (getStrictDataComparison(target) && dataDifference(source, target) != null) {
+            return StackRefusal.DIFFERENT_DATA;
+        }
+
         return MobStackerAPI.checkCustomMergingConditions(source, target) ? null : StackRefusal.OTHER_MOD;
     }
 
@@ -2654,6 +2659,15 @@ public final class MobStacker {
             }
             enderMan.setCarriedBlock(null);
         }
+    }
+
+    public static boolean getStrictDataComparison(Entity at) {return setting("strictDataComparison", at, config.getStrictDataComparison());}
+
+    public static String getIgnoredDataKeys(Entity at) {return setting("ignoredDataKeys", at, config.getIgnoredDataKeys());}
+
+    /** Where the data other mods saved on these two differs (see {@link MobData}), or null. */
+    public static String dataDifference(Mob source, Mob target) {
+        return MobData.difference(source, target, MobData.ignored(getIgnoredDataKeys(target)));
     }
 
     public static boolean getStackBosses(Entity at) {return setting("stackBosses", at, config.getStackBosses());}

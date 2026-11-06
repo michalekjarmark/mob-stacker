@@ -32,6 +32,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the elder guardian, plus the loaders' own `#c:bosses` / `#forge:bosses`), or one whose base health
   reaches **`bossHealthThreshold`** (150; 0 turns that test off), which catches other mods' bosses
   that have no boss bar. Both settings can differ per region.
+- **Mobs with different data from other mods no longer merge** (`strictDataComparison`, on): a level,
+  an affix, a champion's rank or anything else another mod saved on a mob used to be thrown away when
+  it merged into a mob without it. The mod now compares what other mods saved (vanilla's own data is
+  still matched by the mod's own rules) and keeps such mobs apart. `/mobstacker inspect` names the key
+  that differs; **`ignoredDataKeys`** lets a key through, for a mod that keeps a timer on every mob
+  (`Key`, or `Container.key` for one entry in e.g. `ForgeCaps`). Both per region.
 - **Tags in the mob lists**: an entity list takes `#minecraft:raiders`, `#minecraft:skeletons` or any
   mod's or data pack's tag next to single mobs - in the commands (`/mobstacker list deny entity add
   #raiders`), in the GUI (the entry box completes tags too) and per region. A tag that is not loaded

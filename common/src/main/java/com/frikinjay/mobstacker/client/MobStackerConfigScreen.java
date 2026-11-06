@@ -228,7 +228,8 @@ public final class MobStackerConfigScreen extends Screen {
             default -> {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
                 box.setValue(valueOf(option));
-                box.setMaxLength(64);
+                // A list of data keys (ignoredDataKeys) needs more room than an item id.
+                box.setMaxLength(option.type() == ConfigOption.Type.STRING ? 512 : 64);
                 box.setEditable(allowed);
                 boolean item = option.type() == ConfigOption.Type.ITEM;
                 if (item) {

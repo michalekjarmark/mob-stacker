@@ -77,6 +77,18 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("stackNamedMobs", Category.STACKING,
                 "Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way.",
                 () -> MobStacker.config.getStackNamedMobs(), v -> MobStacker.config.setStackNamedMobs(v), false));
+        register(ConfigOption.ofBool("strictDataComparison", Category.STACKING,
+                "Mobs merge only if the data other mods saved on them is the same - a level, an affix, a "
+                        + "champion's rank - so a merge never throws it away. Vanilla's own data is matched by the "
+                        + "mod's own rules. /mobstacker inspect names the key that differs.",
+                () -> MobStacker.config.getStrictDataComparison(), v -> MobStacker.config.setStrictDataComparison(v), true));
+        register(ConfigOption.ofString("ignoredDataKeys", Category.STACKING,
+                "Keys of other mods' data that strictDataComparison leaves out, comma-separated: Key, or "
+                        + "Container.key for one entry inside a compound such as ForgeCaps. For a mod that keeps a "
+                        + "timer on every mob, which would otherwise stop its mobs from stacking.",
+                false, () -> MobStacker.config.getIgnoredDataKeys(), v -> MobStacker.config.setIgnoredDataKeys(v), "")
+                .withValidator(value -> com.frikinjay.mobstacker.MobData.ignoredProblem((String) value))
+                .requires("strictDataComparison"));
         register(ConfigOption.ofBool("stackBosses", Category.STACKING,
                 "Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses "
                         + "tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's "

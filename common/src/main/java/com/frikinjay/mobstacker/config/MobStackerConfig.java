@@ -33,6 +33,9 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean stackNamedMobs = false;
     // 1.12.0: bosses stay single unless this is on; what counts as one is MobStacker#isBoss.
     private boolean stackBosses = false;
+    // 1.12.0 (ROADMAP #42): compare the data other mods saved on two mobs before merging them.
+    private boolean strictDataComparison = true;
+    private String ignoredDataKeys = "";
     private int bossHealthThreshold = 150;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
@@ -555,6 +558,20 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public void setPersistentStackSize(int persistentStackSize) {
         this.persistentStackSize = Math.max(0, persistentStackSize);
+        save();
+    }
+
+    public boolean getStrictDataComparison() { return strictDataComparison; }
+
+    public void setStrictDataComparison(boolean strictDataComparison) {
+        this.strictDataComparison = strictDataComparison;
+        save();
+    }
+
+    public String getIgnoredDataKeys() { return ignoredDataKeys == null ? "" : ignoredDataKeys; }
+
+    public void setIgnoredDataKeys(String ignoredDataKeys) {
+        this.ignoredDataKeys = ignoredDataKeys == null ? "" : ignoredDataKeys.trim();
         save();
     }
 
