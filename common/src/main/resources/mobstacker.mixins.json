@@ -13,6 +13,7 @@
   ],
   "mixins": [
     "AbstractVillagerAccessor",
+    "AnimalInvoker",
     "AnimalMixin",
     "ArmorStandAccessor",
     "ArmorStandMixin",
@@ -46,6 +47,7 @@
     "mobs.PigMixin",
     "mobs.SheepShearMixin",
     "mobs.SnowGolemShearMixin",
+    "mobs.TadpoleMixin",
     "mobs.TurtleMixin",
     "mobs.VillagerMixin",
     "mobs.ZombieMixin"

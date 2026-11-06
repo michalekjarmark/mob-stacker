@@ -657,6 +657,38 @@ public final class ConfigSelfTest {
             check(report, picker.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.IRON_HELMET),
                     "dropPickedEquipment took the helmet a mob spawned with");
         }
+
+        // #59 and a zombie villager's cure: vanilla takes one dye, one apple per mob, so one steps out.
+        net.minecraft.world.entity.animal.Sheep white = EntityType.SHEEP.create(level);
+        if (white != null) {
+            net.minecraft.world.item.ItemStack red = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.RED_DYE);
+            check(report, MobStacker.isDyeingInteraction(white, red), "a dye on a stacked sheep does not hand one sheep over");
+            white.setColor(net.minecraft.world.item.DyeColor.RED);
+            check(report, !MobStacker.isDyeingInteraction(white, red), "a dye that changes nothing still hands a sheep over");
+        }
+        net.minecraft.world.entity.monster.ZombieVillager patient = EntityType.ZOMBIE_VILLAGER.create(level);
+        if (patient != null) {
+            net.minecraft.world.item.ItemStack apple = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE);
+            check(report, !MobStacker.isCuringInteraction(patient, apple), "a golden apple without weakness counts as a cure");
+            patient.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 600));
+            check(report, MobStacker.isCuringInteraction(patient, apple), "curing a stacked zombie villager does not hand one over");
+        }
+
+        // A creeper that blew itself up leaves the rest of its stack behind; leaving the world does not.
+        if (creeper != null) {
+            check(report, MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.DISCARDED, true),
+                    "a stacked creeper that exploded leaves no remainder");
+            check(report, !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK, false)
+                            && !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.CHANGED_DIMENSION, false)
+                            && !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.DISCARDED, false),
+                    "a lit creeper stack that left the world (unloaded, a portal, a merge) left a remainder too");
+        }
+
+        // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread).
+        net.minecraft.nbt.CompoundTag saved = zombie.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+        check(report, saved.getCompound(MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
+                        && saved.getCompound(MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
+                "a mob's save holds its live stack data, or a copy that differs from it");
     }
 
     private static int count(Iterable<?> items) {

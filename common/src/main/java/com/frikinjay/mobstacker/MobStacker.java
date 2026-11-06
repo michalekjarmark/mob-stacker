@@ -7,6 +7,7 @@ import com.frikinjay.mobstacker.config.StackAi;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
 import com.frikinjay.mobstacker.mixin.AbstractVillagerAccessor;
+import com.frikinjay.mobstacker.mixin.AnimalInvoker;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
@@ -53,6 +54,7 @@ import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
@@ -62,10 +64,13 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.PatrollingMonster;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.item.BucketItem;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -949,6 +954,32 @@ public final class MobStacker {
     public static boolean isSaddlingInteraction(Mob mob, ItemStack held) {
         return held.is(Items.SADDLE) && mob instanceof Saddleable saddleable
                 && saddleable.isSaddleable() && !saddleable.isSaddled();
+    }
+
+    /**
+     * Whether this is a dye going onto a stacked sheep.
+     *
+     * <p>Vanilla takes one dye per sheep. On a stack one dye coloured all sixteen, and each of them
+     * then grew coloured wool. So one sheep steps out for the dye, and a dye that would do nothing
+     * hands nobody over: the same test as {@code DyeItem.interactLivingEntity}. That method is the
+     * item's, which {@code Player.interactOn} hands the mob that was clicked - the stack - so
+     * {@code MobMixin} calls it on the sheep that stepped out itself.
+     */
+    public static boolean isDyeingInteraction(Mob mob, ItemStack held) {
+        return held.getItem() instanceof DyeItem dye && mob instanceof Sheep sheep
+                && sheep.isAlive() && !sheep.isSheared() && sheep.getColor() != dye.getDyeColor();
+    }
+
+    /**
+     * Whether this is a golden apple curing a stacked zombie villager.
+     *
+     * <p>Vanilla cures one zombie villager per apple. On a stack one apple cured them all, and every
+     * villager that came out of it gave the player the cure's discount. So one steps out to be cured.
+     * It is weakened like the stack, since a mob made out of a stack keeps the stack's effects.
+     */
+    public static boolean isCuringInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.GOLDEN_APPLE) && mob instanceof ZombieVillager zombie
+                && zombie.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
     }
 
     /**
@@ -2062,7 +2093,7 @@ public final class MobStacker {
             return InteractionResult.PASS;
         }
         if (!creative) {
-            food.shrink(toFeed);
+            takeFood(self, player, hand, food, toFeed);
         }
 
         love += toFeed;
@@ -2089,6 +2120,22 @@ public final class MobStacker {
     }
 
     /**
+     * Takes the food a player fed to {@code fed} members of a stack.
+     *
+     * <p>An axolotl eats a bucket of tropical fish and hands the water bucket back
+     * ({@code Axolotl.usePlayerItem}). Shrinking the food ate the bucket with it - three iron a meal.
+     * A bucket holds one meal, so the animal's own {@code usePlayerItem} takes it, as vanilla would,
+     * which also covers another mod's animal fed from a bucket.
+     */
+    private static void takeFood(Animal animal, Player player, InteractionHand hand, ItemStack food, int fed) {
+        if (food.getItem() instanceof BucketItem) {
+            ((AnimalInvoker) animal).mobstacker$usePlayerItem(player, hand, food);
+        } else {
+            food.shrink(fed);
+        }
+    }
+
+    /**
      * Feeds a stacked BABY its food to speed up growth, scaled fairly to the stack size (one food
      * item per baby rather than one item for the whole stack). Since a baby-stack is a single
      * entity with one shared age, the age is advanced once per fed member.
@@ -2105,7 +2152,7 @@ public final class MobStacker {
             return InteractionResult.PASS;
         }
         if (!creative) {
-            food.shrink(toFeed);
+            takeFood(self, player, hand, food, toFeed);
         }
         // Mirror vanilla's feeding speed-up (10% of the remaining time), applied once per member.
         for (int i = 0; i < toFeed && self.getAge() < 0; i++) {
@@ -2177,9 +2224,21 @@ public final class MobStacker {
         }
     }
 
-    public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason) {
-        return (entity instanceof Creeper creeper && creeper.isIgnited()) ||
-                reason == Entity.RemovalReason.KILLED;
+    /**
+     * Whether the rest of a stack takes over now that its top mob leaves the world: when it was
+     * killed, or when it was a creeper that blew itself up - {@code Creeper.explodeCreeper} marks it
+     * dead and discards it, and the stack's other creepers did not explode.
+     *
+     * <p>Up to 1.12.0 the creeper half asked {@code isIgnited()}, which only flint and steel sets. So a
+     * creeper that swelled up next to a player and exploded took its whole stack with it, while a lit
+     * one left a remainder behind whenever it left the world for any reason - a chunk unloading, a
+     * portal, a merge - which made one stack two.
+     *
+     * @param dead the leaving mob's {@code LivingEntity.dead}
+     */
+    public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason, boolean dead) {
+        return reason == Entity.RemovalReason.KILLED
+                || (entity instanceof Creeper && dead && reason == Entity.RemovalReason.DISCARDED);
     }
 
     public static boolean isBossEntity(Entity entity) {

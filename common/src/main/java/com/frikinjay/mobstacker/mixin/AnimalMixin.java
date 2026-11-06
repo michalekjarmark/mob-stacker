@@ -7,6 +7,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.frog.Frog;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -45,6 +46,12 @@ public abstract class AnimalMixin {
         }
         if (MobStacker.getStackSize(self) <= 1) {
             return; // a lone animal breeds the normal vanilla way
+        }
+        if (self instanceof Frog) {
+            // A frog does not have a baby: it lays frogspawn, so vanilla's getBreedOffspring gives
+            // nothing and stack breeding ate the slime balls for no tadpoles. Vanilla's own breeding
+            // is left to it - one ball puts the stack in love, and it needs another frog in love.
+            return;
         }
         if (!MobStacker.canEverBreed(self)) {
             // An untamed wolf may fall in love in vanilla and will still never mate. Counting fed

@@ -23,9 +23,17 @@ public class EntityDataMixin implements ICustomDataHolder {
         this.mobstacker$stackData = new CompoundTag();
     }
 
+    /**
+     * Puts a copy of the stack data in the save, never the live compound. A chunk's entities are
+     * written to disk on the storage thread while the server goes on ticking them, and the live one
+     * changes every tick (a separation grace counting down and then removed, a wound, the size), so
+     * the writer could read it mid-change - a ConcurrentModificationException and a chunk that failed
+     * to save. Forge copies its own ForgeData for the same reason. And a caller that edits the save,
+     * as a merge does, no longer edits the mob behind its back.
+     */
     @Inject(method = "saveWithoutId", at = @At("RETURN"))
     private void mobstacker$onSaveWithoutId(CompoundTag compound, CallbackInfoReturnable<CompoundTag> cir) {
-        compound.put(STACK_DATA_KEY, this.mobstacker$stackData);
+        compound.put(STACK_DATA_KEY, this.mobstacker$stackData.copy());
     }
 
     @Inject(method = "load", at = @At("RETURN"))

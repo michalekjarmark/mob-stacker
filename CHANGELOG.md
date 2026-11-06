@@ -119,6 +119,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **With `stackEquippedMobs` on and `keepMemberEquipment` off, what a mob had picked up vanished when
   it was merged into a stack.** It is dropped on the ground now, as was always intended (the check
   looked for a marker nothing writes). What the mob spawned with still goes with it.
+- **One dye coloured a whole stack of sheep, and one golden apple cured a whole stack of zombie
+  villagers** (each giving you the cure's discount). Vanilla takes one per mob, so one steps out of the
+  stack for it now, as for a saddle.
+- **A stack of creepers that blew up next to a player was gone entirely**: only one creeper exploded,
+  but the rest went with it. The others stay now and come at you one by one. And a creeper lit with
+  flint and steel no longer leaves a second stack behind when it is unloaded or goes through a portal
+  before it explodes.
+- **A stack of tadpoles grew up into a single frog.** It grows up into a stack of frogs.
+- **Breeding a stack of axolotls ate the bucket** along with the tropical fish; the water bucket comes
+  back, as in vanilla. **A stack of frogs ate the slime balls and laid nothing**: frogs breed the vanilla
+  way now (they lay frogspawn, which a stack could not).
+- A rare "failed to save chunk" error: a stack's own data was handed to the save while the server went
+  on changing it.
 - **A stack of endermen carrying a block duplicated the block**: every mob the stack gave back (the
   rest of a stack after a kill, one taken out) carried it again, so each kill dropped one more. And two
   endermen carrying the same block merged and one block was gone.

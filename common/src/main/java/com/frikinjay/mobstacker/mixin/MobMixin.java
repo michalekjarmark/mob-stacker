@@ -216,7 +216,8 @@ public abstract class MobMixin extends LivingEntity {
      * stack and lets that mob take the interaction instead, for every kind of right-click there is.
      *
      * <p>A saddle on a pig or strider does the same, for the same reason as a horse's
-     * ({@link MobStacker#isSaddlingInteraction}). A bucket does too, for the opposite reason: bucketing takes the entity out of the
+     * ({@link MobStacker#isSaddlingInteraction}), and so do a dye on a sheep and a golden apple on a
+     * zombie villager, which vanilla takes one per mob. A bucket does too, for the opposite reason: bucketing takes the entity out of the
      * world and puts it in an item, so on a stack of fish the whole shoal went into one bucket and
      * a single fish came back out of it. Shears do too while {@code stackedHarvest} is off, because
      * shearing changes the mob and the stack is one mob (see
@@ -251,9 +252,12 @@ public abstract class MobMixin extends LivingEntity {
             return; // PlayerMixin already took one out at interactOn; two would leave the stack
         }
         boolean bucketing = MobStacker.isBucketingInteraction(self, held);
+        boolean dyeing = MobStacker.isDyeingInteraction(self, held);
         if (!(self instanceof AbstractHorse)
                 && !MobStacker.isTamingInteraction(self, held)
                 && !MobStacker.isSaddlingInteraction(self, held)
+                && !MobStacker.isCuringInteraction(self, held)
+                && !dyeing
                 && !bucketing
                 && !MobStacker.isShearingOneInteraction(self, held)) {
             return;
@@ -261,6 +265,11 @@ public abstract class MobMixin extends LivingEntity {
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
             InteractionResult result = separated.interact(player, hand);
+            if (dyeing && !result.consumesAction()) {
+                // A dye is the item's interaction, not the sheep's: Player.interactOn would hand it
+                // the stack that was clicked, which is the very thing this is here to avoid.
+                result = held.interactLivingEntity(player, separated, hand);
+            }
             if (bucketing) {
                 MobStacker.resendToClients(self);
             }

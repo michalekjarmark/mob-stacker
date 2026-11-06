@@ -531,7 +531,9 @@ breeding pen keeps stacking everything it produces.
 **Right-clicking a stacked mount hands you one animal out of the stack**, and everything you then do
 — taming, a saddle, armour, feeding, climbing on — applies to that one. It walks back into the herd
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
-and zombie horses — and a saddle on a stack of pigs or striders saddles one animal, not the stack.
+and zombie horses — and a saddle on a stack of pigs or striders saddles one animal, not the stack. A dye
+on a stack of sheep and a golden apple on a stack of (weakened) zombie villagers work on one mob too, as
+vanilla takes one per mob.
 
 **Every horse in a stack keeps its own speed, jump and health.** The horse that comes out is the
 next one in line, with its own numbers, and when the top horse dies the next one takes over with
@@ -646,6 +648,8 @@ are rendering, so they need the mod on the client.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby
   zombies simply together (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
 - `breedOnePerClick` feeds one member per click instead of as many as the food in hand allows.
+- Frogs breed the vanilla way (they lay frogspawn rather than having a baby); a stack of tadpoles grows
+  up into a stack of frogs.
 
 > 💡 Tameable mobs with their own right-click behaviour (wolf, cat, horse) still fall back to vanilla
 > breeding.
