@@ -35,7 +35,6 @@
     "ItemStackMixin",
     "OcelotAccessor",
     "ParrotAccessor",
-    "StriderAccessor",
     "PlayerMixin",
     "ServerChunkCacheMixin",
     "ServerEntityMixin",

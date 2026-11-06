@@ -97,7 +97,22 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **New configs leave `cobblemon` and `pixelmon` mobs alone** (the deny mod list), as the original
   mod does: a Pokémon's identity lives in its own data, which no stack can keep. An existing config
   keeps its list.
+- **A mob that comes out of a stack is a copy of the stack**: what is left after the top mob dies, and
+  a mob taken out of one (taming, riding, a bucket, shears, the separator, `/mobstacker unstack`). It
+  used to be a new mob that the game set up from scratch and the mod then patched, so whatever the
+  patches missed was rolled again. Now it keeps everything the stack has - its variant and age,
+  effects, fire, scoreboard tags and team, a turtle's home beach, a zombie that is drowning or a
+  zombie villager being cured, attributes set with `/attribute`, and other mods' data. What belongs
+  to the top mob alone stays with it: what it picked up, a saddle, a chest or a carried block, its bed
+  and job, love, a turtle's egg, a creeper's lit fuse, a zombie's leader bonus. Each member's own
+  gear, horse stats, origin and wounds are handed over as before.
 ### Fixed
+- **What was left of a stack after a kill could come back with things no member had**: on Hard a
+  stack of bare zombies now and then came back in armour or holding a sword - and then took no more
+  zombies in, being equipped - or as a leader zombie with up to five times the health. A turtle taken
+  out of a stack got a new home where it stood.
+- The wound that damage overflow leaves on the next member is no longer lost when the top mob had
+  more max health than the rest.
 - **A stack of endermen carrying a block duplicated the block**: every mob the stack gave back (the
   rest of a stack after a kill, one taken out) carried it again, so each kill dropped one more. And two
   endermen carrying the same block merged and one block was gone.

@@ -514,7 +514,8 @@ so vanilla does the rest: the drop chances apply, **Looting** raises them, and d
 damaged the way vanilla damages it. That holds under every death mode, and because the items are
 stored exactly as the game stores them, **other mods' items and any enchantment work without the mod
 knowing anything about them**. The remainder of a killed stack, and a mob pulled out with the
-separator item, take the next member's gear with them.
+separator item, take the next member's gear with them. Without `keepMemberEquipment` they wear what
+the stack's top mob spawned with, never what it picked up.
 
 ## Pets & mounts
 
@@ -667,8 +668,12 @@ every kill path.
 - 🔌 An API is available for custom merging conditions, death handlers and entity data modifiers.
 - 🐑🐷🧟 Works with animals, monsters and NPCs alike.
 - 🎨 Mobs only stack with mobs that look and behave the same: wool colour and shearing for sheep,
-  markings for horses, genes for pandas, a charged creeper, a screaming goat, and so on. Jobless
+  coat colour for horses, genes for pandas, a charged creeper, a screaming goat, and so on. Jobless
   villagers stack; employed ones do not.
+- 🧬 A mob that comes out of a stack — what is left after a kill, or one taken out — is a copy of the
+  stack: same variant, age, effects, tags, a turtle's home, other mods' data. Nothing is rolled again.
+  What only the top mob has (a saddle, a carried block, a picked-up sword, a villager's bed or job, a
+  leader zombie's bonus) stays with it.
 
 ## Credits & License
 

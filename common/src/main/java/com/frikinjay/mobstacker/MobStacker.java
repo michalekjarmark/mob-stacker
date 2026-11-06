@@ -12,7 +12,6 @@ import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
 import com.frikinjay.mobstacker.mixin.OcelotAccessor;
 import com.frikinjay.mobstacker.mixin.FoxAccessor;
-import com.frikinjay.mobstacker.mixin.StriderAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -52,7 +51,6 @@ import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
-import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -63,7 +61,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.EnderMan;
 import net.minecraft.world.entity.monster.PatrollingMonster;
-import net.minecraft.world.entity.monster.Strider;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -678,16 +675,14 @@ public final class MobStacker {
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int newStackSize, float survivorHealth) {
         if (newStackSize < 1) return;
 
-        EntityType<?> entityType = self.getType();
-        Mob newEntity = (Mob) entityType.create(serverLevel);
+        Mob newEntity = memberOf(self, serverLevel, true);
         if (newEntity == null) return;
 
-        copyEntityData(self, newEntity, serverLevel);
+        MobStackerAPI.applyEntityDataModifiers(self, newEntity);
         copyStackNaming(self, newEntity);
-        // After copyEntityData, because finalizeSpawn hands out random gear of its own that the
-        // stored loadout has to overwrite.
+        // The member that takes over the top wears its own stored gear, not a copy of the top's.
         handOverMemberEquipment(self, newEntity, newStackSize);
-        // The same for a horse's own numbers, which finalizeSpawn rolled afresh a moment ago.
+        // The same for a horse's own numbers.
         MobVariants.handOverMemberRolls(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
         handOverMemberOrigins(self, newEntity, newStackSize);
@@ -696,83 +691,136 @@ public final class MobStacker {
             MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
         }
         copyBreedData(self, newEntity, newStackSize);
-        if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
-            newEntity.setHealth(survivorHealth);
+        if (survivorHealth > 0.0F) {
+            // What carries over is the next member's wound. Overflow worked it out against the top
+            // mob's max health, and the copy can have less: the top's leader bonus stays with it.
+            float wound = self.getMaxHealth() - survivorHealth;
+            newEntity.setHealth(Math.max(0.5F, Math.min(newEntity.getMaxHealth(), newEntity.getMaxHealth() - wound)));
         }
         serverLevel.addFreshEntity(newEntity);
     }
 
-    private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
-        finalizeLikeANewMob(source, target, serverLevel);
-        copyOrigin(source, target);
-        target.moveTo(source.position().x, source.position().y, source.position().z,
-                source.getYRot(), source.getXRot());
-        target.yBodyRot = source.yBodyRot;
-        // The head too: a new mob's head starts out facing a random way, which a mob with its AI on
-        // corrects at once and a stack without it (stackAi) kept, its body slowly turning after it.
-        target.setYHeadRot(source.getYHeadRot());
-
-        if (source.hasCustomName()) {
-            target.setCustomName(source.getCustomName());
-        }
-
-        copyVariantData(source, target);
-        copyAgeData(source, target);
-        MobStackerAPI.applyEntityDataModifiers(source, target);
-    }
+    // --- A mob made out of a stack ---------------------------------------------------------------
+    // Since 1.12.0 (ROADMAP #35) a mob the mod makes out of a stack is a copy of the stack's own saved
+    // data. Up to 1.11 it was a new mob put through vanilla's finalizeSpawn and patched afterwards,
+    // and finalizeSpawn rolls a new mob: a variant, an age, gear, a zombie's leader bonus, a turtle's
+    // home where it stands, a skeleton on a spider's back, a zombified piglin and a saddle on a
+    // strider, a chicken for a baby zombie. Each of those had to be found and taken back one at a
+    // time (1.7.0 variants, 1.9.0 horse stats, 1.9.3 riders and effects), and the rest went on being
+    // re-rolled - so a stack of zombies on Hard could lose its top and come back in armour, which
+    // then stopped it taking in any more zombies. A copy rolls nothing: the member that comes out
+    // is what the stack is.
 
     /**
-     * Runs vanilla's {@code finalizeSpawn} on a mob the mod is creating - a stack's remainder after a
-     * kill, or a mob taken out of a stack - and takes back what it hands out besides the mob itself.
-     *
-     * <p>A spider gets a skeleton on its back one time in a hundred, a strider a zombified piglin (and
-     * a saddle for it) or a baby strider, and a baby zombie may climb onto a chicken, new or nearby. A
-     * natural spawn adds the rider to the world along with its mount; the mod adds only the mob, so the
-     * rider rode along unseen, made the stack a mount that nothing merges into, and turned into a real
-     * skeleton the next time the chunk was loaded (round 7's server test: 3 in 250 spider kills). The
-     * random effect a spider may roll on Hard is the same kind of thing: it belonged to a spider that
-     * spawned, not to one more member of a stack.
+     * Save keys that belong to the one mob a stack shows and never to the members under it, so they
+     * stay out of a copy. Everything else the stack has, every member has: that was already true of
+     * a merge, where the survivor takes the data of the mob it swallows.
      */
-    private static void finalizeLikeANewMob(Mob source, Mob target, ServerLevel serverLevel) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
-        for (Entity rider : List.copyOf(target.getPassengers())) {
-            rider.stopRiding();
-            rider.discard();
+    private static final Set<String> TOP_ONLY_KEYS = Set.of(
+            // Who it is: its own id, whatever rides it, and the mod's stack data, which the callers
+            // hand over member by member (size, gear, horse stats, origins, wounds, names).
+            "UUID", "Passengers", STACK_DATA_KEY,
+            // How it is doing: a member comes out whole, not hurt or dying.
+            "Health", "AbsorptionAmount", "HurtTime", "HurtByTimestamp", "DeathTime",
+            // What it remembers - a villager's bed and job site are claims on the world, released
+            // when it dies (see shedClaims) - where it sleeps, and what it is tied to.
+            "Brain", "SleepingX", "SleepingY", "SleepingZ", "Leash",
+            // What it carries: one inventory, one saddle, one chest, one block. A copy would be a
+            // second one, dropped again when the copy dies.
+            "Inventory", "Items", "ChestedHorse", "SaddleItem", "ArmorItem", "DecorItem", "Saddle",
+            "carriedBlockState",
+            // What it is in the middle of: love (the stack's breeding is counted in its stack data),
+            // a turtle's egg, a creeper's lit fuse - a copy of that one would blow the stack up one
+            // creeper at a time.
+            "InLove", "LoveCause", "HasEgg", "ignited");
+
+    /**
+     * Attribute modifiers vanilla gives the odd mob when it spawns, which a copy would give every
+     * member: a leader zombie (at most one in twenty, on Hard) has two to five times the health and
+     * calls in reinforcements. The members' own rolls were never kept, and nearly all of them were
+     * plain zombies.
+     */
+    private static final Set<String> TOP_ONLY_MODIFIERS = Set.of("Leader zombie bonus");
+
+    /** What a slot's drop chance is on a mob that never picked anything up. */
+    private static final float NATURAL_DROP_CHANCE = 0.085F;
+
+    /**
+     * A new mob made out of a stack: the remainder that takes over when the top mob dies
+     * ({@code remainder}), or one member taken out of it. It is the stack's own saved data loaded into
+     * a fresh entity of the same kind, less what is the top mob's alone ({@link #TOP_ONLY_KEYS}) - so
+     * it keeps the stack's variant, age, effects, fire, scoreboard tags and team, a turtle's home
+     * beach, a zombie's conversion and other mods' data. Not yet in the world; the caller hands over
+     * the member's own stored state and adds it.
+     *
+     * <p>Gear: what the top mob picked up (guaranteed to drop) is its own and was dropped when it
+     * died, so a copy leaves it out; what the kind spawns with comes along. With {@code
+     * keepMemberEquipment} the caller then puts the member's own loadout on instead.
+     *
+     * @param remainder true for the remainder, which keeps the stack's name; a member taken out of
+     *                  a stack is not the stack the player named
+     * @return the new mob, or null when its kind cannot be created
+     */
+    public static Mob memberOf(Mob stack, ServerLevel level, boolean remainder) {
+        if (!(stack.getType().create(level) instanceof Mob member)) {
+            return null;
         }
-        Entity mount = target.getVehicle();
-        if (mount != null) {
-            target.stopRiding();
-            if (mount.tickCount == 0) {
-                // Made for this mob a moment ago and already in the world (a chicken jockey's chicken).
-                mount.discard();
-            } else if (mount instanceof Chicken chicken) {
-                // A chicken that was already there: it stays, and is no longer anybody's mount.
-                chicken.setChickenJockey(false);
+        AttributeInstance freshMaxHealth = member.getAttribute(Attributes.MAX_HEALTH);
+        double oneMobsMaxHealth = freshMaxHealth == null ? 0.0 : freshMaxHealth.getBaseValue();
+
+        CompoundTag data = stack.saveWithoutId(new CompoundTag());
+        // Before the copy: the save holds the stack's live stack data, not a copy of it.
+        data.remove(STACK_DATA_KEY);
+        data = data.copy();
+        TOP_ONLY_KEYS.forEach(data::remove);
+        if (!remainder) {
+            data.remove("CustomName");
+            data.remove("CustomNameVisible");
+        }
+        ListTag attributes = data.getList("Attributes", Tag.TAG_COMPOUND);
+        for (int i = 0; i < attributes.size(); i++) {
+            attributes.getCompound(i).getList("Modifiers", Tag.TAG_COMPOUND).removeIf(modifier ->
+                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(tag.getString("Name")));
+        }
+        try {
+            member.load(data);
+        } catch (RuntimeException e) {
+            // Another mod's data that does not load back: a plain mob of the kind, rather than the
+            // stack losing its members or the server its tick.
+            logger.warn("Could not copy a stacked {} from its saved data, making a plain one: {}",
+                    BuiltInRegistries.ENTITY_TYPE.getKey(stack.getType()), e.toString());
+            if (!(stack.getType().create(level) instanceof Mob plain)) {
+                return null;
+            }
+            member = plain;
+        }
+
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (dropChance(member, slot) > 1.0F) {
+                member.setItemSlot(slot, ItemStack.EMPTY);
+                setDropChance(member, slot, NATURAL_DROP_CHANCE);
             }
         }
-        if (target instanceof Strider strider && strider.isSaddled()) {
-            ((StriderAccessor) strider).mobstacker$steering().setSaddle(false);
+        AttributeInstance maxHealth = member.getAttribute(Attributes.MAX_HEALTH);
+        if (getStackHealth(stack) && maxHealth != null) {
+            // stackHealth raised the stack's max health by every mob it took in; a member has one mob's.
+            maxHealth.setBaseValue(oneMobsMaxHealth);
         }
-        target.removeAllEffects();
-    }
-
-    /**
-     * Copies the source's growth state (age / baby flag) onto a freshly-created entity, so a
-     * stack's respawned remainder (after a kill) or a separated mob keeps being a baby with the
-     * same growth progress. Without this, {@code entityType.create()} / {@code finalizeSpawn}
-     * would make it an adult (finalizeSpawn even has a ~5% chance to roll a random baby).
-     */
-    private static void copyAgeData(Mob source, Mob target) {
-        if (source instanceof AgeableMob sourceAge && target instanceof AgeableMob targetAge) {
-            targetAge.setAge(sourceAge.getAge());
-        } else if (source instanceof Zombie sourceZombie && target instanceof Zombie targetZombie) {
-            targetZombie.setBaby(sourceZombie.isBaby());
+        member.setHealth(member.getMaxHealth());
+        if (member instanceof Villager villager && villager.getVillagerData().getProfession() != VillagerProfession.NONE) {
+            // Only jobless villagers stack, so a job the stack took on is the top villager's (shedClaims
+            // hands it to the one it takes out). A new profession also clears the trades.
+            villager.setVillagerData(villager.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            villager.setVillagerXp(0);
         }
-    }
 
-    private static void copyVariantData(Mob source, Mob target) {
-        MobVariants.copyVariant(source, target);
+        copyOrigin(stack, member);
+        member.moveTo(stack.getX(), stack.getY(), stack.getZ(), stack.getYRot(), stack.getXRot());
+        member.yBodyRot = stack.yBodyRot;
+        // The head too: load() sets it to the saved facing, but a stack without AI (stackAi) keeps
+        // whatever it is given, and its body slowly turned after a head that faced elsewhere.
+        member.setYHeadRot(stack.getYHeadRot());
+        return member;
     }
 
     public static void separateEntity(Mob entity) {
@@ -990,15 +1038,16 @@ public final class MobStacker {
 
         try {
             ServerLevel serverLevel = (ServerLevel) entity.level();
-            EntityType<?> entityType = entity.getType();
-            Mob newEntity = (Mob) entityType.create(entity.level());
+            Mob newEntity = memberOf(entity, serverLevel, false);
             if (newEntity == null) return null;
 
             // Read while the stack still has the member that is about to leave it.
             Map<String, Integer> origins = memberOrigins(entity);
             setStackSize(entity, getStackSize(entity) - 1);
 
-            copyEntityDataForSeparation(entity, newEntity, serverLevel, markAsSeparated);
+            if (markAsSeparated) {
+                newEntity.setCustomName(Component.literal("Lone " + getLocalizedEntityName(entity.getType()).getString()));
+            }
             handleHealthOnSeparation(entity, newEntity);
             // The separated mob is one of the stored members, so it leaves wearing that member's
             // gear; the stack keeps the rest.
@@ -1019,23 +1068,6 @@ public final class MobStacker {
             logger.error("Error occurred while separating entity: {}", e.getMessage());
             return null;
         }
-    }
-
-    private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
-                                                    boolean markAsSeparated) {
-        finalizeLikeANewMob(source, target, serverLevel);
-        copyOrigin(source, target);
-        target.moveTo(source.position().x, source.position().y, source.position().z,
-                source.getYRot(), source.getXRot());
-        target.yBodyRot = source.yBodyRot;
-        target.setYHeadRot(source.getYHeadRot());
-
-        if (markAsSeparated) {
-            target.setCustomName(Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString()));
-        }
-
-        copyVariantData(source, target);
-        copyAgeData(source, target);
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
@@ -1782,8 +1814,8 @@ public final class MobStacker {
 
     /**
      * Remembers how a mob came into the world, the first time vanilla sets it up
-     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten: every mob the mod itself makes
-     * goes through {@code finalizeSpawn} again and is then handed its source's origin instead.
+     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten; a mob the mod itself makes out
+     * of a stack never goes through {@code finalizeSpawn} and is handed its source's origin.
      */
     public static void recordOrigin(Mob mob, MobSpawnType reason) {
         if (mob instanceof ICustomDataHolder holder && reason != null

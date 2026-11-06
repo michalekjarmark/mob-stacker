@@ -73,6 +73,7 @@ public final class ConfigSelfTest {
             if (source != null) {
                 testCommandAccess(report, source);
                 testSpawnCounting(report, source);
+                testMemberCopies(report, source);
             }
         } catch (Exception e) {
             report.checks++;
@@ -489,6 +490,149 @@ public final class ConfigSelfTest {
         check(report, shown.equals("Bessie x5"), "a game without the mod is not sent the label in the name: '" + shown + "'");
         check(report, cow.getCustomName().getString().equals("Bessie"), "sending the label changed the mob's own name");
         cow.setCustomName(null);
+    }
+
+    /**
+     * 1.12.0 (#35): a mob made out of a stack is a copy of the stack's saved data, less what is the top
+     * mob's alone. None of these mobs is ever added to the world.
+     */
+    private static void testMemberCopies(Report report, CommandSourceStack source) {
+        net.minecraft.server.level.ServerLevel level = source.getLevel();
+        net.minecraft.world.entity.monster.Zombie zombie = EntityType.ZOMBIE.create(level);
+        if (zombie == null) {
+            check(report, false, "could not create a zombie for the member-copy check");
+            return;
+        }
+        // What a stack has and every member has with it...
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR).addPermanentModifier(
+                new net.minecraft.world.entity.ai.attributes.AttributeModifier("selftest bonus", 3.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+        zombie.addTag("selftest_member");
+        zombie.setRemainingFireTicks(100);
+        zombie.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 600));
+        zombie.setBaby(true);
+        zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
+        zombie.setCustomName(net.minecraft.network.chat.Component.literal("Zed"));
+        // ...and what is the top zombie's own.
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).addPermanentModifier(
+                new net.minecraft.world.entity.ai.attributes.AttributeModifier("Leader zombie bonus", 2.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+        zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD));
+        zombie.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+        MobStacker.setStackSize(zombie, 5);
+        zombie.setHealth(3.0F);
+
+        if (!(MobStacker.memberOf(zombie, level, false) instanceof net.minecraft.world.entity.monster.Zombie member)) {
+            check(report, false, "memberOf made no zombie out of a stack of zombies");
+            return;
+        }
+        check(report, !member.getUUID().equals(zombie.getUUID()), "a member copied the stack's UUID");
+        check(report, MobStacker.getStackSize(member) == 1, "a member came out as a stack of " + MobStacker.getStackSize(member));
+        check(report, ((com.frikinjay.mobstacker.ICustomDataHolder) member).mobstacker$getCustomData()
+                        != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData(),
+                "a member shares the stack's own stack data");
+        check(report, member.isBaby(), "a baby zombie stack let out an adult");
+        check(report, member.getTags().contains("selftest_member"), "a member lost the stack's scoreboard tag");
+        check(report, member.getRemainingFireTicks() > 0, "a member of a burning stack is not burning");
+        check(report, member.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "a member lost the stack's effect");
+        check(report, member.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
+                        == zombie.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR),
+                "a member lost an attribute modifier the stack has");
+        check(report, member.getMaxHealth() == 20.0F, "a member kept the top zombie's leader bonus: max health " + member.getMaxHealth());
+        check(report, member.getHealth() == member.getMaxHealth(), "a member came out hurt: " + member.getHealth());
+        check(report, member.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(),
+                "a member got a copy of the sword the top zombie picked up");
+        check(report, member.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.IRON_HELMET),
+                "a member lost the helmet zombies of this stack spawn with");
+        check(report, member.getCustomName() == null, "a member taken out of a stack took the stack's name");
+        net.minecraft.world.entity.Mob remainder = MobStacker.memberOf(zombie, level, true);
+        check(report, remainder != null && remainder.getCustomName() != null && remainder.getCustomName().getString().equals("Zed"),
+                "the remainder of a named stack lost its name");
+
+        // An enderman's block, a creeper's fuse (but not its charge), a turtle's egg (but not its home).
+        net.minecraft.world.entity.monster.EnderMan enderman = EntityType.ENDERMAN.create(level);
+        if (enderman != null) {
+            enderman.setCarriedBlock(net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState());
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(enderman, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.monster.EnderMan carrying && carrying.getCarriedBlock() == null,
+                    "a member of an enderman stack got the top one's block");
+        }
+        net.minecraft.world.entity.monster.Creeper creeper = EntityType.CREEPER.create(level);
+        if (creeper != null) {
+            net.minecraft.nbt.CompoundTag charged = creeper.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            charged.putBoolean("powered", true);
+            charged.putBoolean("ignited", true);
+            charged.remove(MobStacker.STACK_DATA_KEY);
+            creeper.load(charged);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(creeper, level, true);
+            check(report, copy instanceof net.minecraft.world.entity.monster.Creeper next && next.isPowered() && !next.isIgnited(),
+                    "the remainder of an exploding charged creeper stack is not charged, or is lit too");
+        }
+        net.minecraft.world.entity.animal.Turtle turtle = EntityType.TURTLE.create(level);
+        if (turtle != null) {
+            turtle.setHomePos(new net.minecraft.core.BlockPos(1234, 64, -987));
+            net.minecraft.nbt.CompoundTag egg = turtle.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            egg.putBoolean("HasEgg", true);
+            egg.remove(MobStacker.STACK_DATA_KEY);
+            turtle.load(egg);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(turtle, level, false);
+            net.minecraft.nbt.CompoundTag saved = copy == null ? new net.minecraft.nbt.CompoundTag()
+                    : copy.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            check(report, saved.getInt("HomePosX") == 1234 && saved.getInt("HomePosZ") == -987,
+                    "a member of a turtle stack got a new home: " + saved.getInt("HomePosX") + ", " + saved.getInt("HomePosZ"));
+            check(report, !saved.getBoolean("HasEgg"), "a member of a turtle stack got the top one's egg");
+        }
+
+        // A villager's job and its claims, a pig's saddle, a cow in love, a sheep's wool.
+        net.minecraft.world.entity.npc.Villager villager = EntityType.VILLAGER.create(level);
+        if (villager != null) {
+            villager.setVillagerData(villager.getVillagerData()
+                    .setProfession(net.minecraft.world.entity.npc.VillagerProfession.FARMER).setLevel(2));
+            villager.setVillagerXp(30);
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME,
+                    net.minecraft.core.GlobalPos.of(level.dimension(), new net.minecraft.core.BlockPos(1, 2, 3)));
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(villager, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.npc.Villager jobless
+                            && jobless.getVillagerData().getProfession() == net.minecraft.world.entity.npc.VillagerProfession.NONE
+                            && jobless.getVillagerXp() == 0,
+                    "a member of a villager stack got the top one's job");
+            check(report, copy != null && copy.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME).isEmpty(),
+                    "a member of a villager stack got the top one's bed");
+        }
+        net.minecraft.world.entity.animal.Pig pig = EntityType.PIG.create(level);
+        if (pig != null) {
+            pig.equipSaddle(null);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(pig, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.animal.Pig bare && !bare.isSaddled(),
+                    "a member of a pig stack got a copy of the top one's saddle");
+        }
+        net.minecraft.world.entity.animal.Sheep sheep = EntityType.SHEEP.create(level);
+        if (sheep != null) {
+            sheep.setColor(net.minecraft.world.item.DyeColor.LIME);
+            sheep.setSheared(true);
+            sheep.setInLove(null);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(sheep, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.animal.Sheep same
+                            && same.getColor() == net.minecraft.world.item.DyeColor.LIME && same.isSheared(),
+                    "a member of a sheared lime sheep stack came out another colour or with its wool");
+            check(report, copy instanceof net.minecraft.world.entity.animal.Animal animal && !animal.isInLove(),
+                    "a member of a stack in love came out in love");
+        }
+
+        // stackHealth: the stack's max health is every member's together; a member has one mob's.
+        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        if (cow != null) {
+            boolean wasWhole = MobStacker.config.getKillWholeStackOnDeath();
+            boolean wasPooled = MobStacker.config.getStackHealth();
+            MobStacker.config.setKillWholeStackOnDeath(true);
+            MobStacker.config.setStackHealth(true);
+            cow.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(50.0);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(cow, level, false);
+            check(report, copy != null && copy.getMaxHealth() == 10.0F,
+                    "under stackHealth a member came out with the stack's max health: " + (copy == null ? 0 : copy.getMaxHealth()));
+            MobStacker.config.setStackHealth(wasPooled);
+            MobStacker.config.setKillWholeStackOnDeath(wasWhole);
+        }
     }
 
     private static int count(Iterable<?> items) {

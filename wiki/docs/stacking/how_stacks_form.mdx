@@ -106,3 +106,14 @@ Others stay out by default and can be let in: mobs with **equipment** (`stackEqu
 A mob is taken out of a stack when you tame, ride, bucket or shear one (see
 [Pets & mounts]($gameplay/pets_and_mounts)), or use the separator item. It may join a stack again on
 the next scan, unless `separationCooldown` keeps it out for that many seconds (default 0).
+
+The mob that comes out, and what is left of a stack when its top mob dies, is **a copy of the stack**:
+the same variant and age, its effects and fire, its scoreboard tags and team, a turtle's home beach,
+a zombie that is drowning, and whatever other mods keep on it. Nothing is rolled again, so a stack of
+bare zombies never comes back in armour and a horse never gets new stats.
+
+What only the top mob has stays with it: what it picked up, a saddle, a chest or a block it carries,
+a villager's bed and job, being in love, a turtle's egg, a creeper's lit fuse, and a leader zombie's
+bonus health. Each member's own gear ([Equipment]($gameplay/equipment)), a horse's own stats
+([Pets & mounts]($gameplay/pets_and_mounts#every-horse-keeps-its-own-stats)), its origin and its wounds
+come with it.

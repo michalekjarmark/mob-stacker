@@ -13,7 +13,9 @@ the rest:
 - dropped armour is damaged the way vanilla damages it,
 - items from **other mods**, and any enchantment, work without the mod knowing anything about them.
 
-What is left of a killed stack, and a mob taken out of one, carry the next member's gear.
+What is left of a killed stack, and a mob taken out of one, carry the next member's gear. Without
+`keepMemberEquipment` they wear what the stack's top mob spawned with, never what it picked up: that
+is the top mob's own and drops when it dies.
 
 | Setting | Effect | Default |
 |---|---|---|

@@ -34,150 +34,91 @@ import net.minecraft.world.entity.npc.VillagerProfession;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 
 /**
- * The per-mob state a stack is not able to represent: a sheep's wool colour, a horse's markings,
- * a panda's genes, whether a creeper is charged.
+ * The per-mob state that keeps two mobs apart: a sheep's wool colour, a horse's coat, a panda's
+ * genes, whether a creeper is charged. A stack shows one body, so two mobs that do not look and
+ * behave alike must not merge.
  *
- * <p>Every entry answers two questions about the same piece of state, side by side on purpose:
- * <ul>
- *   <li><b>matches</b> — may these two mobs merge at all? A stack shows one body, so two mobs that
- *       do not look and behave alike must stay apart.</li>
- *   <li><b>copy</b> — what has to be carried onto a freshly created entity, either the remainder
- *       the stack respawns after a kill or a mob separated out of it.</li>
- * </ul>
- * When those two halves lived in different methods they drifted: horses were in neither, so a herd
- * merged regardless of colour and then respawned in a colour rolled at random by {@code
- * finalizeSpawn}. Keeping them in one row makes adding a type a single edit that cannot be half-done.
+ * <p>Up to 1.11 every row also said what to carry onto a mob made out of a stack, because that mob
+ * was a new one, put through {@code finalizeSpawn}, which rolls a variant of its own. Since 1.12.0 a
+ * mob made out of a stack is a copy of the stack's saved data ({@code MobStacker.memberOf}), so its
+ * variant is the stack's without anything here having to know about it - and a new mod's mob keeps
+ * its variant too.
  *
- * <p>Matching runs on the stacking scan, so it reads plain getters. Copying runs only when an entity
- * is created, which is rare, so the few types vanilla gives no public setter for fall back to
- * {@link #copyNbtKeys} instead of needing an accessor mixin each.
+ * <p>Matching runs on the stacking scan, so it reads plain getters.
  */
 public final class MobVariants {
 
     /** @param what what differs when {@code matches} fails, for {@code /mobstacker inspect} to say */
-    private record Rule(Class<? extends Mob> type, String what, BiPredicate<Mob, Mob> matches, BiConsumer<Mob, Mob> copy) {}
+    private record Rule(Class<? extends Mob> type, String what, BiPredicate<Mob, Mob> matches) {}
 
-    private static <T extends Mob> Rule rule(Class<T> type, String what, BiPredicate<T, T> matches, BiConsumer<T, T> copy) {
-        return new Rule(type, what,
-                (a, b) -> matches.test(type.cast(a), type.cast(b)),
-                (from, to) -> copy.accept(type.cast(from), type.cast(to)));
+    private static <T extends Mob> Rule rule(Class<T> type, String what, BiPredicate<T, T> matches) {
+        return new Rule(type, what, (a, b) -> matches.test(type.cast(a), type.cast(b)));
     }
 
     private static final List<Rule> RULES = List.of(
             rule(Sheep.class, "wool colour, or one of them is sheared",
-                    (a, b) -> a.getColor() == b.getColor() && a.isSheared() == b.isSheared(),
-                    (from, to) -> {
-                        to.setColor(from.getColor());
-                        to.setSheared(from.isSheared());
-                    }),
+                    (a, b) -> a.getColor() == b.getColor() && a.isSheared() == b.isSheared()),
             rule(Villager.class, "villager type, or one of them has a profession",
                     // Only jobless villagers stack: a profession carries a trade list and a
                     // workstation that belong to one villager and could not survive a merge.
                     (a, b) -> a.getVariant() == b.getVariant()
                             && a.getVillagerData().getProfession() == VillagerProfession.NONE
-                            && b.getVillagerData().getProfession() == VillagerProfession.NONE,
-                    (from, to) -> {
-                        to.setVillagerData(from.getVillagerData());
-                        to.setVariant(from.getVariant());
-                    }),
+                            && b.getVillagerData().getProfession() == VillagerProfession.NONE),
             rule(ZombieVillager.class, "villager type, or one of them has a profession",
                     (a, b) -> a.getVariant() == b.getVariant()
                             && a.getVillagerData().getProfession() == VillagerProfession.NONE
-                            && b.getVillagerData().getProfession() == VillagerProfession.NONE,
-                    (from, to) -> {
-                        to.setVillagerData(from.getVillagerData());
-                        to.setVariant(from.getVariant());
-                    }),
+                            && b.getVillagerData().getProfession() == VillagerProfession.NONE),
             rule(Slime.class, "size",
-                    (a, b) -> a.getSize() == b.getSize(),
-                    (from, to) -> to.setSize(from.getSize(), true)),
+                    (a, b) -> a.getSize() == b.getSize()),
             rule(Frog.class, "variant",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Axolotl.class, "colour",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Cat.class, "coat",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> {
-                        to.setVariant(from.getVariant());
-                        to.setCollarColor(from.getCollarColor());
-                    }),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Fox.class, "coat",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(MushroomCow.class, "colour",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    // The stew effect a mooshroom was fed has no getter, so it travels as NBT.
-                    (from, to) -> {
-                        to.setVariant(from.getVariant());
-                        copyNbtKeys(from, to, "EffectId", "EffectDuration");
-                    }),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Horse.class, "coat colour",
                     // Colour only, which is what a herd looks like from a distance and what the
-                    // testers asked to keep stacking. Markings are copied rather than matched:
-                    // setVariant writes the low byte only, so the markings on anything created out
-                    // of a stack used to be whatever finalizeSpawn had just rolled. The packed
-                    // Variant tag carries both, so the herd's markings are the ones that come out.
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> copyNbtKeys(from, to, "Variant")),
+                    // testers asked to keep stacking. The markings are the stack's, like the rest.
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Llama.class, "colour or strength",
                     // Strength is the llama's inventory size, so it is as much a variant as colour.
-                    (a, b) -> a.getVariant() == b.getVariant() && a.getStrength() == b.getStrength(),
-                    (from, to) -> {
-                        to.setVariant(from.getVariant());
-                        copyNbtKeys(from, to, "Strength");
-                    }),
+                    (a, b) -> a.getVariant() == b.getVariant() && a.getStrength() == b.getStrength()),
             rule(Rabbit.class, "coat",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Parrot.class, "colour",
-                    (a, b) -> a.getVariant() == b.getVariant(),
-                    (from, to) -> to.setVariant(from.getVariant())),
+                    (a, b) -> a.getVariant() == b.getVariant()),
             rule(Panda.class, "genes",
                     // The hidden gene decides what the cubs look like, so it matters even though
                     // nothing about the panda in front of you shows it.
-                    (a, b) -> a.getMainGene() == b.getMainGene() && a.getHiddenGene() == b.getHiddenGene(),
-                    (from, to) -> {
-                        to.setMainGene(from.getMainGene());
-                        to.setHiddenGene(from.getHiddenGene());
-                    }),
+                    (a, b) -> a.getMainGene() == b.getMainGene() && a.getHiddenGene() == b.getHiddenGene()),
             rule(Goat.class, "horns, or one of them screams",
                     (a, b) -> a.isScreamingGoat() == b.isScreamingGoat()
-                            && a.hasLeftHorn() == b.hasLeftHorn() && a.hasRightHorn() == b.hasRightHorn(),
-                    (from, to) -> {
-                        to.setScreamingGoat(from.isScreamingGoat());
-                        copyNbtKeys(from, to, "HasLeftHorn", "HasRightHorn");
-                    }),
+                            && a.hasLeftHorn() == b.hasLeftHorn() && a.hasRightHorn() == b.hasRightHorn()),
             rule(TropicalFish.class, "pattern or colours",
-                    // Pattern, body colour and pattern colour together make the 22 named fish;
-                    // only the pattern has a public setter, so the whole lot travels as NBT.
+                    // Pattern, body colour and pattern colour together make the 22 named fish.
                     (a, b) -> a.getVariant() == b.getVariant()
                             && a.getBaseColor() == b.getBaseColor()
-                            && a.getPatternColor() == b.getPatternColor(),
-                    (from, to) -> copyNbtKeys(from, to, "Variant")),
+                            && a.getPatternColor() == b.getPatternColor()),
             rule(Creeper.class, "one of them is charged",
-                    (a, b) -> a.isPowered() == b.isPowered(),
-                    (from, to) -> copyNbtKeys(from, to, "powered")),
+                    (a, b) -> a.isPowered() == b.isPowered()),
             rule(Shulker.class, "colour",
-                    (a, b) -> Objects.equals(a.getColor(), b.getColor()),
-                    (from, to) -> copyNbtKeys(from, to, "Color")),
+                    (a, b) -> Objects.equals(a.getColor(), b.getColor())),
             rule(SnowGolem.class, "one of them has lost its pumpkin",
-                    (a, b) -> a.hasPumpkin() == b.hasPumpkin(),
-                    (from, to) -> copyNbtKeys(from, to, "Pumpkin")),
+                    (a, b) -> a.hasPumpkin() == b.hasPumpkin()),
             // An enderman carrying a block never stacks at all (StackRefusal.CARRIES_BLOCK), and one
             // that picks a block up while stacked leaves the stack with it (MobStacker#shedClaims).
-            // This rule is the second lock on the same door, and it copies nothing on purpose: up
-            // to 1.11.0 two endermen carrying dirt merged and one dirt block was gone, and every mob
-            // made out of a stack - the remainder after a kill included - got the block again, so
-            // each kill of a carrying stack dropped one more.
+            // This rule is the second lock on the same door. The block is also among what a copy of
+            // a stack leaves out (MobStacker.TOP_ONLY_KEYS): up to 1.11.0 every mob made out of a
+            // carrying stack got the block again, so each kill dropped one more.
             rule(EnderMan.class, "one of them carries a block",
-                    (a, b) -> a.getCarriedBlock() == null && b.getCarriedBlock() == null,
-                    (from, to) -> { })
+                    (a, b) -> a.getCarriedBlock() == null && b.getCarriedBlock() == null)
     );
 
     private MobVariants() {}
@@ -200,52 +141,12 @@ public final class MobVariants {
         return null;
     }
 
-    /**
-     * Carries the source's variant onto a mob that was just created by {@code EntityType.create} and
-     * {@code finalizeSpawn} — which rolls a variant of its own, so this has to run afterwards.
-     */
-    public static void copyVariant(Mob source, Mob target) {
-        for (Rule rule : RULES) {
-            if (rule.type().isInstance(source) && rule.type().isInstance(target)) {
-                rule.copy().accept(source, target);
-            }
-        }
-        copyRolledAttributes(source, target);
-    }
-
-    /**
-     * Attributes {@code finalizeSpawn} rolls at random, carried over rather than rolled again.
-     *
-     * <p>A horse's speed, jump and health are its whole point, and every horse that came out of a
-     * stack was getting a fresh roll of all three — so stacking a horse and taking it out again was
-     * a re-roll button, and a good horse could be turned into a better one by trying often enough.
-     * Copying them makes the answer the same every time: whatever the stack has is what comes out
-     * of it.
-     *
-     * <p>This is deliberately <em>not</em> a {@link #RULES} row. Those say "two mobs that differ
-     * here must not merge", and applied to a continuous random roll that would stop wild horses
-     * stacking with each other at all.
-     *
-     * <p>What this copies is only the fallback, since 1.9.1: the numbers of the mob on top. A stack
-     * of horses now remembers every member's own numbers ({@link #MEMBER_ROLLS_KEY}), and the
-     * member that comes out - or takes over the top when the top one dies - gets its own back.
-     */
-    private static void copyRolledAttributes(Mob source, Mob target) {
-        if (!(source instanceof AbstractHorse) || !(target instanceof AbstractHorse)) {
-            return;
-        }
-        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
-            AttributeInstance from = source.getAttribute(attribute);
-            AttributeInstance to = target.getAttribute(attribute);
-            if (from != null && to != null) {
-                to.setBaseValue(from.getBaseValue());
-            }
-        }
-        // Max health was just moved under it, and a mob that comes out of a stack comes out whole -
-        // leaving the number where it was would hand back a horse that is wounded or bursting,
-        // depending on which way the roll happened to go.
-        target.setHealth(target.getMaxHealth());
-    }
+    // A horse's speed, jump and health are its whole point, and up to 1.9.0 every horse that came out
+    // of a stack got a fresh roll of all three - stacking a horse and taking it out again was a re-roll
+    // button. They are not a matching rule: applied to a continuous random roll that would stop wild
+    // horses stacking at all. A copy of the stack carries the top horse's numbers, and since 1.9.1 the
+    // stack remembers every member's own (MEMBER_ROLLS_KEY), which the member that comes out - or takes
+    // over the top when the top one dies - gets back.
 
     /** Exactly the three {@code AbstractHorse.randomizeAttributes} rolls, and nothing else. */
     private static final List<Attribute> ROLLED_HORSE_ATTRIBUTES =
@@ -387,7 +288,7 @@ public final class MobVariants {
         }
         ListTag rolls = storedRolls(dead);
         if (rolls.isEmpty()) {
-            return; // nothing recorded: the survivor keeps the numbers it was copied, as before
+            return; // nothing recorded: the survivor keeps the top horse's numbers, copied with the rest
         }
         int top = rolls.size() - newStackSize;
         ListTag rest = new ListTag();
@@ -401,34 +302,6 @@ public final class MobVariants {
             rest.addAll(rolls);
         }
         storeRolls(survivor, rest, newStackSize);
-    }
-
-    /**
-     * Moves a handful of save keys from one entity to another, for state vanilla exposes no setter
-     * for. The target is round-tripped through its own save tag, so every key not named here is left
-     * exactly as it was. A key missing on the source is removed from the target rather than ignored:
-     * an uncharged creeper must be able to overwrite a charged one, not only the other way round.
-     */
-    private static void copyNbtKeys(Mob source, Mob target, String... keys) {
-        CompoundTag sourceNbt = new CompoundTag();
-        source.saveWithoutId(sourceNbt);
-        CompoundTag targetNbt = new CompoundTag();
-        target.saveWithoutId(targetNbt);
-
-        boolean changed = false;
-        for (String key : keys) {
-            Tag value = sourceNbt.get(key);
-            if (value != null) {
-                targetNbt.put(key, value.copy());
-                changed = true;
-            } else if (targetNbt.contains(key)) {
-                targetNbt.remove(key);
-                changed = true;
-            }
-        }
-        if (changed) {
-            target.load(targetNbt);
-        }
     }
 
     /**
