@@ -23,6 +23,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Player.class)
 public class PlayerMixin {
 
+    /** The assimilator, before anything else the click could mean (a villager's trades, for one). */
+    @Inject(method = "interactOn", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$assimilator(Entity entity, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+        if (entity instanceof Mob mob && MobStacker.useAssimilator((Player) (Object) this, mob, hand)) {
+            cir.setReturnValue(InteractionResult.SUCCESS);
+        }
+    }
+
     @Inject(method = "interactOn", at = @At("HEAD"))
     private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         if(entity instanceof Mob && !entity.level().isClientSide && MobStacker.getEnableSeparator(entity)) {

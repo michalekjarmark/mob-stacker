@@ -111,6 +111,9 @@ public final class ConfigSelfTest {
                 }
             }
             case INT, DOUBLE -> {
+                // As for a switch: a number that needs a default-off setting (maxDamageMultiplier) is
+                // refused until that one is on, which is not what this checks.
+                List<Restore> prerequisites = satisfyDependencies(option);
                 check(report, option.apply("notanumber").status == Status.ERROR, option.id() + ": accepted a non-numeric value");
                 check(report, option.apply(belowMin(option)).status == Status.ERROR, option.id() + ": accepted a below-minimum value");
                 check(report, option.apply(aboveMax(option)).status == Status.ERROR, option.id() + ": accepted an above-maximum value");
@@ -132,6 +135,9 @@ public final class ConfigSelfTest {
                                 + " instead of " + option.max());
                 // ...and "default" has to bring it back from there, which is the reset below.
                 option.apply(ConfigOption.DEFAULT_KEYWORD);
+                for (Restore prerequisite : prerequisites) {
+                    prerequisite.undo();
+                }
             }
             case ENUM -> {
                 for (String value : option.enumValues()) {
@@ -142,9 +148,13 @@ public final class ConfigSelfTest {
                 option.reset();
             }
             case ITEM -> {
+                List<Restore> prerequisites = satisfyDependencies(option);
                 check(report, option.apply("minecraft:stone").status != Status.ERROR, option.id() + ": rejected a valid item (minecraft:stone)");
                 check(report, option.apply("mobstacker:not_a_real_item").status == Status.ERROR, option.id() + ": accepted a bogus item id");
                 option.reset();
+                for (Restore prerequisite : prerequisites) {
+                    prerequisite.undo();
+                }
             }
             case STRING -> {
                 // Free-form, unless the setting has a validator of its own (ignoredDataKeys).

@@ -73,6 +73,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 
@@ -2668,6 +2669,102 @@ public final class MobStacker {
     /** Where the data other mods saved on these two differs (see {@link MobData}), or null. */
     public static String dataDifference(Mob source, Mob target) {
         return MobData.difference(source, target, MobData.ignored(getIgnoredDataKeys(target)));
+    }
+
+    // --- The original mod's remaining options (1.12.0, ROADMAP #49-#53) ---
+
+    public static boolean getMultiplyGiftDrops(Entity at) {return setting("multiplyGiftDrops", at, config.getMultiplyGiftDrops());}
+
+    public static int getKillBatchSize(Entity at) {return Math.max(1, setting("killBatchSize", at, config.getKillBatchSize()));}
+
+    public static boolean getDamageWeaponPerHit(Entity at) {return setting("damageWeaponPerHit", at, config.getDamageWeaponPerHit());}
+
+    public static boolean getStackOutgoingDamage(Entity at) {return setting("stackOutgoingDamage", at, config.getStackOutgoingDamage());}
+
+    public static int getMaxDamageMultiplier(Entity at) {return Math.max(1, setting("maxDamageMultiplier", at, config.getMaxDamageMultiplier()));}
+
+    public static boolean getEnableAssimilator(Entity at) {return setting("enableAssimilator", at, config.getEnableAssimilator());}
+
+    public static boolean getConsumeAssimilator(Entity at) {return setting("consumeAssimilator", at, config.getConsumeAssimilator());}
+
+    public static String getAssimilatorItem(Entity at) {return setting("assimilatorItem", at, config.getAssimilatorItem());}
+
+    /**
+     * multiplyGiftDrops: vanilla has just dropped one {@code item} for the top mob of a stack (an
+     * egg, a scute); the other members drop theirs. In full stacks, so a stack of a hundred
+     * chickens leaves seven entities, not a hundred.
+     */
+    public static void dropGiftForMembers(Mob mob, ItemLike item, int each) {
+        int members = getStackSize(mob) - 1;
+        if (members <= 0 || mob.level().isClientSide() || !getMultiplyGiftDrops(mob)) {
+            return;
+        }
+        long left = (long) members * Math.max(1, each);
+        int max = new ItemStack(item).getMaxStackSize();
+        while (left > 0) {
+            int count = (int) Math.min(left, max);
+            mob.spawnAtLocation(new ItemStack(item, count));
+            left -= count;
+        }
+    }
+
+    /** stackOutgoingDamage: a stack's melee damage, multiplied by its size up to maxDamageMultiplier. */
+    public static float stackMeleeDamage(Mob attacker, float damage) {
+        int size = getStackSize(attacker);
+        if (size <= 1 || attacker.level().isClientSide() || !getStackOutgoingDamage(attacker)) {
+            return damage;
+        }
+        return damage * Math.min(size, getMaxDamageMultiplier(attacker));
+    }
+
+    /**
+     * damageWeaponPerHit: a hit on a stack that dies as a whole also wears the weapon for every other
+     * mob in it - {@code perHit} is what vanilla's own hit just took (1 for a sword, 2 for an axe).
+     */
+    public static void wearWeaponForStack(ItemStack weapon, LivingEntity target, Player attacker, int perHit) {
+        if (perHit <= 0 || weapon.isEmpty() || !weapon.isDamageableItem() || attacker.getAbilities().instabuild
+                || !(target instanceof Mob mob) || target.level().isClientSide()) {
+            return;
+        }
+        int members = getStackSize(mob);
+        if (members <= 1 || !getDamageWeaponPerHit(mob) || !getKillWholeStackOnDeath(mob)) {
+            return;
+        }
+        long extra = (long) perHit * (members - 1);
+        weapon.hurtAndBreak((int) Math.min(extra, Integer.MAX_VALUE), attacker,
+                broken -> broken.broadcastBreakEvent(EquipmentSlot.MAINHAND));
+    }
+
+    /**
+     * The assimilator (enableAssimilator): sneaking with it on a mob switches whether that mob - or
+     * the whole stack it is - may stack. Sneaking, unlike the original mod, because the default item
+     * is an emerald and a plain right-click with emeralds is how a villager is traded with.
+     *
+     * @return true when it was used, and the interaction is over
+     */
+    public static boolean useAssimilator(Player player, Mob mob, InteractionHand hand) {
+        if (mob.level().isClientSide() || !player.isShiftKeyDown() || !getEnableAssimilator(mob)) {
+            return false;
+        }
+        ItemStack held = player.getItemInHand(hand);
+        ResourceLocation id = ResourceLocation.tryParse(getAssimilatorItem(mob));
+        if (held.isEmpty() || id == null || !held.is(BuiltInRegistries.ITEM.get(id))) {
+            return false;
+        }
+        boolean nowStacks = !getCanStack(mob);
+        setCanStack(mob, nowStacks);
+        Component name = mob.getDisplayName();
+        player.displayClientMessage(Component.empty().append(name)
+                .append(Component.literal(nowStacks ? " may stack again" : " will not stack")
+                        .withStyle(nowStacks ? ChatFormatting.GREEN : ChatFormatting.GOLD)), true);
+        if (!player.getAbilities().instabuild && getConsumeAssimilator(mob)) {
+            if (held.isDamageableItem()) {
+                held.hurtAndBreak(1, player, broken -> broken.broadcastBreakEvent(hand));
+            } else {
+                held.shrink(1);
+            }
+        }
+        return true;
     }
 
     public static boolean getStackBosses(Entity at) {return setting("stackBosses", at, config.getStackBosses());}

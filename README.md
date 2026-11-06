@@ -147,6 +147,10 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: full swing, no crit, not sprinting, on the ground, sword in hand | `false` |
 | `sweepingEdgeMaxKills` | Cap on mobs one sweep may kill per swing (`0` = none) | `0` |
 | `environmentDamagePerMob` | A fall, fire, lava, drowning, suffocation, cramming, cactus, freezing, poison or an explosion hurts **every** mob in a stack, as it would a crowd standing loose | `true` |
+| `killBatchSize` | At least this many mobs die per kill, each with its own loot, on top of what overflow reaches | `1` |
+| `damageWeaponPerHit` | When a stack dies as a whole, every hit wears the weapon as if it hit every mob in it. Needs `killWholeStackOnDeath` | `false` |
+| `stackOutgoingDamage` | A stack's melee attack hits as hard as all its mobs together | `false` |
+| `maxDamageMultiplier` | The most `stackOutgoingDamage` multiplies by | `16` |
 
 ### Feedback & display
 
@@ -168,6 +172,7 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 |---|---|---|
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs | `true` |
 | `stackedHarvest` | Shearing and milking a stack give one mob's worth per member; off shears one animal at a time | `true` |
+| `multiplyGiftDrops` | Eggs from a stack of chickens and scutes from a stack of growing turtles come from every member | `true` |
 | `breedOnePerClick` | Feed one member per click instead of as many as the food allows | `false` |
 | `enableAnimalBabyStacking` | Let loose farm-animal babies stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Let loose hostile babies (baby zombies …) stack | `true` |
@@ -176,6 +181,9 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `enableSeparator` | Allow splitting a stack with an item | `false` |
 | `consumeSeparator` | Consume that item on use | `true` |
 | `separatorItem` | Which item splits a stack (the GUI completes item ids as you type) | `minecraft:diamond` |
+| `enableAssimilator` | Sneak + right-click a mob with the assimilator item to switch whether it may stack | `false` |
+| `consumeAssimilator` | Use up the item (or a point of durability) | `true` |
+| `assimilatorItem` | Which item switches it | `minecraft:emerald` |
 | `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
 ### Spawning & despawning

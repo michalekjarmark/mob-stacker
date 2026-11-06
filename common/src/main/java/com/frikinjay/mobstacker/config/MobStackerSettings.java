@@ -175,6 +175,27 @@ public final class MobStackerSettings {
                 0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
                 v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofInt("killBatchSize", Category.COMBAT,
+                "At least this many mobs of a stack die each time it is killed, each dropping its own loot "
+                        + "and experience - a fixed number per kill for farms, on top of what damage overflow "
+                        + "takes. 1: only what the damage reaches.",
+                1, Integer.MAX_VALUE, () -> MobStacker.config.getKillBatchSize(),
+                v -> MobStacker.config.setKillBatchSize(v), 1)
+                .redundantWhen("killWholeStackOnDeath"));
+        register(ConfigOption.ofBool("damageWeaponPerHit", Category.COMBAT,
+                "When a stack dies as a whole (killWholeStackOnDeath, stackHealth), every hit wears the weapon "
+                        + "down as if it had hit every mob in the stack. Off: one hit's wear.",
+                () -> MobStacker.config.getDamageWeaponPerHit(), v -> MobStacker.config.setDamageWeaponPerHit(v), false)
+                .requires("killWholeStackOnDeath"));
+        register(ConfigOption.ofBool("stackOutgoingDamage", Category.COMBAT,
+                "A stack's melee attack hits as hard as all its mobs together, up to maxDamageMultiplier times "
+                        + "one mob's. Off: a stack hits like one mob.",
+                () -> MobStacker.config.getStackOutgoingDamage(), v -> MobStacker.config.setStackOutgoingDamage(v), false));
+        register(ConfigOption.ofInt("maxDamageMultiplier", Category.COMBAT,
+                "The most stackOutgoingDamage multiplies a stack's melee damage by.",
+                1, 1024, () -> MobStacker.config.getMaxDamageMultiplier(),
+                v -> MobStacker.config.setMaxDamageMultiplier(v), 16)
+                .requires("stackOutgoingDamage"));
         register(ConfigOption.ofBool("environmentDamagePerMob", Category.COMBAT,
                 "Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, "
                         + "explosions - hurts every mob in a stack, as it would a crowd standing loose, so a "
@@ -239,6 +260,10 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("breedOnePerClick", Category.BREEDING,
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
+        register(ConfigOption.ofBool("multiplyGiftDrops", Category.BREEDING,
+                "What mobs drop on their own comes from every mob in a stack: a stack of chickens lays an egg "
+                        + "for each, a stack of baby turtles leaves a scute for each when it grows up. Off: as one mob.",
+                () -> MobStacker.config.getMultiplyGiftDrops(), v -> MobStacker.config.setMultiplyGiftDrops(v), true));
         register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
                 "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool.",
                 () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
@@ -271,6 +296,22 @@ public final class MobStackerSettings {
                     ResourceLocation id = ResourceLocation.tryParse((String) value);
                     return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
                 }));
+        register(ConfigOption.ofBool("enableAssimilator", Category.SEPARATOR,
+                "Sneak and right-click a mob with the assimilator item to switch whether it may stack: off keeps "
+                        + "it (or the stack it is) out of stacks for good, on lets it back in.",
+                () -> MobStacker.config.getEnableAssimilator(), v -> MobStacker.config.setEnableAssimilator(v), false));
+        register(ConfigOption.ofBool("consumeAssimilator", Category.SEPARATOR,
+                "Use up one assimilator item (or a point of durability) each time.",
+                () -> MobStacker.config.getConsumeAssimilator(), v -> MobStacker.config.setConsumeAssimilator(v), true)
+                .requires("enableAssimilator"));
+        register(ConfigOption.ofString("assimilatorItem", Category.SEPARATOR,
+                "The item that switches a mob's stacking on and off.",
+                true, () -> MobStacker.config.getAssimilatorItem(), v -> MobStacker.config.setAssimilatorItem(v), "minecraft:emerald")
+                .withValidator(value -> {
+                    ResourceLocation id = ResourceLocation.tryParse((String) value);
+                    return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
+                })
+                .requires("enableAssimilator"));
         register(ConfigOption.ofInt("separationCooldown", Category.SEPARATOR,
                 "Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) "
                         + "or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan.",

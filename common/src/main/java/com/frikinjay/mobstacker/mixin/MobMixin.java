@@ -27,6 +27,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -90,6 +91,13 @@ public abstract class MobMixin extends LivingEntity {
         }
         noActionTime = 0;
         ci.cancel();
+    }
+
+    /** stackOutgoingDamage: the hit of vanilla's standard melee attack, as hard as the whole stack. */
+    @ModifyArg(method = "doHurtTarget", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"), index = 1)
+    private float mobstacker$stackMeleeDamage(float damage) {
+        return MobStacker.stackMeleeDamage((Mob) (Object) this, damage);
     }
 
     /** Every despawn in checkDespawn (far away, idle, peaceful) drops what the mob had picked up. */

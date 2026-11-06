@@ -73,6 +73,15 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean countStackMembers = true;
     private boolean despawnPickedUpMobs = false;
     private int persistentStackSize = 0;
+    // 1.12.0: the rest of the original mod's options (ROADMAP #49-#53).
+    private boolean multiplyGiftDrops = true;
+    private int killBatchSize = 1;
+    private boolean damageWeaponPerHit = false;
+    private boolean stackOutgoingDamage = false;
+    private int maxDamageMultiplier = 16;
+    private boolean enableAssimilator = false;
+    private boolean consumeAssimilator = true;
+    private String assimilatorItem = "minecraft:emerald";
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -574,6 +583,38 @@ public class MobStackerConfig implements MobLists.Holder {
         this.ignoredDataKeys = ignoredDataKeys == null ? "" : ignoredDataKeys.trim();
         save();
     }
+
+    public boolean getMultiplyGiftDrops() { return multiplyGiftDrops; }
+
+    public void setMultiplyGiftDrops(boolean value) { multiplyGiftDrops = value; save(); }
+
+    public int getKillBatchSize() { return Math.max(1, killBatchSize); }
+
+    public void setKillBatchSize(int value) { killBatchSize = Math.max(1, value); save(); }
+
+    public boolean getDamageWeaponPerHit() { return damageWeaponPerHit; }
+
+    public void setDamageWeaponPerHit(boolean value) { damageWeaponPerHit = value; save(); }
+
+    public boolean getStackOutgoingDamage() { return stackOutgoingDamage; }
+
+    public void setStackOutgoingDamage(boolean value) { stackOutgoingDamage = value; save(); }
+
+    public int getMaxDamageMultiplier() { return Math.max(1, maxDamageMultiplier); }
+
+    public void setMaxDamageMultiplier(int value) { maxDamageMultiplier = Math.max(1, value); save(); }
+
+    public boolean getEnableAssimilator() { return enableAssimilator; }
+
+    public void setEnableAssimilator(boolean value) { enableAssimilator = value; save(); }
+
+    public boolean getConsumeAssimilator() { return consumeAssimilator; }
+
+    public void setConsumeAssimilator(boolean value) { consumeAssimilator = value; save(); }
+
+    public String getAssimilatorItem() { return assimilatorItem == null ? "minecraft:emerald" : assimilatorItem; }
+
+    public void setAssimilatorItem(String value) { assimilatorItem = value; save(); }
 
     public boolean getStackBosses() { return stackBosses; }
 

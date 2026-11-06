@@ -49,6 +49,16 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   picked up when it goes; an enderman carrying a block drops the block. Vanilla keeps such mobs
   forever. The part of Let Me Despawn that matters with stacks; use one or the other, not both.
 - **`persistentStackSize` (0, off)**: a stack of at least this many mobs never despawns on its own.
+- **The original mod's remaining options**, so the fork now has all of them that exist on 1.20.1:
+  - `multiplyGiftDrops` (on): a stack of chickens lays an egg for every chicken, a stack of baby turtles
+    leaves a scute for every turtle when it grows up;
+  - `killBatchSize` (1): at least this many mobs die per kill, each with its own loot;
+  - `damageWeaponPerHit` (off): when a stack dies as a whole, every hit wears the weapon for every mob;
+  - `stackOutgoingDamage` (off) with `maxDamageMultiplier` (16): a stack's melee attack hits as hard
+    as all its mobs together;
+  - the **assimilator** (`enableAssimilator` off, `assimilatorItem` emerald, `consumeAssimilator` on):
+    sneak and right-click a mob with it to switch whether that mob or stack may stack. Sneaking,
+    unlike the original, so that trading with emeralds in hand does not switch a villager.
 - **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
 - **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
 ### Changed

@@ -50,3 +50,17 @@ this way is named `Lone <mob>`, and named mobs do not stack, so it stays on its 
 | `enableSeparator` | off |
 | `separatorItem` | `minecraft:diamond` |
 | `consumeSeparator` | on |
+
+## The assimilator item
+
+With `enableAssimilator` on, **sneaking and right-clicking a mob with the `assimilatorItem`** (default
+`minecraft:emerald`) switches whether it may stack: off keeps that mob, or the whole stack it is, out of
+stacks for good; another click lets it back in. The action bar says which. It uses up the item (or a
+point of its durability) if `consumeAssimilator` is on. Sneaking is needed so that trading with a
+villager, emeralds in hand, does not switch the villager.
+
+| Setting | Default |
+|---|---|
+| `enableAssimilator` | off |
+| `assimilatorItem` | `minecraft:emerald` |
+| `consumeAssimilator` | on |

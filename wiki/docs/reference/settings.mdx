@@ -58,6 +58,10 @@ See [Combat]($gameplay/combat).
 | `sweepingEdgeSingleHit` | `false` | `true`, `false` | yes | Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately. Needs `sweepingEdgePerMob`. Does nothing while `killWholeStackOnDeath` is on. |
 | `sweepingEdgeVanillaConditions` | `false` | `true`, `false` | yes | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand. Needs `sweepingEdgeOverflow`. |
 | `sweepingEdgeMaxKills` | `0` | 0 to 2147483647 | yes | Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob. Needs `sweepingEdgeOverflow`. |
+| `killBatchSize` | `1` | 1 to 2147483647 | yes | At least this many mobs of a stack die each time it is killed, each dropping its own loot and experience - a fixed number per kill for farms, on top of what damage overflow takes. 1: only what the damage reaches. Does nothing while `killWholeStackOnDeath` is on. |
+| `damageWeaponPerHit` | `false` | `true`, `false` | yes | When a stack dies as a whole (killWholeStackOnDeath, stackHealth), every hit wears the weapon down as if it had hit every mob in the stack. Off: one hit's wear. Needs `killWholeStackOnDeath`. |
+| `stackOutgoingDamage` | `false` | `true`, `false` | yes | A stack's melee attack hits as hard as all its mobs together, up to maxDamageMultiplier times one mob's. Off: a stack hits like one mob. |
+| `maxDamageMultiplier` | `16` | 1 to 1024 | yes | The most stackOutgoingDamage multiplies a stack's melee damage by. Needs `stackOutgoingDamage`. |
 | `environmentDamagePerMob` | `true` | `true`, `false` | yes | Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, explosions - hurts every mob in a stack, as it would a crowd standing loose, so a fall that kills one zombie kills the whole stack. A player's or a mob's hit stays one hit. Does nothing while `killWholeStackOnDeath` is on. |
 
 ## Feedback
@@ -91,6 +95,7 @@ See [Breeding, shearing & drops]($gameplay/farming).
 |---|---|---|---|---|
 | `enableStackBreeding` | `true` | `true`, `false` | yes | Feeding a stacked animal breeds its members without unstacking them. |
 | `breedOnePerClick` | `false` | `true`, `false` | yes | One click feeds a single member (on) instead of as many as the food in hand (off). |
+| `multiplyGiftDrops` | `true` | `true`, `false` | yes | What mobs drop on their own comes from every mob in a stack: a stack of chickens lays an egg for each, a stack of baby turtles leaves a scute for each when it grows up. Off: as one mob. |
 | `stackedHarvest` | `true` | `true`, `false` | yes | Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool. |
 | `enableAnimalBabyStacking` | `true` | `true`, `false` | yes | Let baby farm animals stack together. |
 | `enableHostileBabyStacking` | `true` | `true`, `false` | yes | Let baby hostile mobs (e.g. baby zombies) stack together. |
@@ -129,6 +134,9 @@ See [Pets & mounts]($gameplay/pets_and_mounts#the-separator-item).
 | `enableSeparator` | `false` | `true`, `false` | yes | Enable right-clicking a stack with the separator item to split one mob off. |
 | `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. |
 | `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. |
+| `enableAssimilator` | `false` | `true`, `false` | yes | Sneak and right-click a mob with the assimilator item to switch whether it may stack: off keeps it (or the stack it is) out of stacks for good, on lets it back in. |
+| `consumeAssimilator` | `true` | `true`, `false` | yes | Use up one assimilator item (or a point of durability) each time. Needs `enableAssimilator`. |
+| `assimilatorItem` | `minecraft:emerald` | text | yes | The item that switches a mob's stacking on and off. Needs `enableAssimilator`. |
 | `separationCooldown` | `0` | 0 to 3600 | yes | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan. |
 
 ## Regions
@@ -139,4 +147,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (61 settings).*
+*This page is generated from the mod's settings registry (69 settings).*
