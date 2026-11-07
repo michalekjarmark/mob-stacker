@@ -148,8 +148,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **Completion lists in the config screens stayed open** once something had been typed, even after
   clicking elsewhere, and lay over what was under them. They close when the box loses focus or a
   click lands anywhere else.
-- The line under a region's settings (its dimension and corners) ran off a narrow screen; it fits
-  now, and hovering it shows all of it, with every biome the region is limited to.
+- Long lines ran off the screens: the one under a region's settings (its dimension and corners) and
+  the answer to an edit, which names every biome a region is limited to. A line that does not fit is
+  cut now, and hovering it shows all of it - the region's line with every biome it is limited to.
 - **A stack of creepers that blew up next to a player was gone entirely**: only one creeper exploded,
   but the rest went with it. The others stay now and come at you one by one. And a creeper lit with
   flint and steel no longer leaves a second stack behind when it is unloaded or goes through a portal

@@ -526,10 +526,15 @@ public final class MobStackerRegionEditScreen extends Screen {
                             : "Redrawing or renaming a region keeps its settings, its priority and its colour.")
                     .withStyle(ChatFormatting.GRAY);
         }
-        // Cut to the window: an unknown biome's note names the entry, and a long id ran off both edges.
-        ScreenText.drawCentered(guiGraphics, this.font, note, this.width / 2, NOTE_Y, this.width - 16);
+        // Cut to the window, whole on hover: an unknown biome's note names the entry, and a refusal
+        // can name a whole list of them.
+        ScreenText.Line noteLine = ScreenText.drawCentered(guiGraphics, this.font, note, this.width / 2, NOTE_Y,
+                this.width - 16);
         // Last, so it lies over the note and the buttons it opens above or below.
         biomeCompletion.render(guiGraphics, this.height, mouseX, mouseY);
+        if (!biomeCompletion.isOpen()) {
+            noteLine.renderTooltip(guiGraphics, this.font, this.width, mouseX, mouseY);
+        }
     }
 
     /**

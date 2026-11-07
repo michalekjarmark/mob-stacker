@@ -685,9 +685,13 @@ public final class MobStackerConfigScreen extends Screen {
         } else if (remote) {
             String status = MobStackerClientNetworking.status();
             if (status != null && !status.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font,
+                // A server's answer can be longer than the window is wide: cut, and whole on hover.
+                ScreenText.Line line = ScreenText.drawCentered(guiGraphics, this.font,
                         Component.literal(status).withStyle(ChatFormatting.YELLOW),
-                        this.width / 2, this.height - 46, 0xFFFFFF);
+                        this.width / 2, this.height - 46, this.width - 16);
+                if (line.renderTooltip(guiGraphics, this.font, this.width, mouseX, mouseY)) {
+                    return;
+                }
             }
         }
 

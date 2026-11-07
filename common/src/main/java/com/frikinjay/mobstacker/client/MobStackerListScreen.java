@@ -47,7 +47,6 @@ public final class MobStackerListScreen extends Screen {
     private static final int NOTE_HEIGHT = 12;
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int MUTED_TEXT = 0xA0A0A0;
-    private static final int WARN_TEXT = 0xFF5555;
 
     /** The tabs, in the order the {@code >} button walks them. Null kind = the ceilings tab. */
     private static final MobListKind[] TABS = MobListKind.values();
@@ -777,15 +776,22 @@ public final class MobStackerListScreen extends Screen {
         // Everything with something to say sits here, stacked up from the add row: that the list on
         // screen is not the one being read, which command would change that, and whatever the last
         // edit answered. listBottomMargin() counts the same lines, so the rows always stop above them.
+        // Each cut to the window, whole on hover: an answer can be longer than the window is wide.
         List<Component> notes = notes();
+        List<ScreenText.Line> noteLines = new ArrayList<>();
         int noteY = this.height - LIST_BOTTOM_MARGIN - notes.size() * NOTE_HEIGHT + 2;
         for (Component note : notes) {
-            graphics.drawCenteredString(this.font, note, this.width / 2, noteY, WARN_TEXT);
+            noteLines.add(ScreenText.drawCentered(graphics, this.font, note, this.width / 2, noteY, this.width - 16));
             noteY += NOTE_HEIGHT;
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
         completion.render(graphics, this.height, mouseX, mouseY);
+        for (ScreenText.Line line : noteLines) {
+            if (line.renderTooltip(graphics, this.font, this.width, mouseX, mouseY)) {
+                break;
+            }
+        }
     }
 
     /** Whether the thing this row names exists in the running game. */

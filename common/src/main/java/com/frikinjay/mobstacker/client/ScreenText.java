@@ -7,16 +7,42 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.util.FormattedCharSequence;
 
+import java.util.List;
+
 /**
  * A line of text that has to stay on the screen. A centred line wider than the window runs off both
- * edges at once, which is how the region page's footer lost its ends in round 13 (a region with
- * biomes, on a narrow window). Such a line is cut to the width with an ellipsis instead; the screen
- * says the rest in a tooltip.
+ * edges at once, which is how the region page lost the ends of two lines in rounds 13 and 14: its
+ * footer, and the answer to an edit, which names every biome of the region. Such a line is cut to the
+ * width with an ellipsis instead, and hovering it shows the whole text.
  */
 final class ScreenText {
     private static final Component ELLIPSIS = Component.literal("…");
 
     private ScreenText() {
+    }
+
+    /**
+     * A line as it was drawn: where, how wide, and the whole text for the tooltip.
+     *
+     * @param cut whether the text did not fit and was cut
+     */
+    record Line(int left, int top, int width, Component text, boolean cut) {
+        boolean isMouseOver(Font font, int mouseX, int mouseY) {
+            return mouseX >= left && mouseX <= left + width && mouseY >= top && mouseY <= top + font.lineHeight;
+        }
+
+        /**
+         * The whole text in a tooltip, when the line was cut and the mouse is on it.
+         *
+         * @return true when the tooltip was drawn
+         */
+        boolean renderTooltip(GuiGraphics graphics, Font font, int screenWidth, int mouseX, int mouseY) {
+            if (!cut || !isMouseOver(font, mouseX, mouseY)) {
+                return false;
+            }
+            ScreenTooltip.render(graphics, font, List.of(text), screenWidth, mouseX, mouseY);
+            return true;
+        }
     }
 
     /** The text as it fits into {@code maxWidth}: whole, or cut with an ellipsis. */
@@ -28,15 +54,12 @@ final class ScreenText {
         return Language.getInstance().getVisualOrder(FormattedText.composite(cut, ELLIPSIS));
     }
 
-    /**
-     * Draws the text centred on {@code centerX}, cut to {@code maxWidth}.
-     *
-     * @return how wide it came out, for a screen that puts a tooltip over it
-     */
-    static int drawCentered(GuiGraphics graphics, Font font, Component text, int centerX, int y, int maxWidth) {
+    /** Draws the text centred on {@code centerX}, cut to {@code maxWidth}, and says where it went. */
+    static Line drawCentered(GuiGraphics graphics, Font font, Component text, int centerX, int y, int maxWidth) {
         FormattedCharSequence line = fit(font, text, maxWidth);
         int width = font.width(line);
-        graphics.drawString(font, line, centerX - width / 2, y, 0xFFFFFF);
-        return width;
+        int left = centerX - width / 2;
+        graphics.drawString(font, line, left, y, 0xFFFFFF);
+        return new Line(left, y, width, text, font.width(text) > maxWidth);
     }
 }

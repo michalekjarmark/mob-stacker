@@ -78,6 +78,8 @@ public final class MobStackerRegionScreen extends Screen {
     private Button switchButton;
     /** How wide the footer came out last frame, so its tooltip covers what is drawn. */
     private int footerWidth;
+    /** The status line as drawn last frame (null when there is none), for its tooltip when cut. */
+    private ScreenText.Line statusLine;
     /** The last local edit's answer, shown where a server's status line would be. */
     private String localStatus = "";
     private Button overlayBox;
@@ -993,6 +995,10 @@ public final class MobStackerRegionScreen extends Screen {
             return;
         }
 
+        if (statusLine != null && statusLine.renderTooltip(guiGraphics, this.font, this.width, mouseX, mouseY)) {
+            return;
+        }
+
         if (overFooter(mouseX, mouseY)) {
             MobStackerClientRegions.View shown = currentRegion();
             ScreenTooltip.render(guiGraphics, this.font, List.of(
@@ -1089,19 +1095,22 @@ public final class MobStackerRegionScreen extends Screen {
         int room = this.width - 16;
         footerWidth = ScreenText.drawCentered(guiGraphics, this.font,
                 this.font.width(withLegend) <= room ? withLegend : area,
-                this.width / 2, this.height - FOOTER_Y_FROM_BOTTOM, room);
+                this.width / 2, this.height - FOOTER_Y_FROM_BOTTOM, room).width();
 
+        statusLine = null;
         if (remote && !editable) {
             guiGraphics.drawCenteredString(this.font,
                     Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
                     this.width / 2, this.height - 46, 0xFFFFFF);
             return;
         }
+        // An edit's answer names the region's corners and every biome it is limited to, so it can
+        // be far wider than the window (round 14): cut, and whole in a tooltip.
         String status = remote ? MobStackerClientNetworking.status() : localStatus;
         if (status != null && !status.isEmpty()) {
-            guiGraphics.drawCenteredString(this.font,
+            statusLine = ScreenText.drawCentered(guiGraphics, this.font,
                     Component.literal(status).withStyle(ChatFormatting.YELLOW),
-                    this.width / 2, this.height - 46, 0xFFFFFF);
+                    this.width / 2, this.height - 46, room);
         }
     }
 
