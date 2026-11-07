@@ -23,6 +23,8 @@ public final class ConfigOption {
 
     public enum Category {
         STACKING("Stacking"),
+        /** What may stack at all - lists, gear, names, other mods' data, bosses (split off Stacking in 1.12.0). */
+        MOBS("Which mobs stack"),
         ORIGIN("Spawn origin"),
         COMBAT("Combat"),
         FEEDBACK("Feedback"),

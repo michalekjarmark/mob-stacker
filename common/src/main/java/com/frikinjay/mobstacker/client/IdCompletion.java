@@ -5,8 +5,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.biome.Biome;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -29,6 +32,10 @@ import java.util.function.Supplier;
  * the box ({@link #attach}, from {@code init}, because every rebuild makes a new one), the keys and
  * clicks ({@link #handleKey} / {@link #mouseClicked}, before its own handling) and a chance to draw
  * ({@link #render}, after {@code super.render}).
+ *
+ * <p>Candidates starting with {@code #} are tags (1.12.0): typing {@code #} offers only those, and
+ * {@code #rai} finds {@code #minecraft:raiders} the way {@code cow} finds {@code minecraft:cow}. A box
+ * that holds several entries (the region editor's biomes) completes only the last one.
  */
 final class IdCompletion {
     private static final int LINE_HEIGHT = 12;
@@ -42,6 +49,7 @@ final class IdCompletion {
      * behind the screen's own text, which is worse than no list at all.
      */
     private static final int Z = 200;
+    private static final String TAG = "#";
 
     /** Every entity id, every namespace that has an entity, and every item id. Worked out once. */
     private static List<String> entityIds;
@@ -49,6 +57,8 @@ final class IdCompletion {
     private static List<String> itemIds;
 
     private final Supplier<List<String>> candidates;
+    /** Whether the box holds a list (commas or spaces between entries) and only the last is completed. */
+    private final boolean lastEntryOnly;
     private EditBox box;
     private Collection<String> exclude = List.of();
     private List<String> shown = List.of();
@@ -56,7 +66,13 @@ final class IdCompletion {
 
     /** @param candidates every id the box could mean, asked afresh each time it is needed */
     IdCompletion(Supplier<List<String>> candidates) {
+        this(candidates, false);
+    }
+
+    /** @param lastEntryOnly the box holds a list of entries and only the one being typed is completed */
+    IdCompletion(Supplier<List<String>> candidates, boolean lastEntryOnly) {
         this.candidates = candidates;
+        this.lastEntryOnly = lastEntryOnly;
     }
 
     /** Points this at the box it completes, or at nothing (null) on a page without one. Closes the list. */
@@ -87,11 +103,14 @@ final class IdCompletion {
     /** Fills the list from what has been typed. Called from the box's responder. */
     void update(String typed) {
         index = 0;
-        String text = typed == null ? "" : typed.trim().toLowerCase(Locale.ROOT);
+        String text = typed == null ? "" : entryOf(typed).toLowerCase(Locale.ROOT);
         if (box == null || text.isEmpty()) {
             shown = List.of();
             return;
         }
+        // A "#" means a tag, and is not part of what is matched: "#rai" is "rai" among the tags.
+        boolean tagTyped = text.startsWith(TAG);
+        String bare = tagTyped ? text.substring(TAG.length()) : text;
         // Three buckets, best first: the id itself, then the part after the colon (people type
         // "cow"), then anything that merely contains what was typed.
         List<String> byId = new ArrayList<>();
@@ -101,11 +120,21 @@ final class IdCompletion {
             if (candidate.equals(text) || exclude.contains(candidate)) {
                 continue;
             }
-            if (candidate.startsWith(text)) {
+            boolean tag = candidate.startsWith(TAG);
+            String id = tag ? candidate.substring(TAG.length()) : candidate;
+            if (tag != tagTyped) {
+                // An id typed: a tag only where its name holds the text ("raid" - #raiders); a "#"
+                // typed: never an id.
+                if (tag && id.contains(bare)) {
+                    anywhere.add(candidate);
+                }
+                continue;
+            }
+            if (id.startsWith(bare)) {
                 byId.add(candidate);
-            } else if (pathOf(candidate).startsWith(text)) {
+            } else if (pathOf(id).startsWith(bare)) {
                 byPath.add(candidate);
-            } else if (candidate.contains(text)) {
+            } else if (id.contains(bare)) {
                 anywhere.add(candidate);
             }
         }
@@ -121,7 +150,12 @@ final class IdCompletion {
             return;
         }
         String chosen = shown.get(Math.min(index, shown.size() - 1));
-        box.setValue(chosen);
+        if (lastEntryOnly) {
+            String value = box.getValue();
+            box.setValue(value.substring(0, entryStart(value)) + chosen);
+        } else {
+            box.setValue(chosen);
+        }
         // setValue runs the responder, which fills the list again from the completed id; it has
         // served its purpose either way, so it closes here rather than a moment later.
         close();
@@ -138,9 +172,26 @@ final class IdCompletion {
         if (!isOpen()) {
             return false;
         }
-        String typed = box.getValue().trim().toLowerCase(Locale.ROOT);
+        String typed = entryOf(box.getValue()).toLowerCase(Locale.ROOT);
         List<String> known = candidates.get();
-        return !known.contains(typed) && !known.contains("minecraft:" + typed);
+        String full = typed.startsWith(TAG) ? TAG + "minecraft:" + typed.substring(TAG.length()) : "minecraft:" + typed;
+        return !known.contains(typed) && !known.contains(full);
+    }
+
+    /** What is being typed: the whole box, or in a list box the entry after the last comma or space. */
+    private String entryOf(String value) {
+        return (lastEntryOnly ? value.substring(entryStart(value)) : value).trim();
+    }
+
+    /** Where the last entry of a list starts: after its last comma or space. */
+    private static int entryStart(String value) {
+        for (int i = value.length() - 1; i >= 0; i--) {
+            char c = value.charAt(i);
+            if (c == ',' || Character.isWhitespace(c)) {
+                return i + 1;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -272,6 +323,28 @@ final class IdCompletion {
             itemIds = sorted(BuiltInRegistries.ITEM.keySet());
         }
         return itemIds;
+    }
+
+    /**
+     * Every biome and biome tag of the world this game is in (1.12.0, the region editor's filter).
+     * Asked afresh each time: biomes are the server's, from its data packs, so they cannot be kept
+     * for the game like the entity ids.
+     */
+    static List<String> biomeIdsAndTags() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return List.of();
+        }
+        Registry<Biome> biomes = minecraft.level.registryAccess().registry(Registries.BIOME).orElse(null);
+        if (biomes == null) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>(sorted(biomes.keySet()));
+        List<String> tags = new ArrayList<>();
+        biomes.getTagNames().forEach(tag -> tags.add(TAG + tag.location()));
+        tags.sort(String::compareTo);
+        ids.addAll(tags);
+        return ids;
     }
 
     private static List<String> sorted(Collection<ResourceLocation> keys) {

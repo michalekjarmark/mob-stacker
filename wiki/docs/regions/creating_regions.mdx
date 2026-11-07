@@ -26,7 +26,9 @@ Open `/mobstackerconfig` → **Regions…**:
 - The button next to the kind switches between **box** and **whole dimension**; the corners stay
   filled in, as the box the region goes back to.
 - **only in biomes** takes biome ids and tags, separated by commas: `#minecraft:is_forest, desert`.
-  Empty means every biome.
+  Empty means every biome. It completes the entry you are typing (`#` for tags); an entry turns the
+  text yellow when this game knows no such biome - most likely a typo - and red when it is not a
+  biome id at all.
 - On the region screen, **region: on / OFF** switches the selected region off and back on.
 
 A region keeps its corners the way you gave them: the first block you clicked is corner 1.
@@ -48,7 +50,10 @@ you are in.
 ```
 
 `region list` shows ten regions a page (`region list 2` for the next ten, or click the arrows). Click
-a region's name to see everything about it, and `[on]` / `[off]` to switch it.
+a region's name to see everything about it, and `[on]` / `[off]` to switch it; what can be clicked is
+underlined. With the mod on your game, the list and a region's page are one panel that each click
+redraws in place, with **« all regions** to go back. Without the mod a click prints the new panel
+under the old one, as vanilla cannot change a message it has shown.
 
 ## A whole dimension
 

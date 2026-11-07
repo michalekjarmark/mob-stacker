@@ -179,11 +179,23 @@ public class MobStackerCommands {
                         .then(literal("enable").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
-                                        .executes(ctx -> setRegionEnabled(ctx, true))))
+                                        .executes(ctx -> setRegionEnabled(ctx, true, null, 0))
+                                        // What the switches in the chat run: the panel they sit in is
+                                        // drawn again, so the switch shows what it did.
+                                        .then(literal("show").executes(ctx -> setRegionEnabled(ctx, true, REDRAW_SHOW, 0)))
+                                        .then(literal("list").then(argument("page", IntegerArgumentType.integer(1))
+                                                .executes(ctx -> setRegionEnabled(ctx, true, REDRAW_LIST,
+                                                        IntegerArgumentType.getInteger(ctx, "page")))))))
                         .then(literal("disable").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
-                                        .executes(ctx -> setRegionEnabled(ctx, false))))
+                                        .executes(ctx -> setRegionEnabled(ctx, false, null, 0))
+                                        // What the switches in the chat run: the panel they sit in is
+                                        // drawn again, so the switch shows what it did.
+                                        .then(literal("show").executes(ctx -> setRegionEnabled(ctx, false, REDRAW_SHOW, 0)))
+                                        .then(literal("list").then(argument("page", IntegerArgumentType.integer(1))
+                                                .executes(ctx -> setRegionEnabled(ctx, false, REDRAW_LIST,
+                                                        IntegerArgumentType.getInteger(ctx, "page")))))))
                         .then(literal("type").requires(MobStackerCommands::isAdmin)
                                 .then(argument("name", StringArgumentType.word())
                                         .suggests(MobStackerCommands::suggestRegions)
@@ -570,12 +582,17 @@ public class MobStackerCommands {
     private static CompletableFuture<Suggestions> suggestEntitiesAndTags(CommandContext<CommandSourceStack> context,
                                                                        SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+        // "#rai" is "rai" among the tags: the "#" is what was typed to ask for one, not part of the
+        // name. Compared with it, nothing matched once a "#" was typed (round 12).
+        boolean tagTyped = remaining.startsWith(MobLists.TAG_PREFIX);
+        String bare = tagTyped ? remaining.substring(MobLists.TAG_PREFIX.length()) : remaining;
         for (String tag : MobLists.tagEntries()) {
-            if (tag.startsWith(remaining) || tag.substring(tag.indexOf(':') + 1).startsWith(remaining)) {
+            String id = tag.substring(MobLists.TAG_PREFIX.length());
+            if (id.startsWith(bare) || id.substring(id.indexOf(':') + 1).startsWith(bare)) {
                 builder.suggest(tag);
             }
         }
-        return suggestEntities(context, builder);
+        return tagTyped ? builder.buildFuture() : suggestEntities(context, builder);
     }
 
     private static CompletableFuture<Suggestions> suggestMods(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
@@ -1355,19 +1372,47 @@ public class MobStackerCommands {
         return builder.buildFuture();
     }
 
-    private static int setRegionEnabled(CommandContext<CommandSourceStack> context, boolean enabled) {
+    /** {@code region enable|disable <name> show}: the region's page is drawn again after the switch. */
+    private static final String REDRAW_SHOW = "show";
+    /** {@code region enable|disable <name> list <page>}: that page of the list is drawn again. */
+    private static final String REDRAW_LIST = "list";
+    /** The chat panel the region list and a region's page share (CommandFeedback#beginPanel). */
+    private static final String REGIONS_PANEL = "regions";
+
+    /**
+     * Switches a region on or off. Clicked in the chat ({@code redraw} not null), the answer is the
+     * panel it was clicked in, drawn again with the switch the other way round: on a game with the
+     * mod it takes the old panel's place (round 12: the old one stayed, saying "[switch off]").
+     */
+    private static int setRegionEnabled(CommandContext<CommandSourceStack> context, boolean enabled,
+                                        String redraw, int page) {
         StackRegion region = requireRegion(context);
         if (region == null) {
             return 0;
         }
-        if (region.isEnabled() == enabled) {
-            CommandFeedback.success(context.getSource(), () -> Component.literal(
-                    "Region '" + region.getName() + "' is already " + (enabled ? "on" : "off")).withStyle(ChatFormatting.YELLOW), false);
-            return 0;
+        boolean opened = redraw != null && CommandFeedback.beginPanel(REGIONS_PANEL);
+        try {
+            int result;
+            if (region.isEnabled() == enabled) {
+                CommandFeedback.success(context.getSource(), () -> Component.literal(
+                        "Region '" + region.getName() + "' is already " + (enabled ? "on" : "off")).withStyle(ChatFormatting.YELLOW), false);
+                result = 0;
+            } else {
+                result = reportRegionEdit(context, RegionEdit.setEnabled(region.getName(), enabled));
+            }
+            if (REDRAW_SHOW.equals(redraw)) {
+                showRegion(context);
+            } else if (REDRAW_LIST.equals(redraw)) {
+                listRegions(context, page);
+            } else {
+                warnIfStacksNowhere(context.getSource());
+            }
+            return result;
+        } finally {
+            if (opened) {
+                CommandFeedback.endPanel();
+            }
         }
-        int result = reportRegionEdit(context, RegionEdit.setEnabled(region.getName(), enabled));
-        warnIfStacksNowhere(context.getSource());
-        return result;
     }
 
     /**
@@ -1483,6 +1528,17 @@ public class MobStackerCommands {
      * events do nothing in the server console, which still reads the same text.
      */
     private static int listRegions(CommandContext<CommandSourceStack> context, int requestedPage) {
+        boolean opened = CommandFeedback.beginPanel(REGIONS_PANEL);
+        try {
+            return printRegionList(context, requestedPage);
+        } finally {
+            if (opened) {
+                CommandFeedback.endPanel();
+            }
+        }
+    }
+
+    private static int printRegionList(CommandContext<CommandSourceStack> context, int requestedPage) {
         List<StackRegion> regions = MobStacker.config.getRegions();
         String mode = String.valueOf(MobStacker.config.getStackMode());
         CommandSourceStack source = context.getSource();
@@ -1500,7 +1556,7 @@ public class MobStackerCommands {
                 .withStyle(ChatFormatting.AQUA), false);
         int from = (page - 1) * REGIONS_PER_PAGE;
         for (StackRegion region : regions.subList(from, Math.min(regions.size(), from + REGIONS_PER_PAGE))) {
-            CommandFeedback.success(source, () -> regionListLine(region), false);
+            CommandFeedback.success(source, () -> regionListLine(region, page), false);
         }
         if (pages > 1) {
             MutableComponent nav = Component.literal(" ");
@@ -1517,27 +1573,41 @@ public class MobStackerCommands {
         return 1;
     }
 
-    /** One region in {@code region list}: its name (click: details), what it is, and its on/off switch. */
-    private static Component regionListLine(StackRegion region) {
+    /**
+     * One region in {@code region list}: its name (click: its page), what it is, and its on/off switch.
+     * What can be clicked is underlined and in colour; what is only said is grey (round 12: all of it
+     * was one green, and the links could not be told from the text).
+     */
+    private static Component regionListLine(StackRegion region, int page) {
         boolean on = region.isEnabled();
         ChatFormatting color = !on ? ChatFormatting.GRAY : region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
-        MutableComponent line = Component.literal(" - ").withStyle(color);
+        MutableComponent line = Component.literal(" - ").withStyle(ChatFormatting.DARK_GRAY);
         line.append(clickable(region.getName(), color, "/mobstacker region show " + region.getName(),
                 "Show everything about " + region.getName()));
         line.append(Component.literal(" [" + region.getType() + "] " + region.getDimension() + " "
-                + region.describeBounds() + describeRegionExtras(region)).withStyle(color));
+                + region.describeBounds() + describeRegionExtras(region))
+                .withStyle(on ? ChatFormatting.GRAY : ChatFormatting.DARK_GRAY));
         line.append(Component.literal("  "));
         line.append(on
-                ? clickable("[on]", ChatFormatting.GREEN, "/mobstacker region disable " + region.getName(),
+                ? clickable("[on]", ChatFormatting.GREEN, "/mobstacker region disable " + region.getName() + " list " + page,
                         "Click to switch " + region.getName() + " off (it is kept with everything it carries)")
-                : clickable("[off]", ChatFormatting.DARK_GRAY, "/mobstacker region enable " + region.getName(),
+                : clickable("[off]", ChatFormatting.GRAY, "/mobstacker region enable " + region.getName() + " list " + page,
                         "Click to switch " + region.getName() + " back on"));
         return line;
     }
 
-    /** Text that runs {@code command} when clicked in chat, with {@code hover} as its tooltip. */
+    /** The page of {@code region list} a region is on. */
+    private static int listPageOf(StackRegion region) {
+        int index = MobStacker.config.getRegions().indexOf(region);
+        return index < 0 ? 1 : index / REGIONS_PER_PAGE + 1;
+    }
+
+    /**
+     * Text that runs {@code command} when clicked in chat, with {@code hover} as its tooltip:
+     * underlined, the way a link looks, so it stands out from the text around it.
+     */
     private static MutableComponent clickable(String text, ChatFormatting color, String command, String hover) {
-        return Component.literal(text).withStyle(style -> style.withColor(color)
+        return Component.literal(text).withStyle(style -> style.withColor(color).withUnderlined(true)
                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(hover))));
     }
@@ -1714,15 +1784,27 @@ public class MobStackerCommands {
         if (region == null) {
             return 0;
         }
-        CommandSourceStack source = context.getSource();
+        boolean opened = CommandFeedback.beginPanel(REGIONS_PANEL);
+        try {
+            return printRegion(context.getSource(), region);
+        } finally {
+            if (opened) {
+                CommandFeedback.endPanel();
+            }
+        }
+    }
+
+    private static int printRegion(CommandSourceStack source, StackRegion region) {
         ChatFormatting typeColor = region.isDeny() ? ChatFormatting.RED : ChatFormatting.GREEN;
-        CommandFeedback.success(source, () -> Component.literal("Region '" + region.getName() + "'").withStyle(ChatFormatting.AQUA), false);
+        CommandFeedback.success(source, () -> Component.literal("Region '" + region.getName() + "'   ").withStyle(ChatFormatting.AQUA)
+                .append(clickable("\u00ab all regions", ChatFormatting.YELLOW, "/mobstacker region list " + listPageOf(region),
+                        "Back to the list of regions")), false);
         CommandFeedback.success(source, () -> region.isEnabled()
                 ? Component.literal(" switched: on  ").withStyle(ChatFormatting.GREEN)
-                        .append(clickable("[switch off]", ChatFormatting.YELLOW, "/mobstacker region disable " + region.getName(),
+                        .append(clickable("[switch off]", ChatFormatting.YELLOW, "/mobstacker region disable " + region.getName() + " show",
                                 "Keeps the region with everything it carries, but it does nothing until switched on"))
                 : Component.literal(" switched: OFF - it does nothing until switched on  ").withStyle(ChatFormatting.GRAY)
-                        .append(clickable("[switch on]", ChatFormatting.YELLOW, "/mobstacker region enable " + region.getName(),
+                        .append(clickable("[switch on]", ChatFormatting.YELLOW, "/mobstacker region enable " + region.getName() + " show",
                                 "Switch " + region.getName() + " back on")), false);
         CommandFeedback.success(source, () -> Component.literal(" type: " + region.getType()).withStyle(typeColor), false);
         CommandFeedback.success(source, () -> Component.literal(

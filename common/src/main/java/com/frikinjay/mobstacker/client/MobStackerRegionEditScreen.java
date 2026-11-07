@@ -11,11 +11,15 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +38,8 @@ import java.util.List;
 public final class MobStackerRegionEditScreen extends Screen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
+    /** A biome entry that is well-formed but names nothing this game knows: kept, and likely a typo. */
+    private static final int UNKNOWN_TEXT = 0xFFFF55;
     private static final int LABEL_X_OFFSET = -150;
 
     // One ladder of rows, read by init() for the widgets and by render() for the text beside them.
@@ -78,6 +84,10 @@ public final class MobStackerRegionEditScreen extends Screen {
     /** Everything that only means something for a box: the corner rows' "Here" buttons and the picker. */
     private final List<Button> boxButtons = new ArrayList<>();
     private String message = "";
+    /** The biome box's completion: biome ids and tags, for the entry being typed. */
+    private final IdCompletion biomeCompletion = new IdCompletion(IdCompletion::biomeIdsAndTags, true);
+    /** What the biome box says about an entry this game does not know, or null. */
+    private String biomeNote;
     private boolean messageIsError;
     /** Set after the first click on Delete, so the second one is the one that means it. */
     private boolean deleteArmed;
@@ -178,8 +188,14 @@ public final class MobStackerRegionEditScreen extends Screen {
         biomeBox.setEditable(editable);
         biomeBox.setResponder(text -> {
             biomeText = text;
-            biomeBox.setTextColor(RegionBiomes.listProblem(RegionBiomes.parseList(text)) == null ? NORMAL_TEXT : ERROR_TEXT);
+            colourBiomeBox(biomeBox);
+            if (editable) {
+                biomeCompletion.exclude(RegionBiomes.parseList(text));
+                biomeCompletion.update(text);
+            }
         });
+        colourBiomeBox(biomeBox);
+        biomeCompletion.attach(biomeBox);
         addRenderableWidget(biomeBox);
 
         // Two buttons on a new region, three on an existing one - centred either way, so the row
@@ -495,6 +511,8 @@ public final class MobStackerRegionEditScreen extends Screen {
         if (!message.isEmpty()) {
             note = Component.literal(message)
                     .withStyle(messageIsError ? ChatFormatting.RED : ChatFormatting.GREEN);
+        } else if (biomeNote != null) {
+            note = Component.literal(biomeNote).withStyle(ChatFormatting.YELLOW);
         } else if (!editable) {
             // Where the note goes: the line it used to have, at the bottom, is under the biome row now.
             note = Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY);
@@ -508,6 +526,54 @@ public final class MobStackerRegionEditScreen extends Screen {
                     .withStyle(ChatFormatting.GRAY);
         }
         guiGraphics.drawCenteredString(this.font, note, this.width / 2, NOTE_Y, 0xFFFFFF);
+        // Last, so it lies over the note and the buttons it opens above or below.
+        biomeCompletion.render(guiGraphics, this.height, mouseX, mouseY);
+    }
+
+    /**
+     * Red for an entry that is not a biome id or a tag at all, yellow for one this game does not know
+     * (a typo, or another mod's biome that is not installed - still kept, as the server keeps it), with
+     * a note saying which. Before, only the first kind was marked, so "plainz" looked fine.
+     */
+    private void colourBiomeBox(EditBox box) {
+        List<String> entries = RegionBiomes.parseList(biomeText);
+        biomeNote = null;
+        if (RegionBiomes.listProblem(entries) != null) {
+            box.setTextColor(ERROR_TEXT);
+            return;
+        }
+        Registry<Biome> biomes = this.minecraft == null || this.minecraft.level == null ? null
+                : this.minecraft.level.registryAccess().registry(Registries.BIOME).orElse(null);
+        for (String entry : entries) {
+            String note = RegionBiomes.entryNote(entry, biomes);
+            if (note != null) {
+                biomeNote = note;
+                break;
+            }
+        }
+        box.setTextColor(biomeNote == null ? NORMAL_TEXT : UNKNOWN_TEXT);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        boolean inBiomeBox = biomeCompletion.isFor(this.getFocused());
+        if (biomeCompletion.handleKey(keyCode, inBiomeBox)) {
+            return true;
+        }
+        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+                && inBiomeBox && biomeCompletion.shouldEnterComplete()) {
+            biomeCompletion.accept();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (biomeCompletion.mouseClicked(mouseX, mouseY, this.height)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     private void drawLabel(GuiGraphics guiGraphics, String text, int x, int y) {

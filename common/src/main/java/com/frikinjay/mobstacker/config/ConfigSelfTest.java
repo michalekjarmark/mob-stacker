@@ -1,12 +1,14 @@
 package com.frikinjay.mobstacker.config;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.StackRefusal;
 import com.frikinjay.mobstacker.config.ConfigOption.Result.Status;
 import com.frikinjay.mobstacker.config.ConfigOption.Type;
 
 import com.google.gson.Gson;
 import com.mojang.brigadier.tree.CommandNode;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.decoration.ArmorStand;
 
@@ -74,6 +76,7 @@ public final class ConfigSelfTest {
                 testCommandAccess(report, source);
                 testSpawnCounting(report, source);
                 testMemberCopies(report, source);
+                testRound12(report, source);
             }
         } catch (Exception e) {
             report.checks++;
@@ -496,6 +499,51 @@ public final class ConfigSelfTest {
      * 1.12.0 (#35): a mob made out of a stack is a copy of the stack's saved data, less what is the top
      * mob's alone. None of these mobs is ever added to the world.
      */
+    /** What round 12 of the tests found: chat panels, every refusal in inspect, tag completion. */
+    private static void testRound12(Report report, CommandSourceStack source) {
+        // A chat panel's mark comes through the wire (JSON) and adds no text.
+        Component start = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal("Regions:"), "regions", true);
+        Component sent = Component.Serializer.fromJson(Component.Serializer.toJson(start));
+        check(report, com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(sent)
+                        && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(sent))
+                        && "Regions:".equals(sent.getString()),
+                "a chat panel's first line lost its mark on the way, or shows it: " + Component.Serializer.toJson(start));
+        Component next = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal(" - farm"), "regions", false);
+        check(report, !com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(next)
+                        && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(next))
+                        && com.frikinjay.mobstacker.command.CommandFeedback.panelOf(Component.literal("plain")) == null,
+                "a panel's later line starts a panel, or a plain line belongs to one");
+
+        // inspect lists every rule that keeps a mob out, the first being the one the scan asks first.
+        net.minecraft.server.level.ServerLevel level = source.getLevel();
+        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        if (cow != null) {
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
+            check(report, MobStacker.stackRefusals(cow).isEmpty() && MobStacker.stackRefusal(cow) == null,
+                    "a plain cow is refused: " + MobStacker.stackRefusals(cow));
+            cow.setNoAi(true);
+            cow.setInLove(null);
+            List<StackRefusal> all = MobStacker.stackRefusals(cow);
+            check(report, all.contains(StackRefusal.NO_AI) && all.contains(StackRefusal.IN_LOVE)
+                            && all.get(0) == MobStacker.stackRefusal(cow),
+                    "inspect does not list every refusal of a frozen cow in love: " + all);
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.OFF);
+        }
+
+        // "#rai" completes to the raiders tag, in the command (round 12: the "#" was compared too).
+        try {
+            com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
+            String typed = "mobstacker list deny entity add #rai";
+            List<String> offered = new java.util.ArrayList<>();
+            dispatcher.getCompletionSuggestions(dispatcher.parse(typed, source.withPermission(4))).join().getList()
+                    .forEach(suggestion -> offered.add(suggestion.getText()));
+            check(report, offered.contains("#minecraft:raiders"),
+                    "'" + typed + "' does not offer #minecraft:raiders: " + offered);
+        } catch (RuntimeException e) {
+            check(report, false, "tag completion crashed: " + e);
+        }
+    }
+
     private static void testMemberCopies(Report report, CommandSourceStack source) {
         net.minecraft.server.level.ServerLevel level = source.getLevel();
         net.minecraft.world.entity.monster.Zombie zombie = EntityType.ZOMBIE.create(level);

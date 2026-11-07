@@ -26,6 +26,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -287,15 +288,40 @@ public final class MobStacker {
      * the scan would not. Everything about the mob itself is still asked.
      */
     public static StackRefusal stackRefusal(Mob entity, boolean checkWhere) {
+        return stackRefusal(entity, checkWhere, null);
+    }
+
+    /**
+     * Every rule that keeps this mob out of stacking, in the order {@link #stackRefusal} asks them,
+     * for {@code /mobstacker inspect}: the first alone hid the rest, so a raider that was also an
+     * event spawn showed only one of the two (round 12). Empty when it may stack.
+     */
+    public static List<StackRefusal> stackRefusals(Mob entity) {
+        List<StackRefusal> all = new ArrayList<>();
+        stackRefusal(entity, true, all);
+        return all;
+    }
+
+    /** Notes a refusal; true when the caller stops at the first one ({@code all} is null). */
+    private static boolean refuse(List<StackRefusal> all, StackRefusal refusal) {
+        if (all == null) {
+            return true;
+        }
+        all.add(refusal);
+        return false;
+    }
+
+    /** The rules, once: with {@code all} null it stops at the first that refuses, otherwise it lists every one. */
+    private static StackRefusal stackRefusal(Mob entity, boolean checkWhere, List<StackRefusal> all) {
         // Babies stack only when their category's flag allows it. Farm animals (Animal) and
         // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
             if (entity instanceof Animal) {
-                if (!getEnableAnimalBabyStacking(entity)) {
+                if (!getEnableAnimalBabyStacking(entity) && refuse(all, StackRefusal.BABY_ANIMAL)) {
                     return StackRefusal.BABY_ANIMAL;
                 }
-            } else if (!getEnableHostileBabyStacking(entity)) {
+            } else if (!getEnableHostileBabyStacking(entity) && refuse(all, StackRefusal.BABY_HOSTILE)) {
                 return StackRefusal.BABY_HOSTILE;
             }
         }
@@ -303,48 +329,48 @@ public final class MobStacker {
         // A mob that is dead or playing its death animation (health <= 0) must not take part
         // in stacking. Merging into a dying mob restores its health mid-animation, which makes
         // the death animation loop. Excluding it lets the death finish cleanly.
-        if (entity.isDeadOrDying() || entity.isRemoved()) {
+        if ((entity.isDeadOrDying() || entity.isRemoved()) && refuse(all, StackRefusal.DYING)) {
             return StackRefusal.DYING;
         }
 
         // Kinds that never stack (1.12.0). The tag is the server's to change, through a data pack.
-        if (entity.getType().is(UNSTACKABLE_TAG)) {
+        if (entity.getType().is(UNSTACKABLE_TAG) && refuse(all, StackRefusal.UNSTACKABLE)) {
             return StackRefusal.UNSTACKABLE;
         }
-        if (!getStackBosses(entity) && isBoss(entity)) {
+        if (!getStackBosses(entity) && isBoss(entity) && refuse(all, StackRefusal.BOSS)) {
             return StackRefusal.BOSS;
         }
         // stackAi never sets this flag (it would outlive the mod), so a mob with it was frozen by a
         // player or a map on purpose: a display, a statue, a puzzle piece.
-        if (entity.isNoAi()) {
+        if (entity.isNoAi() && refuse(all, StackRefusal.NO_AI)) {
             return StackRefusal.NO_AI;
         }
 
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
-        if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
+        if (!getStackEquippedMobs(entity) && hasEquipment(entity) && refuse(all, StackRefusal.EQUIPPED)) {
             return StackRefusal.EQUIPPED;
         }
 
-        if (isPlayerBound(entity)) {
+        if (isPlayerBound(entity) && refuse(all, StackRefusal.PLAYER_BOUND)) {
             return StackRefusal.PLAYER_BOUND;
         }
 
         StackRefusal busy = busyRefusal(entity);
-        if (busy != null) {
+        if (busy != null && refuse(all, busy)) {
             return busy;
         }
 
         // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
         // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
         // halfway through taming is the same bug seen from the other side.
-        if (separationGrace(entity) > 0) {
+        if (separationGrace(entity) > 0 && refuse(all, StackRefusal.SEPARATION_GRACE)) {
             return StackRefusal.SEPARATION_GRACE;
         }
 
         StackRefusal location = checkWhere ? locationRefusal(entity) : null;
-        if (location != null) {
+        if (location != null && refuse(all, location)) {
             return location;
         }
 
@@ -353,18 +379,21 @@ public final class MobStacker {
         // depends on three things (the mode in force, which lists it consults, and whether the
         // region overrides them) and working any of them out twice is how tables drift apart.
         StackRefusal listed = MobLists.refusal(entity);
-        if (listed != null) {
+        if (listed != null && refuse(all, listed)) {
             return listed;
         }
 
-        if (!originStacks(entity)) {
+        if (!originStacks(entity) && refuse(all, StackRefusal.ORIGIN)) {
             return StackRefusal.ORIGIN;
         }
 
-        if (!hasValidCustomNameForStacking(entity)) {
+        if (!hasValidCustomNameForStacking(entity) && refuse(all, StackRefusal.PLAYER_NAMED)) {
             return StackRefusal.PLAYER_NAMED;
         }
-        return getStackSize(entity) < getMaxMobStackSize(entity) ? null : StackRefusal.FULL;
+        if (getStackSize(entity) >= getMaxMobStackSize(entity) && refuse(all, StackRefusal.FULL)) {
+            return StackRefusal.FULL;
+        }
+        return all == null || all.isEmpty() ? null : all.get(0);
     }
 
     /**
@@ -2859,9 +2888,18 @@ public final class MobStacker {
         boolean nowStacks = !getCanStack(mob);
         setCanStack(mob, nowStacks);
         Component name = mob.getDisplayName();
-        player.displayClientMessage(Component.empty().append(name)
+        MutableComponent message = Component.empty().append(name)
                 .append(Component.literal(nowStacks ? " may stack again" : " will not stack")
-                        .withStyle(nowStacks ? ChatFormatting.GREEN : ChatFormatting.GOLD)), true);
+                        .withStyle(nowStacks ? ChatFormatting.GREEN : ChatFormatting.GOLD));
+        // The switch is only this mob's own say. Another rule may keep it out all the same - a golem
+        // a player built never stacks - and "may stack again" over a mob that then does not read as
+        // the item not working (round 12). Said in the chat, where a reason fits.
+        StackRefusal other = stackRefusal(mob);
+        if (other != null) {
+            message.append(Component.literal((nowStacks ? " - but it does not now: " : " - it did not anyway: ")
+                    + other.reason()).withStyle(ChatFormatting.GRAY));
+        }
+        player.displayClientMessage(message, other == null);
         if (!player.getAbilities().instabuild && getConsumeAssimilator(mob)) {
             if (held.isDamageableItem()) {
                 held.hurtAndBreak(1, player, broken -> broken.broadcastBreakEvent(hand));

@@ -34,7 +34,12 @@ public abstract class EntityRendererMixin<T extends Entity> {
     @Shadow
     protected abstract void renderNameTag(T entity, Component name, PoseStack pose, MultiBufferSource buffers, int light);
 
-    @Inject(method = "render", at = @At("TAIL"))
+    /**
+     * At every return, not the last one: vanilla's {@code render} is {@code if (!shouldShowName)
+     * return; renderNameTag(...)}, so TAIL - the final return only - ran only when the mob's own name
+     * was showing. A stack without a name, or a named one not looked at, got no label at all (round 12).
+     */
+    @Inject(method = "render", at = @At("RETURN"))
     private void mobstacker$stackLabel(T entity, float yaw, float partialTick, PoseStack pose,
                                        MultiBufferSource buffers, int light, CallbackInfo ci) {
         Component label = MobStackerClientLabels.labelFor(entity, entityRenderDispatcher.crosshairPickEntity);

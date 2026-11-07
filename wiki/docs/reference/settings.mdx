@@ -20,10 +20,20 @@ back, and wherever a whole number is asked for, `max` means as high as it goes.
 | `stackMode` | `OFF` | `off`, `regions`, `players`, `everywhere` | no | Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE. |
 | `maxStackSize` | `16` | 1 to 2147483647 | yes | The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this. |
 | `stackOnSpawn` | `true` | `true`, `false` | yes | Merge a mob into a nearby stack on its first tick, instead of waiting for it to move or for the next scan. Covers spawners, breeding and spawn eggs. |
-| `mobListMode` | `BLACKLIST` | `blacklist`, `whitelist` | yes | Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or WHITELIST (nothing stacks except the allowed lists). |
 | `stackRadius` | `6.0` | 0.1 to 42000.0 | yes | How far apart (in blocks) mobs can be and still merge into the same stack. |
 | `playerStackRadius` | `12.0` | 1.0 to 42000.0 | no | In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack. |
 | `stackScanInterval` | `20` | 0 to 1200 | yes | How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary. |
+| `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
+| `stackHealth` | `false` | `true`, `false` | yes | A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on. |
+| `stackAi` | `NORMAL` | `normal`, `physics_only`, `frozen` | yes | What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, is carried by water, knocked back and kept afloat, so farms keep working (sheep do not eat grass, so their wool does not grow back, and villagers do not work). FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob always keeps its AI. |
+
+## Which mobs stack
+
+See [Which mobs stack]($stacking/which_mobs_stack).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `mobListMode` | `BLACKLIST` | `blacklist`, `whitelist` | yes | Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or WHITELIST (nothing stacks except the allowed lists). |
 | `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
 | `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
 | `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
@@ -31,9 +41,6 @@ back, and wherever a whole number is asked for, `max` means as high as it goes.
 | `ignoredDataKeys` | empty | text | yes | Keys of other mods' data that strictDataComparison leaves out, comma-separated: Key, or Container.key for one entry inside a compound such as ForgeCaps. For a mod that keeps a timer on every mob, which would otherwise stop its mobs from stacking. Needs `strictDataComparison`. |
 | `stackBosses` | `false` | `true`, `false` | yes | Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's #c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold. |
 | `bossHealthThreshold` | `150` | 0 to 1000000 | yes | A mob kind whose base max health is at least this counts as a boss, which catches other mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager 100). 0: only boss bars and the tag count. Does nothing while `stackBosses` is on. |
-| `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
-| `stackHealth` | `false` | `true`, `false` | yes | A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on. |
-| `stackAi` | `NORMAL` | `normal`, `physics_only`, `frozen` | yes | What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, is carried by water, knocked back and kept afloat, so farms keep working (sheep do not eat grass, so their wool does not grow back, and villagers do not work). FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob always keeps its AI. |
 
 ## Spawn origin
 
@@ -136,8 +143,8 @@ See [Pets & mounts]($gameplay/pets_and_mounts#the-separator-item).
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
 | `enableSeparator` | `false` | `true`, `false` | yes | Enable right-clicking a stack with the separator item to split one mob off. |
-| `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. |
-| `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. |
+| `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. Needs `enableSeparator`. |
+| `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. Needs `enableSeparator`. |
 | `enableAssimilator` | `false` | `true`, `false` | yes | Sneak and right-click a mob with the assimilator item to switch whether it may stack: off keeps it (or the stack it is) out of stacks for good, on lets it back in. |
 | `consumeAssimilator` | `true` | `true`, `false` | yes | Use up one assimilator item (or a point of durability) each time. Needs `enableAssimilator`. |
 | `assimilatorItem` | `minecraft:emerald` | text | yes | The item that switches a mob's stacking on and off. Needs `enableAssimilator`. |

@@ -40,8 +40,8 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   (`Key`, or `Container.key` for one entry in e.g. `ForgeCaps`). Both per region.
 - **Tags in the mob lists**: an entity list takes `#minecraft:raiders`, `#minecraft:skeletons` or any
   mod's or data pack's tag next to single mobs - in the commands (`/mobstacker list deny entity add
-  #raiders`), in the GUI (the entry box completes tags too) and per region. A tag that is not loaded
-  is kept and marked, like a modded mob.
+  #raiders`), in the GUI (the entry box completes tags too: type `#`) and per region. A tag that is
+  not loaded is kept and marked, like a modded mob.
 - **Every mob in a stack counts towards the spawn caps** (`countStackMembers`, on, global): a world with
   stacks has as many mobs as vanilla, in fewer entities. Off, a whole stack counts as one mob, as
   before, and far more mobs can exist.
@@ -58,19 +58,24 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
     as all its mobs together;
   - the **assimilator** (`enableAssimilator` off, `assimilatorItem` emerald, `consumeAssimilator` on):
     sneak and right-click a mob with it to switch whether that mob or stack may stack. Sneaking,
-    unlike the original, so that trading with emeralds in hand does not switch a villager.
+    unlike the original, so that trading with emeralds in hand does not switch a villager. When
+    something else keeps the mob out anyway - a golem a player built never stacks - it says so.
 - **Regions beyond boxes:**
   - **a whole dimension**: `/mobstacker region add <name> <allow|deny> dimension [dimension]`, or
     "whole dimension" in the area editor. No box is drawn; a box inside it wins at the same priority,
     as a smaller region always does;
   - **biome filters**: `/mobstacker region biomes <name> add <biome|#tag>` (and `remove`, `clear`), or
-    the editor's "only in biomes" box. The region then covers only the parts of its box, or of its
+    the editor's "only in biomes" box, which completes biomes and tags as you type and turns yellow
+    for one this game does not know. The region then covers only the parts of its box, or of its
     dimension, in those biomes: `#minecraft:is_forest`, `minecraft:desert`, any mod's biome or tag;
   - **an on/off switch**: `/mobstacker region disable <name>` (and `enable`), or the button on the
     region screen. A region that is off keeps everything it carries and does nothing - its box is
     drawn grey;
   - **`/mobstacker region list` is clickable** and comes in pages of ten: the name opens
-    `region show`, `[on]`/`[off]` switches the region, the arrows turn the page.
+    `region show`, `[on]`/`[off]` switches the region, the arrows turn the page; what can be clicked
+    is underlined. With the mod on your game the list and a region's page are redrawn in place of the
+    old ones, so clicking leaves one up-to-date list instead of a pile of them (vanilla cannot change
+    a message it has shown, so without the mod the new one comes under the old).
   `/mobstacker inspect` says when a region covers the spot but is off or leaves out its biome.
 - **Stack labels are never saved on the mob any more**, and each player sees them the way their game
   can (thanks to our friend for the idea):
@@ -89,6 +94,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   world from an older version is cleaned as its stacks load - a named stack keeps the name it was
   given, the others lose the label. Another mod's or a command's name is no longer turned into plain
   text in the server's language.
+- **The config screen's Stacking page is two**: "Stacking" (where, how big, how fast, what a stack
+  does) and "Which mobs stack" (the list mode, gear, names, other mods' data, bosses).
+  `/mobstacker help mobs` shows the new one.
+- `consumeSeparator` and `separatorItem` are greyed out while `enableSeparator` is off, as the
+  assimilator's two are while it is off.
+- `/mobstacker inspect` names every rule that keeps a mob out of stacks, not only the first, and says
+  "built by a player" for such an iron golem where it said "Origin: not recorded".
 - **The spawn caps are vanilla's** (70/10/15/5/5/5/20). They were lowered to 22/5/7/2/2/2/8, even with
   stacking off, which made a fresh install spawn about a third of vanilla's monsters. A config that
   still holds exactly the old numbers is moved to vanilla's the first time it loads (the server log
