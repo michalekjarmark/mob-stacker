@@ -85,7 +85,8 @@ public final class MobStackerRegionEditScreen extends Screen {
     private final List<Button> boxButtons = new ArrayList<>();
     private String message = "";
     /** The biome box's completion: biome ids and tags, for the entry being typed. */
-    private final IdCompletion biomeCompletion = new IdCompletion(IdCompletion::biomeIdsAndTags, true);
+    // Over the box: under it is the line that says what is wrong with the entry being typed.
+    private final IdCompletion biomeCompletion = new IdCompletion(IdCompletion::biomeIdsAndTags, true).above();
     /** What the biome box says about an entry this game does not know, or null. */
     private String biomeNote;
     private boolean messageIsError;
@@ -525,7 +526,8 @@ public final class MobStackerRegionEditScreen extends Screen {
                             : "Redrawing or renaming a region keeps its settings, its priority and its colour.")
                     .withStyle(ChatFormatting.GRAY);
         }
-        guiGraphics.drawCenteredString(this.font, note, this.width / 2, NOTE_Y, 0xFFFFFF);
+        // Cut to the window: an unknown biome's note names the entry, and a long id ran off both edges.
+        ScreenText.drawCentered(guiGraphics, this.font, note, this.width / 2, NOTE_Y, this.width - 16);
         // Last, so it lies over the note and the buttons it opens above or below.
         biomeCompletion.render(guiGraphics, this.height, mouseX, mouseY);
     }

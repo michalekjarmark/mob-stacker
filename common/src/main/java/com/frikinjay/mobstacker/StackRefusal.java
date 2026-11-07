@@ -25,6 +25,7 @@ public enum StackRefusal {
     PLAYER_BOUND("a player has a claim on it: tamed, owned, saddled, leashed, riding or ridden, "
             + "trusting, halfway through being tamed, or built by a player"),
     IN_LOVE("it is in love mode: somebody is breeding it"),
+    BEING_CURED("it is being cured: a player gave it a golden apple"),
     RAID("it fights in a raid or leads a patrol"),
     VILLAGER_CLAIM("it has claimed a bed, a workstation or a meeting point"),
     CARRIES_BLOCK("it carries a block"),

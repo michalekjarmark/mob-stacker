@@ -7,7 +7,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
-## [1.12.0] - 2026-11-06
+## [1.12.0] - 2026-11-07
 ### Added
 - **Mobs that should stay single now do, without any setting** (stacks that already exist are left
   as they are; `/mobstacker unstack` splits them):
@@ -15,6 +15,7 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
     it holds), the bee (its hive) and the vex (its evoker). A data pack can add to it or empty it;
   - **an animal in love mode**: two cows a player is breeding no longer merge into the stack next to
     them;
+  - **a zombie villager being cured**;
   - **an iron golem a player built**. The ones a village makes, an iron farm's included, still stack;
   - **a raider in an active raid, and a patrol leader**. A raid counts its raiders one by one, so a
     merged one looked dead to it and a wave could end early;
@@ -86,6 +87,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   - new settings: `showStackLabels` (on), `alwaysShowStackLabels` (off), `separateStackLabel` (on)
     and `stackLabelFormat` (`{type} x{count}`; `{type} ({count})` gives `Sheep (12)`). The colours
     (`stackNameColor`, by size) apply to the label as before.
+- **A search on the config screen.** Start typing anywhere on it: the settings that match, from
+  every page, take the page's place, each with the page it lives on and the letters that matched,
+  and can be changed right there. It forgives the way an editor's "go to" does - the starts of the
+  words (`kwsod` finds `killWholeStackOnDeath`, `max size` finds `maxStackSize`), words in any order,
+  a typo (`seperator`) or a word from what the setting does (`wool`, `whitelist`). Enter, or a click
+  on a name, shows the setting on its own page; Esc empties the box; Ctrl+F goes back to it.
+- **`/mobstacker help <words>`** asks the same search (`help seperator`, `help wool`), and a command
+  that names no setting asks "Did you mean …?", with a click that puts the corrected command back in
+  the chat box.
 - **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
 - **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
 ### Changed
@@ -133,7 +143,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   looked for a marker nothing writes). What the mob spawned with still goes with it.
 - **One dye coloured a whole stack of sheep, and one golden apple cured a whole stack of zombie
   villagers** (each giving you the cure's discount). Vanilla takes one per mob, so one steps out of the
-  stack for it now, as for a saddle.
+  stack for it now, as for a saddle - and a zombie villager being cured stays out of stacks until it
+  is a villager.
+- **Completion lists in the config screens stayed open** once something had been typed, even after
+  clicking elsewhere, and lay over what was under them. They close when the box loses focus or a
+  click lands anywhere else.
+- The line under a region's settings (its dimension and corners) ran off a narrow screen; it fits
+  now, and hovering it shows all of it, with every biome the region is limited to.
 - **A stack of creepers that blew up next to a player was gone entirely**: only one creeper exploded,
   but the rest went with it. The others stay now and come at you one by one. And a creeper lit with
   flint and steel no longer leaves a second stack behind when it is unloaded or goes through a portal

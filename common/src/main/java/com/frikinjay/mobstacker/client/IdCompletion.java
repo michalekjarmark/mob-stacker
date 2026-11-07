@@ -36,6 +36,12 @@ import java.util.function.Supplier;
  * <p>Candidates starting with {@code #} are tags (1.12.0): typing {@code #} offers only those, and
  * {@code #rai} finds {@code #minecraft:raiders} the way {@code cow} finds {@code minecraft:cow}. A box
  * that holds several entries (the region editor's biomes) completes only the last one.
+ *
+ * <p>The list belongs to its box while the box has focus: it closes when focus moves on or a click
+ * lands anywhere else (round 13 found it open for good once something had been typed, lying over
+ * the line that explained what was wrong with the entry). Each box has a list of its own - one list
+ * per page was attached to the last item box on it, so the separator's opened under the
+ * assimilator's.
  */
 final class IdCompletion {
     private static final int LINE_HEIGHT = 12;
@@ -59,6 +65,8 @@ final class IdCompletion {
     private final Supplier<List<String>> candidates;
     /** Whether the box holds a list (commas or spaces between entries) and only the last is completed. */
     private final boolean lastEntryOnly;
+    /** Opens over the box whenever it fits there, to keep the line under the box in sight. */
+    private boolean preferAbove;
     private EditBox box;
     private Collection<String> exclude = List.of();
     private List<String> shown = List.of();
@@ -73,6 +81,12 @@ final class IdCompletion {
     IdCompletion(Supplier<List<String>> candidates, boolean lastEntryOnly) {
         this.candidates = candidates;
         this.lastEntryOnly = lastEntryOnly;
+    }
+
+    /** Opens the list over the box when there is room for it there, under it only when there is not. */
+    IdCompletion above() {
+        this.preferAbove = true;
+        return this;
     }
 
     /** Points this at the box it completes, or at nothing (null) on a page without one. Closes the list. */
@@ -91,7 +105,11 @@ final class IdCompletion {
         this.exclude = ids == null ? List.of() : ids;
     }
 
+    /** Whether the list is showing. It never is while its box does not have focus, and closes then. */
     boolean isOpen() {
+        if (box != null && !shown.isEmpty() && !box.isFocused()) {
+            close();
+        }
         return box != null && !shown.isEmpty();
     }
 
@@ -228,7 +246,11 @@ final class IdCompletion {
         }
     }
 
-    /** A click on a line takes it. @return true when the click landed on the list. */
+    /**
+     * A click on a line takes it; a click anywhere but the list and its box closes the list.
+     *
+     * @return true when the click landed on the list and the screen should do nothing more with it
+     */
     boolean mouseClicked(double mouseX, double mouseY, int screenHeight) {
         if (!isOpen()) {
             return false;
@@ -241,6 +263,9 @@ final class IdCompletion {
                 accept();
                 return true;
             }
+        }
+        if (!box.isMouseOver(mouseX, mouseY)) {
+            close();
         }
         return false;
     }
@@ -272,9 +297,10 @@ final class IdCompletion {
     /**
      * Where the list goes: x, top, width, bottom. Under the box when a full list would fit under it,
      * over it otherwise - the mob list editor's box sits at the bottom of the screen, the config
-     * screen's near the top. Judged on a full list rather than the lines showing right now, so it
-     * does not jump from one side to the other as the list shrinks under the typing. As wide as the
-     * box, or as the longest id when that is wider: item ids run longer than the box they go in.
+     * screen's near the top - or the other way round for a list made {@link #above()}. Judged on a
+     * full list rather than the lines showing right now, so it does not jump from one side to the
+     * other as the list shrinks under the typing. As wide as the box, or as the longest id when that
+     * is wider: item ids run longer than the box they go in.
      */
     private int[] area(int screenHeight) {
         Font font = Minecraft.getInstance().font;
@@ -284,10 +310,12 @@ final class IdCompletion {
         }
         int height = shown.size() * LINE_HEIGHT;
         int below = box.getY() + box.getHeight() + 2;
-        if (below + MAX_SHOWN * LINE_HEIGHT <= screenHeight) {
+        int bottom = box.getY() - 2;
+        boolean fitsBelow = below + MAX_SHOWN * LINE_HEIGHT <= screenHeight;
+        boolean fitsAbove = bottom - MAX_SHOWN * LINE_HEIGHT >= 0;
+        if (preferAbove ? !fitsAbove && fitsBelow : fitsBelow) {
             return new int[]{box.getX(), below, width, below + height};
         }
-        int bottom = box.getY() - 2;
         return new int[]{box.getX(), bottom - height, width, bottom};
     }
 

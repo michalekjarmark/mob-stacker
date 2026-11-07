@@ -77,6 +77,7 @@ public final class ConfigSelfTest {
                 testSpawnCounting(report, source);
                 testMemberCopies(report, source);
                 testRound12(report, source);
+                testRound13(report, source);
             }
         } catch (Exception e) {
             report.checks++;
@@ -541,6 +542,71 @@ public final class ConfigSelfTest {
                     "'" + typed + "' does not offer #minecraft:raiders: " + offered);
         } catch (RuntimeException e) {
             check(report, false, "tag completion crashed: " + e);
+        }
+    }
+
+    private static void testRound13(Report report, CommandSourceStack source) {
+        // The settings search (the config screen's box and "help <words>"): a name, the starts of
+        // its words, words in any order, a typo, a word from the description.
+        List<ConfigOption> all = MobStackerSettings.all();
+        String[][] expected = {
+                {"seperator item", "separatorItem"},
+                {"kwsod", "killWholeStackOnDeath"},
+                {"stack health", "stackHealth"},
+                {"health stack", "stackHealth"},
+                {"maxsize", "maxStackSize"},
+                {"sweaping edge single", "sweepingEdgeSingleHit"},
+                {"enable separator", "enableSeparator"},
+        };
+        for (String[] pair : expected) {
+            List<SettingSearch.Hit> hits = SettingSearch.search(pair[0], all);
+            check(report, !hits.isEmpty() && hits.get(0).option().id().equals(pair[1]),
+                    "searching '" + pair[0] + "' does not find " + pair[1] + " first: "
+                            + hits.stream().limit(3).map(hit -> hit.option().id() + "=" + hit.score()).toList());
+        }
+        // Every id finds itself first, and the letters marked are the whole name.
+        for (ConfigOption option : all) {
+            List<SettingSearch.Hit> hits = SettingSearch.search(option.id(), all);
+            boolean whole = !hits.isEmpty() && hits.get(0).option() == option;
+            if (whole) {
+                for (boolean mark : hits.get(0).matched()) {
+                    whole &= mark;
+                }
+            }
+            check(report, whole, "searching '" + option.id() + "' does not find it first, wholly marked");
+        }
+        List<SettingSearch.Hit> wool = SettingSearch.search("wool", all);
+        check(report, wool.stream().anyMatch(hit -> hit.option().id().equals("stackedHarvest")),
+                "searching 'wool' does not find stackedHarvest by its description");
+        check(report, SettingSearch.search("qqxzv", all).isEmpty() && SettingSearch.search("  ", all).isEmpty(),
+                "nonsense or an empty search finds settings");
+
+        // "help <words>" answers with the search; an unknown setting gets a "did you mean".
+        try {
+            com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
+            CommandSourceStack quiet = source.withPermission(4).withSuppressedOutput();
+            check(report, dispatcher.execute("mobstacker help seperator item", quiet) >= 1,
+                    "'help seperator item' finds nothing");
+            check(report, dispatcher.execute("mobstacker help combat", quiet) == 1,
+                    "'help combat' no longer shows the Combat page");
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException | RuntimeException e) {
+            check(report, false, "help <words> crashed: " + e);
+        }
+
+        // A zombie villager being cured stays out of stacks (round 13: it walked back in and the
+        // stack took its cure).
+        net.minecraft.world.entity.monster.ZombieVillager zombie = EntityType.ZOMBIE_VILLAGER.create(source.getLevel());
+        if (zombie != null) {
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
+            check(report, !MobStacker.stackRefusals(zombie).contains(StackRefusal.BEING_CURED),
+                    "a zombie villager nobody cures is refused as being cured");
+            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+            zombie.saveWithoutId(tag);
+            tag.putInt("ConversionTime", 200);
+            zombie.load(tag);
+            check(report, zombie.isConverting() && MobStacker.stackRefusal(zombie) == StackRefusal.BEING_CURED,
+                    "a zombie villager being cured may stack: " + MobStacker.stackRefusals(zombie));
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.OFF);
         }
     }
 

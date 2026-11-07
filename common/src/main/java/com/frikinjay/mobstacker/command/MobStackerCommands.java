@@ -8,6 +8,7 @@ import com.frikinjay.mobstacker.config.MobListKind;
 import com.frikinjay.mobstacker.config.MobListMode;
 import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.SettingSearch;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
@@ -76,7 +77,7 @@ public class MobStackerCommands {
                 .executes(MobStackerCommands::showOverview)
                 .then(literal("help").requires(MobStackerCommands::isAdmin)
                         .executes(MobStackerCommands::showHelpRoot)
-                        .then(argument("category", StringArgumentType.word())
+                        .then(argument("topic", StringArgumentType.greedyString())
                                 .suggests(MobStackerCommands::suggestCategories)
                                 .executes(MobStackerCommands::showHelpCategory)))
                 .then(literal("reload").requires(MobStackerCommands::isAdmin).executes(MobStackerCommands::reloadConfig))
@@ -383,8 +384,28 @@ public class MobStackerCommands {
         }
     }
 
+    /**
+     * No setting by that name: says which one was most likely meant, as a click that puts the
+     * command back in the chat box with the name put right (1.12.0, the same search as the config
+     * screen's).
+     */
     private static int unknownSetting(CommandContext<CommandSourceStack> context, String settingId) {
-        context.getSource().sendFailure(Component.literal("Unknown setting '" + settingId + "'. Try /mobstacker help").withStyle(ChatFormatting.RED));
+        MutableComponent message = Component.literal("Unknown setting '" + settingId + "'.").withStyle(ChatFormatting.RED);
+        ConfigOption meant = SettingSearch.best(settingId, MobStackerSettings.all());
+        String input = context.getInput();
+        int at = input.lastIndexOf(settingId);
+        if (meant != null && at >= 0) {
+            String fixed = "/" + input.substring(0, at) + meant.id() + input.substring(at + settingId.length());
+            message.append(Component.literal(" Did you mean ").withStyle(ChatFormatting.RED))
+                    .append(Component.literal(meant.id()).withStyle(style -> style.withColor(ChatFormatting.YELLOW)
+                            .withUnderlined(true)
+                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, fixed))
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(fixed)))))
+                    .append(Component.literal("?").withStyle(ChatFormatting.RED));
+        } else {
+            message.append(Component.literal(" Try /mobstacker help <words>").withStyle(ChatFormatting.RED));
+        }
+        context.getSource().sendFailure(message);
         return 0;
     }
 
@@ -465,6 +486,8 @@ public class MobStackerCommands {
         CommandFeedback.success(source, () -> Component.literal("/mobstacker stack <radius>").withStyle(ChatFormatting.YELLOW)
                 .append(Component.literal("  merge what can merge here now, whatever stackMode says").withStyle(ChatFormatting.GRAY)), false);
 
+        CommandFeedback.success(source, () -> Component.literal("/mobstacker help <words>").withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("  find a setting by a few letters or words, e.g. help seperator, help wool").withStyle(ChatFormatting.GRAY)), false);
         MutableComponent categories = Component.literal("Categories (").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("/mobstacker help <category>").withStyle(ChatFormatting.YELLOW))
                 .append(Component.literal("): ").withStyle(ChatFormatting.GRAY));
@@ -486,7 +509,7 @@ public class MobStackerCommands {
     }
 
     private static int showHelpCategory(CommandContext<CommandSourceStack> context) {
-        String key = StringArgumentType.getString(context, "category");
+        String key = StringArgumentType.getString(context, "topic").trim();
         Category category = null;
         for (Category candidate : Category.values()) {
             if (candidate.name().equalsIgnoreCase(key) || candidate.display().equalsIgnoreCase(key)) {
@@ -495,8 +518,7 @@ public class MobStackerCommands {
             }
         }
         if (category == null) {
-            context.getSource().sendFailure(Component.literal("Unknown category '" + key + "'").withStyle(ChatFormatting.RED));
-            return 0;
+            return showHelpSearch(context, key);
         }
         final Category resolved = category;
         CommandFeedback.success(context.getSource(), () -> Component.literal("[" + resolved.display() + "]").withStyle(ChatFormatting.GOLD), false);
@@ -508,6 +530,42 @@ public class MobStackerCommands {
             CommandFeedback.success(context.getSource(), () -> Component.literal("  " + option.description()).withStyle(ChatFormatting.DARK_GRAY), false);
         }
         return 1;
+    }
+
+    /** How many settings {@code help <words>} lists; the config screen's search shows them all. */
+    private static final int HELP_SEARCH_SHOWN = 8;
+
+    /**
+     * {@code help <words>} when the words are not a category: the settings the config screen's
+     * search would find, best first, each a click away from {@code set}.
+     */
+    private static int showHelpSearch(CommandContext<CommandSourceStack> context, String words) {
+        List<SettingSearch.Hit> hits = SettingSearch.search(words, MobStackerSettings.all());
+        if (hits.isEmpty()) {
+            context.getSource().sendFailure(Component.literal("No category or setting matches '" + words
+                    + "'. Try fewer letters, or a word from what the setting does.").withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        CommandSourceStack source = context.getSource();
+        CommandFeedback.success(source, () -> Component.literal("Settings for '" + words + "':").withStyle(ChatFormatting.GOLD), false);
+        for (SettingSearch.Hit hit : hits.subList(0, Math.min(HELP_SEARCH_SHOWN, hits.size()))) {
+            ConfigOption option = hit.option();
+            String command = "/mobstacker set " + option.id() + " ";
+            CommandFeedback.success(source, () -> Component.literal(option.id()).withStyle(style -> style
+                            .withColor(ChatFormatting.WHITE).withUnderlined(true)
+                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command))
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(command))))
+                    .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
+                    .append(valueComponent(option))
+                    .append(Component.literal("   [" + option.category().display() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
+            CommandFeedback.success(source, () -> Component.literal("  " + option.description()).withStyle(ChatFormatting.DARK_GRAY), false);
+        }
+        if (hits.size() > HELP_SEARCH_SHOWN) {
+            int more = hits.size() - HELP_SEARCH_SHOWN;
+            CommandFeedback.success(source, () -> Component.literal("... and " + more + " more: more words narrow it down")
+                    .withStyle(ChatFormatting.DARK_GRAY), false);
+        }
+        return hits.size();
     }
 
     // ============================================================ suggestions

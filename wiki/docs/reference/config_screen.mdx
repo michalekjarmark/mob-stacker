@@ -18,12 +18,20 @@ The `/mobstacker` commands follow vanilla's rule instead and always need operato
 
 - One **category** per page, switched with the arrow buttons at the top; the mouse wheel scrolls a
   long page.
+- **Search**: start typing anywhere on the screen (or click the box at the top, or press Ctrl+F). The
+  settings that match, from every page, take the page's place, each with the page it is on and the
+  matching letters in yellow, and can be changed right there. Enter, or a click on a name, shows the
+  setting on its own page; Esc empties the box.
+  The search is forgiving: the starts of the words in a name (`kwsod` finds `killWholeStackOnDeath`,
+  `max size` finds `maxStackSize`), words in any order, a wrong letter in a longer word
+  (`seperator`), or a word from what the setting does (`wool`, `whitelist`).
+  `/mobstacker help <words>` searches the same way in the chat.
 - **Hover** a setting's name for what it does. In red, it also says why the setting cannot be changed
   right now (a setting it needs is off, or another setting forces it).
 - **On/off and choice buttons** cycle on a left click; a **right click goes one step back**. Colour
   settings show their value in that colour.
 - **Numbers and item ids** are typed; a value that is not accepted turns red and is not saved. The
-  `separatorItem` box completes item ids as you type.
+  item boxes (`separatorItem`, `assimilatorItem`) complete item ids as you type.
 - Stacking has two pages: **Stacking** (where and how stacks form) and **Which mobs stack** (the list
   mode, gear, names, other mods' data and bosses).
 - A greyed setting depends on another one that is off. It reads as off, and comes back as you left it

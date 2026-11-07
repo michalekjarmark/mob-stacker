@@ -20,7 +20,6 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +45,8 @@ public final class MobStackerRegionScreen extends Screen {
     private static final int ROW_HEIGHT = 24;
     private static final int LIST_TOP = 118;
     private static final int LIST_BOTTOM_MARGIN = 52;
+    /** The footer line (where the region is), this far above the bottom. */
+    private static final int FOOTER_Y_FROM_BOTTOM = 58;
 
     private final Screen parent;
     private final List<Category> categories = new ArrayList<>();
@@ -75,14 +76,17 @@ public final class MobStackerRegionScreen extends Screen {
 
     private Button colorButton;
     private Button switchButton;
+    /** How wide the footer came out last frame, so its tooltip covers what is drawn. */
+    private int footerWidth;
     /** The last local edit's answer, shown where a server's status line would be. */
     private String localStatus = "";
     private Button overlayBox;
     private Button overlayAll;
     private Button overlayStyle;
     private Button overlayWalls;
-    // A region can set its own separatorItem; completed the way the config screen completes it.
-    private final IdCompletion itemCompletion = new IdCompletion(IdCompletion::itemIds);
+    // A region can set its own separatorItem and assimilatorItem; completed as on the config screen,
+    // a list per box.
+    private final IdCompletions itemCompletions = new IdCompletions();
 
     /**
      * One editable setting on screen. The override state is mutable because dropping an override
@@ -128,7 +132,7 @@ public final class MobStackerRegionScreen extends Screen {
     @Override
     protected void init() {
         rows.clear();
-        itemCompletion.attach(null);
+        itemCompletions.clear();
 
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
@@ -345,13 +349,7 @@ public final class MobStackerRegionScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        boolean inItemBox = itemCompletion.isFor(this.getFocused());
-        if (itemCompletion.handleKey(keyCode, inItemBox)) {
-            return true;
-        }
-        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
-                && inItemBox && itemCompletion.shouldEnterComplete()) {
-            itemCompletion.accept();
+        if (itemCompletions.keyPressed(keyCode, this.getFocused())) {
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -359,7 +357,7 @@ public final class MobStackerRegionScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (itemCompletion.mouseClicked(mouseX, mouseY, this.height)) {
+        if (itemCompletions.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -559,9 +557,9 @@ public final class MobStackerRegionScreen extends Screen {
                 box.setValue(valueOf(option));
                 box.setMaxLength(64);
                 box.setEditable(allowed);
-                boolean item = option.type() == ConfigOption.Type.ITEM;
-                if (item) {
-                    itemCompletion.attach(box);
+                IdCompletion completion = option.type() == ConfigOption.Type.ITEM ? itemCompletions.addItems() : null;
+                if (completion != null) {
+                    completion.attach(box);
                 }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
@@ -572,8 +570,8 @@ public final class MobStackerRegionScreen extends Screen {
                     }
                     // Only for what somebody typed: a repaint from the config is not a question, and a
                     // box that may not be edited never gets typed into.
-                    if (item && !repainting) {
-                        itemCompletion.update(text);
+                    if (completion != null && !repainting) {
+                        completion.update(text);
                     }
                 });
                 addRenderableWidget(box);
@@ -913,7 +911,7 @@ public final class MobStackerRegionScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine - and
         // it has to come before them here, because the tooltip branches below return early.
-        itemCompletion.render(guiGraphics, this.height, mouseX, mouseY);
+        itemCompletions.render(guiGraphics, this.height, mouseX, mouseY);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         if (!showRows) {
@@ -995,6 +993,18 @@ public final class MobStackerRegionScreen extends Screen {
             return;
         }
 
+        if (overFooter(mouseX, mouseY)) {
+            MobStackerClientRegions.View shown = currentRegion();
+            ScreenTooltip.render(guiGraphics, this.font, List.of(
+                    Component.literal(shown.dimension() + "  " + shown.bounds()).withStyle(ChatFormatting.WHITE),
+                    shown.biomes().isEmpty()
+                            ? Component.literal("In every biome.").withStyle(ChatFormatting.GRAY)
+                            : Component.literal("Only in: " + String.join(", ", shown.biomes())).withStyle(ChatFormatting.GRAY),
+                    Component.literal("A gold setting is set in this region; a grey one follows the global config.")
+                            .withStyle(ChatFormatting.DARK_GRAY)), this.width, mouseX, mouseY);
+            return;
+        }
+
         if (overPriority(mouseX, mouseY)) {
             ScreenTooltip.render(guiGraphics, this.font, List.of(
                     Component.literal("priority").withStyle(ChatFormatting.WHITE),
@@ -1056,17 +1066,30 @@ public final class MobStackerRegionScreen extends Screen {
                 this.width / 2, this.height / 2, 0xFFFFFF);
     }
 
+    /** True over the footer line, whose tooltip says all of what the line may have had to cut. */
+    private boolean overFooter(int mouseX, int mouseY) {
+        int top = this.height - FOOTER_Y_FROM_BOTTOM;
+        return showRows && mouseY >= top && mouseY <= top + this.font.lineHeight
+                && Math.abs(mouseX - this.width / 2) <= footerWidth / 2;
+    }
+
     private void renderFooter(GuiGraphics guiGraphics) {
         MobStackerClientRegions.View region = currentRegion();
         // Readable grey, not the dark grey that looks like a disabled line lying behind the screen.
-        Component footer = Component.literal(region.dimension() + "  " + region.bounds()
+        Component area = Component.literal(region.dimension() + "  " + region.bounds()
                         + (region.biomes().isEmpty() ? "" : "  in " + region.biomes().size()
                         + (region.biomes().size() == 1 ? " biome" : " biomes")))
-                .withStyle(ChatFormatting.GRAY)
+                .withStyle(ChatFormatting.GRAY);
+        Component withLegend = area.copy()
                 .append(Component.literal("   -   ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal("gold").withStyle(ChatFormatting.GOLD))
                 .append(Component.literal(" = set here, grey = global").withStyle(ChatFormatting.GRAY));
-        guiGraphics.drawCenteredString(this.font, footer, this.width / 2, this.height - 58, 0xFFFFFF);
+        // Round 13: with biomes the line ran off both edges of a narrow window. The legend goes
+        // first (the tooltip has it), then the line is cut to fit.
+        int room = this.width - 16;
+        footerWidth = ScreenText.drawCentered(guiGraphics, this.font,
+                this.font.width(withLegend) <= room ? withLegend : area,
+                this.width / 2, this.height - FOOTER_Y_FROM_BOTTOM, room);
 
         if (remote && !editable) {
             guiGraphics.drawCenteredString(this.font,

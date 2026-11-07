@@ -497,13 +497,19 @@ public final class MobStacker {
 
     /**
      * Something the mob is in the middle of that a merge would cut short (1.12.0): an animal a
-     * player is breeding, a raider counted by its raid, a villager holding a claim, an enderman
-     * holding a block. Each would lose the thing to the merge - the love, the raid's tally, the bed
-     * or workstation, the block itself.
+     * player is breeding, a zombie villager being cured, a raider counted by its raid, a villager
+     * holding a claim, an enderman holding a block. Each would lose the thing to the merge - the
+     * love, the cure, the raid's tally, the bed or workstation, the block itself.
      */
     public static StackRefusal busyRefusal(Mob entity) {
         if (entity instanceof Animal animal && animal.isInLove()) {
             return StackRefusal.IN_LOVE;
+        }
+        // Round 13: the one a golden apple was given to stepped out, started shaking and walked
+        // straight back in - and the stack took its cure, so all of them shook and all would have
+        // turned into villagers for one apple.
+        if (entity instanceof ZombieVillager zombie && zombie.isConverting()) {
+            return StackRefusal.BEING_CURED;
         }
         // A raid counts its raiders one entity at a time: one merged away is one the raid thinks is
         // gone, so a wave could end early, and the stack left behind would no longer belong to it.
