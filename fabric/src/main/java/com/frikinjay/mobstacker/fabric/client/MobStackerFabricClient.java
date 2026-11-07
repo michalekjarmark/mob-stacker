@@ -39,7 +39,12 @@ public final class MobStackerFabricClient implements ClientModInitializer {
         });
         ClientPlayNetworking.registerGlobalReceiver(MobStackerNetworking.SYNC,
                 (client, handler, buf, responseSender) -> MobStackerClientNetworking.onSync(buf));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> MobStackerClientNetworking.onDisconnect());
+        ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.StackLabels.CHANNEL,
+                (client, handler, buf, responseSender) -> com.frikinjay.mobstacker.client.MobStackerClientLabels.onLabel(buf));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            MobStackerClientNetworking.onDisconnect();
+            com.frikinjay.mobstacker.client.MobStackerClientLabels.clear();
+        });
 
         MobStackerClient.keys().forEach(KeyBindingHelper::registerKeyBinding);
         ClientTickEvents.END_CLIENT_TICK.register(MobStackerClient::onEndClientTick);

@@ -94,4 +94,17 @@ public class MobStackerAPI {
             handler.accept(stackedEntity, separatedEntity);
         }
     }
+
+    /**
+     * How many mobs this one entity stands for: 1 for a mob that is not stacked (since 1.12.0, as in
+     * the original mod's API). Read it on the server; a client only sees the label.
+     */
+    public static int getStackSize(Mob mob) {
+        return com.frikinjay.mobstacker.MobStacker.getStackSize(mob);
+    }
+
+    /** Whether this entity is a stack of two or more mobs. */
+    public static boolean isStacked(Mob mob) {
+        return getStackSize(mob) > 1;
+    }
 }

@@ -37,6 +37,16 @@ A single mob renamed with a name tag is protected; a renamed stack keeps growing
 Anything a player has tamed, saddled, leashed or loaded never stacks. See
 [Pets & mounts]($gameplay/pets_and_mounts).
 
+**Bees, villagers, wandering traders or a boss do not stack.**
+Since 1.12.0 some mobs stay single on purpose: the kinds in `#mobstacker:unstackable`, villagers with a
+bed or a job, animals being bred, raiders in a raid, bosses unless `stackBosses` is on, and a few more.
+See [Which mobs stack]($stacking/which_mobs_stack#never-whatever-the-lists-say).
+
+**Mobs from a mod (or with a mod's levels) do not stack any more.**
+Since 1.12.0 mobs merge only if the data other mods saved on them matches, so a level or an affix is not
+thrown away. `/mobstacker inspect` names the key that differs; if it is only a timer or a counter, add it
+to `ignoredDataKeys`. See [How stacks form]($stacking/how_stacks_form).
+
 **`maxstack list` says 64 but the config screen says 5000.**
 Both are right: a mob type with its own ceiling ignores `maxStackSize`. See
 [How stacks form]($stacking/how_stacks_form#how-big-a-stack-may-grow).
@@ -45,8 +55,9 @@ Both are right: a mob type with its own ceiling ignores `maxStackSize`. See
 The stack shares one shear state, so one sheep eating grass regrows it for all of them.
 
 **Fewer mobs spawn than in vanilla, even with stacking off.**
-The mod lowers vanilla's spawn caps by default. See
-[For server owners]($reference/server_owners#mob-caps).
+Up to 1.11 the mod lowered vanilla's spawn caps. Since 1.12.0 they are vanilla's, and a config that
+still had the old numbers is moved over by itself. See
+[For server owners]($reference/server_owners#spawning-and-despawning).
 
 **`/mobstacker` answers nothing.**
 Your server has the gamerule `sendCommandFeedback` off. Turn on `alwaysShowFeedback`; see
@@ -69,8 +80,10 @@ Unstack first, or every stack keeps only one of its mobs. See
 [Removing the mod]($reference/server_owners#removing-the-mod).
 
 **Does it work with Let Me Despawn?**
-Yes; it is a good companion for vanilla-style despawning, and so are spawn-control mods such as
-In Control! or Spawncap Control Utility.
+Yes, but since 1.12.0 you may not need it: `despawnPickedUpMobs` does the part that matters with
+stacks. Use one or the other, not both. See
+[For server owners]($reference/server_owners#despawning). Spawn-control mods such as In Control! or
+Spawncap Control Utility work alongside.
 
 ## Reporting a bug
 

@@ -22,6 +22,21 @@ applies to every mob killed.
 |---|---|
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack, with loot for every mob. Overflow is not needed then. |
 | `stackHealth` | The stack has one health bar, scaled to its size. Forces `killWholeStackOnDeath` on while it is on. |
+| `damageWeaponPerHit` | With either of the two above, every hit wears your weapon down as if it had hit every mob in the stack (a sword by the stack's size, an axe twice that). Off by default: one hit's wear. |
+
+## A fixed number per kill
+
+`killBatchSize` (default 1) makes **at least that many mobs die each time a stack is killed**, each with
+its own loot and experience, on top of what damage overflow reaches. For farms that want a steady
+number per kill whatever the weapon. It does nothing while the whole stack dies at once.
+
+## Stacks that hit back
+
+With `stackOutgoingDamage` on (off by default), **a stack's melee attack hits as hard as all its mobs
+together**: a stack of five zombies hits for five zombies, up to `maxDamageMultiplier` (16) times one
+mob's damage. It covers vanilla's standard melee attack (zombies, husks, spiders, endermen, piglins,
+vindicators and most others); special attacks such as an iron golem's fling, a slime's bounce or arrows
+stay one mob's.
 
 ## Sweeping Edge
 

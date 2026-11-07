@@ -8,6 +8,7 @@ import com.google.gson.GsonBuilder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -410,7 +411,7 @@ public final class MobStackerRegionOverlay {
         if (style == Style.FILLED || style == Style.BOTH) {
             BufferBuilder faces = begin(faceType);
             for (MobStackerClientRegions.View view : regions) {
-                if (!isShown(view.name())) {
+                if (!isShown(view.name()) || !view.hasBox()) {
                     continue;
                 }
                 AABB box = boxOf(view);
@@ -425,7 +426,7 @@ public final class MobStackerRegionOverlay {
         if (style == Style.WIREFRAME || style == Style.BOTH) {
             BufferBuilder edges = begin(edgeType);
             for (MobStackerClientRegions.View view : regions) {
-                if (!isShown(view.name())) {
+                if (!isShown(view.name()) || !view.hasBox()) {
                     continue;
                 }
                 float[] rgb = rgbOf(view);
@@ -480,7 +481,7 @@ public final class MobStackerRegionOverlay {
         Vec3 eye = camera.getPosition();
         int backing = (int) (minecraft.options.getBackgroundOpacity(0.25F) * 255.0F) << 24;
         for (MobStackerClientRegions.View view : regions) {
-            if (!isShown(view.name())) {
+            if (!isShown(view.name()) || !view.hasBox()) {
                 continue;
             }
             AABB box = boxOf(view);
@@ -497,7 +498,8 @@ public final class MobStackerRegionOverlay {
             float[] rgb = rgbOf(view);
             int colour = 0xFF000000 | ((int) (rgb[0] * 255) << 16) | ((int) (rgb[1] * 255) << 8) | (int) (rgb[2] * 255);
             Component name = Component.literal(view.name()
-                    + (view.type() == com.frikinjay.mobstacker.config.StackRegion.Type.DENY ? " (deny)" : ""));
+                    + (view.type() == com.frikinjay.mobstacker.config.StackRegion.Type.DENY ? " (deny)" : "")
+                    + (view.enabled() ? "" : " (off)"));
             float scale = 0.025F * (float) Math.max(1.0, distance / 10.0);
 
             pose.pushPose();
@@ -539,8 +541,9 @@ public final class MobStackerRegionOverlay {
                 view.maxX() + 1.0, view.maxY() + 1.0, view.maxZ() + 1.0);
     }
 
+    /** The region's colour, or grey while it is switched off - still there, doing nothing. */
     private static float[] rgbOf(MobStackerClientRegions.View view) {
-        Integer packed = view.color().format().getColor();
+        Integer packed = view.enabled() ? view.color().format().getColor() : ChatFormatting.GRAY.getColor();
         int value = packed == null ? 0xFFFFFF : packed;
         return new float[]{
                 ((value >> 16) & 0xFF) / 255.0F,

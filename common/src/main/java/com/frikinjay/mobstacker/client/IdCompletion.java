@@ -5,8 +5,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.biome.Biome;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -29,6 +32,16 @@ import java.util.function.Supplier;
  * the box ({@link #attach}, from {@code init}, because every rebuild makes a new one), the keys and
  * clicks ({@link #handleKey} / {@link #mouseClicked}, before its own handling) and a chance to draw
  * ({@link #render}, after {@code super.render}).
+ *
+ * <p>Candidates starting with {@code #} are tags (1.12.0): typing {@code #} offers only those, and
+ * {@code #rai} finds {@code #minecraft:raiders} the way {@code cow} finds {@code minecraft:cow}. A box
+ * that holds several entries (the region editor's biomes) completes only the last one.
+ *
+ * <p>The list belongs to its box while the box has focus: it closes when focus moves on or a click
+ * lands anywhere else (round 13 found it open for good once something had been typed, lying over
+ * the line that explained what was wrong with the entry). Each box has a list of its own - one list
+ * per page was attached to the last item box on it, so the separator's opened under the
+ * assimilator's.
  */
 final class IdCompletion {
     private static final int LINE_HEIGHT = 12;
@@ -42,6 +55,7 @@ final class IdCompletion {
      * behind the screen's own text, which is worse than no list at all.
      */
     private static final int Z = 200;
+    private static final String TAG = "#";
 
     /** Every entity id, every namespace that has an entity, and every item id. Worked out once. */
     private static List<String> entityIds;
@@ -49,6 +63,10 @@ final class IdCompletion {
     private static List<String> itemIds;
 
     private final Supplier<List<String>> candidates;
+    /** Whether the box holds a list (commas or spaces between entries) and only the last is completed. */
+    private final boolean lastEntryOnly;
+    /** Opens over the box whenever it fits there, to keep the line under the box in sight. */
+    private boolean preferAbove;
     private EditBox box;
     private Collection<String> exclude = List.of();
     private List<String> shown = List.of();
@@ -56,7 +74,19 @@ final class IdCompletion {
 
     /** @param candidates every id the box could mean, asked afresh each time it is needed */
     IdCompletion(Supplier<List<String>> candidates) {
+        this(candidates, false);
+    }
+
+    /** @param lastEntryOnly the box holds a list of entries and only the one being typed is completed */
+    IdCompletion(Supplier<List<String>> candidates, boolean lastEntryOnly) {
         this.candidates = candidates;
+        this.lastEntryOnly = lastEntryOnly;
+    }
+
+    /** Opens the list over the box when there is room for it there, under it only when there is not. */
+    IdCompletion above() {
+        this.preferAbove = true;
+        return this;
     }
 
     /** Points this at the box it completes, or at nothing (null) on a page without one. Closes the list. */
@@ -75,7 +105,11 @@ final class IdCompletion {
         this.exclude = ids == null ? List.of() : ids;
     }
 
+    /** Whether the list is showing. It never is while its box does not have focus, and closes then. */
     boolean isOpen() {
+        if (box != null && !shown.isEmpty() && !box.isFocused()) {
+            close();
+        }
         return box != null && !shown.isEmpty();
     }
 
@@ -87,11 +121,14 @@ final class IdCompletion {
     /** Fills the list from what has been typed. Called from the box's responder. */
     void update(String typed) {
         index = 0;
-        String text = typed == null ? "" : typed.trim().toLowerCase(Locale.ROOT);
+        String text = typed == null ? "" : entryOf(typed).toLowerCase(Locale.ROOT);
         if (box == null || text.isEmpty()) {
             shown = List.of();
             return;
         }
+        // A "#" means a tag, and is not part of what is matched: "#rai" is "rai" among the tags.
+        boolean tagTyped = text.startsWith(TAG);
+        String bare = tagTyped ? text.substring(TAG.length()) : text;
         // Three buckets, best first: the id itself, then the part after the colon (people type
         // "cow"), then anything that merely contains what was typed.
         List<String> byId = new ArrayList<>();
@@ -101,11 +138,21 @@ final class IdCompletion {
             if (candidate.equals(text) || exclude.contains(candidate)) {
                 continue;
             }
-            if (candidate.startsWith(text)) {
+            boolean tag = candidate.startsWith(TAG);
+            String id = tag ? candidate.substring(TAG.length()) : candidate;
+            if (tag != tagTyped) {
+                // An id typed: a tag only where its name holds the text ("raid" - #raiders); a "#"
+                // typed: never an id.
+                if (tag && id.contains(bare)) {
+                    anywhere.add(candidate);
+                }
+                continue;
+            }
+            if (id.startsWith(bare)) {
                 byId.add(candidate);
-            } else if (pathOf(candidate).startsWith(text)) {
+            } else if (pathOf(id).startsWith(bare)) {
                 byPath.add(candidate);
-            } else if (candidate.contains(text)) {
+            } else if (id.contains(bare)) {
                 anywhere.add(candidate);
             }
         }
@@ -121,7 +168,12 @@ final class IdCompletion {
             return;
         }
         String chosen = shown.get(Math.min(index, shown.size() - 1));
-        box.setValue(chosen);
+        if (lastEntryOnly) {
+            String value = box.getValue();
+            box.setValue(value.substring(0, entryStart(value)) + chosen);
+        } else {
+            box.setValue(chosen);
+        }
         // setValue runs the responder, which fills the list again from the completed id; it has
         // served its purpose either way, so it closes here rather than a moment later.
         close();
@@ -138,9 +190,26 @@ final class IdCompletion {
         if (!isOpen()) {
             return false;
         }
-        String typed = box.getValue().trim().toLowerCase(Locale.ROOT);
+        String typed = entryOf(box.getValue()).toLowerCase(Locale.ROOT);
         List<String> known = candidates.get();
-        return !known.contains(typed) && !known.contains("minecraft:" + typed);
+        String full = typed.startsWith(TAG) ? TAG + "minecraft:" + typed.substring(TAG.length()) : "minecraft:" + typed;
+        return !known.contains(typed) && !known.contains(full);
+    }
+
+    /** What is being typed: the whole box, or in a list box the entry after the last comma or space. */
+    private String entryOf(String value) {
+        return (lastEntryOnly ? value.substring(entryStart(value)) : value).trim();
+    }
+
+    /** Where the last entry of a list starts: after its last comma or space. */
+    private static int entryStart(String value) {
+        for (int i = value.length() - 1; i >= 0; i--) {
+            char c = value.charAt(i);
+            if (c == ',' || Character.isWhitespace(c)) {
+                return i + 1;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -177,7 +246,11 @@ final class IdCompletion {
         }
     }
 
-    /** A click on a line takes it. @return true when the click landed on the list. */
+    /**
+     * A click on a line takes it; a click anywhere but the list and its box closes the list.
+     *
+     * @return true when the click landed on the list and the screen should do nothing more with it
+     */
     boolean mouseClicked(double mouseX, double mouseY, int screenHeight) {
         if (!isOpen()) {
             return false;
@@ -190,6 +263,9 @@ final class IdCompletion {
                 accept();
                 return true;
             }
+        }
+        if (!box.isMouseOver(mouseX, mouseY)) {
+            close();
         }
         return false;
     }
@@ -221,9 +297,10 @@ final class IdCompletion {
     /**
      * Where the list goes: x, top, width, bottom. Under the box when a full list would fit under it,
      * over it otherwise - the mob list editor's box sits at the bottom of the screen, the config
-     * screen's near the top. Judged on a full list rather than the lines showing right now, so it
-     * does not jump from one side to the other as the list shrinks under the typing. As wide as the
-     * box, or as the longest id when that is wider: item ids run longer than the box they go in.
+     * screen's near the top - or the other way round for a list made {@link #above()}. Judged on a
+     * full list rather than the lines showing right now, so it does not jump from one side to the
+     * other as the list shrinks under the typing. As wide as the box, or as the longest id when that
+     * is wider: item ids run longer than the box they go in.
      */
     private int[] area(int screenHeight) {
         Font font = Minecraft.getInstance().font;
@@ -233,10 +310,12 @@ final class IdCompletion {
         }
         int height = shown.size() * LINE_HEIGHT;
         int below = box.getY() + box.getHeight() + 2;
-        if (below + MAX_SHOWN * LINE_HEIGHT <= screenHeight) {
+        int bottom = box.getY() - 2;
+        boolean fitsBelow = below + MAX_SHOWN * LINE_HEIGHT <= screenHeight;
+        boolean fitsAbove = bottom - MAX_SHOWN * LINE_HEIGHT >= 0;
+        if (preferAbove ? !fitsAbove && fitsBelow : fitsBelow) {
             return new int[]{box.getX(), below, width, below + height};
         }
-        int bottom = box.getY() - 2;
         return new int[]{box.getX(), bottom - height, width, bottom};
     }
 
@@ -272,6 +351,28 @@ final class IdCompletion {
             itemIds = sorted(BuiltInRegistries.ITEM.keySet());
         }
         return itemIds;
+    }
+
+    /**
+     * Every biome and biome tag of the world this game is in (1.12.0, the region editor's filter).
+     * Asked afresh each time: biomes are the server's, from its data packs, so they cannot be kept
+     * for the game like the entity ids.
+     */
+    static List<String> biomeIdsAndTags() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) {
+            return List.of();
+        }
+        Registry<Biome> biomes = minecraft.level.registryAccess().registry(Registries.BIOME).orElse(null);
+        if (biomes == null) {
+            return List.of();
+        }
+        List<String> ids = new ArrayList<>(sorted(biomes.keySet()));
+        List<String> tags = new ArrayList<>();
+        biomes.getTagNames().forEach(tag -> tags.add(TAG + tag.location()));
+        tags.sort(String::compareTo);
+        ids.addAll(tags);
+        return ids;
     }
 
     private static List<String> sorted(Collection<ResourceLocation> keys) {

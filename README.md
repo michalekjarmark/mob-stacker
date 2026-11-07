@@ -29,14 +29,15 @@ preserved — the mobs are still there, they just travel together.
 > (47 and up) nothing at all. Stacking itself is server-side — a client only needs the mod for the GUI
 > and the region boxes. Use the jar for your loader: `mobstacker-1.20.1-fabric-…` or
 > `mobstacker-1.20.1-forge-…`.
-> *Let Me Despawn* is an optional companion, never a requirement.
+> *Let Me Despawn* is not needed: its part that matters with stacks is built in (`despawnPickedUpMobs`).
 
 > 📝 **Changelog:** see [CHANGELOG.md](CHANGELOG.md).
 
 ## ✨ What this fork adds
 
-- 🗺️ **Where-to-stack modes** — `OFF` (default), `EVERYWHERE`, `REGIONS` (allow/deny cuboids) or
-  `PLAYERS` (only near players). Stacking ships **off** until you opt in.
+- 🗺️ **Where-to-stack modes** — `OFF` (default), `EVERYWHERE`, `REGIONS` (allow/deny regions: boxes,
+  whole dimensions, either one narrowed to some biomes, and each can be switched off) or `PLAYERS`
+  (only near players). Stacking ships **off** until you opt in.
 - 🧩 **Settings per region** — almost every setting can differ inside a region, so a cow farm and a
   grinder in the same world behave differently. Regions are created, redrawn and deleted from the
   GUI or the commands, and can be **drawn in the world** in a colour of their own, with their names.
@@ -60,6 +61,12 @@ preserved — the mobs are still there, they just travel together.
   out of stacks, the way players expect. Vanilla's easter-egg names still work.
 - 🐴 **Pets and mounts are left alone** — nothing you have tamed, saddled, loaded or leashed is ever
   stacked, and touching a wild herd hands you one animal out of it.
+- 🌱 **Vanilla's number of mobs, in fewer entities** — every mob in a stack counts towards the spawn
+  caps, so stacking saves the server work without changing how many mobs there are (or switch it off
+  for more). Mobs that picked something up can despawn again, dropping it, and big stacks can be kept.
+- 🏘️ **Villages, raids and bosses keep working** — a villager with a bed or a job, an animal being
+  bred, a raider in a raid, an enderman with a block and a player's iron golem stay single; bosses
+  stack only if you allow it. A stack that claims a bed hands it to one villager, who steps out.
 - 🎯 **Stack-kill feedback** — action bar, a scaling particle pop and a floating `-N` hologram.
 - 🐣 **Stack breeding & baby stacks** — breed a stacked animal into a single baby-stack; loose babies
   stack too.
@@ -74,10 +81,11 @@ preserved — the mobs are still there, they just travel together.
 - 🧩 **Fabric and Forge** — the same mod on both loaders since 1.11.0: Fabric API on Fabric, nothing at
   all on Forge. The old *Almanac* dependency is built in.
 
-> 🔗 **Good companions:** [Let Me Despawn](https://www.curseforge.com/minecraft/mc-mods/let-me-despawn)
-> for vanilla-style despawning, and
+> 🔗 **Good companions:**
 > [Spawncap Control Utility](https://www.curseforge.com/minecraft/mc-mods/spawncapcontrolutility) or
 > [In Control!](https://www.curseforge.com/minecraft/mc-mods/in-control) for finer spawn control.
+> [Let Me Despawn](https://modrinth.com/mod/lmd) works too, but use it **or** `despawnPickedUpMobs`, not
+> both.
 
 ## Configuration
 
@@ -98,13 +106,17 @@ given its own value inside a region.
 | `stackEquippedMobs` | Let mobs holding or wearing items stack at all | `false` |
 | `keepMemberEquipment` | Remember each member's gear so it drops when *that* mob dies. Needs `stackEquippedMobs` | `true` |
 | `stackNamedMobs` | Let name-tagged mobs stack with mobs of the same name | `false` |
+| `strictDataComparison` | Merge only mobs whose data from **other mods** matches (levels, affixes, a champion's rank), so a merge never throws it away. `/mobstacker inspect` names the key that differs | `true` |
+| `ignoredDataKeys` | Other mods' data keys `strictDataComparison` leaves out, comma-separated: `Key`, or `Container.key` for one entry in e.g. `ForgeCaps` | `""` |
+| `stackBosses` | Let bosses stack: a boss bar, the `#mobstacker:bosses` tag, or base health of at least `bossHealthThreshold` — see [Which mobs may stack](#which-mobs-may-stack) | `false` |
+| `bossHealthThreshold` | Base max health from which a mob kind counts as a boss (`0` = only boss bars and the tag) | `150` |
 | `killWholeStackOnDeath` | Killing the top mob kills the whole stack | `false` |
 | `stackHealth` | The stack shares one health bar, scaled to its size. Forces `killWholeStackOnDeath` on | `false` |
 | `stackAi` | What a stack of two or more does with its AI: `NORMAL`, `PHYSICS_ONLY` or `FROZEN` — see [Stacks without AI](#stacks-without-ai) | `NORMAL` |
 | `mobListMode` | `BLACKLIST` (everything stacks except the ignored lists) or `WHITELIST` (nothing stacks except the allowed lists) | `BLACKLIST` |
-| `ignoredEntities` | Entity ids that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
-| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse"]` |
-| `allowedEntities` | The only entity ids that stack, in `WHITELIST` mode | `[]` |
+| `ignoredEntities` | Entity ids (or tags, `#minecraft:raiders`) that never stack, in `BLACKLIST` mode | `["minecraft:ender_dragon", "minecraft:vex"]` |
+| `ignoredMods` | Mod ids whose entities never stack, in `BLACKLIST` mode | `["corpse", "cobblemon", "pixelmon"]` (before 1.12.0: `["corpse"]`) |
+| `allowedEntities` | The only entity ids (or tags) that stack, in `WHITELIST` mode | `[]` |
 | `allowedMods` | Mod ids whose entities stack, in `WHITELIST` mode | `[]` |
 | `maxStackSizes` | A ceiling for one mob type, e.g. `{"minecraft:cow": 64}`. Anything unlisted follows `maxStackSize` | `{}` |
 | `regions` | Allow/deny cuboids — see [Regions](#regions--modes) | `[]` |
@@ -136,6 +148,10 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `sweepingEdgeVanillaConditions` | Only sweep when vanilla would: full swing, no crit, not sprinting, on the ground, sword in hand | `false` |
 | `sweepingEdgeMaxKills` | Cap on mobs one sweep may kill per swing (`0` = none) | `0` |
 | `environmentDamagePerMob` | A fall, fire, lava, drowning, suffocation, cramming, cactus, freezing, poison or an explosion hurts **every** mob in a stack, as it would a crowd standing loose | `true` |
+| `killBatchSize` | At least this many mobs die per kill, each with its own loot, on top of what overflow reaches | `1` |
+| `damageWeaponPerHit` | When a stack dies as a whole, every hit wears the weapon as if it hit every mob in it. Needs `killWholeStackOnDeath` | `false` |
+| `stackOutgoingDamage` | A stack's melee attack hits as hard as all its mobs together | `false` |
+| `maxDamageMultiplier` | The most `stackOutgoingDamage` multiplies by | `16` |
 
 ### Feedback & display
 
@@ -145,6 +161,10 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `stackKillParticles` | Particle pop at the mob, scaling with the number killed | `true` |
 | `stackKillHologram` | Short-lived floating `-N` above the mob | `true` |
 | `killHologramColor` | Colour of that `-N` | `RED` |
+| `showStackLabels` | Show the `Cow x16` label at all. It is never saved on the mob: each player is told it, in their language | `true` |
+| `alwaysShowStackLabels` | Show labels without looking at the stack | `false` |
+| `separateStackLabel` | Players with the mod see the label as its own line above the mob's name; without the mod (or off) the count is in the name | `true` |
+| `stackLabelFormat` | The separate label's text: `{type}`, `{count}` — e.g. `{type} ({count})` | `{type} x{count}` |
 | `stackNameColor` | Colour of the `Cow x16` label (a name-tagged mob keeps its own colour) | `WHITE` |
 | `stackNameColorBySize` | Step the colour up with the stack size | `false` |
 | `stackNameColorMedium` / `stackNameColorLarge` | Colours above each threshold | `YELLOW` / `RED` |
@@ -157,6 +177,7 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 |---|---|---|
 | `enableStackBreeding` | Feeding a stacked animal breeds its members in pairs | `true` |
 | `stackedHarvest` | Shearing and milking a stack give one mob's worth per member; off shears one animal at a time | `true` |
+| `multiplyGiftDrops` | Eggs from a stack of chickens and scutes from a stack of growing turtles come from every member | `true` |
 | `breedOnePerClick` | Feed one member per click instead of as many as the food allows | `false` |
 | `enableAnimalBabyStacking` | Let loose farm-animal babies stack, matched by age | `true` |
 | `enableHostileBabyStacking` | Let loose hostile babies (baby zombies …) stack | `true` |
@@ -165,10 +186,23 @@ or turn it off only inside a region with `/mobstacker region set <name> stackNat
 | `enableSeparator` | Allow splitting a stack with an item | `false` |
 | `consumeSeparator` | Consume that item on use | `true` |
 | `separatorItem` | Which item splits a stack (the GUI completes item ids as you type) | `minecraft:diamond` |
+| `enableAssimilator` | Sneak + right-click a mob with the assimilator item to switch whether it may stack | `false` |
+| `consumeAssimilator` | Use up the item (or a point of durability) | `true` |
+| `assimilatorItem` | Which item switches it | `minecraft:emerald` |
 | `separationCooldown` | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured from a bucket stays out of stacks; `0` lets it rejoin on the next scan | `0` |
 
-The vanilla per-category spawn caps are settings too (category `mobcaps`, global only):
-`/mobstacker set monsterMobCap <0-128>`, and `/mobstacker help mobcaps` lists them all.
+### Spawning & despawning
+
+| Setting | Description | Default |
+|---|---|---|
+| `countStackMembers` | Every mob in a stack counts towards the spawn caps, so a world with stacks has vanilla's number of mobs. `false`: a stack counts as one mob, and far more mobs can exist. Global only | `true` |
+| `monsterMobCap` … `waterAmbientMobCap` | The seven vanilla spawn caps, `0`-`128`, global only (`/mobstacker help mobcaps`) | vanilla's: `70`, `10`, `15`, `5`, `5`, `5`, `20` |
+| `despawnPickedUpMobs` | A mob that picked up an item can still despawn, and drops what it picked up; an enderman drops its block. Vanilla keeps such mobs forever | `false` |
+| `persistentStackSize` | A stack of at least this many mobs never despawns on its own. `0` = stacks despawn like single mobs | `0` |
+
+Before 1.12.0 the caps were lowered to 22/5/7/2/2/2/8 even with stacking off, and a stack counted as
+one mob. A config still holding exactly those numbers is moved to vanilla's the first time 1.12.0
+loads it; caps somebody changed stay.
 
 ## Commands
 
@@ -186,7 +220,7 @@ commands answer whoever typed them again.
 /mobstacker reset <setting> | all
 /mobstacker reload                   # re-read the JSON after editing it by hand
 
-/mobstacker list deny|allow entity|mod add|remove|list <id>
+/mobstacker list deny|allow entity|mod add|remove|list <id>   # an entity id or a tag, #minecraft:raiders
 /mobstacker maxstack <entity> <n|max|default>   # a ceiling for one mob type
 /mobstacker maxstack list
 /mobstacker stacksize <target> <n>   # force a LIVE mob's count (not the global limit)
@@ -254,6 +288,21 @@ Because inheriting and overriding are different states, a region takes a list ov
 /mobstacker region mobs sheep_pen allow entity inherit    # back to following the global list
 ```
 
+An entity list also takes **tags** (since 1.12.0): `#minecraft:raiders`, `#minecraft:skeletons`, or
+any tag a mod or a data pack adds (`/mobstacker list deny entity add #raiders`).
+
+**Some mobs never stack, whatever the lists say** (1.12.0): the kinds in the data pack tag
+`#mobstacker:unstackable` (the wandering trader, the allay, the bee and the vex — a data pack can
+change it), an animal in love mode, an iron golem a player built, a raider in an active raid and a
+patrol leader, a villager that has claimed a bed, a workstation or a bell, an enderman carrying a
+block, and a mob with the `NoAI` flag. When a stack itself claims a bed or a workstation, or picks up a
+block, **one member takes it and steps out**, and the rest stay stacked.
+
+**Bosses stack only while `stackBosses` is on.** A boss is a mob with a boss bar of its own, one in
+the tag `#mobstacker:bosses` (the ender dragon, the wither, the warden and the elder guardian, plus the
+loader's `#c:bosses` or `#forge:bosses`), or a kind whose base max health is at least
+`bossHealthThreshold` (150), which catches other mods' bosses without a boss bar.
+
 Adding straight to an inherited list is refused rather than silently turned into a one-entry
 override — the ten entries you were looking at would have gone. Handing a region's list back to the
 global one asks once before it goes, for the same reason.
@@ -302,14 +351,19 @@ The mode decides *where* new stacks may form. It never affects mobs that are alr
 
 A `deny` region always wins, in every mode. Regions are axis-aligned cuboids tied to the dimension
 you run the command in; corners take absolute or `~` coordinates, and custom shapes are approximated
-with several cuboids.
+with several cuboids. A region can also be **a whole dimension** (no box), be **narrowed to some
+biomes** (ids or `#tags`), and be **switched off** without losing anything it carries.
 
 ```bash
 /mobstacker set stackMode <off|regions|players|everywhere>
 
 /mobstacker region add <name> <allow|deny> <x1 y1 z1> <x2 y2 z2>
 /mobstacker region add cowfarm allow ~-15 ~-3 ~-15 ~15 ~5 ~15   # around where you stand
+/mobstacker region add <name> <allow|deny> dimension [dimension] # a whole dimension, no box
 /mobstacker region bounds <name> <x1 y1 z1> <x2 y2 z2>          # move or resize, keeping its settings
+/mobstacker region bounds <name> dimension [dimension]          # make it the whole dimension
+/mobstacker region biomes <name> [add|remove <biome|#tag>|clear] # only the parts in these biomes
+/mobstacker region enable|disable <name>                        # switch it on or off, keeping it
 /mobstacker region type <name> <allow|deny>
 /mobstacker region color <name> <colour|auto>                   # the colour its box is drawn in
 /mobstacker region mobs <name> <deny|allow> <entity|mod> <add|remove|list|override|inherit>
@@ -318,7 +372,7 @@ with several cuboids.
 /mobstacker list <deny|allow> <entity|mod> <add|remove|list>    # which mobs may stack at all
 /mobstacker maxstack <entity> <n|max|default> | maxstack list   # a ceiling for one mob type
 /mobstacker region remove <name>
-/mobstacker region list
+/mobstacker region list [page]                                   # clickable: show, switch, turn the page
 /mobstacker region show <name>                                  # bounds, priority and its overrides
 /mobstacker region owner <name> <player|none>                   # who owns it (see below)
 /mobstacker region share <name> [add|remove <player>]           # who else sees it - its owner may too
@@ -353,7 +407,7 @@ region…** and **Edit area…** open an editor for a region's kind, dimension a
 **Here** button that fills a corner from where you are standing; the same screen deletes a region,
 behind a second click. Redrawing a region keeps its settings and its priority.
 
-Only `stackMode`, `playerStackRadius` and the mob caps stay global — the first two decide where the
+Only `stackMode`, `playerStackRadius`, the mob caps with `countStackMembers` and `alwaysShowFeedback` stay global — the first two decide where the
 region system applies at all, and the caps are world-level spawn limits rather than a property of a
 place.
 
@@ -460,7 +514,9 @@ so vanilla does the rest: the drop chances apply, **Looting** raises them, and d
 damaged the way vanilla damages it. That holds under every death mode, and because the items are
 stored exactly as the game stores them, **other mods' items and any enchantment work without the mod
 knowing anything about them**. The remainder of a killed stack, and a mob pulled out with the
-separator item, take the next member's gear with them.
+separator item, take the next member's gear with them. Without `keepMemberEquipment` they wear what
+the stack's top mob spawned with, never what it picked up, and a mob merged into a stack drops what it
+picked up on the ground (what it spawned with is lost).
 
 ## Pets & mounts
 
@@ -475,7 +531,9 @@ breeding pen keeps stacking everything it produces.
 **Right-clicking a stacked mount hands you one animal out of the stack**, and everything you then do
 — taming, a saddle, armour, feeding, climbing on — applies to that one. It walks back into the herd
 afterwards unless what you did was to keep it. Horses, donkeys, mules, llamas, camels and skeleton
-and zombie horses.
+and zombie horses — and a saddle on a stack of pigs or striders saddles one animal, not the stack. A dye
+on a stack of sheep and a golden apple on a stack of (weakened) zombie villagers work on one mob too, as
+vanilla takes one per mob.
 
 **Every horse in a stack keeps its own speed, jump and health.** The horse that comes out is the
 next one in line, with its own numbers, and when the top horse dies the next one takes over with
@@ -553,15 +611,19 @@ of it and at full strength where it is in view. Like the style, X-ray is one cho
 
 ## Names & name tags
 
-A stack is labelled `Cow x16`, drawn in `stackNameColor`. Turn on `stackNameColorBySize` and the
+A stack is labelled `Cow x16`, drawn in `stackNameColor`. **The label is never saved on the mob**: a
+player with the mod sees it as a line of its own above the mob's name (a stack of sheep called `jeb_`
+stays `jeb_`, rainbow and all, with `Sheep x16` above it), and a player without the mod sees the count
+in the name, as before. Either way it is in that player's language, and shows when they look at the
+stack unless `alwaysShowStackLabels` is on. Turn on `stackNameColorBySize` and the
 colour steps up with the stack — the base colour, then `stackNameColorMedium` and
 `stackNameColorLarge` at thresholds you set — so a 64-stack is recognisable across the farm. Colour
 changes reach existing stacks within a second (see `stackScanInterval`).
 
-**Name tags say what you mean.** Rename a stack and the name becomes its label — `Bella x16`, in the
-colour you gave it — and **the stack goes on accepting mobs**. Rename a *single* mob and it stays out
+**Name tags say what you mean.** Rename a stack and the stack carries the name — `Bella` under
+`Cow x16` with the mod, `Bella x16` without it — and **the stack goes on accepting mobs**. Rename a *single* mob and it stays out
 of stacks, which is how players protect a pet; `stackNamedMobs` opts those in too, with mobs of the
-same name only. The count is only ever appended to the name you typed, so a cow named `Cow x5` keeps
+same name only. The count is never part of the name you typed, so a cow named `Cow x5` keeps
 that name, and a stack keeps its name through kills and through conversions (zombie → drowned).
 A mob named some other way (`/data`, a dispenser) is treated as protected.
 
@@ -586,6 +648,8 @@ are rendering, so they need the mod on the client.
 - **Loose babies stack too** — farm animals matched by age, and non-ageable babies such as baby
   zombies simply together (`enableAnimalBabyStacking` / `enableHostileBabyStacking`).
 - `breedOnePerClick` feeds one member per click instead of as many as the food in hand allows.
+- Frogs breed the vanilla way (they lay frogspawn rather than having a baby); a stack of tadpoles grows
+  up into a stack of frogs.
 
 > 💡 Tameable mobs with their own right-click behaviour (wolf, cat, horse) still fall back to vanilla
 > breeding.
@@ -609,8 +673,12 @@ every kill path.
 - 🔌 An API is available for custom merging conditions, death handlers and entity data modifiers.
 - 🐑🐷🧟 Works with animals, monsters and NPCs alike.
 - 🎨 Mobs only stack with mobs that look and behave the same: wool colour and shearing for sheep,
-  markings for horses, genes for pandas, a charged creeper, a screaming goat, and so on. Jobless
+  coat colour for horses, genes for pandas, a charged creeper, a screaming goat, and so on. Jobless
   villagers stack; employed ones do not.
+- 🧬 A mob that comes out of a stack — what is left after a kill, or one taken out — is a copy of the
+  stack: same variant, age, effects, tags, a turtle's home, other mods' data. Nothing is rolled again.
+  What only the top mob has (a saddle, a carried block, a picked-up sword, a villager's bed or job, a
+  leader zombie's bonus) stays with it.
 
 ## Credits & License
 

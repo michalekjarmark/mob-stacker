@@ -140,6 +140,26 @@ public final class StackToolsCommands {
                 : label("region ").append(value(region.getName()))
                         .append(label(" (" + region.getType() + ", priority " + region.getPriority() + ")")));
         CommandFeedback.success(source, () -> where, false);
+        // What a region does NOT cover here and why, since the answer above cannot say: switched off,
+        // or the spot is inside its area but in a biome its filter leaves out (1.12.0).
+        String dimension = mob.level().dimension().location().toString();
+        String biome = mob.level().getBiome(pos).unwrapKey().map(key -> key.location().toString()).orElse("?");
+        for (StackRegion other : MobStacker.config.getRegions()) {
+            if (other == region) {
+                continue;
+            }
+            if (!other.coversArea(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+                continue;
+            }
+            String why = !other.isEnabled() ? "is switched off"
+                    : !other.contains(mob.level(), pos) ? "leaves out this biome (" + biome + ")"
+                    : null;
+            if (why != null) {
+                String reason = why;
+                CommandFeedback.success(source, () -> label("  Region ").append(value(other.getName()))
+                        .append(label(" covers this spot but " + reason)), false);
+            }
+        }
 
         CommandFeedback.success(source, () -> label("Ceiling here: ").append(value(String.valueOf(MobStacker.getMaxMobStackSize(mob))))
                 .append(label(" (" + ceilingSource(mob, region) + ")"))
@@ -167,10 +187,17 @@ public final class StackToolsCommands {
         CommandFeedback.success(source, () -> health, false);
         String recorded = MobStacker.originOf(mob);
         SpawnOrigin origin = SpawnOrigin.of(recorded);
-        CommandFeedback.success(source, () -> label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
-                .append(label(" - it " + (recorded == null ? "counts as having spawned on its own" : origin.description())
-                        + "; " + origin.settingId() + " "
-                        + (MobStacker.originStacks(mob, recorded) ? "lets it stack here" : "is off here"))), false);
+        // Vanilla builds a golem without finalizeSpawn, so nothing is recorded for one; its own flag
+        // still says who made it (round 12 read "not recorded" as a fault).
+        boolean built = recorded == null && mob instanceof net.minecraft.world.entity.animal.IronGolem golem
+                && golem.isPlayerCreated();
+        CommandFeedback.success(source, () -> built
+                ? label("Origin: ").append(value("built by a player"))
+                        .append(label(" - a golem a player built never stacks"))
+                : label("Origin: ").append(value(recorded == null ? "not recorded" : recorded))
+                        .append(label(" - it " + (recorded == null ? "counts as having spawned on its own" : origin.description())
+                                + "; " + origin.settingId() + " "
+                                + (MobStacker.originStacks(mob, recorded) ? "lets it stack here" : "is off here"))), false);
         if (size > 1) {
             // Only worth a line when the members did not all come from where the top did.
             Map<String, Integer> members = MobStacker.memberOrigins(mob);
@@ -195,12 +222,17 @@ public final class StackToolsCommands {
             CommandFeedback.success(source, () -> line, false);
         }
 
-        StackRefusal own = ownRefusal(mob);
-        CommandFeedback.success(source, () -> own == null
+        // Every rule that keeps it out, not only the first: the first alone hid the one a player was
+        // looking for (round 12: a raider showed only that event spawns were off, not its raid).
+        List<StackRefusal> refusals = ownRefusals(mob);
+        CommandFeedback.success(source, () -> refusals.isEmpty()
                 ? label("Stacking: ").append(Component.literal("yes").withStyle(ChatFormatting.GREEN))
                         .append(label(", it can join a stack or take mobs in"))
                 : label("Stacking: ").append(Component.literal("no").withStyle(ChatFormatting.RED))
-                        .append(label(" - " + own.reason())), false);
+                        .append(label(" - " + refusals.get(0).reason())), false);
+        for (StackRefusal also : refusals.subList(Math.min(1, refusals.size()), refusals.size())) {
+            CommandFeedback.success(source, () -> label("  and " + also.reason()), false);
+        }
 
         Component neighbour = neighbourLine(mob, kind);
         CommandFeedback.success(source, () -> neighbour, false);
@@ -264,6 +296,16 @@ public final class StackToolsCommands {
     }
 
     /** The first rule that keeps this mob out of stacking, its CanStack flag included. */
+    /** Every rule that keeps this mob out of stacking, its CanStack flag first. */
+    private static List<StackRefusal> ownRefusals(Mob mob) {
+        List<StackRefusal> all = new ArrayList<>();
+        if (!MobStacker.getCanStack(mob)) {
+            all.add(StackRefusal.CAN_STACK_OFF);
+        }
+        all.addAll(MobStacker.stackRefusals(mob));
+        return all;
+    }
+
     private static StackRefusal ownRefusal(Mob mob) {
         return MobStacker.getCanStack(mob) ? MobStacker.stackRefusal(mob) : StackRefusal.CAN_STACK_OFF;
     }
@@ -310,6 +352,9 @@ public final class StackToolsCommands {
         StackRefusal refusal = MobStacker.mergeRefusal(source, target);
         if (refusal == StackRefusal.DIFFERENT_VARIANT) {
             return line.append(no(refusal.reason() + ": " + MobVariants.variantDifference(source, target)));
+        }
+        if (refusal == StackRefusal.DIFFERENT_DATA) {
+            return line.append(no(refusal.reason() + ": '" + MobStacker.dataDifference(source, target) + "'"));
         }
         if (refusal != null) {
             return line.append(no(refusal.reason()));

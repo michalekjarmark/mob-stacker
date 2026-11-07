@@ -1,6 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import net.minecraft.client.Minecraft;
@@ -24,7 +25,8 @@ public final class MobStackerClientRegions {
      */
     public record View(String name, StackRegion.Type type, String dimension,
                        int x1, int y1, int z1, int x2, int y2, int z2,
-                       int priority, StackColor color, boolean colorChosen) {
+                       int priority, StackColor color, boolean colorChosen,
+                       boolean enabled, boolean wholeDimension, List<String> biomes) {
 
         public int minX() { return Math.min(x1, x2); }
         public int minY() { return Math.min(y1, y2); }
@@ -34,18 +36,47 @@ public final class MobStackerClientRegions {
         public int maxZ() { return Math.max(z1, z2); }
 
         public String bounds() {
+            if (wholeDimension) {
+                return "(the whole dimension)";
+            }
             return "[" + x1 + ", " + y1 + ", " + z1 + "] -> [" + x2 + ", " + y2 + ", " + z2 + "]";
+        }
+
+        /** Whether the overlay has a box to draw: not for a whole dimension, which has none. */
+        public boolean hasBox() {
+            return !wholeDimension;
         }
 
         public int[] corners() {
             return new int[]{x1, y1, z1, x2, y2, z2};
         }
 
+        /**
+         * As the server's {@code StackRegion.contains}: never while off, everywhere for a whole
+         * dimension, and only in its biomes when it has a filter - looked up in the level the
+         * player is in.
+         */
+        public boolean contains(net.minecraft.world.level.Level level, int x, int y, int z) {
+            if (!contains(x, y, z)) {
+                return false;
+            }
+            return biomes.isEmpty() || (level != null && RegionBiomes.matches(
+                    level.getBiome(new net.minecraft.core.BlockPos(x, y, z)), biomes));
+        }
+
+        /** The area alone, without the biome filter. */
         public boolean contains(int x, int y, int z) {
-            return x >= minX() && x <= maxX() && y >= minY() && y <= maxY() && z >= minZ() && z <= maxZ();
+            if (!enabled) {
+                return false;
+            }
+            return wholeDimension
+                    || (x >= minX() && x <= maxX() && y >= minY() && y <= maxY() && z >= minZ() && z <= maxZ());
         }
 
         public long volume() {
+            if (wholeDimension) {
+                return Long.MAX_VALUE;
+            }
             return (long) (maxX() - minX() + 1) * (maxY() - minY() + 1) * (maxZ() - minZ() + 1);
         }
     }
@@ -62,7 +93,8 @@ public final class MobStackerClientRegions {
                 out.add(new View(region.getName(), region.getType(),
                         region.getDimension() == null ? "?" : region.getDimension(),
                         c[0], c[1], c[2], c[3], c[4], c[5],
-                        region.getPriority(), region.effectiveColor(), region.getColor() != null));
+                        region.getPriority(), region.effectiveColor(), region.getColor() != null,
+                        region.isEnabled(), region.isWholeDimension(), List.copyOf(region.getBiomes())));
             }
             return out;
         }
@@ -72,7 +104,8 @@ public final class MobStackerClientRegions {
                     info.dimension(),
                     info.x1(), info.y1(), info.z1(),
                     info.x2(), info.y2(), info.z2(),
-                    info.priority(), info.overlayColor(), info.chosenColor() != null));
+                    info.priority(), info.overlayColor(), info.chosenColor() != null,
+                    info.enabled(), info.wholeDimension(), info.biomes()));
         }
         return out;
     }
@@ -84,8 +117,9 @@ public final class MobStackerClientRegions {
      */
     public static List<View> containing(int x, int y, int z) {
         List<View> out = new ArrayList<>();
+        net.minecraft.world.level.Level level = Minecraft.getInstance().level;
         for (View view : inCurrentDimension()) {
-            if (view.contains(x, y, z)) {
+            if (view.contains(level, x, y, z)) {
                 out.add(view);
             }
         }

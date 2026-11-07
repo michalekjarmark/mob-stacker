@@ -32,6 +32,9 @@ public abstract class LivingEntityMixin extends Entity {
     @Shadow
     protected abstract void dropAllDeathLoot(DamageSource damageSource);
 
+    @Shadow
+    protected boolean dead;
+
     @Unique
     private LivingEntity mobstacker$thisEntity;
     @Unique
@@ -86,6 +89,29 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
+    /**
+     * killBatchSize: at least that many members die with the top one, on top of what the damage
+     * reached. Read by the loot (mobstacker$overflowDeathLoot) and by the remainder that is spawned.
+     */
+    @Inject(method = "die", at = @At("HEAD"))
+    private void mobstacker$killBatch(DamageSource damageSource, CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self.level().isClientSide() || !(self instanceof Mob mob) || damageSource.is(DamageTypes.GENERIC_KILL)
+                || MobStacker.getKillWholeStackOnDeath(mob)) {
+            return;
+        }
+        int size = MobStacker.getStackSize(mob);
+        int batch = Math.min(MobStacker.getKillBatchSize(mob), size);
+        if (size <= 1 || batch <= Math.max(1, mobstacker$overflowKills)) {
+            return;
+        }
+        mobstacker$overflowKills = batch;
+        if (batch >= size) {
+            mobstacker$overflowSurvivorHealth = -1.0F;
+            MobStacker.setStackMemberDamage(mob, 0.0F);
+        }
+    }
+
     @Inject(method = "die", at = @At("HEAD"))
     private void mobstacker$onDie(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
@@ -107,7 +133,8 @@ public abstract class LivingEntityMixin extends Entity {
             int killed = mobstacker$overflowKills > 0 ? mobstacker$overflowKills : 1;
             int survivors = stackSize - killed;
 
-            if (MobStacker.shouldSpawnNewEntity(mobstacker$self, reason) && survivors >= 1 && mobstacker$self.level() instanceof ServerLevel serverLevel) {
+            boolean leavesRemainder = MobStacker.shouldSpawnNewEntity(mobstacker$self, reason, this.dead);
+            if (leavesRemainder && survivors >= 1 && mobstacker$self.level() instanceof ServerLevel serverLevel) {
                 MobStackerAPI.executeCustomDeathHandlers(mobstacker$self, mobstacker$self.getLastDamageSource());
                 MobStacker.spawnNewEntity(serverLevel, mobstacker$self, survivors, mobstacker$overflowSurvivorHealth);
             }
@@ -115,7 +142,7 @@ public abstract class LivingEntityMixin extends Entity {
             // Feedback when a stacked mob is killed: a particle "pop" near the mob, a floating
             // "-N" hologram above it, and/or an action bar line to the killer. Each is toggled
             // by its own config flag.
-            if (stackSize > 1 && MobStacker.shouldSpawnNewEntity(mobstacker$self, reason)) {
+            if (stackSize > 1 && leavesRemainder) {
                 if (MobStacker.getStackKillParticles(mobstacker$self)) {
                     mobstacker$spawnStackKillParticles(mobstacker$self, killed);
                 }

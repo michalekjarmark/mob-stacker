@@ -6,35 +6,44 @@ import com.frikinjay.mobstacker.config.MobStackerConfig;
 import com.frikinjay.mobstacker.config.StackAi;
 import com.frikinjay.mobstacker.config.StackMode;
 import com.frikinjay.mobstacker.config.StackRegion;
+import com.frikinjay.mobstacker.mixin.AbstractVillagerAccessor;
+import com.frikinjay.mobstacker.mixin.AnimalInvoker;
 import com.frikinjay.mobstacker.mixin.ArmorStandAccessor;
 import com.frikinjay.mobstacker.mixin.MobEquipmentAccessor;
 import com.frikinjay.mobstacker.mixin.ParrotAccessor;
 import com.frikinjay.mobstacker.mixin.OcelotAccessor;
 import com.frikinjay.mobstacker.mixin.FoxAccessor;
-import com.frikinjay.mobstacker.mixin.StriderAccessor;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.attributes.DefaultAttributes;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
@@ -44,21 +53,31 @@ import net.minecraft.world.entity.animal.Bucketable;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.animal.Parrot;
 import net.minecraft.world.entity.animal.Cat;
-import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Ocelot;
 import net.minecraft.world.entity.animal.Fox;
+import net.minecraft.world.entity.animal.Sheep;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Creeper;
-import net.minecraft.world.entity.monster.Strider;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.PatrollingMonster;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.ZombieVillager;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.item.BucketItem;
+import net.minecraft.world.item.DyeItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.level.ItemLike;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -69,6 +88,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +169,29 @@ public final class MobStacker {
 
     private static final WeakHashMap<Class<?>, Boolean> bossEntityCache = new WeakHashMap<>();
     private static final WeakHashMap<Class<?>, Field> bossFieldCache = new WeakHashMap<>();
+
+    /**
+     * Kinds that never stack, whatever the settings say (1.12.0): a mob whose whole point is being
+     * one of a kind - a wandering trader and its trades, an allay and what it holds, a vex and its
+     * evoker, a bee and its hive. Shipped as a data pack tag so a server can change it without a
+     * new jar; see data/mobstacker/tags/entity_types/unstackable.json.
+     */
+    public static final TagKey<EntityType<?>> UNSTACKABLE_TAG =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "unstackable"));
+    /**
+     * Bosses, which stack only while {@code stackBosses} is on. Also pulls in the loaders' own
+     * {@code #c:bosses} (Fabric) and {@code #forge:bosses} when they exist.
+     */
+    public static final TagKey<EntityType<?>> BOSSES_TAG =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "bosses"));
+    /**
+     * A kind's base max health as registered, per type. Read off the type and not the mob, because
+     * stackHealth raises a stack's own max health with every member: twenty cows would read as a
+     * 200-health boss.
+     */
+    private static final Map<EntityType<?>, Double> BASE_MAX_HEALTH = new ConcurrentHashMap<>();
+    /** How often (ticks) a stack checks whether one of its members has to leave it (shedClaims). */
+    private static final int SHED_INTERVAL = 20;
 
     private static final Pattern STACKED_NAME_PATTERN = Pattern.compile(" x\\d+$");
 
@@ -245,15 +288,40 @@ public final class MobStacker {
      * the scan would not. Everything about the mob itself is still asked.
      */
     public static StackRefusal stackRefusal(Mob entity, boolean checkWhere) {
+        return stackRefusal(entity, checkWhere, null);
+    }
+
+    /**
+     * Every rule that keeps this mob out of stacking, in the order {@link #stackRefusal} asks them,
+     * for {@code /mobstacker inspect}: the first alone hid the rest, so a raider that was also an
+     * event spawn showed only one of the two (round 12). Empty when it may stack.
+     */
+    public static List<StackRefusal> stackRefusals(Mob entity) {
+        List<StackRefusal> all = new ArrayList<>();
+        stackRefusal(entity, true, all);
+        return all;
+    }
+
+    /** Notes a refusal; true when the caller stops at the first one ({@code all} is null). */
+    private static boolean refuse(List<StackRefusal> all, StackRefusal refusal) {
+        if (all == null) {
+            return true;
+        }
+        all.add(refusal);
+        return false;
+    }
+
+    /** The rules, once: with {@code all} null it stops at the first that refuses, otherwise it lists every one. */
+    private static StackRefusal stackRefusal(Mob entity, boolean checkWhere, List<StackRefusal> all) {
         // Babies stack only when their category's flag allows it. Farm animals (Animal) and
         // hostile/other mobs (e.g. baby zombies) are controlled independently. Baby-vs-adult
         // mixing is prevented separately in canMerge.
         if (entity.isBaby()) {
             if (entity instanceof Animal) {
-                if (!getEnableAnimalBabyStacking(entity)) {
+                if (!getEnableAnimalBabyStacking(entity) && refuse(all, StackRefusal.BABY_ANIMAL)) {
                     return StackRefusal.BABY_ANIMAL;
                 }
-            } else if (!getEnableHostileBabyStacking(entity)) {
+            } else if (!getEnableHostileBabyStacking(entity) && refuse(all, StackRefusal.BABY_HOSTILE)) {
                 return StackRefusal.BABY_HOSTILE;
             }
         }
@@ -261,30 +329,48 @@ public final class MobStacker {
         // A mob that is dead or playing its death animation (health <= 0) must not take part
         // in stacking. Merging into a dying mob restores its health mid-animation, which makes
         // the death animation loop. Excluding it lets the death finish cleanly.
-        if (entity.isDeadOrDying() || entity.isRemoved()) {
+        if ((entity.isDeadOrDying() || entity.isRemoved()) && refuse(all, StackRefusal.DYING)) {
             return StackRefusal.DYING;
+        }
+
+        // Kinds that never stack (1.12.0). The tag is the server's to change, through a data pack.
+        if (entity.getType().is(UNSTACKABLE_TAG) && refuse(all, StackRefusal.UNSTACKABLE)) {
+            return StackRefusal.UNSTACKABLE;
+        }
+        if (!getStackBosses(entity) && isBoss(entity) && refuse(all, StackRefusal.BOSS)) {
+            return StackRefusal.BOSS;
+        }
+        // stackAi never sets this flag (it would outlive the mod), so a mob with it was frozen by a
+        // player or a map on purpose: a display, a statue, a puzzle piece.
+        if (entity.isNoAi() && refuse(all, StackRefusal.NO_AI)) {
+            return StackRefusal.NO_AI;
         }
 
         // Mobs that hold or wear something (e.g. an armed/armored zombie) carry per-mob data the
         // stack cannot represent, and merging would drop their gear. Keep them unstacked unless
         // explicitly allowed.
-        if (!getStackEquippedMobs(entity) && hasEquipment(entity)) {
+        if (!getStackEquippedMobs(entity) && hasEquipment(entity) && refuse(all, StackRefusal.EQUIPPED)) {
             return StackRefusal.EQUIPPED;
         }
 
-        if (isPlayerBound(entity)) {
+        if (isPlayerBound(entity) && refuse(all, StackRefusal.PLAYER_BOUND)) {
             return StackRefusal.PLAYER_BOUND;
+        }
+
+        StackRefusal busy = busyRefusal(entity);
+        if (busy != null && refuse(all, busy)) {
+            return busy;
         }
 
         // Handed to a player a moment ago: leave it with them. Checked here rather than only at the
         // merge attempt so nothing merges INTO it either - a stack absorbing the animal somebody is
         // halfway through taming is the same bug seen from the other side.
-        if (separationGrace(entity) > 0) {
+        if (separationGrace(entity) > 0 && refuse(all, StackRefusal.SEPARATION_GRACE)) {
             return StackRefusal.SEPARATION_GRACE;
         }
 
         StackRefusal location = checkWhere ? locationRefusal(entity) : null;
-        if (location != null) {
+        if (location != null && refuse(all, location)) {
             return location;
         }
 
@@ -293,18 +379,21 @@ public final class MobStacker {
         // depends on three things (the mode in force, which lists it consults, and whether the
         // region overrides them) and working any of them out twice is how tables drift apart.
         StackRefusal listed = MobLists.refusal(entity);
-        if (listed != null) {
+        if (listed != null && refuse(all, listed)) {
             return listed;
         }
 
-        if (!originStacks(entity)) {
+        if (!originStacks(entity) && refuse(all, StackRefusal.ORIGIN)) {
             return StackRefusal.ORIGIN;
         }
 
-        if (!hasValidCustomNameForStacking(entity)) {
+        if (!hasValidCustomNameForStacking(entity) && refuse(all, StackRefusal.PLAYER_NAMED)) {
             return StackRefusal.PLAYER_NAMED;
         }
-        return getStackSize(entity) < getMaxMobStackSize(entity) ? null : StackRefusal.FULL;
+        if (getStackSize(entity) >= getMaxMobStackSize(entity) && refuse(all, StackRefusal.FULL)) {
+            return StackRefusal.FULL;
+        }
+        return all == null || all.isEmpty() ? null : all.get(0);
     }
 
     /**
@@ -324,15 +413,12 @@ public final class MobStacker {
             return StackRefusal.STACKING_OFF;
         }
 
-        String dimension = entity.level().dimension().location().toString();
         BlockPos pos = entity.blockPosition();
-        int x = pos.getX();
-        int y = pos.getY();
-        int z = pos.getZ();
 
         boolean insideAllowRegion = false;
         for (StackRegion region : config.getRegions()) {
-            if (region.contains(dimension, x, y, z)) {
+            // With the level, so a region's biome filter (1.12.0) is part of the answer.
+            if (region.contains(entity.level(), pos)) {
                 if (region.isDeny()) {
                     return StackRefusal.DENY_REGION; // DENY overrides everything, in every mode.
                 }
@@ -395,6 +481,11 @@ public final class MobStacker {
         if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
             return true;
         }
+        // A golem somebody built to guard their base. The ones an iron farm makes are the village's,
+        // not a player's, so the farm still stacks.
+        if (entity instanceof IronGolem golem && golem.isPlayerCreated()) {
+            return true;
+        }
         // Trust is the other way a player owns an animal without owning it. An ocelot is never tamed
         // and a fox remembers who bred it by UUID, so neither has an owner field for the checks above
         // to notice - and a merge would hand one wild mob's indifference to the whole stack.
@@ -402,6 +493,139 @@ public final class MobStacker {
             return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
         }
         return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();
+    }
+
+    /**
+     * Something the mob is in the middle of that a merge would cut short (1.12.0): an animal a
+     * player is breeding, a zombie villager being cured, a raider counted by its raid, a villager
+     * holding a claim, an enderman holding a block. Each would lose the thing to the merge - the
+     * love, the cure, the raid's tally, the bed or workstation, the block itself.
+     */
+    public static StackRefusal busyRefusal(Mob entity) {
+        if (entity instanceof Animal animal && animal.isInLove()) {
+            return StackRefusal.IN_LOVE;
+        }
+        // Round 13: the one a golden apple was given to stepped out, started shaking and walked
+        // straight back in - and the stack took its cure, so all of them shook and all would have
+        // turned into villagers for one apple.
+        if (entity instanceof ZombieVillager zombie && zombie.isConverting()) {
+            return StackRefusal.BEING_CURED;
+        }
+        // A raid counts its raiders one entity at a time: one merged away is one the raid thinks is
+        // gone, so a wave could end early, and the stack left behind would no longer belong to it.
+        if (entity instanceof Raider raider && raider.hasActiveRaid()) {
+            return StackRefusal.RAID;
+        }
+        if (entity instanceof PatrollingMonster patrol && patrol.isPatrolLeader()) {
+            return StackRefusal.RAID;
+        }
+        if (entity instanceof Villager villager && hasVillagerClaim(villager)) {
+            return StackRefusal.VILLAGER_CLAIM;
+        }
+        if (entity instanceof EnderMan enderMan && enderMan.getCarriedBlock() != null) {
+            return StackRefusal.CARRIES_BLOCK;
+        }
+        return null;
+    }
+
+    /** The claims a villager holds on the world: a bed, a workstation (or one it is walking to), a bell. */
+    private static final List<MemoryModuleType<GlobalPos>> VILLAGER_CLAIMS = List.of(
+            MemoryModuleType.HOME, MemoryModuleType.JOB_SITE, MemoryModuleType.POTENTIAL_JOB_SITE,
+            MemoryModuleType.MEETING_POINT);
+
+    private static boolean hasVillagerClaim(Villager villager) {
+        Brain<Villager> brain = villager.getBrain();
+        for (MemoryModuleType<GlobalPos> claim : VILLAGER_CLAIMS) {
+            if (brain.hasMemoryValue(claim)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A boss, for {@code stackBosses}: anything with a boss bar of its own, anything in
+     * {@code #mobstacker:bosses}, and any kind whose base max health reaches
+     * {@code bossHealthThreshold} (0 turns that last test off).
+     */
+    public static boolean isBoss(Mob mob) {
+        if (mob.getType().is(BOSSES_TAG) || isBossEntity(mob)) {
+            return true;
+        }
+        int threshold = getBossHealthThreshold(mob);
+        return threshold > 0 && baseMaxHealth(mob.getType()) >= threshold;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static double baseMaxHealth(EntityType<?> type) {
+        return BASE_MAX_HEALTH.computeIfAbsent(type, t -> {
+            try {
+                if (DefaultAttributes.hasSupplier(t)) {
+                    AttributeSupplier attributes = DefaultAttributes.getSupplier((EntityType<? extends LivingEntity>) t);
+                    if (attributes.hasAttribute(Attributes.MAX_HEALTH)) {
+                        return attributes.getBaseValue(Attributes.MAX_HEALTH);
+                    }
+                }
+            } catch (RuntimeException e) {
+                logger.debug("MobStacker: no default attributes for {}", t, e);
+            }
+            return 0.0;
+        });
+    }
+
+    /**
+     * A stacked villager that has claimed a bed, a workstation or a bell, or a stacked enderman
+     * that has picked up a block, hands that over to one member, which leaves the stack with it
+     * (1.12.0). The stack is one entity, so it is the stack that claims or picks up - and every
+     * member would then share the one bed, the one block, or one workstation's trades. Taking it
+     * out at once keeps trading halls, breeders and iron farms counting villagers one by one, and
+     * stops a block being carried by twenty endermen.
+     *
+     * <p>On a timer of its own rather than the stack scan's, which may be switched off.
+     */
+    private static void shedClaims(Mob mob) {
+        if (!(mob instanceof Villager) && !(mob instanceof EnderMan)) {
+            return;
+        }
+        if ((mob.tickCount + mob.getId()) % SHED_INTERVAL != 0 || getStackSize(mob) <= 1) {
+            return;
+        }
+        if (mob instanceof EnderMan stack) {
+            BlockState carried = stack.getCarriedBlock();
+            if (carried == null) {
+                return;
+            }
+            if (separateOne(stack, false) instanceof EnderMan leaving) {
+                leaving.setCarriedBlock(carried);
+                stack.setCarriedBlock(null);
+            }
+            return;
+        }
+        Villager stack = (Villager) mob;
+        if (!hasVillagerClaim(stack)) {
+            return;
+        }
+        if (!(separateOne(stack, false) instanceof Villager leaving)) {
+            return;
+        }
+        Brain<Villager> from = stack.getBrain();
+        Brain<Villager> to = leaving.getBrain();
+        for (MemoryModuleType<GlobalPos> claim : VILLAGER_CLAIMS) {
+            from.getMemory(claim).ifPresent(pos -> to.setMemory(claim, pos));
+            from.eraseMemory(claim);
+        }
+        // Caught after the job was already taken (a workstation right next to the stack): the
+        // profession, its trades and its experience go with the claim, and the rest of the stack is
+        // jobless again, as it was before.
+        if (stack.getVillagerData().getProfession() != VillagerProfession.NONE) {
+            leaving.setVillagerData(stack.getVillagerData());
+            AbstractVillagerAccessor stackTrades = (AbstractVillagerAccessor) stack;
+            ((AbstractVillagerAccessor) leaving).mobstacker$setOffers(stackTrades.mobstacker$offers());
+            leaving.setVillagerXp(stack.getVillagerXp());
+            stack.setVillagerData(stack.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            stackTrades.mobstacker$setOffers(null);
+            stack.setVillagerXp(0);
+        }
     }
 
     /**
@@ -467,6 +691,11 @@ public final class MobStacker {
             return StackRefusal.DIFFERENT_VARIANT;
         }
 
+        // Last of the mod's own rules, being the one that has to serialise both mobs.
+        if (getStrictDataComparison(target) && dataDifference(source, target) != null) {
+            return StackRefusal.DIFFERENT_DATA;
+        }
+
         return MobStackerAPI.checkCustomMergingConditions(source, target) ? null : StackRefusal.OTHER_MOD;
     }
 
@@ -486,16 +715,14 @@ public final class MobStacker {
     public static void spawnNewEntity(ServerLevel serverLevel, Mob self, int newStackSize, float survivorHealth) {
         if (newStackSize < 1) return;
 
-        EntityType<?> entityType = self.getType();
-        Mob newEntity = (Mob) entityType.create(serverLevel);
+        Mob newEntity = memberOf(self, serverLevel, true);
         if (newEntity == null) return;
 
-        copyEntityData(self, newEntity, serverLevel);
+        MobStackerAPI.applyEntityDataModifiers(self, newEntity);
         copyStackNaming(self, newEntity);
-        // After copyEntityData, because finalizeSpawn hands out random gear of its own that the
-        // stored loadout has to overwrite.
+        // The member that takes over the top wears its own stored gear, not a copy of the top's.
         handOverMemberEquipment(self, newEntity, newStackSize);
-        // The same for a horse's own numbers, which finalizeSpawn rolled afresh a moment ago.
+        // The same for a horse's own numbers.
         MobVariants.handOverMemberRolls(self, newEntity, newStackSize);
         MobStacker.setStackSize(newEntity, newStackSize);
         handOverMemberOrigins(self, newEntity, newStackSize);
@@ -504,83 +731,136 @@ public final class MobStacker {
             MobStacker.setStackMemberDamage(newEntity, getStackMemberDamage(self));
         }
         copyBreedData(self, newEntity, newStackSize);
-        if (survivorHealth > 0.0F && survivorHealth <= newEntity.getMaxHealth()) {
-            newEntity.setHealth(survivorHealth);
+        if (survivorHealth > 0.0F) {
+            // What carries over is the next member's wound. Overflow worked it out against the top
+            // mob's max health, and the copy can have less: the top's leader bonus stays with it.
+            float wound = self.getMaxHealth() - survivorHealth;
+            newEntity.setHealth(Math.max(0.5F, Math.min(newEntity.getMaxHealth(), newEntity.getMaxHealth() - wound)));
         }
         serverLevel.addFreshEntity(newEntity);
     }
 
-    private static void copyEntityData(Mob source, Mob target, ServerLevel serverLevel) {
-        finalizeLikeANewMob(source, target, serverLevel);
-        copyOrigin(source, target);
-        target.moveTo(source.position().x, source.position().y, source.position().z,
-                source.getYRot(), source.getXRot());
-        target.yBodyRot = source.yBodyRot;
-        // The head too: a new mob's head starts out facing a random way, which a mob with its AI on
-        // corrects at once and a stack without it (stackAi) kept, its body slowly turning after it.
-        target.setYHeadRot(source.getYHeadRot());
-
-        if (source.hasCustomName()) {
-            target.setCustomName(source.getCustomName());
-        }
-
-        copyVariantData(source, target);
-        copyAgeData(source, target);
-        MobStackerAPI.applyEntityDataModifiers(source, target);
-    }
+    // --- A mob made out of a stack ---------------------------------------------------------------
+    // Since 1.12.0 (ROADMAP #35) a mob the mod makes out of a stack is a copy of the stack's own saved
+    // data. Up to 1.11 it was a new mob put through vanilla's finalizeSpawn and patched afterwards,
+    // and finalizeSpawn rolls a new mob: a variant, an age, gear, a zombie's leader bonus, a turtle's
+    // home where it stands, a skeleton on a spider's back, a zombified piglin and a saddle on a
+    // strider, a chicken for a baby zombie. Each of those had to be found and taken back one at a
+    // time (1.7.0 variants, 1.9.0 horse stats, 1.9.3 riders and effects), and the rest went on being
+    // re-rolled - so a stack of zombies on Hard could lose its top and come back in armour, which
+    // then stopped it taking in any more zombies. A copy rolls nothing: the member that comes out
+    // is what the stack is.
 
     /**
-     * Runs vanilla's {@code finalizeSpawn} on a mob the mod is creating - a stack's remainder after a
-     * kill, or a mob taken out of a stack - and takes back what it hands out besides the mob itself.
-     *
-     * <p>A spider gets a skeleton on its back one time in a hundred, a strider a zombified piglin (and
-     * a saddle for it) or a baby strider, and a baby zombie may climb onto a chicken, new or nearby. A
-     * natural spawn adds the rider to the world along with its mount; the mod adds only the mob, so the
-     * rider rode along unseen, made the stack a mount that nothing merges into, and turned into a real
-     * skeleton the next time the chunk was loaded (round 7's server test: 3 in 250 spider kills). The
-     * random effect a spider may roll on Hard is the same kind of thing: it belonged to a spider that
-     * spawned, not to one more member of a stack.
+     * Save keys that belong to the one mob a stack shows and never to the members under it, so they
+     * stay out of a copy. Everything else the stack has, every member has: that was already true of
+     * a merge, where the survivor takes the data of the mob it swallows.
      */
-    private static void finalizeLikeANewMob(Mob source, Mob target, ServerLevel serverLevel) {
-        target.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(source.blockPosition()),
-                MobSpawnType.NATURAL, null, null);
-        for (Entity rider : List.copyOf(target.getPassengers())) {
-            rider.stopRiding();
-            rider.discard();
+    private static final Set<String> TOP_ONLY_KEYS = Set.of(
+            // Who it is: its own id, whatever rides it, and the mod's stack data, which the callers
+            // hand over member by member (size, gear, horse stats, origins, wounds, names).
+            "UUID", "Passengers", STACK_DATA_KEY,
+            // How it is doing: a member comes out whole, not hurt or dying.
+            "Health", "AbsorptionAmount", "HurtTime", "HurtByTimestamp", "DeathTime",
+            // What it remembers - a villager's bed and job site are claims on the world, released
+            // when it dies (see shedClaims) - where it sleeps, and what it is tied to.
+            "Brain", "SleepingX", "SleepingY", "SleepingZ", "Leash",
+            // What it carries: one inventory, one saddle, one chest, one block. A copy would be a
+            // second one, dropped again when the copy dies.
+            "Inventory", "Items", "ChestedHorse", "SaddleItem", "ArmorItem", "DecorItem", "Saddle",
+            "carriedBlockState",
+            // What it is in the middle of: love (the stack's breeding is counted in its stack data),
+            // a turtle's egg, a creeper's lit fuse - a copy of that one would blow the stack up one
+            // creeper at a time.
+            "InLove", "LoveCause", "HasEgg", "ignited");
+
+    /**
+     * Attribute modifiers vanilla gives the odd mob when it spawns, which a copy would give every
+     * member: a leader zombie (at most one in twenty, on Hard) has two to five times the health and
+     * calls in reinforcements. The members' own rolls were never kept, and nearly all of them were
+     * plain zombies.
+     */
+    private static final Set<String> TOP_ONLY_MODIFIERS = Set.of("Leader zombie bonus");
+
+    /** What a slot's drop chance is on a mob that never picked anything up. */
+    private static final float NATURAL_DROP_CHANCE = 0.085F;
+
+    /**
+     * A new mob made out of a stack: the remainder that takes over when the top mob dies
+     * ({@code remainder}), or one member taken out of it. It is the stack's own saved data loaded into
+     * a fresh entity of the same kind, less what is the top mob's alone ({@link #TOP_ONLY_KEYS}) - so
+     * it keeps the stack's variant, age, effects, fire, scoreboard tags and team, a turtle's home
+     * beach, a zombie's conversion and other mods' data. Not yet in the world; the caller hands over
+     * the member's own stored state and adds it.
+     *
+     * <p>Gear: what the top mob picked up (guaranteed to drop) is its own and was dropped when it
+     * died, so a copy leaves it out; what the kind spawns with comes along. With {@code
+     * keepMemberEquipment} the caller then puts the member's own loadout on instead.
+     *
+     * @param remainder true for the remainder, which keeps the stack's name; a member taken out of
+     *                  a stack is not the stack the player named
+     * @return the new mob, or null when its kind cannot be created
+     */
+    public static Mob memberOf(Mob stack, ServerLevel level, boolean remainder) {
+        if (!(stack.getType().create(level) instanceof Mob member)) {
+            return null;
         }
-        Entity mount = target.getVehicle();
-        if (mount != null) {
-            target.stopRiding();
-            if (mount.tickCount == 0) {
-                // Made for this mob a moment ago and already in the world (a chicken jockey's chicken).
-                mount.discard();
-            } else if (mount instanceof Chicken chicken) {
-                // A chicken that was already there: it stays, and is no longer anybody's mount.
-                chicken.setChickenJockey(false);
+        AttributeInstance freshMaxHealth = member.getAttribute(Attributes.MAX_HEALTH);
+        double oneMobsMaxHealth = freshMaxHealth == null ? 0.0 : freshMaxHealth.getBaseValue();
+
+        CompoundTag data = stack.saveWithoutId(new CompoundTag());
+        // Before the copy: the save holds the stack's live stack data, not a copy of it.
+        data.remove(STACK_DATA_KEY);
+        data = data.copy();
+        TOP_ONLY_KEYS.forEach(data::remove);
+        if (!remainder) {
+            data.remove("CustomName");
+            data.remove("CustomNameVisible");
+        }
+        ListTag attributes = data.getList("Attributes", Tag.TAG_COMPOUND);
+        for (int i = 0; i < attributes.size(); i++) {
+            attributes.getCompound(i).getList("Modifiers", Tag.TAG_COMPOUND).removeIf(modifier ->
+                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(tag.getString("Name")));
+        }
+        try {
+            member.load(data);
+        } catch (RuntimeException e) {
+            // Another mod's data that does not load back: a plain mob of the kind, rather than the
+            // stack losing its members or the server its tick.
+            logger.warn("Could not copy a stacked {} from its saved data, making a plain one: {}",
+                    BuiltInRegistries.ENTITY_TYPE.getKey(stack.getType()), e.toString());
+            if (!(stack.getType().create(level) instanceof Mob plain)) {
+                return null;
+            }
+            member = plain;
+        }
+
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (dropChance(member, slot) > 1.0F) {
+                member.setItemSlot(slot, ItemStack.EMPTY);
+                setDropChance(member, slot, NATURAL_DROP_CHANCE);
             }
         }
-        if (target instanceof Strider strider && strider.isSaddled()) {
-            ((StriderAccessor) strider).mobstacker$steering().setSaddle(false);
+        AttributeInstance maxHealth = member.getAttribute(Attributes.MAX_HEALTH);
+        if (getStackHealth(stack) && maxHealth != null) {
+            // stackHealth raised the stack's max health by every mob it took in; a member has one mob's.
+            maxHealth.setBaseValue(oneMobsMaxHealth);
         }
-        target.removeAllEffects();
-    }
-
-    /**
-     * Copies the source's growth state (age / baby flag) onto a freshly-created entity, so a
-     * stack's respawned remainder (after a kill) or a separated mob keeps being a baby with the
-     * same growth progress. Without this, {@code entityType.create()} / {@code finalizeSpawn}
-     * would make it an adult (finalizeSpawn even has a ~5% chance to roll a random baby).
-     */
-    private static void copyAgeData(Mob source, Mob target) {
-        if (source instanceof AgeableMob sourceAge && target instanceof AgeableMob targetAge) {
-            targetAge.setAge(sourceAge.getAge());
-        } else if (source instanceof Zombie sourceZombie && target instanceof Zombie targetZombie) {
-            targetZombie.setBaby(sourceZombie.isBaby());
+        member.setHealth(member.getMaxHealth());
+        if (member instanceof Villager villager && villager.getVillagerData().getProfession() != VillagerProfession.NONE) {
+            // Only jobless villagers stack, so a job the stack took on is the top villager's (shedClaims
+            // hands it to the one it takes out). A new profession also clears the trades.
+            villager.setVillagerData(villager.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            villager.setVillagerXp(0);
         }
-    }
 
-    private static void copyVariantData(Mob source, Mob target) {
-        MobVariants.copyVariant(source, target);
+        copyOrigin(stack, member);
+        member.moveTo(stack.getX(), stack.getY(), stack.getZ(), stack.getYRot(), stack.getXRot());
+        member.yBodyRot = stack.yBodyRot;
+        // The head too: load() sets it to the saved facing, but a stack without AI (stackAi) keeps
+        // whatever it is given, and its body slowly turned after a head that faced elsewhere.
+        member.setYHeadRot(stack.getYHeadRot());
+        return member;
     }
 
     public static void separateEntity(Mob entity) {
@@ -699,6 +979,45 @@ public final class MobStacker {
     }
 
     /**
+     * Whether this is a saddle going onto a stacked pig or strider.
+     *
+     * <p>A saddle is one animal's: on a stack it saddled all sixteen at once, and a saddled stack is
+     * player-bound, so it never took another mob in, the player rode the whole stack, and only one
+     * saddle ever came back. So the stack hands one animal over for it, as a horse does for every
+     * right-click. Horses are handled before this is asked.
+     */
+    public static boolean isSaddlingInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.SADDLE) && mob instanceof Saddleable saddleable
+                && saddleable.isSaddleable() && !saddleable.isSaddled();
+    }
+
+    /**
+     * Whether this is a dye going onto a stacked sheep.
+     *
+     * <p>Vanilla takes one dye per sheep. On a stack one dye coloured all sixteen, and each of them
+     * then grew coloured wool. So one sheep steps out for the dye, and a dye that would do nothing
+     * hands nobody over: the same test as {@code DyeItem.interactLivingEntity}. That method is the
+     * item's, which {@code Player.interactOn} hands the mob that was clicked - the stack - so
+     * {@code MobMixin} calls it on the sheep that stepped out itself.
+     */
+    public static boolean isDyeingInteraction(Mob mob, ItemStack held) {
+        return held.getItem() instanceof DyeItem dye && mob instanceof Sheep sheep
+                && sheep.isAlive() && !sheep.isSheared() && sheep.getColor() != dye.getDyeColor();
+    }
+
+    /**
+     * Whether this is a golden apple curing a stacked zombie villager.
+     *
+     * <p>Vanilla cures one zombie villager per apple. On a stack one apple cured them all, and every
+     * villager that came out of it gave the player the cure's discount. So one steps out to be cured.
+     * It is weakened like the stack, since a mob made out of a stack keeps the stack's effects.
+     */
+    public static boolean isCuringInteraction(Mob mob, ItemStack held) {
+        return held.is(Items.GOLDEN_APPLE) && mob instanceof ZombieVillager zombie
+                && zombie.hasEffect(net.minecraft.world.effect.MobEffects.WEAKNESS);
+    }
+
+    /**
      * Whether this is somebody scooping one mob into a bucket.
      *
      * <p>Bucketing destroys the entity and hands back an item holding it, which on a stack meant
@@ -798,15 +1117,16 @@ public final class MobStacker {
 
         try {
             ServerLevel serverLevel = (ServerLevel) entity.level();
-            EntityType<?> entityType = entity.getType();
-            Mob newEntity = (Mob) entityType.create(entity.level());
+            Mob newEntity = memberOf(entity, serverLevel, false);
             if (newEntity == null) return null;
 
             // Read while the stack still has the member that is about to leave it.
             Map<String, Integer> origins = memberOrigins(entity);
             setStackSize(entity, getStackSize(entity) - 1);
 
-            copyEntityDataForSeparation(entity, newEntity, serverLevel, markAsSeparated);
+            if (markAsSeparated) {
+                newEntity.setCustomName(Component.literal("Lone " + getLocalizedEntityName(entity.getType()).getString()));
+            }
             handleHealthOnSeparation(entity, newEntity);
             // The separated mob is one of the stored members, so it leaves wearing that member's
             // gear; the stack keeps the rest.
@@ -827,23 +1147,6 @@ public final class MobStacker {
             logger.error("Error occurred while separating entity: {}", e.getMessage());
             return null;
         }
-    }
-
-    private static void copyEntityDataForSeparation(Mob source, Mob target, ServerLevel serverLevel,
-                                                    boolean markAsSeparated) {
-        finalizeLikeANewMob(source, target, serverLevel);
-        copyOrigin(source, target);
-        target.moveTo(source.position().x, source.position().y, source.position().z,
-                source.getYRot(), source.getXRot());
-        target.yBodyRot = source.yBodyRot;
-        target.setYHeadRot(source.getYHeadRot());
-
-        if (markAsSeparated) {
-            target.setCustomName(Component.literal("Lone " + getLocalizedEntityName(source.getType()).getString()));
-        }
-
-        copyVariantData(source, target);
-        copyAgeData(source, target);
     }
 
     private static void handleHealthOnSeparation(Mob source, Mob target) {
@@ -934,6 +1237,8 @@ public final class MobStacker {
         // Cheap: an int out of a tag the mob already carries, and it short-circuits to nothing for
         // every mob that was never separated, which is very nearly all of them.
         tickSeparationGrace(mob);
+        // Two instanceof checks for every other mob.
+        shedClaims(mob);
 
         int interval = getStackScanInterval(mob);
         if (interval <= 0) {
@@ -994,8 +1299,10 @@ public final class MobStacker {
             mergedLoadouts.add(captureLoadout(source));
             mergedLoadouts.addAll(getMemberLoadouts(source));
         } else {
+            // Nobody remembers the gear of the mob being merged away, so what it picked up goes on
+            // the ground rather than with it. The survivor keeps what it wears: a merge never
+            // overwrites that (isExcludedNbtKey).
             dropPickedEquipment(source);
-            dropPickedEquipment(target);
         }
 
         copyRelevantNbtData(source, targetNbt);
@@ -1104,61 +1411,55 @@ public final class MobStacker {
         return Component.literal(raw.substring(0, split));
     }
 
+    /**
+     * Keeps what players see of the stack in step with it: its count, colour and settings. Since
+     * 1.12.0 nothing of that is written onto the mob - the label is made per player on its way out
+     * ({@link StackLabels}) - so this only takes a label written by an older version back out of the
+     * mob's own name, names a boss's bar, and tells the players watching when the label changed.
+     */
     public static void updateStackDisplay(Mob entity) {
-        int stackSize = getStackSize(entity);
-        boolean isBoss = isBossEntity(entity);
-
-        Component newName = generateNewDisplayName(entity, stackSize);
-        updateEntityName(entity, newName, isBoss);
-    }
-
-    private static Component generateNewDisplayName(Mob entity, int stackSize) {
-        Component given = playerGivenName(entity);
-        if (given != null) {
-            // Exactly what the player typed on the name tag, plus the live count. Nothing is parsed
-            // back off the label, so a stack named "Cow x5" stays "Cow x5" and gains " x16".
-            return stackSize > 1 ? given.copy().append(" x" + stackSize) : given.copy();
+        if (entity.level().isClientSide) {
+            return;
         }
-        if (entity.hasCustomName() && !matchesStackedName(entity.getCustomName().getString(), entity)) {
-            String baseName = STACKED_NAME_PATTERN.matcher(entity.getCustomName().getString())
-                    .replaceFirst("");
-            return Component.literal(baseName + (stackSize > 1 ? " x" + stackSize : ""))
-                    .withStyle(entity.getCustomName().getStyle());
-        }
-        return stackSize > 1 ?
-                Component.literal(getLocalizedEntityName(entity.getType()).getString() + " x" + stackSize)
-                        .withStyle(stackNameColor(entity, stackSize)) :
-                null;
-    }
-
-    private static void updateEntityName(Mob entity, Component newName, boolean isBoss) {
-        if (newName != null) {
-            entity.setCustomName(newName);
-            if (isBoss) {
-                ServerBossEvent bossEvent = getBossField(entity);
-                if (bossEvent != null) {
-                    bossEvent.setName(newName);
-                }
-            }
-        } else if (isBoss) {
-            handleBossNameReset(entity);
-        } else if (entity.hasCustomName()) {
-            entity.setCustomName(null);
-        }
-
-        if (!isBoss && hasNonCustomName(entity)) {
-            entity.setCustomNameVisible(false);
-        }
-    }
-
-    private static void handleBossNameReset(Mob entity) {
-        delayExecution((ServerLevel) entity.level(), 1, () -> {
+        clearOldLabel(entity);
+        if (isBossEntity(entity)) {
             ServerBossEvent bossEvent = getBossField(entity);
             if (bossEvent != null) {
-                bossEvent.setName(Component.literal(entity.getDisplayName().getString()));
-                entity.setCustomName(null);
+                // A boss bar is one for everybody, so it is named in the server's words.
+                bossEvent.setName(StackLabels.shows(entity) ? StackLabels.nameLabel(entity) : entity.getDisplayName());
             }
-        });
+        }
+        StackLabels.refresh(entity);
+    }
+
+    /**
+     * Before 1.12.0 the label was the mob's own name: "Cow x12", or "Bessie x12" for a stack a player
+     * named. This puts the mob's own name back - the player's exactly as they gave it, nothing for the
+     * mod's own label - so a world from an older version comes clean as its stacks are loaded. The
+     * count on any other name is the old label's too: the old display replaced it every time.
+     */
+    private static void clearOldLabel(Mob entity) {
+        Component given = playerGivenName(entity);
+        if (given != null) {
+            if (!given.equals(entity.getCustomName())) {
+                entity.setCustomName(given);
+            }
+            return;
+        }
+        Component current = entity.getCustomName();
+        if (current == null) {
+            return;
+        }
+        String text = current.getString();
+        if (matchesStackedName(text, entity)) {
+            entity.setCustomName(null);
+            entity.setCustomNameVisible(false);
+            return;
+        }
+        java.util.regex.Matcher count = STACKED_NAME_PATTERN.matcher(text);
+        if (count.find()) {
+            entity.setCustomName(Component.literal(text.substring(0, count.start())).withStyle(current.getStyle()));
+        }
     }
 
     public static void updateHealth(Mob target, Mob source) {
@@ -1244,26 +1545,27 @@ public final class MobStacker {
     }
 
     /**
-     * Drops any items the mob picked up during its life (tagged {@code picked} in NBT, minus
-     * binding-cursed ones) and clears those slots, so picked-up loot isn't lost when the mob is
-     * discarded on a merge. Naturally-equipped gear (no {@code picked} tag) is left untouched.
+     * Drops what a mob picked up during its life and empties those slots, for a mob about to be merged
+     * away while nobody remembers its gear ({@code keepMemberEquipment} off): it is a player's loot or
+     * another mob's drop, and would otherwise vanish with the mob. What the mob spawned with stays on
+     * it and goes with it, which is what the setting being off means.
+     *
+     * <p>Vanilla marks picked-up gear by a drop chance above 1 ({@code Mob.setGuaranteedDrop}), and
+     * that is how this finds it. Up to 1.12.0 it looked for a {@code picked} item tag instead, which
+     * came from the original mod and which nothing in 1.20.1 writes - so it never dropped anything.
+     * An item with the curse of vanishing vanishes, as it would if the mob died.
      */
-    public static void dropPickedEquipment(LivingEntity entity) {
+    public static void dropPickedEquipment(Mob mob) {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
-            ItemStack stack = entity.getItemBySlot(slot);
-            if (stack.isEmpty()) {
+            ItemStack stack = mob.getItemBySlot(slot);
+            if (stack.isEmpty() || dropChance(mob, slot) <= 1.0F) {
                 continue;
             }
-            CompoundTag tag = stack.getTag();
-            if (tag == null || !tag.contains("picked") || EnchantmentHelper.hasBindingCurse(stack)) {
-                continue;
+            if (!EnchantmentHelper.hasVanishingCurse(stack)) {
+                mob.spawnAtLocation(stack);
             }
-            tag.remove("picked");
-            if (tag.isEmpty()) {
-                stack.setTag(null);
-            }
-            entity.spawnAtLocation(stack);
-            entity.setItemSlot(slot, ItemStack.EMPTY);
+            mob.setItemSlot(slot, ItemStack.EMPTY);
+            setDropChance(mob, slot, NATURAL_DROP_CHANCE);
         }
     }
 
@@ -1594,8 +1896,8 @@ public final class MobStacker {
 
     /**
      * Remembers how a mob came into the world, the first time vanilla sets it up
-     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten: every mob the mod itself makes
-     * goes through {@code finalizeSpawn} again and is then handed its source's origin instead.
+     * ({@code finalizeSpawn}, see {@code MobMixin}). Never overwritten; a mob the mod itself makes out
+     * of a stack never goes through {@code finalizeSpawn} and is handed its source's origin.
      */
     public static void recordOrigin(Mob mob, MobSpawnType reason) {
         if (mob instanceof ICustomDataHolder holder && reason != null
@@ -1826,7 +2128,7 @@ public final class MobStacker {
             return InteractionResult.PASS;
         }
         if (!creative) {
-            food.shrink(toFeed);
+            takeFood(self, player, hand, food, toFeed);
         }
 
         love += toFeed;
@@ -1853,6 +2155,22 @@ public final class MobStacker {
     }
 
     /**
+     * Takes the food a player fed to {@code fed} members of a stack.
+     *
+     * <p>An axolotl eats a bucket of tropical fish and hands the water bucket back
+     * ({@code Axolotl.usePlayerItem}). Shrinking the food ate the bucket with it - three iron a meal.
+     * A bucket holds one meal, so the animal's own {@code usePlayerItem} takes it, as vanilla would,
+     * which also covers another mod's animal fed from a bucket.
+     */
+    private static void takeFood(Animal animal, Player player, InteractionHand hand, ItemStack food, int fed) {
+        if (food.getItem() instanceof BucketItem) {
+            ((AnimalInvoker) animal).mobstacker$usePlayerItem(player, hand, food);
+        } else {
+            food.shrink(fed);
+        }
+    }
+
+    /**
      * Feeds a stacked BABY its food to speed up growth, scaled fairly to the stack size (one food
      * item per baby rather than one item for the whole stack). Since a baby-stack is a single
      * entity with one shared age, the age is advanced once per fed member.
@@ -1869,7 +2187,7 @@ public final class MobStacker {
             return InteractionResult.PASS;
         }
         if (!creative) {
-            food.shrink(toFeed);
+            takeFood(self, player, hand, food, toFeed);
         }
         // Mirror vanilla's feeding speed-up (10% of the remaining time), applied once per member.
         for (int i = 0; i < toFeed && self.getAge() < 0; i++) {
@@ -1941,9 +2259,21 @@ public final class MobStacker {
         }
     }
 
-    public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason) {
-        return (entity instanceof Creeper creeper && creeper.isIgnited()) ||
-                reason == Entity.RemovalReason.KILLED;
+    /**
+     * Whether the rest of a stack takes over now that its top mob leaves the world: when it was
+     * killed, or when it was a creeper that blew itself up - {@code Creeper.explodeCreeper} marks it
+     * dead and discards it, and the stack's other creepers did not explode.
+     *
+     * <p>Up to 1.12.0 the creeper half asked {@code isIgnited()}, which only flint and steel sets. So a
+     * creeper that swelled up next to a player and exploded took its whole stack with it, while a lit
+     * one left a remainder behind whenever it left the world for any reason - a chunk unloading, a
+     * portal, a merge - which made one stack two.
+     *
+     * @param dead the leaving mob's {@code LivingEntity.dead}
+     */
+    public static boolean shouldSpawnNewEntity(Mob entity, Entity.RemovalReason reason, boolean dead) {
+        return reason == Entity.RemovalReason.KILLED
+                || (entity instanceof Creeper && dead && reason == Entity.RemovalReason.DISCARDED);
     }
 
     public static boolean isBossEntity(Entity entity) {
@@ -2138,11 +2468,10 @@ public final class MobStacker {
         if (entity == null || regions.isEmpty()) {
             return null;
         }
-        String dimension = entity.level().dimension().location().toString();
         BlockPos pos = entity.blockPosition();
         StackRegion best = null;
         for (StackRegion region : regions) {
-            if (!region.contains(dimension, pos.getX(), pos.getY(), pos.getZ())) {
+            if (!region.contains(entity.level(), pos)) {
                 continue;
             }
             if (best == null || region.getPriority() > best.getPriority()
@@ -2366,6 +2695,230 @@ public final class MobStacker {
     public static boolean hadVanillaSweepConditions(Entity attacker) {
         return attacker != null && attacker == sweepContextAttacker && sweepContextVanillaSweep;
     }
+
+    // --- Spawning & despawning (1.12.0, ROADMAP #15 / #41) ---
+
+    /**
+     * A stack counts towards the spawn caps as at most this many mobs. Past any cap a bigger number
+     * changes nothing, and a ceiling may be as large as an int goes.
+     */
+    private static final int SPAWN_COUNT_LIMIT = 4096;
+
+    /**
+     * The world's entities as vanilla's spawn-cap count should see them: a stack of N is handed over
+     * N times (countStackMembers), so the caps, the per-player local caps and the soul sand valley's
+     * spawn charges all count every member, exactly as they would count the crowd standing loose.
+     * Lazy, so nothing is copied; off, it is the iterable it was given.
+     */
+    public static Iterable<Entity> countedForSpawning(Iterable<Entity> entities) {
+        if (!config.getCountStackMembers()) {
+            return entities;
+        }
+        return () -> new Iterator<>() {
+            private final Iterator<Entity> all = entities.iterator();
+            private Entity current;
+            private int repeats;
+
+            @Override
+            public boolean hasNext() {
+                return repeats > 0 || all.hasNext();
+            }
+
+            @Override
+            public Entity next() {
+                if (repeats > 0) {
+                    repeats--;
+                    return current;
+                }
+                if (!all.hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                current = all.next();
+                repeats = current instanceof Mob mob
+                        ? Math.max(0, Math.min(getStackSize(mob), SPAWN_COUNT_LIMIT) - 1) : 0;
+                return current;
+            }
+        };
+    }
+
+    public static boolean getDespawnPickedUpMobs(Entity at) {return setting("despawnPickedUpMobs", at, config.getDespawnPickedUpMobs());}
+
+    public static int getPersistentStackSize(Entity at) {return Math.max(0, setting("persistentStackSize", at, config.getPersistentStackSize()));}
+
+    /** Whether this stack is big enough that {@code persistentStackSize} keeps it from despawning. */
+    public static boolean keepsFromDespawning(Mob mob) {
+        int size = getStackSize(mob);
+        if (size < 2) {
+            return false;
+        }
+        int threshold = getPersistentStackSize(mob);
+        return threshold > 0 && size >= threshold;
+    }
+
+    /**
+     * Just before a mob despawns, with {@code despawnPickedUpMobs} on: everything it picked up goes
+     * back on the ground - the slots vanilla marked as a guaranteed drop, which is what picking an
+     * item up does - and so does every member's, and an enderman's block. Natural gear (a zombie
+     * born with a helmet) despawns with the mob as in vanilla.
+     */
+    public static void dropOnDespawn(Mob mob) {
+        if (mob.level().isClientSide() || !getDespawnPickedUpMobs(mob)) {
+            return;
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            ItemStack stack = mob.getItemBySlot(slot);
+            if (!stack.isEmpty() && dropChance(mob, slot) > 1.0F && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                mob.spawnAtLocation(stack.copy());
+                mob.setItemSlot(slot, ItemStack.EMPTY);
+            }
+        }
+        ListTag members = getMemberLoadouts(mob);
+        for (int i = 0; i < members.size(); i++) {
+            CompoundTag loadout = members.getCompound(i);
+            for (EquipmentSlot slot : EquipmentSlot.values()) {
+                String key = slot.getName();
+                if (loadout.contains(key, Tag.TAG_COMPOUND) && loadout.getFloat(key + DROP_CHANCE_SUFFIX) > 1.0F) {
+                    ItemStack stack = ItemStack.of(loadout.getCompound(key));
+                    if (!stack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                        mob.spawnAtLocation(stack);
+                    }
+                }
+            }
+        }
+        if (mob instanceof EnderMan enderMan && enderMan.getCarriedBlock() != null) {
+            ItemStack block = new ItemStack(enderMan.getCarriedBlock().getBlock());
+            if (!block.isEmpty()) {
+                mob.spawnAtLocation(block);
+            }
+            enderMan.setCarriedBlock(null);
+        }
+    }
+
+    public static boolean getStrictDataComparison(Entity at) {return setting("strictDataComparison", at, config.getStrictDataComparison());}
+
+    public static String getIgnoredDataKeys(Entity at) {return setting("ignoredDataKeys", at, config.getIgnoredDataKeys());}
+
+    public static boolean getShowStackLabels(Entity at) {return setting("showStackLabels", at, config.getShowStackLabels());}
+
+    public static boolean getAlwaysShowStackLabels(Entity at) {return setting("alwaysShowStackLabels", at, config.getAlwaysShowStackLabels());}
+
+    public static boolean getSeparateStackLabel(Entity at) {return setting("separateStackLabel", at, config.getSeparateStackLabel());}
+
+    public static String getStackLabelFormat(Entity at) {return setting("stackLabelFormat", at, config.getStackLabelFormat());}
+
+    /** Where the data other mods saved on these two differs (see {@link MobData}), or null. */
+    public static String dataDifference(Mob source, Mob target) {
+        return MobData.difference(source, target, MobData.ignored(getIgnoredDataKeys(target)));
+    }
+
+    // --- The original mod's remaining options (1.12.0, ROADMAP #49-#53) ---
+
+    public static boolean getMultiplyGiftDrops(Entity at) {return setting("multiplyGiftDrops", at, config.getMultiplyGiftDrops());}
+
+    public static int getKillBatchSize(Entity at) {return Math.max(1, setting("killBatchSize", at, config.getKillBatchSize()));}
+
+    public static boolean getDamageWeaponPerHit(Entity at) {return setting("damageWeaponPerHit", at, config.getDamageWeaponPerHit());}
+
+    public static boolean getStackOutgoingDamage(Entity at) {return setting("stackOutgoingDamage", at, config.getStackOutgoingDamage());}
+
+    public static int getMaxDamageMultiplier(Entity at) {return Math.max(1, setting("maxDamageMultiplier", at, config.getMaxDamageMultiplier()));}
+
+    public static boolean getEnableAssimilator(Entity at) {return setting("enableAssimilator", at, config.getEnableAssimilator());}
+
+    public static boolean getConsumeAssimilator(Entity at) {return setting("consumeAssimilator", at, config.getConsumeAssimilator());}
+
+    public static String getAssimilatorItem(Entity at) {return setting("assimilatorItem", at, config.getAssimilatorItem());}
+
+    /**
+     * multiplyGiftDrops: vanilla has just dropped one {@code item} for the top mob of a stack (an
+     * egg, a scute); the other members drop theirs. In full stacks, so a stack of a hundred
+     * chickens leaves seven entities, not a hundred.
+     */
+    public static void dropGiftForMembers(Mob mob, ItemLike item, int each) {
+        int members = getStackSize(mob) - 1;
+        if (members <= 0 || mob.level().isClientSide() || !getMultiplyGiftDrops(mob)) {
+            return;
+        }
+        long left = (long) members * Math.max(1, each);
+        int max = new ItemStack(item).getMaxStackSize();
+        while (left > 0) {
+            int count = (int) Math.min(left, max);
+            mob.spawnAtLocation(new ItemStack(item, count));
+            left -= count;
+        }
+    }
+
+    /** stackOutgoingDamage: a stack's melee damage, multiplied by its size up to maxDamageMultiplier. */
+    public static float stackMeleeDamage(Mob attacker, float damage) {
+        int size = getStackSize(attacker);
+        if (size <= 1 || attacker.level().isClientSide() || !getStackOutgoingDamage(attacker)) {
+            return damage;
+        }
+        return damage * Math.min(size, getMaxDamageMultiplier(attacker));
+    }
+
+    /**
+     * damageWeaponPerHit: a hit on a stack that dies as a whole also wears the weapon for every other
+     * mob in it - {@code perHit} is what vanilla's own hit just took (1 for a sword, 2 for an axe).
+     */
+    public static void wearWeaponForStack(ItemStack weapon, LivingEntity target, Player attacker, int perHit) {
+        if (perHit <= 0 || weapon.isEmpty() || !weapon.isDamageableItem() || attacker.getAbilities().instabuild
+                || !(target instanceof Mob mob) || target.level().isClientSide()) {
+            return;
+        }
+        int members = getStackSize(mob);
+        if (members <= 1 || !getDamageWeaponPerHit(mob) || !getKillWholeStackOnDeath(mob)) {
+            return;
+        }
+        long extra = (long) perHit * (members - 1);
+        weapon.hurtAndBreak((int) Math.min(extra, Integer.MAX_VALUE), attacker,
+                broken -> broken.broadcastBreakEvent(EquipmentSlot.MAINHAND));
+    }
+
+    /**
+     * The assimilator (enableAssimilator): sneaking with it on a mob switches whether that mob - or
+     * the whole stack it is - may stack. Sneaking, unlike the original mod, because the default item
+     * is an emerald and a plain right-click with emeralds is how a villager is traded with.
+     *
+     * @return true when it was used, and the interaction is over
+     */
+    public static boolean useAssimilator(Player player, Mob mob, InteractionHand hand) {
+        if (mob.level().isClientSide() || !player.isShiftKeyDown() || !getEnableAssimilator(mob)) {
+            return false;
+        }
+        ItemStack held = player.getItemInHand(hand);
+        ResourceLocation id = ResourceLocation.tryParse(getAssimilatorItem(mob));
+        if (held.isEmpty() || id == null || !held.is(BuiltInRegistries.ITEM.get(id))) {
+            return false;
+        }
+        boolean nowStacks = !getCanStack(mob);
+        setCanStack(mob, nowStacks);
+        Component name = mob.getDisplayName();
+        MutableComponent message = Component.empty().append(name)
+                .append(Component.literal(nowStacks ? " may stack again" : " will not stack")
+                        .withStyle(nowStacks ? ChatFormatting.GREEN : ChatFormatting.GOLD));
+        // The switch is only this mob's own say. Another rule may keep it out all the same - a golem
+        // a player built never stacks - and "may stack again" over a mob that then does not read as
+        // the item not working (round 12). Said in the chat, where a reason fits.
+        StackRefusal other = stackRefusal(mob);
+        if (other != null) {
+            message.append(Component.literal((nowStacks ? " - but it does not now: " : " - it did not anyway: ")
+                    + other.reason()).withStyle(ChatFormatting.GRAY));
+        }
+        player.displayClientMessage(message, other == null);
+        if (!player.getAbilities().instabuild && getConsumeAssimilator(mob)) {
+            if (held.isDamageableItem()) {
+                held.hurtAndBreak(1, player, broken -> broken.broadcastBreakEvent(hand));
+            } else {
+                held.shrink(1);
+            }
+        }
+        return true;
+    }
+
+    public static boolean getStackBosses(Entity at) {return setting("stackBosses", at, config.getStackBosses());}
+
+    public static int getBossHealthThreshold(Entity at) {return setting("bossHealthThreshold", at, config.getBossHealthThreshold());}
 
     public static boolean getStackEquippedMobs() {return config.getStackEquippedMobs();}
 

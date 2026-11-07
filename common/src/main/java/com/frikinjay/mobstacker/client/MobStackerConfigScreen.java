@@ -3,6 +3,7 @@ package com.frikinjay.mobstacker.client;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
+import com.frikinjay.mobstacker.config.SettingSearch;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.Minecraft;
@@ -13,12 +14,16 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -36,10 +41,19 @@ import java.util.function.Consumer;
  *   <li><b>Anywhere else</b> — an informational notice; the {@code /mobstacker} commands remain the
  *       way to configure such a server.</li>
  * </ul>
+ * <p>
+ * A search box over the pages (1.12.0, asked for after round 13) finds a setting on any page by
+ * {@link SettingSearch}: typing anywhere on the screen starts it, the hits are the page while
+ * there is text in it, each with its page under its name and the letters that matched in yellow,
+ * and they are edited right there. Enter, or a click on a name, shows that setting on its own page
+ * among its neighbours; Esc empties the box.
  */
 public final class MobStackerConfigScreen extends Screen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
+    private static final int MATCHED_TEXT = 0xFFFF55;
+    /** How long a setting found by a search glows on its page, in ticks. */
+    private static final int HIGHLIGHT_TICKS = 50;
 
     private final Screen parent;
     private final List<Category> categories = new ArrayList<>();
@@ -48,7 +62,13 @@ public final class MobStackerConfigScreen extends Screen {
     // A category can hold more settings than fit on screen (and a small window fits very few), so a
     // page shows a window of rows that the mouse wheel moves through.
     private static final int ROW_HEIGHT = 24;
-    private static final int LIST_TOP = 52;
+    // One ladder from the top: the title, the search box, the page switcher, its scroll hint, rows.
+    private static final int TITLE_Y = 8;
+    private static final int SEARCH_Y = 20;
+    private static final int SEARCH_HEIGHT = 16;
+    private static final int SEARCH_WIDTH = 200;
+    private static final int CATEGORY_Y = 40;
+    private static final int LIST_TOP = 68;
     // Space kept below the rows for the status line and the Done button.
     private static final int LIST_BOTTOM_MARGIN = 52;
     private int scrollOffset;
@@ -62,9 +82,19 @@ public final class MobStackerConfigScreen extends Screen {
     private boolean syncRequested;
     // Set while a widget is being repainted, so its own responder does not send that back as an edit.
     private boolean repainting;
-    // Item ids for separatorItem, the way the mob list editor completes entity ids. At most one item
-    // box is on a page, so one completion is enough; it is pointed at nothing on the other pages.
-    private final IdCompletion itemCompletion = new IdCompletion(IdCompletion::itemIds);
+    // Item ids for separatorItem and assimilatorItem, the way the mob list editor completes entity
+    // ids: a list per box (the Separator page has two).
+    private final IdCompletions itemCompletions = new IdCompletions();
+
+    // The search. While the box holds text its hits are the page; the page switcher steps aside.
+    private EditBox searchBox;
+    private String query = "";
+    private List<SettingSearch.Hit> hits = List.of();
+    private final Map<String, boolean[]> matched = new HashMap<>();
+    /** A setting just found by a search: it glows on its page for a moment, and gets the focus. */
+    private String highlightId;
+    private int highlightTicks;
+    private String focusId;
 
     public MobStackerConfigScreen(Screen parent) {
         super(Component.literal("MobStacker: Restacked"));
@@ -79,7 +109,8 @@ public final class MobStackerConfigScreen extends Screen {
     @Override
     protected void init() {
         rows.clear();
-        itemCompletion.attach(null);
+        itemCompletions.clear();
+        searchBox = null;
 
         boolean singleplayer = this.minecraft != null && this.minecraft.hasSingleplayerServer();
         this.remote = !singleplayer && MobStackerClientNetworking.serverHasMod();
@@ -95,12 +126,23 @@ public final class MobStackerConfigScreen extends Screen {
         }
 
         if (showRows && !categories.isEmpty()) {
-            addRenderableWidget(Button.builder(Component.literal("<"), b -> switchCategory(-1))
-                    .bounds(this.width / 2 - 170, 24, 20, 20).build());
-            addRenderableWidget(Button.builder(Component.literal(">"), b -> switchCategory(1))
-                    .bounds(this.width / 2 + 150, 24, 20, 20).build());
+            searchBox = new EditBox(this.font, this.width / 2 - SEARCH_WIDTH / 2, SEARCH_Y, SEARCH_WIDTH, SEARCH_HEIGHT,
+                    Component.literal("search"));
+            searchBox.setMaxLength(64);
+            searchBox.setHint(Component.literal("type to search settings").withStyle(ChatFormatting.DARK_GRAY));
+            searchBox.setValue(query);
+            searchBox.setResponder(this::onSearchTyped);
+            addRenderableWidget(searchBox);
 
-            List<ConfigOption> options = MobStackerSettings.byCategory(categories.get(categoryIndex));
+            // A search shows every page at once, so there is no page to step to while it is on.
+            if (!searching()) {
+                addRenderableWidget(Button.builder(Component.literal("<"), b -> switchCategory(-1))
+                        .bounds(this.width / 2 - 170, CATEGORY_Y, 20, 20).build());
+                addRenderableWidget(Button.builder(Component.literal(">"), b -> switchCategory(1))
+                        .bounds(this.width / 2 + 150, CATEGORY_Y, 20, 20).build());
+            }
+
+            List<ConfigOption> options = shownOptions();
             // Keep clear of the status line (height - 46) and the Done button (height - 28).
             this.visibleRows = Math.max(1, (this.height - LIST_BOTTOM_MARGIN - LIST_TOP) / ROW_HEIGHT);
             this.scrollOffset = Math.max(0, Math.min(scrollOffset, options.size() - visibleRows));
@@ -110,6 +152,14 @@ public final class MobStackerConfigScreen extends Screen {
             for (int i = scrollOffset; i < last; i++) {
                 addOptionRow(options.get(i), y);
                 y += ROW_HEIGHT;
+            }
+            if (focusId != null) {
+                for (Row row : rows) {
+                    if (row.option.id().equals(focusId)) {
+                        setFocused(row.widget);
+                    }
+                }
+                focusId = null;
             }
         }
 
@@ -139,10 +189,79 @@ public final class MobStackerConfigScreen extends Screen {
     /** Called on the client thread when a fresh config snapshot arrives from the server. */
     public void onConfigSynced() {
         // Don't yank a text box the user is mid-typing in; the status line (rendered live) still
-        // updates. Otherwise rebuild so button / cycle states reflect the authoritative values.
-        if (this.getFocused() instanceof EditBox) {
+        // updates. Otherwise rebuild so button / cycle states reflect the authoritative values. The
+        // search box is not a value, so typing in it does not hold the snapshot back.
+        if (this.getFocused() instanceof EditBox box && box != searchBox) {
             return;
         }
+        rebuild();
+    }
+
+    /** Builds the widgets again, keeping the search box's focus and cursor if it had them. */
+    private void rebuild() {
+        boolean searchFocused = searchBox != null && this.getFocused() == searchBox;
+        int cursor = searchBox == null ? 0 : searchBox.getCursorPosition();
+        rebuildWidgets();
+        if (searchFocused && searchBox != null) {
+            setFocused(searchBox);
+            searchBox.moveCursorTo(Math.min(cursor, searchBox.getValue().length()));
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (highlightTicks > 0) {
+            highlightTicks--;
+        }
+    }
+
+    private boolean searching() {
+        return !query.isBlank();
+    }
+
+    /** The settings the rows are made of: the search's hits, or the page's settings. */
+    private List<ConfigOption> shownOptions() {
+        if (searching()) {
+            List<ConfigOption> found = new ArrayList<>();
+            for (SettingSearch.Hit hit : hits) {
+                found.add(hit.option());
+            }
+            return found;
+        }
+        return MobStackerSettings.byCategory(categories.get(categoryIndex));
+    }
+
+    private void onSearchTyped(String text) {
+        if (text.equals(query)) {
+            return;
+        }
+        query = text;
+        hits = SettingSearch.search(text, MobStackerSettings.all());
+        matched.clear();
+        for (SettingSearch.Hit hit : hits) {
+            matched.put(hit.option().id(), hit.matched());
+        }
+        scrollOffset = 0;
+        // The box calls this last thing in its own key handling, so the old box is done with by now.
+        rebuild();
+    }
+
+    /** Leaves the search for the page the setting is on, scrolled to it, glowing and focused. */
+    private void showOnItsPage(ConfigOption option) {
+        int page = categories.indexOf(option.category());
+        if (page < 0) {
+            return;
+        }
+        categoryIndex = page;
+        int at = MobStackerSettings.byCategory(option.category()).indexOf(option);
+        scrollOffset = Math.max(0, at - visibleRows / 2);
+        query = "";
+        hits = List.of();
+        matched.clear();
+        highlightId = option.id();
+        highlightTicks = HIGHLIGHT_TICKS;
+        focusId = option.id();
         rebuildWidgets();
     }
 
@@ -152,7 +271,7 @@ public final class MobStackerConfigScreen extends Screen {
         }
         categoryIndex = Math.floorMod(categoryIndex + delta, categories.size());
         scrollOffset = 0;
-        rebuildWidgets();
+        rebuild();
     }
 
     @Override
@@ -163,7 +282,7 @@ public final class MobStackerConfigScreen extends Screen {
                 int next = Math.max(0, Math.min(scrollOffset - (int) Math.signum(delta), maxOffset));
                 if (next != scrollOffset) {
                     scrollOffset = next;
-                    rebuildWidgets();
+                    rebuild();
                 }
                 return true;
             }
@@ -175,7 +294,7 @@ public final class MobStackerConfigScreen extends Screen {
         if (categories.isEmpty()) {
             return 0;
         }
-        return Math.max(0, MobStackerSettings.byCategory(categories.get(categoryIndex)).size() - visibleRows);
+        return Math.max(0, shownOptions().size() - visibleRows);
     }
 
     private void addOptionRow(ConfigOption option, int y) {
@@ -228,11 +347,12 @@ public final class MobStackerConfigScreen extends Screen {
             default -> {
                 EditBox box = new EditBox(this.font, widgetX, y, widgetW, widgetH, Component.literal(option.id()));
                 box.setValue(valueOf(option));
-                box.setMaxLength(64);
+                // A list of data keys (ignoredDataKeys) needs more room than an item id.
+                box.setMaxLength(option.type() == ConfigOption.Type.STRING ? 512 : 64);
                 box.setEditable(allowed);
-                boolean item = option.type() == ConfigOption.Type.ITEM;
-                if (item) {
-                    itemCompletion.attach(box);
+                IdCompletion completion = option.type() == ConfigOption.Type.ITEM ? itemCompletions.addItems() : null;
+                if (completion != null) {
+                    completion.attach(box);
                 }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
@@ -243,8 +363,8 @@ public final class MobStackerConfigScreen extends Screen {
                     }
                     // Only for what somebody typed: a repaint from the config is not a question, and a
                     // box that may not be edited never gets typed into.
-                    if (item && !repainting) {
-                        itemCompletion.update(text);
+                    if (completion != null && !repainting) {
+                        completion.update(text);
                     }
                 });
                 addRenderableWidget(box);
@@ -405,22 +525,53 @@ public final class MobStackerConfigScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        boolean inItemBox = itemCompletion.isFor(this.getFocused());
-        if (itemCompletion.handleKey(keyCode, inItemBox)) {
+        if (itemCompletions.keyPressed(keyCode, this.getFocused())) {
             return true;
         }
-        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
-                && inItemBox && itemCompletion.shouldEnterComplete()) {
-            itemCompletion.accept();
-            return true;
+        if (searchBox != null) {
+            if (keyCode == GLFW.GLFW_KEY_F && Screen.hasControlDown()) {
+                setFocused(searchBox);
+                searchBox.moveCursorToEnd();
+                return true;
+            }
+            if (this.getFocused() == searchBox) {
+                // Esc empties the box first and closes the screen only once it is empty.
+                if (keyCode == GLFW.GLFW_KEY_ESCAPE && !query.isEmpty()) {
+                    searchBox.setValue("");
+                    return true;
+                }
+                if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && !hits.isEmpty()) {
+                    showOnItsPage(hits.get(0).option());
+                    return true;
+                }
+            }
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
+    /** Typing with no text box in focus starts a search, so there is nothing to click first. */
+    @Override
+    public boolean charTyped(char typed, int modifiers) {
+        if (searchBox != null && !(this.getFocused() instanceof EditBox) && !Character.isWhitespace(typed)
+                && net.minecraft.SharedConstants.isAllowedChatCharacter(typed)) {
+            setFocused(searchBox);
+            searchBox.moveCursorToEnd();
+            return searchBox.charTyped(typed, modifiers);
+        }
+        return super.charTyped(typed, modifiers);
+    }
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (itemCompletion.mouseClicked(mouseX, mouseY, this.height)) {
+        if (itemCompletions.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
+        }
+        if (searching() && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            Row row = rowAt((int) mouseX, (int) mouseY);
+            if (row != null) {
+                showOnItsPage(row.option);
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
@@ -428,11 +579,12 @@ public final class MobStackerConfigScreen extends Screen {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(guiGraphics);
+        renderHighlight(guiGraphics, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine.
-        itemCompletion.render(guiGraphics, this.height, mouseX, mouseY);
+        itemCompletions.render(guiGraphics, this.height, mouseX, mouseY);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
 
         if (showRows) {
             renderRows(guiGraphics, mouseX, mouseY);
@@ -464,24 +616,65 @@ public final class MobStackerConfigScreen extends Screen {
         }
     }
 
+    /** The glow behind a setting a search led to, fading out; drawn under the widgets. */
+    private void renderHighlight(GuiGraphics guiGraphics, float partialTick) {
+        if (highlightTicks <= 0 || highlightId == null || searching()) {
+            return;
+        }
+        float left = Math.max(0.0F, highlightTicks - partialTick);
+        int alpha = (int) (0x50 * Math.min(1.0F, left / 20.0F));
+        for (Row row : rows) {
+            if (row.option.id().equals(highlightId)) {
+                guiGraphics.fill(this.width / 2 - 174, row.y - 2, this.width / 2 + 174, row.y + ROW_HEIGHT - 2,
+                        (alpha << 24) | (MATCHED_TEXT & 0xFFFFFF));
+            }
+        }
+    }
+
     private void renderRows(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        if (!categories.isEmpty()) {
+        int headerY = CATEGORY_Y + 6;
+        int hintY = CATEGORY_Y + 17;
+        if (searching()) {
+            Component header = hits.isEmpty()
+                    ? Component.literal("Search: nothing matches").withStyle(ChatFormatting.RED)
+                    : Component.literal("Search: " + hits.size() + (hits.size() == 1 ? " setting" : " settings"))
+                            .withStyle(ChatFormatting.GOLD);
+            guiGraphics.drawCenteredString(this.font, header, this.width / 2, headerY, 0xFFFFFF);
+            if (hits.isEmpty()) {
+                guiGraphics.drawCenteredString(this.font,
+                        Component.literal("Try fewer letters, or a word from what the setting does.")
+                                .withStyle(ChatFormatting.GRAY),
+                        this.width / 2, LIST_TOP + 6, 0xFFFFFF);
+            } else if (maxScrollOffset() == 0) {
+                guiGraphics.drawCenteredString(this.font,
+                        Component.literal("Enter or a click on a name: see it on its page").withStyle(ChatFormatting.DARK_GRAY),
+                        this.width / 2, hintY, 0xFFFFFF);
+            }
+        } else if (!categories.isEmpty()) {
             Category category = categories.get(categoryIndex);
             Component header = Component.literal(category.display() + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")")
                     .withStyle(ChatFormatting.GOLD);
-            guiGraphics.drawCenteredString(this.font, header, this.width / 2, 30, 0xFFFFFF);
+            guiGraphics.drawCenteredString(this.font, header, this.width / 2, headerY, 0xFFFFFF);
         }
 
         if (maxScrollOffset() > 0) {
-            int total = MobStackerSettings.byCategory(categories.get(categoryIndex)).size();
+            int total = shownOptions().size();
             Component hint = Component.literal("scroll for more  (" + (scrollOffset + 1) + "-"
                             + Math.min(total, scrollOffset + visibleRows) + " of " + total + ")")
                     .withStyle(ChatFormatting.DARK_GRAY);
-            guiGraphics.drawCenteredString(this.font, hint, this.width / 2, 41, 0xFFFFFF);
+            guiGraphics.drawCenteredString(this.font, hint, this.width / 2, hintY, 0xFFFFFF);
         }
 
+        int labelX = this.width / 2 - 170;
         for (Row row : rows) {
-            guiGraphics.drawString(this.font, row.option.id(), this.width / 2 - 170, row.y + 6, NORMAL_TEXT);
+            if (searching()) {
+                // The name with what matched in yellow, and the page it lives on under it.
+                guiGraphics.drawString(this.font, markedName(row.option), labelX, row.y + 1, NORMAL_TEXT);
+                guiGraphics.drawString(this.font, Component.literal("in " + row.option.category().display())
+                        .withStyle(ChatFormatting.GRAY), labelX, row.y + 12, NORMAL_TEXT);
+            } else {
+                guiGraphics.drawString(this.font, row.option.id(), labelX, row.y + 6, NORMAL_TEXT);
+            }
         }
 
         // A short note about why edits are disabled, when relevant.
@@ -492,9 +685,13 @@ public final class MobStackerConfigScreen extends Screen {
         } else if (remote) {
             String status = MobStackerClientNetworking.status();
             if (status != null && !status.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font,
+                // A server's answer can be longer than the window is wide: cut, and whole on hover.
+                ScreenText.Line line = ScreenText.drawCentered(guiGraphics, this.font,
                         Component.literal(status).withStyle(ChatFormatting.YELLOW),
-                        this.width / 2, this.height - 46, 0xFFFFFF);
+                        this.width / 2, this.height - 46, this.width - 16);
+                if (line.renderTooltip(guiGraphics, this.font, this.width, mouseX, mouseY)) {
+                    return;
+                }
             }
         }
 
@@ -506,19 +703,49 @@ public final class MobStackerConfigScreen extends Screen {
             if (blocked != null) {
                 lines.add(Component.literal(blocked).withStyle(ChatFormatting.RED));
             }
+            if (searching()) {
+                lines.add(Component.literal("Click to see it on its page, " + hovered.option.category().display() + ".")
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            }
             ScreenTooltip.render(guiGraphics, this.font, lines, this.width, mouseX, mouseY);
         }
     }
 
+    /** A setting's id with the letters the search matched in yellow. */
+    private Component markedName(ConfigOption option) {
+        String id = option.id();
+        boolean[] marks = matched.get(id);
+        MutableComponent name = Component.empty();
+        int i = 0;
+        while (i < id.length()) {
+            boolean on = marks != null && i < marks.length && marks[i];
+            int end = i;
+            while (end < id.length() && (marks != null && end < marks.length && marks[end]) == on) {
+                end++;
+            }
+            name.append(Component.literal(id.substring(i, end))
+                    .withStyle(Style.EMPTY.withColor(on ? MATCHED_TEXT : NORMAL_TEXT)));
+            i = end;
+        }
+        return name;
+    }
+
     private Row rowAt(int mouseX, int mouseY) {
         // Only trigger the description tooltip over the actual label text, not the empty space
-        // around it: bound the hit-box to the label's rendered width and line height.
+        // around it: bound the hit-box to the label's rendered width and line height. A search's
+        // label is two lines, the name and its page.
         int labelX = this.width / 2 - 170;
+        boolean twoLines = searching();
         for (Row row : rows) {
             int labelWidth = this.font.width(row.option.id());
             int labelTop = row.y + 6;
-            if (mouseX >= labelX && mouseX <= labelX + labelWidth
-                    && mouseY >= labelTop && mouseY <= labelTop + this.font.lineHeight) {
+            int labelBottom = labelTop + this.font.lineHeight;
+            if (twoLines) {
+                labelWidth = Math.max(labelWidth, this.font.width("in " + row.option.category().display()));
+                labelTop = row.y + 1;
+                labelBottom = row.y + 12 + this.font.lineHeight;
+            }
+            if (mouseX >= labelX && mouseX <= labelX + labelWidth && mouseY >= labelTop && mouseY <= labelBottom) {
                 return row;
             }
         }

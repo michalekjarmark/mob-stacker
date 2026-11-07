@@ -7,6 +7,164 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [1.12.0] - 2026-11-07
+### Added
+- **Mobs that should stay single now do, without any setting** (stacks that already exist are left
+  as they are; `/mobstacker unstack` splits them):
+  - **a datapack tag, `#mobstacker:unstackable`**: the wandering trader (its trades), the allay (what
+    it holds), the bee (its hive) and the vex (its evoker). A data pack can add to it or empty it;
+  - **an animal in love mode**: two cows a player is breeding no longer merge into the stack next to
+    them;
+  - **a zombie villager being cured**;
+  - **an iron golem a player built**. The ones a village makes, an iron farm's included, still stack;
+  - **a raider in an active raid, and a patrol leader**. A raid counts its raiders one by one, so a
+    merged one looked dead to it and a wave could end early;
+  - **a villager that has claimed a bed, a workstation or a bell**;
+  - **an enderman carrying a block**;
+  - **a mob with the `NoAI` flag**, which a player or a map set on purpose.
+- **A stack hands a claim over to one member, who leaves the stack with it.** A stacked villager that
+  claims a bed or a workstation, or a stacked enderman that picks up a block, used to do it for the
+  whole stack: twenty villagers shared one bed and one set of trades, and twenty endermen one block.
+  Now one member takes it and steps out, and the rest stay stacked, so breeders, trading halls and
+  iron farms count their villagers one by one again. A villager caught after it already took the job
+  takes the profession, the trades and the experience with it.
+- **Bosses do not stack unless `stackBosses` is on** (off by default). A boss is a mob with a boss
+  bar of its own, one in the new `#mobstacker:bosses` tag (the ender dragon, the wither, the warden,
+  the elder guardian, plus the loaders' own `#c:bosses` / `#forge:bosses`), or one whose base health
+  reaches **`bossHealthThreshold`** (150; 0 turns that test off), which catches other mods' bosses
+  that have no boss bar. Both settings can differ per region.
+- **Mobs with different data from other mods no longer merge** (`strictDataComparison`, on): a level,
+  an affix, a champion's rank or anything else another mod saved on a mob used to be thrown away when
+  it merged into a mob without it. The mod now compares what other mods saved (vanilla's own data is
+  still matched by the mod's own rules) and keeps such mobs apart. `/mobstacker inspect` names the key
+  that differs; **`ignoredDataKeys`** lets a key through, for a mod that keeps a timer on every mob
+  (`Key`, or `Container.key` for one entry in e.g. `ForgeCaps`). Both per region.
+- **Tags in the mob lists**: an entity list takes `#minecraft:raiders`, `#minecraft:skeletons` or any
+  mod's or data pack's tag next to single mobs - in the commands (`/mobstacker list deny entity add
+  #raiders`), in the GUI (the entry box completes tags too: type `#`) and per region. A tag that is
+  not loaded is kept and marked, like a modded mob.
+- **Every mob in a stack counts towards the spawn caps** (`countStackMembers`, on, global): a world with
+  stacks has as many mobs as vanilla, in fewer entities. Off, a whole stack counts as one mob, as
+  before, and far more mobs can exist.
+- **`despawnPickedUpMobs` (off)**: a mob that picks up an item can still despawn, and drops what it
+  picked up when it goes; an enderman carrying a block drops the block. Vanilla keeps such mobs
+  forever. The part of Let Me Despawn that matters with stacks; use one or the other, not both.
+- **`persistentStackSize` (0, off)**: a stack of at least this many mobs never despawns on its own.
+- **The original mod's remaining options**, so the fork now has all of them that exist on 1.20.1:
+  - `multiplyGiftDrops` (on): a stack of chickens lays an egg for every chicken, a stack of baby turtles
+    leaves a scute for every turtle when it grows up;
+  - `killBatchSize` (1): at least this many mobs die per kill, each with its own loot;
+  - `damageWeaponPerHit` (off): when a stack dies as a whole, every hit wears the weapon for every mob;
+  - `stackOutgoingDamage` (off) with `maxDamageMultiplier` (16): a stack's melee attack hits as hard
+    as all its mobs together;
+  - the **assimilator** (`enableAssimilator` off, `assimilatorItem` emerald, `consumeAssimilator` on):
+    sneak and right-click a mob with it to switch whether that mob or stack may stack. Sneaking,
+    unlike the original, so that trading with emeralds in hand does not switch a villager. When
+    something else keeps the mob out anyway - a golem a player built never stacks - it says so.
+- **Regions beyond boxes:**
+  - **a whole dimension**: `/mobstacker region add <name> <allow|deny> dimension [dimension]`, or
+    "whole dimension" in the area editor. No box is drawn; a box inside it wins at the same priority,
+    as a smaller region always does;
+  - **biome filters**: `/mobstacker region biomes <name> add <biome|#tag>` (and `remove`, `clear`), or
+    the editor's "only in biomes" box, which completes biomes and tags as you type and turns yellow
+    for one this game does not know. The region then covers only the parts of its box, or of its
+    dimension, in those biomes: `#minecraft:is_forest`, `minecraft:desert`, any mod's biome or tag;
+  - **an on/off switch**: `/mobstacker region disable <name>` (and `enable`), or the button on the
+    region screen. A region that is off keeps everything it carries and does nothing - its box is
+    drawn grey;
+  - **`/mobstacker region list` is clickable** and comes in pages of ten: the name opens
+    `region show`, `[on]`/`[off]` switches the region, the arrows turn the page; what can be clicked
+    is underlined. With the mod on your game the list and a region's page are redrawn in place of the
+    old ones, so clicking leaves one up-to-date list instead of a pile of them (vanilla cannot change
+    a message it has shown, so without the mod the new one comes under the old).
+  `/mobstacker inspect` says when a region covers the spot but is off or leaves out its biome.
+- **Stack labels are never saved on the mob any more**, and each player sees them the way their game
+  can (thanks to our friend for the idea):
+  - **with the mod**, the label is a line of its own **above the mob's name**, which stays as it is: a
+    stack of sheep called `jeb_` stays `jeb_` - rainbow wool included - with `Sheep x12` above it;
+  - **without the mod**, the count is in the name as before, but only in what that player is sent;
+  - either way **in the player's own language**, and shown when they look at the stack;
+  - new settings: `showStackLabels` (on), `alwaysShowStackLabels` (off), `separateStackLabel` (on)
+    and `stackLabelFormat` (`{type} x{count}`; `{type} ({count})` gives `Sheep (12)`). The colours
+    (`stackNameColor`, by size) apply to the label as before.
+- **A search on the config screen.** Start typing anywhere on it: the settings that match, from
+  every page, take the page's place, each with the page it lives on and the letters that matched,
+  and can be changed right there. It forgives the way an editor's "go to" does - the starts of the
+  words (`kwsod` finds `killWholeStackOnDeath`, `max size` finds `maxStackSize`), words in any order,
+  a typo (`seperator`) or a word from what the setting does (`wool`, `whitelist`). Enter, or a click
+  on a name, shows the setting on its own page; Esc empties the box; Ctrl+F goes back to it.
+- **`/mobstacker help <words>`** asks the same search (`help seperator`, `help wool`), and a command
+  that names no setting asks "Did you mean …?", with a click that puts the corrected command back in
+  the chat box.
+- **API: `MobStackerAPI.getStackSize(mob)` and `isStacked(mob)`**, for other mods.
+- **The mod has its own icon** (thanks to our graphic designer), on the mod list of both loaders.
+### Changed
+- **A stack's name is its own again**: older versions wrote the label into the mob's name
+  (`Cow x12`), where it stayed if the mod was removed and where other mods read it as a real name. A
+  world from an older version is cleaned as its stacks load - a named stack keeps the name it was
+  given, the others lose the label. Another mod's or a command's name is no longer turned into plain
+  text in the server's language.
+- **The config screen's Stacking page is two**: "Stacking" (where, how big, how fast, what a stack
+  does) and "Which mobs stack" (the list mode, gear, names, other mods' data, bosses).
+  `/mobstacker help mobs` shows the new one.
+- `consumeSeparator` and `separatorItem` are greyed out while `enableSeparator` is off, as the
+  assimilator's two are while it is off.
+- `/mobstacker inspect` names every rule that keeps a mob out of stacks, not only the first, and says
+  "built by a player" for such an iron golem where it said "Origin: not recorded".
+- **The spawn caps are vanilla's** (70/10/15/5/5/5/20). They were lowered to 22/5/7/2/2/2/8, even with
+  stacking off, which made a fresh install spawn about a third of vanilla's monsters. A config that
+  still holds exactly the old numbers is moved to vanilla's the first time it loads (the server log
+  says so); caps somebody changed stay. The config page is called "Spawning & despawning" now.
+- The Fabric jar no longer suggests installing Let Me Despawn.
+- **New configs leave `cobblemon` and `pixelmon` mobs alone** (the deny mod list), as the original
+  mod does: a Pokémon's identity lives in its own data, which no stack can keep. An existing config
+  keeps its list.
+- **A mob that comes out of a stack is a copy of the stack**: what is left after the top mob dies, and
+  a mob taken out of one (taming, riding, a bucket, shears, the separator, `/mobstacker unstack`). It
+  used to be a new mob that the game set up from scratch and the mod then patched, so whatever the
+  patches missed was rolled again. Now it keeps everything the stack has - its variant and age,
+  effects, fire, scoreboard tags and team, a turtle's home beach, a zombie that is drowning or a
+  zombie villager being cured, attributes set with `/attribute`, and other mods' data. What belongs
+  to the top mob alone stays with it: what it picked up, a saddle, a chest or a carried block, its bed
+  and job, love, a turtle's egg, a creeper's lit fuse, a zombie's leader bonus. Each member's own
+  gear, horse stats, origin and wounds are handed over as before.
+### Fixed
+- **What was left of a stack after a kill could come back with things no member had**: on Hard a
+  stack of bare zombies now and then came back in armour or holding a sword - and then took no more
+  zombies in, being equipped - or as a leader zombie with up to five times the health. A turtle taken
+  out of a stack got a new home where it stood.
+- The wound that damage overflow leaves on the next member is no longer lost when the top mob had
+  more max health than the rest.
+- **A saddle on a stack of pigs or striders saddled the whole stack**: the player rode all of them, the
+  stack never took another mob in, and only one saddle ever came back. One animal steps out for the
+  saddle now, as a horse does.
+- **With `stackEquippedMobs` on and `keepMemberEquipment` off, what a mob had picked up vanished when
+  it was merged into a stack.** It is dropped on the ground now, as was always intended (the check
+  looked for a marker nothing writes). What the mob spawned with still goes with it.
+- **One dye coloured a whole stack of sheep, and one golden apple cured a whole stack of zombie
+  villagers** (each giving you the cure's discount). Vanilla takes one per mob, so one steps out of the
+  stack for it now, as for a saddle - and a zombie villager being cured stays out of stacks until it
+  is a villager.
+- **Completion lists in the config screens stayed open** once something had been typed, even after
+  clicking elsewhere, and lay over what was under them. They close when the box loses focus or a
+  click lands anywhere else.
+- Long lines ran off the screens: the one under a region's settings (its dimension and corners) and
+  the answer to an edit, which names every biome a region is limited to. A line that does not fit is
+  cut now, and hovering it shows all of it - the region's line with every biome it is limited to.
+- **A stack of creepers that blew up next to a player was gone entirely**: only one creeper exploded,
+  but the rest went with it. The others stay now and come at you one by one. And a creeper lit with
+  flint and steel no longer leaves a second stack behind when it is unloaded or goes through a portal
+  before it explodes.
+- **A stack of tadpoles grew up into a single frog.** It grows up into a stack of frogs.
+- **Breeding a stack of axolotls ate the bucket** along with the tropical fish; the water bucket comes
+  back, as in vanilla. **A stack of frogs ate the slime balls and laid nothing**: frogs breed the vanilla
+  way now (they lay frogspawn, which a stack could not).
+- A rare "failed to save chunk" error: a stack's own data was handed to the save while the server went
+  on changing it.
+- **A stack of endermen carrying a block duplicated the block**: every mob the stack gave back (the
+  rest of a stack after a kill, one taken out) carried it again, so each kill dropped one more. And two
+  endermen carrying the same block merged and one block was gone.
+
 ## [1.11.0] - 2026-11-04
 ### Added
 - **A Forge version for Minecraft 1.20.1** (Forge 47 and up; it needs nothing else). Same features

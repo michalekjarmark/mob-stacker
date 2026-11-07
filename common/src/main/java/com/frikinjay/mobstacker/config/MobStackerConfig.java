@@ -31,6 +31,12 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean stackEquippedMobs = false;
     private boolean keepMemberEquipment = true;
     private boolean stackNamedMobs = false;
+    // 1.12.0: bosses stay single unless this is on; what counts as one is MobStacker#isBoss.
+    private boolean stackBosses = false;
+    // 1.12.0 (ROADMAP #42): compare the data other mods saved on two mobs before merging them.
+    private boolean strictDataComparison = true;
+    private String ignoredDataKeys = "";
+    private int bossHealthThreshold = 150;
     private boolean stackKillActionBar = true;
     private boolean stackKillParticles = true;
     private boolean stackKillHologram = true;
@@ -41,6 +47,10 @@ public class MobStackerConfig implements MobLists.Holder {
     private StackColor stackNameColorLarge = StackColor.RED;
     private int stackSizeMediumThreshold = 16;
     private int stackSizeLargeThreshold = 64;
+    private boolean showStackLabels = true;
+    private boolean alwaysShowStackLabels = false;
+    private boolean separateStackLabel = true;
+    private String stackLabelFormat = "{type} x{count}";
     private boolean enableStackBreeding = true;
     private boolean stackedHarvest = true;
     private boolean breedOnePerClick = false;
@@ -63,6 +73,19 @@ public class MobStackerConfig implements MobLists.Holder {
     private boolean privateRegions = true;
     // Off by default: vanilla's sendCommandFeedback gamerule decides, as for every other command.
     private boolean alwaysShowFeedback = false;
+    // 1.12.0, spawning and despawning (ROADMAP #15 / #41).
+    private boolean countStackMembers = true;
+    private boolean despawnPickedUpMobs = false;
+    private int persistentStackSize = 0;
+    // 1.12.0: the rest of the original mod's options (ROADMAP #49-#53).
+    private boolean multiplyGiftDrops = true;
+    private int killBatchSize = 1;
+    private boolean damageWeaponPerHit = false;
+    private boolean stackOutgoingDamage = false;
+    private int maxDamageMultiplier = 16;
+    private boolean enableAssimilator = false;
+    private boolean consumeAssimilator = true;
+    private String assimilatorItem = "minecraft:emerald";
     private boolean enableSeparator = false;
     private boolean consumeSeparator = true;
     private String separatorItem = "minecraft:diamond";
@@ -81,8 +104,13 @@ public class MobStackerConfig implements MobLists.Holder {
             "minecraft:ender_dragon",
             "minecraft:vex"
     ));
+    // cobblemon and pixelmon since 1.12.0, as the original mod has them: a Pokémon carries its
+    // whole identity (species stats, moves, owner) in its own data, which no stack can keep. Only
+    // a config written from now on gets them; an existing one keeps the list it has.
     private volatile List<String> ignoredMods = new ArrayList<>(Arrays.asList(
-            "corpse"
+            "corpse",
+            "cobblemon",
+            "pixelmon"
     ));
     // The other half, consulted only while mobListMode is WHITELIST. Empty by default, which is why
     // switching a fresh config to WHITELIST stacks nothing until something is added - deliberate:
@@ -110,6 +138,7 @@ public class MobStackerConfig implements MobLists.Holder {
             try (FileReader reader = new FileReader(file)) {
                 MobStackerConfig loaded = GSON.fromJson(reader, MobStackerConfig.class);
                 if (loaded != null) {
+                    loaded.migrateOldCapDefaults();
                     return loaded;
                 }
             } catch (Exception e) {
@@ -117,6 +146,21 @@ public class MobStackerConfig implements MobLists.Holder {
             }
         }
         return new MobStackerConfig();
+    }
+
+    /**
+     * A config written before 1.12.0 holds the lowered caps whether or not anybody chose them, since
+     * every field is written out. Exactly those seven numbers mean nobody touched them, so they move
+     * to vanilla's, which with countStackMembers give vanilla's number of mobs. Any other numbers
+     * were somebody's choice and stay. The next save writes the new ones, so this happens once.
+     */
+    private void migrateOldCapDefaults() {
+        if (mobCaps != null && mobCaps.isOldDefault()) {
+            mobCaps.setVanilla();
+            MobStacker.logger.info("MobStacker: the spawn caps were the old lowered defaults (22/5/7/2/2/2/8) "
+                    + "and are vanilla's now (70/10/15/5/5/5/20): every mob in a stack counts towards them "
+                    + "since 1.12.0 (countStackMembers). Set them again to keep the old ones.");
+        }
     }
 
     public void save() {
@@ -509,6 +553,107 @@ public class MobStackerConfig implements MobLists.Holder {
 
     public boolean getAlwaysShowFeedback() { return alwaysShowFeedback; }
 
+    public boolean getCountStackMembers() { return countStackMembers; }
+
+    public void setCountStackMembers(boolean countStackMembers) {
+        this.countStackMembers = countStackMembers;
+        save();
+    }
+
+    public boolean getDespawnPickedUpMobs() { return despawnPickedUpMobs; }
+
+    public void setDespawnPickedUpMobs(boolean despawnPickedUpMobs) {
+        this.despawnPickedUpMobs = despawnPickedUpMobs;
+        save();
+    }
+
+    public int getPersistentStackSize() { return persistentStackSize; }
+
+    public void setPersistentStackSize(int persistentStackSize) {
+        this.persistentStackSize = Math.max(0, persistentStackSize);
+        save();
+    }
+
+    public boolean getStrictDataComparison() { return strictDataComparison; }
+
+    public void setStrictDataComparison(boolean strictDataComparison) {
+        this.strictDataComparison = strictDataComparison;
+        save();
+    }
+
+    public String getIgnoredDataKeys() { return ignoredDataKeys == null ? "" : ignoredDataKeys; }
+
+    public boolean getShowStackLabels() { return showStackLabels; }
+
+    public void setShowStackLabels(boolean showStackLabels) { this.showStackLabels = showStackLabels; }
+
+    public boolean getAlwaysShowStackLabels() { return alwaysShowStackLabels; }
+
+    public void setAlwaysShowStackLabels(boolean alwaysShowStackLabels) { this.alwaysShowStackLabels = alwaysShowStackLabels; }
+
+    public boolean getSeparateStackLabel() { return separateStackLabel; }
+
+    public void setSeparateStackLabel(boolean separateStackLabel) { this.separateStackLabel = separateStackLabel; }
+
+    public String getStackLabelFormat() {
+        return stackLabelFormat == null || stackLabelFormat.isBlank() ? "{type} x{count}" : stackLabelFormat;
+    }
+
+    public void setStackLabelFormat(String stackLabelFormat) {
+        this.stackLabelFormat = stackLabelFormat == null ? "" : stackLabelFormat.trim();
+    }
+
+    public void setIgnoredDataKeys(String ignoredDataKeys) {
+        this.ignoredDataKeys = ignoredDataKeys == null ? "" : ignoredDataKeys.trim();
+        save();
+    }
+
+    public boolean getMultiplyGiftDrops() { return multiplyGiftDrops; }
+
+    public void setMultiplyGiftDrops(boolean value) { multiplyGiftDrops = value; save(); }
+
+    public int getKillBatchSize() { return Math.max(1, killBatchSize); }
+
+    public void setKillBatchSize(int value) { killBatchSize = Math.max(1, value); save(); }
+
+    public boolean getDamageWeaponPerHit() { return damageWeaponPerHit; }
+
+    public void setDamageWeaponPerHit(boolean value) { damageWeaponPerHit = value; save(); }
+
+    public boolean getStackOutgoingDamage() { return stackOutgoingDamage; }
+
+    public void setStackOutgoingDamage(boolean value) { stackOutgoingDamage = value; save(); }
+
+    public int getMaxDamageMultiplier() { return Math.max(1, maxDamageMultiplier); }
+
+    public void setMaxDamageMultiplier(int value) { maxDamageMultiplier = Math.max(1, value); save(); }
+
+    public boolean getEnableAssimilator() { return enableAssimilator; }
+
+    public void setEnableAssimilator(boolean value) { enableAssimilator = value; save(); }
+
+    public boolean getConsumeAssimilator() { return consumeAssimilator; }
+
+    public void setConsumeAssimilator(boolean value) { consumeAssimilator = value; save(); }
+
+    public String getAssimilatorItem() { return assimilatorItem == null ? "minecraft:emerald" : assimilatorItem; }
+
+    public void setAssimilatorItem(String value) { assimilatorItem = value; save(); }
+
+    public boolean getStackBosses() { return stackBosses; }
+
+    public void setStackBosses(boolean stackBosses) {
+        this.stackBosses = stackBosses;
+        save();
+    }
+
+    public int getBossHealthThreshold() { return bossHealthThreshold; }
+
+    public void setBossHealthThreshold(int bossHealthThreshold) {
+        this.bossHealthThreshold = Math.max(0, bossHealthThreshold);
+        save();
+    }
+
     public void setAlwaysShowFeedback(boolean alwaysShowFeedback) {
         this.alwaysShowFeedback = alwaysShowFeedback;
         save();
@@ -642,13 +787,32 @@ public class MobStackerConfig implements MobLists.Holder {
     public void setWaterAmbientMobCap(int value) { mobCaps.setWaterAmbient(value); save(); }
 
     private static class MobCaps {
-        private int monster = 22;
-        private int creature = 5;
-        private int ambient = 7;
-        private int axolotls = 2;
-        private int undergroundWaterCreature = 2;
-        private int waterCreature = 2;
-        private int waterAmbient = 8;
+        // Vanilla's since 1.12.0. They were 22/5/7/2/2/2/8, inherited from the original mod, which
+        // lowered them because a stack counted as one mob; every member counts now
+        // (countStackMembers), so vanilla's numbers mean vanilla's number of mobs.
+        private int monster = 70;
+        private int creature = 10;
+        private int ambient = 15;
+        private int axolotls = 5;
+        private int undergroundWaterCreature = 5;
+        private int waterCreature = 5;
+        private int waterAmbient = 20;
+
+        /** Whether these are exactly the lowered caps every config before 1.12.0 was written with. */
+        private boolean isOldDefault() {
+            return monster == 22 && creature == 5 && ambient == 7 && axolotls == 2
+                    && undergroundWaterCreature == 2 && waterCreature == 2 && waterAmbient == 8;
+        }
+
+        private void setVanilla() {
+            monster = 70;
+            creature = 10;
+            ambient = 15;
+            axolotls = 5;
+            undergroundWaterCreature = 5;
+            waterCreature = 5;
+            waterAmbient = 20;
+        }
 
         private void setMonster(int value) { monster = validateCap(value); }
         private void setCreature(int value) { creature = validateCap(value); }

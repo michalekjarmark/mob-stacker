@@ -4,10 +4,12 @@ import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.StackAi;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
@@ -25,6 +27,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -35,6 +38,16 @@ public abstract class MobMixin extends LivingEntity {
     @Final
     protected GoalSelector goalSelector;
 
+    @Shadow
+    private boolean persistenceRequired;
+
+    @Shadow
+    protected abstract boolean shouldDespawnInPeaceful();
+
+    /** Whether the mob was persistent before the pickup now running (despawnPickedUpMobs). */
+    @Unique
+    private boolean mobstacker$persistentBeforePickup;
+
     /** {@code stackAi} as it applies to this mob, worked out once a tick; see {@link #mobstacker$aiMode}. */
     @Unique
     private StackAi mobstacker$aiMode = StackAi.NORMAL;
@@ -43,6 +56,54 @@ public abstract class MobMixin extends LivingEntity {
 
     protected MobMixin(EntityType<? extends LivingEntity> entityType, Level level) {
         super(entityType, level);
+    }
+
+    // --- despawnPickedUpMobs (1.12.0): picking an item up no longer makes a mob persistent ---
+    // Vanilla's pickup (equipItemIfPossible, a piglin's off hand) ends in setItemSlotAndDropWhenKilled,
+    // which marks the slot as a guaranteed drop and sets persistenceRequired. The mark stays, which is
+    // how dropOnDespawn knows the item later; only the persistence is put back to what it was, so a
+    // mob that was already persistent (named, from a structure, set by a command) stays so.
+
+    @Inject(method = "setItemSlotAndDropWhenKilled", at = @At("HEAD"))
+    private void mobstacker$beforePickup(EquipmentSlot slot, ItemStack stack, CallbackInfo ci) {
+        mobstacker$persistentBeforePickup = persistenceRequired;
+    }
+
+    @Inject(method = "setItemSlotAndDropWhenKilled", at = @At("TAIL"))
+    private void mobstacker$afterPickup(EquipmentSlot slot, ItemStack stack, CallbackInfo ci) {
+        if (!mobstacker$persistentBeforePickup && !level().isClientSide()
+                && MobStacker.getDespawnPickedUpMobs(this)) {
+            persistenceRequired = false;
+        }
+    }
+
+    /**
+     * persistentStackSize: a stack that big does not despawn, treated as vanilla treats a persistent
+     * mob (its idle timer starts over). Peaceful still clears monsters.
+     */
+    @Inject(method = "checkDespawn", at = @At("HEAD"), cancellable = true)
+    private void mobstacker$keepBigStacks(CallbackInfo ci) {
+        if (level().isClientSide() || !MobStacker.keepsFromDespawning((Mob) (Object) this)) {
+            return;
+        }
+        if (level().getDifficulty() == Difficulty.PEACEFUL && shouldDespawnInPeaceful()) {
+            return;
+        }
+        noActionTime = 0;
+        ci.cancel();
+    }
+
+    /** stackOutgoingDamage: the hit of vanilla's standard melee attack, as hard as the whole stack. */
+    @ModifyArg(method = "doHurtTarget", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"), index = 1)
+    private float mobstacker$stackMeleeDamage(float damage) {
+        return MobStacker.stackMeleeDamage((Mob) (Object) this, damage);
+    }
+
+    /** Every despawn in checkDespawn (far away, idle, peaceful) drops what the mob had picked up. */
+    @Inject(method = "checkDespawn", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Mob;discard()V"))
+    private void mobstacker$dropOnDespawn(CallbackInfo ci) {
+        MobStacker.dropOnDespawn((Mob) (Object) this);
     }
 
     /**
@@ -154,7 +215,9 @@ public abstract class MobMixin extends LivingEntity {
      * climb onto a single entity carrying a whole herd. So a stacked mount steps one mob out of the
      * stack and lets that mob take the interaction instead, for every kind of right-click there is.
      *
-     * <p>A bucket does the same, for the opposite reason: bucketing takes the entity out of the
+     * <p>A saddle on a pig or strider does the same, for the same reason as a horse's
+     * ({@link MobStacker#isSaddlingInteraction}), and so do a dye on a sheep and a golden apple on a
+     * zombie villager, which vanilla takes one per mob. A bucket does too, for the opposite reason: bucketing takes the entity out of the
      * world and puts it in an item, so on a stack of fish the whole shoal went into one bucket and
      * a single fish came back out of it. Shears do too while {@code stackedHarvest} is off, because
      * shearing changes the mob and the stack is one mob (see
@@ -189,8 +252,12 @@ public abstract class MobMixin extends LivingEntity {
             return; // PlayerMixin already took one out at interactOn; two would leave the stack
         }
         boolean bucketing = MobStacker.isBucketingInteraction(self, held);
+        boolean dyeing = MobStacker.isDyeingInteraction(self, held);
         if (!(self instanceof AbstractHorse)
                 && !MobStacker.isTamingInteraction(self, held)
+                && !MobStacker.isSaddlingInteraction(self, held)
+                && !MobStacker.isCuringInteraction(self, held)
+                && !dyeing
                 && !bucketing
                 && !MobStacker.isShearingOneInteraction(self, held)) {
             return;
@@ -198,6 +265,11 @@ public abstract class MobMixin extends LivingEntity {
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
             InteractionResult result = separated.interact(player, hand);
+            if (dyeing && !result.consumesAction()) {
+                // A dye is the item's interaction, not the sheep's: Player.interactOn would hand it
+                // the stack that was clicked, which is the very thing this is here to avoid.
+                result = held.interactLivingEntity(player, separated, hand);
+            }
             if (bucketing) {
                 MobStacker.resendToClients(self);
             }

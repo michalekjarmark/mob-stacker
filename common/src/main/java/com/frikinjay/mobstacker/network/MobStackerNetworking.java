@@ -56,6 +56,9 @@ public final class MobStackerNetworking {
     /** Pseudo-setting naming the colour the region's overlay is drawn in. Empty value = automatic. */
     public static final String REGION_COLOR = "@color";
 
+    /** Pseudo-setting switching the region on ({@code true}) or off ({@code false}), keeping it. */
+    public static final String REGION_ENABLED = "@enabled";
+
     /** Pseudo-setting renaming the region; the value is the new name. */
     public static final String REGION_RENAME = "@rename";
     /**
@@ -110,6 +113,11 @@ public final class MobStackerNetworking {
     private static Transport transport;
 
     private MobStackerNetworking() {
+    }
+
+    /** Whether this player's game listens on the channel - has the mod, in short. */
+    public static boolean canSend(ServerPlayer player, ResourceLocation channel) {
+        return transport != null && transport.canSend(player, channel);
     }
 
     /** Called once by the loader's entrypoint, before any player can connect. */
@@ -260,6 +268,11 @@ public final class MobStackerNetworking {
         if (settingId.startsWith(MAXSTACK_PREFIX)) {
             sendSync(player, applyMaxStack(region, "in region '" + regionName + "'",
                     settingId.substring(MAXSTACK_PREFIX.length()), raw));
+            return;
+        }
+
+        if (REGION_ENABLED.equals(settingId)) {
+            sendSync(player, RegionEdit.setEnabled(regionName, Boolean.parseBoolean(raw.trim())).message());
             return;
         }
 
@@ -516,6 +529,20 @@ public final class MobStackerNetworking {
         // older client simply leaves it unread, and a newer client talking to an older server finds
         // nothing there and reads that as "not allowed".
         buf.writeBoolean(MobStacker.regionXrayAllowed());
+        // 1.12.0: whether each region above is on, whether it is its whole dimension, and its biome
+        // filter - after everything else for the same reason as the x-ray flag, so neither end of an
+        // older/newer pair misreads the other. An older server sends nothing here: every region on,
+        // every one a box, every biome.
+        buf.writeVarInt(regions.size());
+        for (StackRegion region : regions) {
+            buf.writeBoolean(region.isEnabled());
+            buf.writeBoolean(region.isWholeDimension());
+            List<String> biomes = region.getBiomes();
+            buf.writeVarInt(biomes.size());
+            for (String biome : biomes) {
+                buf.writeUtf(biome);
+            }
+        }
         transport.send(player, SYNC, buf);
         SENT.put(player.getUUID(), new Sent(MobStacker.configVersion, authorized, seesAll));
     }

@@ -27,7 +27,7 @@ public final class MobStackerSettings {
     // caps are world-level spawn limits rather than a property of a place. Everything else can be
     // given a different value inside a region.
     private static final java.util.Set<String> GLOBAL_ONLY = java.util.Set.of(
-            "stackMode", "playerStackRadius", "alwaysShowFeedback",
+            "stackMode", "playerStackRadius", "alwaysShowFeedback", "countStackMembers",
             "monsterMobCap", "creatureMobCap", "ambientMobCap", "axolotlsMobCap",
             "undergroundWaterCreatureMobCap", "waterCreatureMobCap", "waterAmbientMobCap");
     // Settings a region gives about itself rather than about the mobs in it. An override of one of
@@ -53,11 +53,6 @@ public final class MobStackerSettings {
                 "Merge a mob into a nearby stack on its first tick, instead of waiting for it to move "
                         + "or for the next scan. Covers spawners, breeding and spawn eggs.",
                 () -> MobStacker.config.getStackOnSpawn(), v -> MobStacker.config.setStackOnSpawn(v), true));
-        register(ConfigOption.ofEnum("mobListMode", Category.STACKING,
-                "Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or "
-                        + "WHITELIST (nothing stacks except the allowed lists).",
-                MobListMode.class, () -> MobStacker.config.getMobListMode(),
-                v -> MobStacker.config.setMobListMode(v), MobListMode.BLACKLIST));
         register(ConfigOption.ofDouble("stackRadius", Category.STACKING,
                 "How far apart (in blocks) mobs can be and still merge into the same stack.",
                 0.1, 42000.0, () -> MobStacker.config.getStackRadius(), v -> MobStacker.config.setStackRadius(v), 6.0));
@@ -67,16 +62,6 @@ public final class MobStackerSettings {
         register(ConfigOption.ofInt("stackScanInterval", Category.STACKING,
                 "How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary.",
                 0, 1200, () -> MobStacker.config.getStackScanInterval(), v -> MobStacker.config.setStackScanInterval(v), 20));
-        register(ConfigOption.ofBool("stackEquippedMobs", Category.STACKING,
-                "Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely.",
-                () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));
-        register(ConfigOption.ofBool("keepMemberEquipment", Category.STACKING,
-                "Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge.",
-                () -> MobStacker.config.getKeepMemberEquipment(), v -> MobStacker.config.setKeepMemberEquipment(v), true)
-                .requires("stackEquippedMobs"));
-        register(ConfigOption.ofBool("stackNamedMobs", Category.STACKING,
-                "Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way.",
-                () -> MobStacker.config.getStackNamedMobs(), v -> MobStacker.config.setStackNamedMobs(v), false));
         register(ConfigOption.ofBool("killWholeStackOnDeath", Category.STACKING,
                 "Killing the top mob kills the entire stack at once (disables damage overflow).",
                 () -> MobStacker.config.getKillWholeStackOnDeath(), v -> MobStacker.config.setKillWholeStackOnDeath(v), false)
@@ -96,6 +81,47 @@ public final class MobStackerSettings {
                         + "always keeps its AI.",
                 StackAi.class, () -> MobStacker.config.getStackAi(), v -> MobStacker.config.setStackAi(v),
                 StackAi.NORMAL));
+
+        // --- Which mobs stack (a page of its own since 1.12.0: Stacking had grown to 17 settings) ---
+        register(ConfigOption.ofEnum("mobListMode", Category.MOBS,
+                "Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or "
+                        + "WHITELIST (nothing stacks except the allowed lists).",
+                MobListMode.class, () -> MobStacker.config.getMobListMode(),
+                v -> MobStacker.config.setMobListMode(v), MobListMode.BLACKLIST));
+        register(ConfigOption.ofBool("stackEquippedMobs", Category.MOBS,
+                "Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely.",
+                () -> MobStacker.config.getStackEquippedMobs(), v -> MobStacker.config.setStackEquippedMobs(v), false));
+        register(ConfigOption.ofBool("keepMemberEquipment", Category.MOBS,
+                "Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge.",
+                () -> MobStacker.config.getKeepMemberEquipment(), v -> MobStacker.config.setKeepMemberEquipment(v), true)
+                .requires("stackEquippedMobs"));
+        register(ConfigOption.ofBool("stackNamedMobs", Category.MOBS,
+                "Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way.",
+                () -> MobStacker.config.getStackNamedMobs(), v -> MobStacker.config.setStackNamedMobs(v), false));
+        register(ConfigOption.ofBool("strictDataComparison", Category.MOBS,
+                "Mobs merge only if the data other mods saved on them is the same - a level, an affix, a "
+                        + "champion's rank - so a merge never throws it away. Vanilla's own data is matched by the "
+                        + "mod's own rules. /mobstacker inspect names the key that differs.",
+                () -> MobStacker.config.getStrictDataComparison(), v -> MobStacker.config.setStrictDataComparison(v), true));
+        register(ConfigOption.ofString("ignoredDataKeys", Category.MOBS,
+                "Keys of other mods' data that strictDataComparison leaves out, comma-separated: Key, or "
+                        + "Container.key for one entry inside a compound such as ForgeCaps. For a mod that keeps a "
+                        + "timer on every mob, which would otherwise stop its mobs from stacking.",
+                false, () -> MobStacker.config.getIgnoredDataKeys(), v -> MobStacker.config.setIgnoredDataKeys(v), "")
+                .withValidator(value -> com.frikinjay.mobstacker.MobData.ignoredProblem((String) value))
+                .requires("strictDataComparison"));
+        register(ConfigOption.ofBool("stackBosses", Category.MOBS,
+                "Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses "
+                        + "tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's "
+                        + "#c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold.",
+                () -> MobStacker.config.getStackBosses(), v -> MobStacker.config.setStackBosses(v), false));
+        register(ConfigOption.ofInt("bossHealthThreshold", Category.MOBS,
+                "A mob kind whose base max health is at least this counts as a boss, which catches other "
+                        + "mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager "
+                        + "100). 0: only boss bars and the tag count.",
+                0, 1000000, () -> MobStacker.config.getBossHealthThreshold(),
+                v -> MobStacker.config.setBossHealthThreshold(v), 150)
+                .redundantWhen("stackBosses"));
 
         // --- Spawn origin ---
         register(ConfigOption.ofBool("stackNaturalMobs", Category.ORIGIN,
@@ -151,6 +177,27 @@ public final class MobStackerSettings {
                 0, Integer.MAX_VALUE, () -> MobStacker.config.getSweepingEdgeMaxKills(),
                 v -> MobStacker.config.setSweepingEdgeMaxKills(v), 0)
                 .requires("sweepingEdgeOverflow"));
+        register(ConfigOption.ofInt("killBatchSize", Category.COMBAT,
+                "At least this many mobs of a stack die each time it is killed, each dropping its own loot "
+                        + "and experience - a fixed number per kill for farms, on top of what damage overflow "
+                        + "takes. 1: only what the damage reaches.",
+                1, Integer.MAX_VALUE, () -> MobStacker.config.getKillBatchSize(),
+                v -> MobStacker.config.setKillBatchSize(v), 1)
+                .redundantWhen("killWholeStackOnDeath"));
+        register(ConfigOption.ofBool("damageWeaponPerHit", Category.COMBAT,
+                "When a stack dies as a whole (killWholeStackOnDeath, stackHealth), every hit wears the weapon "
+                        + "down as if it had hit every mob in the stack. Off: one hit's wear.",
+                () -> MobStacker.config.getDamageWeaponPerHit(), v -> MobStacker.config.setDamageWeaponPerHit(v), false)
+                .requires("killWholeStackOnDeath"));
+        register(ConfigOption.ofBool("stackOutgoingDamage", Category.COMBAT,
+                "A stack's melee attack hits as hard as all its mobs together, up to maxDamageMultiplier times "
+                        + "one mob's. Off: a stack hits like one mob.",
+                () -> MobStacker.config.getStackOutgoingDamage(), v -> MobStacker.config.setStackOutgoingDamage(v), false));
+        register(ConfigOption.ofInt("maxDamageMultiplier", Category.COMBAT,
+                "The most stackOutgoingDamage multiplies a stack's melee damage by.",
+                1, 1024, () -> MobStacker.config.getMaxDamageMultiplier(),
+                v -> MobStacker.config.setMaxDamageMultiplier(v), 16)
+                .requires("stackOutgoingDamage"));
         register(ConfigOption.ofBool("environmentDamagePerMob", Category.COMBAT,
                 "Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, "
                         + "explosions - hurts every mob in a stack, as it would a crowd standing loose, so a "
@@ -183,8 +230,28 @@ public final class MobStackerSettings {
                 () -> MobStacker.config.getAlwaysShowFeedback(), v -> MobStacker.config.setAlwaysShowFeedback(v), false));
 
         // --- Stack display ---
+        register(ConfigOption.ofBool("showStackLabels", Category.DISPLAY,
+                "Show how many mobs a stack is (\"Cow x16\") above it. The label is never saved on the mob: "
+                        + "each player's game is told it, in that player's language.",
+                () -> MobStacker.config.getShowStackLabels(), v -> MobStacker.config.setShowStackLabels(v), true));
+        register(ConfigOption.ofBool("alwaysShowStackLabels", Category.DISPLAY,
+                "Show the label without looking at the stack. Off, it shows when you look at it, like a name.",
+                () -> MobStacker.config.getAlwaysShowStackLabels(), v -> MobStacker.config.setAlwaysShowStackLabels(v), false)
+                .requires("showStackLabels"));
+        register(ConfigOption.ofBool("separateStackLabel", Category.DISPLAY,
+                "Players who have the mod see the label as a line of its own above the mob's name, which stays "
+                        + "as it is. Off, or without the mod, the count is shown in the name: \"Bessie x16\".",
+                () -> MobStacker.config.getSeparateStackLabel(), v -> MobStacker.config.setSeparateStackLabel(v), true)
+                .requires("showStackLabels"));
+        register(ConfigOption.ofString("stackLabelFormat", Category.DISPLAY,
+                "What the separate label says: {type} is the kind of mob, in each player's language, and "
+                        + "{count} how many there are. For example \"{type} ({count})\".",
+                false, () -> MobStacker.config.getStackLabelFormat(), v -> MobStacker.config.setStackLabelFormat(v),
+                "{type} x{count}")
+                .withValidator(value -> StackLabelFormat.problem((String) value))
+                .requires("separateStackLabel"));
         register(ConfigOption.ofEnum("stackNameColor", Category.DISPLAY,
-                "Colour of the \"Cow x16\" name shown above a stack. A mob named with a name tag keeps its own colour.",
+                "Colour of the \"Cow x16\" label shown above a stack. A mob named with a name tag keeps its own colour.",
                 StackColor.class, () -> MobStacker.config.getStackNameColor(),
                 v -> MobStacker.config.setStackNameColor(v), StackColor.WHITE));
         register(ConfigOption.ofBool("stackNameColorBySize", Category.DISPLAY,
@@ -215,6 +282,10 @@ public final class MobStackerSettings {
         register(ConfigOption.ofBool("breedOnePerClick", Category.BREEDING,
                 "One click feeds a single member (on) instead of as many as the food in hand (off).",
                 () -> MobStacker.config.getBreedOnePerClick(), v -> MobStacker.config.setBreedOnePerClick(v), false));
+        register(ConfigOption.ofBool("multiplyGiftDrops", Category.BREEDING,
+                "What mobs drop on their own comes from every mob in a stack: a stack of chickens lays an egg "
+                        + "for each, a stack of baby turtles leaves a scute for each when it grows up. Off: as one mob.",
+                () -> MobStacker.config.getMultiplyGiftDrops(), v -> MobStacker.config.setMultiplyGiftDrops(v), true));
         register(ConfigOption.ofBool("stackedHarvest", Category.BREEDING,
                 "Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool.",
                 () -> MobStacker.config.getStackedHarvest(), v -> MobStacker.config.setStackedHarvest(v), true));
@@ -239,35 +310,69 @@ public final class MobStackerSettings {
                 () -> MobStacker.config.getEnableSeparator(), v -> MobStacker.config.setEnableSeparator(v), false));
         register(ConfigOption.ofBool("consumeSeparator", Category.SEPARATOR,
                 "Consume one separator item each time a stack is separated.",
-                () -> MobStacker.config.getConsumeSeparator(), v -> MobStacker.config.setConsumeSeparator(v), true));
+                () -> MobStacker.config.getConsumeSeparator(), v -> MobStacker.config.setConsumeSeparator(v), true)
+                .requires("enableSeparator"));
         register(ConfigOption.ofString("separatorItem", Category.SEPARATOR,
                 "The item used to separate a mob from a stack.",
                 true, () -> MobStacker.config.getSeparatorItem(), v -> MobStacker.config.setSeparatorItem(v), "minecraft:diamond")
                 .withValidator(value -> {
                     ResourceLocation id = ResourceLocation.tryParse((String) value);
                     return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
-                }));
+                })
+                .requires("enableSeparator"));
+        register(ConfigOption.ofBool("enableAssimilator", Category.SEPARATOR,
+                "Sneak and right-click a mob with the assimilator item to switch whether it may stack: off keeps "
+                        + "it (or the stack it is) out of stacks for good, on lets it back in.",
+                () -> MobStacker.config.getEnableAssimilator(), v -> MobStacker.config.setEnableAssimilator(v), false));
+        register(ConfigOption.ofBool("consumeAssimilator", Category.SEPARATOR,
+                "Use up one assimilator item (or a point of durability) each time.",
+                () -> MobStacker.config.getConsumeAssimilator(), v -> MobStacker.config.setConsumeAssimilator(v), true)
+                .requires("enableAssimilator"));
+        register(ConfigOption.ofString("assimilatorItem", Category.SEPARATOR,
+                "The item that switches a mob's stacking on and off.",
+                true, () -> MobStacker.config.getAssimilatorItem(), v -> MobStacker.config.setAssimilatorItem(v), "minecraft:emerald")
+                .withValidator(value -> {
+                    ResourceLocation id = ResourceLocation.tryParse((String) value);
+                    return (id != null && BuiltInRegistries.ITEM.containsKey(id)) ? null : "Unknown item: " + value;
+                })
+                .requires("enableAssimilator"));
         register(ConfigOption.ofInt("separationCooldown", Category.SEPARATOR,
                 "Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) "
                         + "or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan.",
                 0, 3600, () -> MobStacker.config.getSeparationCooldown(),
                 v -> MobStacker.config.setSeparationCooldown(v), 0));
 
-        // --- Mob caps (vanilla spawn caps per category) ---
-        register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Vanilla spawn cap for the monster category.",
-                0, 128, () -> MobStacker.config.getMonsterMobCap(), v -> MobStacker.config.setMonsterMobCap(v), 22));
-        register(ConfigOption.ofInt("creatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for the creature (animal) category.",
-                0, 128, () -> MobStacker.config.getCreatureMobCap(), v -> MobStacker.config.setCreatureMobCap(v), 5));
-        register(ConfigOption.ofInt("ambientMobCap", Category.MOBCAPS, "Vanilla spawn cap for the ambient (bat) category.",
-                0, 128, () -> MobStacker.config.getAmbientMobCap(), v -> MobStacker.config.setAmbientMobCap(v), 7));
-        register(ConfigOption.ofInt("axolotlsMobCap", Category.MOBCAPS, "Vanilla spawn cap for axolotls.",
-                0, 128, () -> MobStacker.config.getAxolotlsMobCap(), v -> MobStacker.config.setAxolotlsMobCap(v), 2));
-        register(ConfigOption.ofInt("undergroundWaterCreatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for underground water creatures (glow squid).",
-                0, 128, () -> MobStacker.config.getUndergroundWaterCreatureMobCap(), v -> MobStacker.config.setUndergroundWaterCreatureMobCap(v), 2));
-        register(ConfigOption.ofInt("waterCreatureMobCap", Category.MOBCAPS, "Vanilla spawn cap for water creatures (squid, dolphin).",
-                0, 128, () -> MobStacker.config.getWaterCreatureMobCap(), v -> MobStacker.config.setWaterCreatureMobCap(v), 2));
-        register(ConfigOption.ofInt("waterAmbientMobCap", Category.MOBCAPS, "Vanilla spawn cap for water ambient mobs (fish).",
-                0, 128, () -> MobStacker.config.getWaterAmbientMobCap(), v -> MobStacker.config.setWaterAmbientMobCap(v), 8));
+        // --- Spawning & despawning: the vanilla spawn caps per category, and despawning (1.12.0) ---
+        register(ConfigOption.ofBool("countStackMembers", Category.MOBCAPS,
+                "Every mob in a stack counts towards the spawn caps, so a world with stacks has as many mobs "
+                        + "as vanilla, in fewer entities. Off: a whole stack counts as one mob, so far more mobs "
+                        + "can exist at once (and farms that spawn give more).",
+                () -> MobStacker.config.getCountStackMembers(), v -> MobStacker.config.setCountStackMembers(v), true));
+        register(ConfigOption.ofInt("monsterMobCap", Category.MOBCAPS, "Spawn cap for the monster category (vanilla 70).",
+                0, 128, () -> MobStacker.config.getMonsterMobCap(), v -> MobStacker.config.setMonsterMobCap(v), 70));
+        register(ConfigOption.ofInt("creatureMobCap", Category.MOBCAPS, "Spawn cap for the creature (animal) category (vanilla 10).",
+                0, 128, () -> MobStacker.config.getCreatureMobCap(), v -> MobStacker.config.setCreatureMobCap(v), 10));
+        register(ConfigOption.ofInt("ambientMobCap", Category.MOBCAPS, "Spawn cap for the ambient (bat) category (vanilla 15).",
+                0, 128, () -> MobStacker.config.getAmbientMobCap(), v -> MobStacker.config.setAmbientMobCap(v), 15));
+        register(ConfigOption.ofInt("axolotlsMobCap", Category.MOBCAPS, "Spawn cap for axolotls (vanilla 5).",
+                0, 128, () -> MobStacker.config.getAxolotlsMobCap(), v -> MobStacker.config.setAxolotlsMobCap(v), 5));
+        register(ConfigOption.ofInt("undergroundWaterCreatureMobCap", Category.MOBCAPS, "Spawn cap for underground water creatures, i.e. glow squid (vanilla 5).",
+                0, 128, () -> MobStacker.config.getUndergroundWaterCreatureMobCap(), v -> MobStacker.config.setUndergroundWaterCreatureMobCap(v), 5));
+        register(ConfigOption.ofInt("waterCreatureMobCap", Category.MOBCAPS, "Spawn cap for water creatures: squid, dolphins (vanilla 5).",
+                0, 128, () -> MobStacker.config.getWaterCreatureMobCap(), v -> MobStacker.config.setWaterCreatureMobCap(v), 5));
+        register(ConfigOption.ofInt("waterAmbientMobCap", Category.MOBCAPS, "Spawn cap for water ambient mobs: fish (vanilla 20).",
+                0, 128, () -> MobStacker.config.getWaterAmbientMobCap(), v -> MobStacker.config.setWaterAmbientMobCap(v), 20));
+        register(ConfigOption.ofBool("despawnPickedUpMobs", Category.MOBCAPS,
+                "A mob that picks up an item (a zombie taking a sword off the ground) can still despawn, and "
+                        + "drops what it picked up when it goes; an enderman carrying a block drops the block. "
+                        + "Vanilla keeps such a mob forever. What Let Me Despawn does, in short.",
+                () -> MobStacker.config.getDespawnPickedUpMobs(), v -> MobStacker.config.setDespawnPickedUpMobs(v), false));
+        register(ConfigOption.ofInt("persistentStackSize", Category.MOBCAPS,
+                "A stack of at least this many mobs never despawns on its own, for pens and farms that keep "
+                        + "their mobs. 0: a stack despawns like any single mob, as vanilla would despawn the "
+                        + "crowd it stands for.",
+                0, Integer.MAX_VALUE, () -> MobStacker.config.getPersistentStackSize(),
+                v -> MobStacker.config.setPersistentStackSize(v), 0));
     }
 
     private MobStackerSettings() {

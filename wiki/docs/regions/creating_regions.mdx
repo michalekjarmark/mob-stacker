@@ -1,6 +1,6 @@
 # Creating regions
 
-A region is a box in one dimension, of one of two kinds:
+A region is a box in one dimension - or the whole dimension - of one of two kinds:
 
 | Kind | Effect |
 |---|---|
@@ -8,7 +8,8 @@ A region is a box in one dimension, of one of two kinds:
 | `deny` | Mobs never form a stack here, in **every** mode. |
 
 Both kinds can also carry [their own settings]($regions/region_settings), which apply to every mob
-inside them. Shapes that are not a box are built from several regions.
+inside them. Shapes that are not a box are built from several regions, or from a box narrowed to
+[some biomes](#only-in-some-biomes).
 
 ## In the config screen
 
@@ -22,6 +23,13 @@ Open `/mobstackerconfig` → **Regions…**:
   nothing is saved until you press **Save**.
 - **Edit area…** reshapes or renames the selected region, and its **Delete** button asks for a second
   click.
+- The button next to the kind switches between **box** and **whole dimension**; the corners stay
+  filled in, as the box the region goes back to.
+- **only in biomes** takes biome ids and tags, separated by commas: `#minecraft:is_forest, desert`.
+  Empty means every biome. It completes the entry you are typing (`#` for tags); an entry turns the
+  text yellow when this game knows no such biome - most likely a typo - and red when it is not a
+  biome id at all.
+- On the region screen, **region: on / OFF** switches the selected region off and back on.
 
 A region keeps its corners the way you gave them: the first block you clicked is corner 1.
 
@@ -36,10 +44,59 @@ you are in.
 /mobstacker region bounds cowfarm 100 60 -40 140 75 0     # move or resize, keeps its settings
 /mobstacker region type cowfarm deny
 /mobstacker region rename cowfarm cows                   # keeps area, settings and colour
-/mobstacker region list
+/mobstacker region list                                  # click a name for its details
 /mobstacker region show cows                             # corners, priority and its own settings
 /mobstacker region remove cows
 ```
+
+`region list` shows ten regions a page (`region list 2` for the next ten, or click the arrows). Click
+a region's name to see everything about it, and `[on]` / `[off]` to switch it; what can be clicked is
+underlined. With the mod on your game, the list and a region's page are one panel that each click
+redraws in place, with **« all regions** to go back. Without the mod a click prints the new panel
+under the old one, as vanilla cannot change a message it has shown.
+
+## A whole dimension
+
+A region can be a whole dimension instead of a box: no corners, and no box is drawn.
+
+```
+/mobstacker region add nether_rules allow dimension minecraft:the_nether
+/mobstacker region add no_end_stacks deny dimension minecraft:the_end
+/mobstacker region add here allow dimension              # the dimension you are in
+/mobstacker region bounds cows dimension                 # an existing region, keeping its settings
+/mobstacker region bounds cows 100 60 -40 140 75 0       # and back to a box
+```
+
+A box inside a whole-dimension region is smaller, so it gives the settings where the two overlap,
+unless you set priorities.
+
+## Only in some biomes
+
+A region can be narrowed to some biomes: it then covers only the blocks of its box, or of its whole
+dimension, that stand in one of them. Biomes are ids or tags, vanilla's or any mod's; a name without
+a namespace means `minecraft:`.
+
+```
+/mobstacker region biomes forests add #minecraft:is_forest
+/mobstacker region biomes forests add minecraft:cherry_grove
+/mobstacker region biomes forests remove minecraft:cherry_grove
+/mobstacker region biomes forests                        # what it covers
+/mobstacker region biomes forests clear                  # every biome again
+```
+
+With a whole dimension, this makes a region of every forest in the world. A biome the game does not
+know (a mod that is not installed) is kept and matches nothing until it exists.
+
+## Switching a region off
+
+```
+/mobstacker region disable cows
+/mobstacker region enable cows
+```
+
+A region that is off keeps its area, settings, mob lists and ceilings, and does nothing until it is
+switched back on, as if it had been deleted. Its box is drawn grey. `/mobstacker inspect` on a mob
+standing in it says the region is off.
 
 > [!TIP]
 > Adding an `allow` region while `stackMode` is `off` switches it to `regions`, so the new region works

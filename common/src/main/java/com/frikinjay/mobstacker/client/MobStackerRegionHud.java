@@ -42,7 +42,8 @@ public final class MobStackerRegionHud {
             MobStackerClientRegions.View applies = here.get(0);
             line.append(Component.literal(applies.name()).withStyle(applies.color().format()))
                     .append(Component.literal(" (" + (applies.type() == StackRegion.Type.DENY ? "deny" : "allow")
-                            + ", priority " + applies.priority() + ")").withStyle(ChatFormatting.GRAY));
+                            + ", priority " + applies.priority()
+                            + (applies.wholeDimension() ? ", whole dimension" : "") + ")").withStyle(ChatFormatting.GRAY));
             if (here.size() > 1) {
                 line.append(Component.literal("  +" + (here.size() - 1) + " more here").withStyle(ChatFormatting.DARK_GRAY));
             }

@@ -20,16 +20,27 @@ back, and wherever a whole number is asked for, `max` means as high as it goes.
 | `stackMode` | `OFF` | `off`, `regions`, `players`, `everywhere` | no | Where stacking is allowed: OFF, REGIONS (only inside ALLOW regions), PLAYERS (only near a player), or EVERYWHERE. |
 | `maxStackSize` | `16` | 1 to 2147483647 | yes | The largest a stack is allowed to grow to. A mob type given its own ceiling ignores this. |
 | `stackOnSpawn` | `true` | `true`, `false` | yes | Merge a mob into a nearby stack on its first tick, instead of waiting for it to move or for the next scan. Covers spawners, breeding and spawn eggs. |
-| `mobListMode` | `BLACKLIST` | `blacklist`, `whitelist` | yes | Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or WHITELIST (nothing stacks except the allowed lists). |
 | `stackRadius` | `6.0` | 0.1 to 42000.0 | yes | How far apart (in blocks) mobs can be and still merge into the same stack. |
 | `playerStackRadius` | `12.0` | 1.0 to 42000.0 | no | In PLAYERS stack mode, mobs within this many blocks of any player are allowed to stack. |
 | `stackScanInterval` | `20` | 0 to 1200 | yes | How often (in ticks) a mob re-checks for a nearby stack to join, so mobs that never move still merge. 0 only merges when a mob crosses a block boundary. |
-| `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
-| `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
-| `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
 | `killWholeStackOnDeath` | `false` | `true`, `false` | yes | Killing the top mob kills the entire stack at once (disables damage overflow). Forced on while `stackHealth` is on. |
 | `stackHealth` | `false` | `true`, `false` | yes | A stack's health scales with its size. Forces killWholeStackOnDeath on for as long as it is on. |
 | `stackAi` | `NORMAL` | `normal`, `physics_only`, `frozen` | yes | What a stack of two or more mobs does with its AI. NORMAL: it thinks like any mob. PHYSICS_ONLY: it attacks nothing, follows nobody and stands still, but still falls, is carried by water, knocked back and kept afloat, so farms keep working (sheep do not eat grass, so their wool does not grow back, and villagers do not work). FROZEN: vanilla NoAI, it does not move at all, not even to fall. A single mob always keeps its AI. |
+
+## Which mobs stack
+
+See [Which mobs stack]($stacking/which_mobs_stack).
+
+| Setting | Default | Values | Per region | Description |
+|---|---|---|---|---|
+| `mobListMode` | `BLACKLIST` | `blacklist`, `whitelist` | yes | Which mob list decides: BLACKLIST (everything stacks except the ignored lists) or WHITELIST (nothing stacks except the allowed lists). |
+| `stackEquippedMobs` | `false` | `true`, `false` | yes | Allow mobs that hold or wear items to stack. Off keeps an armed or armored mob out of stacks entirely. |
+| `keepMemberEquipment` | `true` | `true`, `false` | yes | Remember what every mob in a stack wears and holds, so its own gear drops when it is killed instead of being lost on the merge. Needs `stackEquippedMobs`. |
+| `stackNamedMobs` | `false` | `true`, `false` | yes | Let mobs renamed with a name tag stack with other mobs of the same name. Off protects a named mob from being absorbed, but a stack that is renamed keeps stacking either way. |
+| `strictDataComparison` | `true` | `true`, `false` | yes | Mobs merge only if the data other mods saved on them is the same - a level, an affix, a champion's rank - so a merge never throws it away. Vanilla's own data is matched by the mod's own rules. /mobstacker inspect names the key that differs. |
+| `ignoredDataKeys` | empty | text | yes | Keys of other mods' data that strictDataComparison leaves out, comma-separated: Key, or Container.key for one entry inside a compound such as ForgeCaps. For a mod that keeps a timer on every mob, which would otherwise stop its mobs from stacking. Needs `strictDataComparison`. |
+| `stackBosses` | `false` | `true`, `false` | yes | Let bosses stack. A boss is a mob with a boss bar of its own, one in the #mobstacker:bosses tag (the ender dragon, the wither, the warden, the elder guardian, and the loader's #c:bosses or #forge:bosses), or one whose base health reaches bossHealthThreshold. |
+| `bossHealthThreshold` | `150` | 0 to 1000000 | yes | A mob kind whose base max health is at least this counts as a boss, which catches other mods' bosses that have no boss bar (vanilla: the wither 300, the dragon 200, a ravager 100). 0: only boss bars and the tag count. Does nothing while `stackBosses` is on. |
 
 ## Spawn origin
 
@@ -54,6 +65,10 @@ See [Combat]($gameplay/combat).
 | `sweepingEdgeSingleHit` | `false` | `true`, `false` | yes | Put every other mob's sweep into the one hit and let damage overflow carry it down the stack, killing several mobs outright, instead of wounding each of them separately. Needs `sweepingEdgePerMob`. Does nothing while `killWholeStackOnDeath` is on. |
 | `sweepingEdgeVanillaConditions` | `false` | `true`, `false` | yes | Only sweep when vanilla would: fully charged swing, no critical hit, not sprinting, on the ground, sword in hand. Needs `sweepingEdgeOverflow`. |
 | `sweepingEdgeMaxKills` | `0` | 0 to 2147483647 | yes | Cap how many mobs one sweep may kill in a single swing (0 = no cap). Only used by sweepingEdgePerMob. Needs `sweepingEdgeOverflow`. |
+| `killBatchSize` | `1` | 1 to 2147483647 | yes | At least this many mobs of a stack die each time it is killed, each dropping its own loot and experience - a fixed number per kill for farms, on top of what damage overflow takes. 1: only what the damage reaches. Does nothing while `killWholeStackOnDeath` is on. |
+| `damageWeaponPerHit` | `false` | `true`, `false` | yes | When a stack dies as a whole (killWholeStackOnDeath, stackHealth), every hit wears the weapon down as if it had hit every mob in the stack. Off: one hit's wear. Needs `killWholeStackOnDeath`. |
+| `stackOutgoingDamage` | `false` | `true`, `false` | yes | A stack's melee attack hits as hard as all its mobs together, up to maxDamageMultiplier times one mob's. Off: a stack hits like one mob. |
+| `maxDamageMultiplier` | `16` | 1 to 1024 | yes | The most stackOutgoingDamage multiplies a stack's melee damage by. Needs `stackOutgoingDamage`. |
 | `environmentDamagePerMob` | `true` | `true`, `false` | yes | Damage from the world - falling, fire, lava, drowning, suffocation, cramming, cactus, explosions - hurts every mob in a stack, as it would a crowd standing loose, so a fall that kills one zombie kills the whole stack. A player's or a mob's hit stays one hit. Does nothing while `killWholeStackOnDeath` is on. |
 
 ## Feedback
@@ -72,7 +87,11 @@ See [Names & colours]($stacking/names_and_colours).
 
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
-| `stackNameColor` | `WHITE` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the "Cow x16" name shown above a stack. A mob named with a name tag keeps its own colour. |
+| `showStackLabels` | `true` | `true`, `false` | yes | Show how many mobs a stack is ("Cow x16") above it. The label is never saved on the mob: each player's game is told it, in that player's language. |
+| `alwaysShowStackLabels` | `false` | `true`, `false` | yes | Show the label without looking at the stack. Off, it shows when you look at it, like a name. Needs `showStackLabels`. |
+| `separateStackLabel` | `true` | `true`, `false` | yes | Players who have the mod see the label as a line of its own above the mob's name, which stays as it is. Off, or without the mod, the count is shown in the name: "Bessie x16". Needs `showStackLabels`. |
+| `stackLabelFormat` | `{type} x{count}` | text | yes | What the separate label says: &#123;type&#125; is the kind of mob, in each player's language, and &#123;count&#125; how many there are. For example "&#123;type&#125; (&#123;count&#125;)". Needs `separateStackLabel`. |
+| `stackNameColor` | `WHITE` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Colour of the "Cow x16" label shown above a stack. A mob named with a name tag keeps its own colour. |
 | `stackNameColorBySize` | `false` | `true`, `false` | yes | Colour the stack name by how big the stack is, so large stacks stand out at a glance. |
 | `stackNameColorMedium` | `YELLOW` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeMediumThreshold (needs stackNameColorBySize). |
 | `stackNameColorLarge` | `RED` | any of the 16 [text colours]($stacking/names_and_colours) | yes | Name colour once a stack reaches stackSizeLargeThreshold (needs stackNameColorBySize). |
@@ -87,6 +106,7 @@ See [Breeding, shearing & drops]($gameplay/farming).
 |---|---|---|---|---|
 | `enableStackBreeding` | `true` | `true`, `false` | yes | Feeding a stacked animal breeds its members without unstacking them. |
 | `breedOnePerClick` | `false` | `true`, `false` | yes | One click feeds a single member (on) instead of as many as the food in hand (off). |
+| `multiplyGiftDrops` | `true` | `true`, `false` | yes | What mobs drop on their own comes from every mob in a stack: a stack of chickens lays an egg for each, a stack of baby turtles leaves a scute for each when it grows up. Off: as one mob. |
 | `stackedHarvest` | `true` | `true`, `false` | yes | Shearing or milking a stack gives one mob's worth per member, and costs one bucket and one point of shear durability per member. Off makes a stack give what a single mob would, and shears then take one animal out of the stack and shear that one, so the rest keep their wool. |
 | `enableAnimalBabyStacking` | `true` | `true`, `false` | yes | Let baby farm animals stack together. |
 | `enableHostileBabyStacking` | `true` | `true`, `false` | yes | Let baby hostile mobs (e.g. baby zombies) stack together. |
@@ -98,21 +118,23 @@ See [Breeding, shearing & drops]($gameplay/farming).
 | `compactDrops` | `true` | `true`, `false` | yes | Merge a stacked mob's death drops into as few full item stacks as possible. |
 | `compactExperience` | `true` | `true`, `false` | yes | Combine a stacked mob's death experience into a single orb. |
 
-## Mob caps
+## Spawning & despawning
 
-The spawn caps vanilla uses for each kind of mob, as a setting. **The mod lowers them by default**,
-even while stacking is off (an inheritance from the original MobStacker). Set a cap to its
-vanilla value for vanilla spawning. Global only.
+Vanilla's spawn caps, each as a setting (global only), with every mob in a stack counted towards
+them, and what despawns. See [For server owners]($reference/server_owners#spawning-and-despawning).
 
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
-| `monsterMobCap` | `22` | 0 to 128 | no | Vanilla spawn cap for the monster category. Vanilla: 70. |
-| `creatureMobCap` | `5` | 0 to 128 | no | Vanilla spawn cap for the creature (animal) category. Vanilla: 10. |
-| `ambientMobCap` | `7` | 0 to 128 | no | Vanilla spawn cap for the ambient (bat) category. Vanilla: 15. |
-| `axolotlsMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for axolotls. Vanilla: 5. |
-| `undergroundWaterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for underground water creatures (glow squid). Vanilla: 5. |
-| `waterCreatureMobCap` | `2` | 0 to 128 | no | Vanilla spawn cap for water creatures (squid, dolphin). Vanilla: 5. |
-| `waterAmbientMobCap` | `8` | 0 to 128 | no | Vanilla spawn cap for water ambient mobs (fish). Vanilla: 20. |
+| `countStackMembers` | `true` | `true`, `false` | no | Every mob in a stack counts towards the spawn caps, so a world with stacks has as many mobs as vanilla, in fewer entities. Off: a whole stack counts as one mob, so far more mobs can exist at once (and farms that spawn give more). |
+| `monsterMobCap` | `70` | 0 to 128 | no | Spawn cap for the monster category (vanilla 70). |
+| `creatureMobCap` | `10` | 0 to 128 | no | Spawn cap for the creature (animal) category (vanilla 10). |
+| `ambientMobCap` | `15` | 0 to 128 | no | Spawn cap for the ambient (bat) category (vanilla 15). |
+| `axolotlsMobCap` | `5` | 0 to 128 | no | Spawn cap for axolotls (vanilla 5). |
+| `undergroundWaterCreatureMobCap` | `5` | 0 to 128 | no | Spawn cap for underground water creatures, i.e. glow squid (vanilla 5). |
+| `waterCreatureMobCap` | `5` | 0 to 128 | no | Spawn cap for water creatures: squid, dolphins (vanilla 5). |
+| `waterAmbientMobCap` | `20` | 0 to 128 | no | Spawn cap for water ambient mobs: fish (vanilla 20). |
+| `despawnPickedUpMobs` | `false` | `true`, `false` | yes | A mob that picks up an item (a zombie taking a sword off the ground) can still despawn, and drops what it picked up when it goes; an enderman carrying a block drops the block. Vanilla keeps such a mob forever. What Let Me Despawn does, in short. |
+| `persistentStackSize` | `0` | 0 to 2147483647 | yes | A stack of at least this many mobs never despawns on its own, for pens and farms that keep their mobs. 0: a stack despawns like any single mob, as vanilla would despawn the crowd it stands for. |
 
 ## Separator
 
@@ -121,8 +143,11 @@ See [Pets & mounts]($gameplay/pets_and_mounts#the-separator-item).
 | Setting | Default | Values | Per region | Description |
 |---|---|---|---|---|
 | `enableSeparator` | `false` | `true`, `false` | yes | Enable right-clicking a stack with the separator item to split one mob off. |
-| `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. |
-| `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. |
+| `consumeSeparator` | `true` | `true`, `false` | yes | Consume one separator item each time a stack is separated. Needs `enableSeparator`. |
+| `separatorItem` | `minecraft:diamond` | an item id | yes | The item used to separate a mob from a stack. Needs `enableSeparator`. |
+| `enableAssimilator` | `false` | `true`, `false` | yes | Sneak and right-click a mob with the assimilator item to switch whether it may stack: off keeps it (or the stack it is) out of stacks for good, on lets it back in. |
+| `consumeAssimilator` | `true` | `true`, `false` | yes | Use up one assimilator item (or a point of durability) each time. Needs `enableAssimilator`. |
+| `assimilatorItem` | `minecraft:emerald` | text | yes | The item that switches a mob's stacking on and off. Needs `enableAssimilator`. |
 | `separationCooldown` | `0` | 0 to 3600 | yes | Seconds a mob taken out of a stack for you (taming, riding, a bucket, shears, the separator) or poured out of a bucket stays out of stacks. 0 lets it rejoin on the next scan. |
 
 ## Regions
@@ -133,4 +158,4 @@ See [Private regions]($regions/private_regions).
 |---|---|---|---|---|
 | `privateRegions` | `true` | `true`, `false` | yes | Players who are not admins see only the regions they own or that were shared with them - the boxes, the names and the GUI alike. Off: everybody sees every region. Set to false on one region to make just that one public, or to true to keep one private on a public server. |
 
-*This page is generated from the mod's settings registry (54 settings).*
+*This page is generated from the mod's settings registry (73 settings).*

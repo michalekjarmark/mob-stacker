@@ -1,12 +1,14 @@
 package com.frikinjay.mobstacker.config;
 
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.StackRefusal;
 import com.frikinjay.mobstacker.config.ConfigOption.Result.Status;
 import com.frikinjay.mobstacker.config.ConfigOption.Type;
 
 import com.google.gson.Gson;
 import com.mojang.brigadier.tree.CommandNode;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.decoration.ArmorStand;
 
@@ -72,6 +74,10 @@ public final class ConfigSelfTest {
             testRegionPrivacy(report);
             if (source != null) {
                 testCommandAccess(report, source);
+                testSpawnCounting(report, source);
+                testMemberCopies(report, source);
+                testRound12(report, source);
+                testRound13(report, source);
             }
         } catch (Exception e) {
             report.checks++;
@@ -110,6 +116,9 @@ public final class ConfigSelfTest {
                 }
             }
             case INT, DOUBLE -> {
+                // As for a switch: a number that needs a default-off setting (maxDamageMultiplier) is
+                // refused until that one is on, which is not what this checks.
+                List<Restore> prerequisites = satisfyDependencies(option);
                 check(report, option.apply("notanumber").status == Status.ERROR, option.id() + ": accepted a non-numeric value");
                 check(report, option.apply(belowMin(option)).status == Status.ERROR, option.id() + ": accepted a below-minimum value");
                 check(report, option.apply(aboveMax(option)).status == Status.ERROR, option.id() + ": accepted an above-maximum value");
@@ -131,6 +140,9 @@ public final class ConfigSelfTest {
                                 + " instead of " + option.max());
                 // ...and "default" has to bring it back from there, which is the reset below.
                 option.apply(ConfigOption.DEFAULT_KEYWORD);
+                for (Restore prerequisite : prerequisites) {
+                    prerequisite.undo();
+                }
             }
             case ENUM -> {
                 for (String value : option.enumValues()) {
@@ -141,12 +153,43 @@ public final class ConfigSelfTest {
                 option.reset();
             }
             case ITEM -> {
+                List<Restore> prerequisites = satisfyDependencies(option);
                 check(report, option.apply("minecraft:stone").status != Status.ERROR, option.id() + ": rejected a valid item (minecraft:stone)");
                 check(report, option.apply("mobstacker:not_a_real_item").status == Status.ERROR, option.id() + ": accepted a bogus item id");
                 option.reset();
+                for (Restore prerequisite : prerequisites) {
+                    prerequisite.undo();
+                }
             }
             case STRING -> {
-                // Free-form; nothing to assert beyond the reset baseline above.
+                // Free-form, unless the setting has a validator of its own (ignoredDataKeys).
+                if (option.id().equals("ignoredDataKeys")) {
+                    List<Restore> prerequisites = satisfyDependencies(option);
+                    check(report, option.apply("ForgeCaps.somemod:timer, somemod_age").status != Status.ERROR,
+                            option.id() + ": refused a well-formed key list");
+                    check(report, option.apply("not a key!").status == Status.ERROR,
+                            option.id() + ": accepted a key with spaces in it");
+                    check(report, com.frikinjay.mobstacker.MobData.parseIgnored(" A , B.c ,, ").size() == 2,
+                            option.id() + ": did not read ' A , B.c ,, ' as two keys");
+                    option.reset();
+                    for (Restore prerequisite : prerequisites) {
+                        prerequisite.undo();
+                    }
+                }
+                if (option.id().equals("stackLabelFormat")) {
+                    List<Restore> prerequisites = satisfyDependencies(option);
+                    check(report, option.apply("{type} ({count})").status != Status.ERROR,
+                            option.id() + ": refused {type} ({count})");
+                    check(report, option.apply("{type}").status == Status.ERROR,
+                            option.id() + ": accepted a label that does not say how many");
+                    check(report, StackLabelFormat.build("[{count}] {type}s", net.minecraft.network.chat.Component.literal("Cow"), 7)
+                                    .getString().equals("[7] Cows"),
+                            option.id() + ": '[{count}] {type}s' did not read as '[7] Cows'");
+                    option.reset();
+                    for (Restore prerequisite : prerequisites) {
+                        prerequisite.undo();
+                    }
+                }
             }
         }
 
@@ -338,6 +381,436 @@ public final class ConfigSelfTest {
                 "an absent modded id was accepted without a word");
         check(report, MobLists.entityProblem("minecraft:not_a_mob") != null,
                 "a stack ceiling accepted a vanilla id nothing answers to");
+
+        // Tags in the mob lists (1.12.0).
+        check(report, "#minecraft:raiders".equals(MobLists.normalise(MobListKind.DENY_ENTITIES, "#Raiders")),
+                "'#Raiders' was not stored as #minecraft:raiders");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "#minecraft:raiders") == null,
+                "an entity list refused a vanilla tag");
+        check(report, MobLists.entryProblem(MobListKind.ALLOW_ENTITIES, "#somemod:whatever") == null,
+                "an entity list refused a tag that is not loaded, which a data pack may add later");
+        check(report, MobLists.entryProblem(MobListKind.DENY_ENTITIES, "#not a tag") != null,
+                "an entity list accepted a malformed tag");
+        check(report, MobLists.entityProblem("#minecraft:raiders") != null,
+                "a stack ceiling accepted a tag, which only the mob lists understand");
+        check(report, MobLists.isLoaded(MobListKind.DENY_ENTITIES, "#minecraft:raiders"),
+                "#minecraft:raiders is not reported as loaded");
+        check(report, !MobLists.isLoaded(MobListKind.DENY_ENTITIES, "#somemod:whatever"),
+                "an absent tag is reported as loaded");
+        check(report, MobLists.entryNote(MobListKind.DENY_ENTITIES, "#somemod:whatever") != null,
+                "an absent tag was accepted without a word");
+
+        // The mod's own tags have to come out of the jar on both loaders (a Forge jar without a
+        // pack.mcmeta loads none of its data).
+        check(report, EntityType.BEE.is(MobStacker.UNSTACKABLE_TAG),
+                "#mobstacker:unstackable was not loaded from the jar (no bee in it)");
+        check(report, EntityType.WITHER.is(MobStacker.BOSSES_TAG) && EntityType.WARDEN.is(MobStacker.BOSSES_TAG),
+                "#mobstacker:bosses was not loaded from the jar (no wither or warden in it)");
+        check(report, !EntityType.COW.is(MobStacker.UNSTACKABLE_TAG) && !EntityType.COW.is(MobStacker.BOSSES_TAG),
+                "a cow is in one of the mod's never-stack tags");
+    }
+
+    /**
+     * countStackMembers (1.12.0): the spawn-cap count sees a stack of five as five mobs, and a
+     * non-mob once; off, everything once. The entities are made for the test and never added to the
+     * world.
+     */
+    private static void testSpawnCounting(Report report, CommandSourceStack source) {
+        net.minecraft.world.entity.Mob cow = EntityType.COW.create(source.getLevel());
+        ArmorStand stand = new ArmorStand(EntityType.ARMOR_STAND, source.getLevel());
+        if (cow == null) {
+            check(report, false, "could not create a cow for the spawn-count check");
+            return;
+        }
+        MobStacker.setStackSize(cow, 5);
+        testStackLabels(report, cow);
+        List<net.minecraft.world.entity.Entity> world = List.of(cow, stand);
+        check(report, count(MobStacker.countedForSpawning(world)) == 6,
+                "countStackMembers on: a stack of 5 and an armor stand did not count as 6");
+        MobStacker.config.setCountStackMembers(false);
+        check(report, count(MobStacker.countedForSpawning(world)) == 2,
+                "countStackMembers off: a stack of 5 and an armor stand did not count as 2");
+        MobStacker.config.setCountStackMembers(true);
+        check(report, MobStacker.config.getMonsterMobCap() == 70 && MobStacker.config.getWaterAmbientMobCap() == 20,
+                "a new config does not start with vanilla's spawn caps");
+
+        // A whole-dimension deny region refuses stacking anywhere in it, and nothing while it is off.
+        String dimension = source.getLevel().dimension().location().toString();
+        cow.setPos(1_234_567, 100, -7_654_321);
+        StackMode mode = MobStacker.config.getStackMode();
+        MobStacker.config.setStackMode(StackMode.EVERYWHERE);
+        RegionEdit.applyWholeDimension("selftest_nostack", StackRegion.Type.DENY, dimension);
+        check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                "a mob far out in a whole-dimension deny region may still stack");
+        check(report, MobStacker.regionAt(cow) != null, "regionAt does not find a whole-dimension region");
+        // Its biome filter, judged on whatever biome is really at that spot in this world.
+        net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> here = source.getLevel().getBiome(cow.blockPosition());
+        String hereId = here.unwrapKey().map(key -> key.location().toString()).orElse("minecraft:plains");
+        String elsewhere = "minecraft:the_void".equals(hereId) ? "minecraft:plains" : "minecraft:the_void";
+        RegionEdit.editBiomes("selftest_nostack", List.of(elsewhere), true);
+        check(report, MobStacker.locationRefusal(cow) == null,
+                "a deny region narrowed to " + elsewhere + " still stops stacking in " + hereId);
+        RegionEdit.editBiomes("selftest_nostack", List.of(hereId), true);
+        check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                "a deny region that lists " + hereId + " does not stop stacking there");
+        java.util.Optional<String> hereTag = here.tags().findFirst().map(tag -> RegionBiomes.TAG_PREFIX + tag.location());
+        if (hereTag.isPresent()) {
+            RegionEdit.editBiomes("selftest_nostack", List.of(elsewhere, hereId), false);
+            RegionEdit.editBiomes("selftest_nostack", List.of(hereTag.get()), true);
+            check(report, MobStacker.locationRefusal(cow) == com.frikinjay.mobstacker.StackRefusal.DENY_REGION,
+                    "a deny region that lists " + hereTag.get() + " does not stop stacking in " + hereId);
+        }
+        RegionEdit.setEnabled("selftest_nostack", false);
+        check(report, MobStacker.locationRefusal(cow) == null && MobStacker.regionAt(cow) == null,
+                "a deny region switched off still stops stacking");
+        RegionEdit.delete("selftest_nostack");
+        MobStacker.config.setStackMode(mode);
+    }
+
+    /**
+     * 1.12.0 (#46/#56): a stack's label is never written onto the mob, an older version's is taken back
+     * out of its name, and a game without the mod is sent the label in the name instead.
+     */
+    @SuppressWarnings("unchecked")
+    private static void testStackLabels(Report report, net.minecraft.world.entity.Mob cow) {
+        check(report, cow.getCustomName() == null,
+                "a stack of 5 got its label written into its own name: " + cow.getCustomName());
+        cow.setCustomName(net.minecraft.network.chat.Component.literal("Cow x5"));
+        MobStacker.updateStackDisplay(cow);
+        check(report, cow.getCustomName() == null, "the label an older version left in a stack's name stayed");
+        cow.setCustomName(net.minecraft.network.chat.Component.literal("Bessie x5"));
+        MobStacker.updateStackDisplay(cow);
+        check(report, cow.getCustomName() != null && cow.getCustomName().getString().equals("Bessie"),
+                "an older version's count was not taken off a named stack: " + cow.getCustomName());
+
+        net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket sent =
+                com.frikinjay.mobstacker.StackLabels.withLabelInName(cow,
+                        new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(cow.getId(), List.of()));
+        int nameId = com.frikinjay.mobstacker.mixin.EntityAccessor.mobstacker$customNameData().getId();
+        String shown = sent.packedItems().stream().filter(value -> value.id() == nameId)
+                .map(value -> ((java.util.Optional<net.minecraft.network.chat.Component>) value.value())
+                        .map(net.minecraft.network.chat.Component::getString).orElse(""))
+                .findFirst().orElse("");
+        check(report, shown.equals("Bessie x5"), "a game without the mod is not sent the label in the name: '" + shown + "'");
+        check(report, cow.getCustomName().getString().equals("Bessie"), "sending the label changed the mob's own name");
+        cow.setCustomName(null);
+    }
+
+    /**
+     * 1.12.0 (#35): a mob made out of a stack is a copy of the stack's saved data, less what is the top
+     * mob's alone. None of these mobs is ever added to the world.
+     */
+    /** What round 12 of the tests found: chat panels, every refusal in inspect, tag completion. */
+    private static void testRound12(Report report, CommandSourceStack source) {
+        // A chat panel's mark comes through the wire (JSON) and adds no text.
+        Component start = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal("Regions:"), "regions", true);
+        Component sent = Component.Serializer.fromJson(Component.Serializer.toJson(start));
+        check(report, com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(sent)
+                        && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(sent))
+                        && "Regions:".equals(sent.getString()),
+                "a chat panel's first line lost its mark on the way, or shows it: " + Component.Serializer.toJson(start));
+        Component next = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal(" - farm"), "regions", false);
+        check(report, !com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(next)
+                        && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(next))
+                        && com.frikinjay.mobstacker.command.CommandFeedback.panelOf(Component.literal("plain")) == null,
+                "a panel's later line starts a panel, or a plain line belongs to one");
+
+        // inspect lists every rule that keeps a mob out, the first being the one the scan asks first.
+        net.minecraft.server.level.ServerLevel level = source.getLevel();
+        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        if (cow != null) {
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
+            check(report, MobStacker.stackRefusals(cow).isEmpty() && MobStacker.stackRefusal(cow) == null,
+                    "a plain cow is refused: " + MobStacker.stackRefusals(cow));
+            cow.setNoAi(true);
+            cow.setInLove(null);
+            List<StackRefusal> all = MobStacker.stackRefusals(cow);
+            check(report, all.contains(StackRefusal.NO_AI) && all.contains(StackRefusal.IN_LOVE)
+                            && all.get(0) == MobStacker.stackRefusal(cow),
+                    "inspect does not list every refusal of a frozen cow in love: " + all);
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.OFF);
+        }
+
+        // "#rai" completes to the raiders tag, in the command (round 12: the "#" was compared too).
+        try {
+            com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
+            String typed = "mobstacker list deny entity add #rai";
+            List<String> offered = new java.util.ArrayList<>();
+            dispatcher.getCompletionSuggestions(dispatcher.parse(typed, source.withPermission(4))).join().getList()
+                    .forEach(suggestion -> offered.add(suggestion.getText()));
+            check(report, offered.contains("#minecraft:raiders"),
+                    "'" + typed + "' does not offer #minecraft:raiders: " + offered);
+        } catch (RuntimeException e) {
+            check(report, false, "tag completion crashed: " + e);
+        }
+    }
+
+    private static void testRound13(Report report, CommandSourceStack source) {
+        // The settings search (the config screen's box and "help <words>"): a name, the starts of
+        // its words, words in any order, a typo, a word from the description.
+        List<ConfigOption> all = MobStackerSettings.all();
+        String[][] expected = {
+                {"seperator item", "separatorItem"},
+                {"kwsod", "killWholeStackOnDeath"},
+                {"stack health", "stackHealth"},
+                {"health stack", "stackHealth"},
+                {"maxsize", "maxStackSize"},
+                {"sweaping edge single", "sweepingEdgeSingleHit"},
+                {"enable separator", "enableSeparator"},
+        };
+        for (String[] pair : expected) {
+            List<SettingSearch.Hit> hits = SettingSearch.search(pair[0], all);
+            check(report, !hits.isEmpty() && hits.get(0).option().id().equals(pair[1]),
+                    "searching '" + pair[0] + "' does not find " + pair[1] + " first: "
+                            + hits.stream().limit(3).map(hit -> hit.option().id() + "=" + hit.score()).toList());
+        }
+        // Every id finds itself first, and the letters marked are the whole name.
+        for (ConfigOption option : all) {
+            List<SettingSearch.Hit> hits = SettingSearch.search(option.id(), all);
+            boolean whole = !hits.isEmpty() && hits.get(0).option() == option;
+            if (whole) {
+                for (boolean mark : hits.get(0).matched()) {
+                    whole &= mark;
+                }
+            }
+            check(report, whole, "searching '" + option.id() + "' does not find it first, wholly marked");
+        }
+        List<SettingSearch.Hit> wool = SettingSearch.search("wool", all);
+        check(report, wool.stream().anyMatch(hit -> hit.option().id().equals("stackedHarvest")),
+                "searching 'wool' does not find stackedHarvest by its description");
+        check(report, SettingSearch.search("qqxzv", all).isEmpty() && SettingSearch.search("  ", all).isEmpty(),
+                "nonsense or an empty search finds settings");
+
+        // "help <words>" answers with the search; an unknown setting gets a "did you mean".
+        try {
+            com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
+            CommandSourceStack quiet = source.withPermission(4).withSuppressedOutput();
+            check(report, dispatcher.execute("mobstacker help seperator item", quiet) >= 1,
+                    "'help seperator item' finds nothing");
+            check(report, dispatcher.execute("mobstacker help combat", quiet) == 1,
+                    "'help combat' no longer shows the Combat page");
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException | RuntimeException e) {
+            check(report, false, "help <words> crashed: " + e);
+        }
+
+        // A zombie villager being cured stays out of stacks (round 13: it walked back in and the
+        // stack took its cure).
+        net.minecraft.world.entity.monster.ZombieVillager zombie = EntityType.ZOMBIE_VILLAGER.create(source.getLevel());
+        if (zombie != null) {
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
+            check(report, !MobStacker.stackRefusals(zombie).contains(StackRefusal.BEING_CURED),
+                    "a zombie villager nobody cures is refused as being cured");
+            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+            zombie.saveWithoutId(tag);
+            tag.putInt("ConversionTime", 200);
+            zombie.load(tag);
+            check(report, zombie.isConverting() && MobStacker.stackRefusal(zombie) == StackRefusal.BEING_CURED,
+                    "a zombie villager being cured may stack: " + MobStacker.stackRefusals(zombie));
+            MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.OFF);
+        }
+    }
+
+    private static void testMemberCopies(Report report, CommandSourceStack source) {
+        net.minecraft.server.level.ServerLevel level = source.getLevel();
+        net.minecraft.world.entity.monster.Zombie zombie = EntityType.ZOMBIE.create(level);
+        if (zombie == null) {
+            check(report, false, "could not create a zombie for the member-copy check");
+            return;
+        }
+        // What a stack has and every member has with it...
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR).addPermanentModifier(
+                new net.minecraft.world.entity.ai.attributes.AttributeModifier("selftest bonus", 3.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+        zombie.addTag("selftest_member");
+        zombie.setRemainingFireTicks(100);
+        zombie.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 600));
+        zombie.setBaby(true);
+        zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
+        zombie.setCustomName(net.minecraft.network.chat.Component.literal("Zed"));
+        // ...and what is the top zombie's own.
+        zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).addPermanentModifier(
+                new net.minecraft.world.entity.ai.attributes.AttributeModifier("Leader zombie bonus", 2.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+        zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD));
+        zombie.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+        MobStacker.setStackSize(zombie, 5);
+        zombie.setHealth(3.0F);
+
+        if (!(MobStacker.memberOf(zombie, level, false) instanceof net.minecraft.world.entity.monster.Zombie member)) {
+            check(report, false, "memberOf made no zombie out of a stack of zombies");
+            return;
+        }
+        check(report, !member.getUUID().equals(zombie.getUUID()), "a member copied the stack's UUID");
+        check(report, MobStacker.getStackSize(member) == 1, "a member came out as a stack of " + MobStacker.getStackSize(member));
+        check(report, ((com.frikinjay.mobstacker.ICustomDataHolder) member).mobstacker$getCustomData()
+                        != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData(),
+                "a member shares the stack's own stack data");
+        check(report, member.isBaby(), "a baby zombie stack let out an adult");
+        check(report, member.getTags().contains("selftest_member"), "a member lost the stack's scoreboard tag");
+        check(report, member.getRemainingFireTicks() > 0, "a member of a burning stack is not burning");
+        check(report, member.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "a member lost the stack's effect");
+        check(report, member.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
+                        == zombie.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR),
+                "a member lost an attribute modifier the stack has");
+        check(report, member.getMaxHealth() == 20.0F, "a member kept the top zombie's leader bonus: max health " + member.getMaxHealth());
+        check(report, member.getHealth() == member.getMaxHealth(), "a member came out hurt: " + member.getHealth());
+        check(report, member.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(),
+                "a member got a copy of the sword the top zombie picked up");
+        check(report, member.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.IRON_HELMET),
+                "a member lost the helmet zombies of this stack spawn with");
+        check(report, member.getCustomName() == null, "a member taken out of a stack took the stack's name");
+        net.minecraft.world.entity.Mob remainder = MobStacker.memberOf(zombie, level, true);
+        check(report, remainder != null && remainder.getCustomName() != null && remainder.getCustomName().getString().equals("Zed"),
+                "the remainder of a named stack lost its name");
+
+        // An enderman's block, a creeper's fuse (but not its charge), a turtle's egg (but not its home).
+        net.minecraft.world.entity.monster.EnderMan enderman = EntityType.ENDERMAN.create(level);
+        if (enderman != null) {
+            enderman.setCarriedBlock(net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState());
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(enderman, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.monster.EnderMan carrying && carrying.getCarriedBlock() == null,
+                    "a member of an enderman stack got the top one's block");
+        }
+        net.minecraft.world.entity.monster.Creeper creeper = EntityType.CREEPER.create(level);
+        if (creeper != null) {
+            net.minecraft.nbt.CompoundTag charged = creeper.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            charged.putBoolean("powered", true);
+            charged.putBoolean("ignited", true);
+            charged.remove(MobStacker.STACK_DATA_KEY);
+            creeper.load(charged);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(creeper, level, true);
+            check(report, copy instanceof net.minecraft.world.entity.monster.Creeper next && next.isPowered() && !next.isIgnited(),
+                    "the remainder of an exploding charged creeper stack is not charged, or is lit too");
+        }
+        net.minecraft.world.entity.animal.Turtle turtle = EntityType.TURTLE.create(level);
+        if (turtle != null) {
+            turtle.setHomePos(new net.minecraft.core.BlockPos(1234, 64, -987));
+            net.minecraft.nbt.CompoundTag egg = turtle.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            egg.putBoolean("HasEgg", true);
+            egg.remove(MobStacker.STACK_DATA_KEY);
+            turtle.load(egg);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(turtle, level, false);
+            net.minecraft.nbt.CompoundTag saved = copy == null ? new net.minecraft.nbt.CompoundTag()
+                    : copy.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            check(report, saved.getInt("HomePosX") == 1234 && saved.getInt("HomePosZ") == -987,
+                    "a member of a turtle stack got a new home: " + saved.getInt("HomePosX") + ", " + saved.getInt("HomePosZ"));
+            check(report, !saved.getBoolean("HasEgg"), "a member of a turtle stack got the top one's egg");
+        }
+
+        // A villager's job and its claims, a pig's saddle, a cow in love, a sheep's wool.
+        net.minecraft.world.entity.npc.Villager villager = EntityType.VILLAGER.create(level);
+        if (villager != null) {
+            villager.setVillagerData(villager.getVillagerData()
+                    .setProfession(net.minecraft.world.entity.npc.VillagerProfession.FARMER).setLevel(2));
+            villager.setVillagerXp(30);
+            villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME,
+                    net.minecraft.core.GlobalPos.of(level.dimension(), new net.minecraft.core.BlockPos(1, 2, 3)));
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(villager, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.npc.Villager jobless
+                            && jobless.getVillagerData().getProfession() == net.minecraft.world.entity.npc.VillagerProfession.NONE
+                            && jobless.getVillagerXp() == 0,
+                    "a member of a villager stack got the top one's job");
+            check(report, copy != null && copy.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME).isEmpty(),
+                    "a member of a villager stack got the top one's bed");
+        }
+        net.minecraft.world.entity.animal.Pig pig = EntityType.PIG.create(level);
+        if (pig != null) {
+            pig.equipSaddle(null);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(pig, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.animal.Pig bare && !bare.isSaddled(),
+                    "a member of a pig stack got a copy of the top one's saddle");
+        }
+        net.minecraft.world.entity.animal.Sheep sheep = EntityType.SHEEP.create(level);
+        if (sheep != null) {
+            sheep.setColor(net.minecraft.world.item.DyeColor.LIME);
+            sheep.setSheared(true);
+            sheep.setInLove(null);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(sheep, level, false);
+            check(report, copy instanceof net.minecraft.world.entity.animal.Sheep same
+                            && same.getColor() == net.minecraft.world.item.DyeColor.LIME && same.isSheared(),
+                    "a member of a sheared lime sheep stack came out another colour or with its wool");
+            check(report, copy instanceof net.minecraft.world.entity.animal.Animal animal && !animal.isInLove(),
+                    "a member of a stack in love came out in love");
+        }
+
+        // stackHealth: the stack's max health is every member's together; a member has one mob's.
+        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        if (cow != null) {
+            boolean wasWhole = MobStacker.config.getKillWholeStackOnDeath();
+            boolean wasPooled = MobStacker.config.getStackHealth();
+            MobStacker.config.setKillWholeStackOnDeath(true);
+            MobStacker.config.setStackHealth(true);
+            cow.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(50.0);
+            net.minecraft.world.entity.Mob copy = MobStacker.memberOf(cow, level, false);
+            check(report, copy != null && copy.getMaxHealth() == 10.0F,
+                    "under stackHealth a member came out with the stack's max health: " + (copy == null ? 0 : copy.getMaxHealth()));
+            MobStacker.config.setStackHealth(wasPooled);
+            MobStacker.config.setKillWholeStackOnDeath(wasWhole);
+        }
+
+        // #58: a saddle on a stacked pig hands one pig over, like a horse.
+        net.minecraft.world.entity.animal.Pig rideable = EntityType.PIG.create(level);
+        if (rideable != null) {
+            net.minecraft.world.item.ItemStack saddle = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE);
+            check(report, MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a stacked pig does not hand one pig over");
+            rideable.equipSaddle(null);
+            check(report, !MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a pig that has one still counts as saddling");
+        }
+        // #57: what a mob merged away picked up is found by its drop chance; what it spawned with stays.
+        net.minecraft.world.entity.monster.Zombie picker = EntityType.ZOMBIE.create(level);
+        if (picker != null) {
+            // Cursed with vanishing, so the check leaves no sword lying in the world.
+            net.minecraft.world.item.ItemStack sword = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD);
+            sword.enchant(net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE, 1);
+            picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, sword);
+            picker.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
+            picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET));
+            MobStacker.dropPickedEquipment(picker);
+            check(report, picker.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND).isEmpty(),
+                    "a sword a mob picked up stayed on it as it was merged away");
+            check(report, picker.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD).is(net.minecraft.world.item.Items.IRON_HELMET),
+                    "dropPickedEquipment took the helmet a mob spawned with");
+        }
+
+        // #59 and a zombie villager's cure: vanilla takes one dye, one apple per mob, so one steps out.
+        net.minecraft.world.entity.animal.Sheep white = EntityType.SHEEP.create(level);
+        if (white != null) {
+            net.minecraft.world.item.ItemStack red = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.RED_DYE);
+            check(report, MobStacker.isDyeingInteraction(white, red), "a dye on a stacked sheep does not hand one sheep over");
+            white.setColor(net.minecraft.world.item.DyeColor.RED);
+            check(report, !MobStacker.isDyeingInteraction(white, red), "a dye that changes nothing still hands a sheep over");
+        }
+        net.minecraft.world.entity.monster.ZombieVillager patient = EntityType.ZOMBIE_VILLAGER.create(level);
+        if (patient != null) {
+            net.minecraft.world.item.ItemStack apple = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE);
+            check(report, !MobStacker.isCuringInteraction(patient, apple), "a golden apple without weakness counts as a cure");
+            patient.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.WEAKNESS, 600));
+            check(report, MobStacker.isCuringInteraction(patient, apple), "curing a stacked zombie villager does not hand one over");
+        }
+
+        // A creeper that blew itself up leaves the rest of its stack behind; leaving the world does not.
+        if (creeper != null) {
+            check(report, MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.DISCARDED, true),
+                    "a stacked creeper that exploded leaves no remainder");
+            check(report, !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK, false)
+                            && !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.CHANGED_DIMENSION, false)
+                            && !MobStacker.shouldSpawnNewEntity(creeper, net.minecraft.world.entity.Entity.RemovalReason.DISCARDED, false),
+                    "a lit creeper stack that left the world (unloaded, a portal, a merge) left a remainder too");
+        }
+
+        // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread).
+        net.minecraft.nbt.CompoundTag saved = zombie.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+        check(report, saved.getCompound(MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
+                        && saved.getCompound(MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
+                "a mob's save holds its live stack data, or a copy that differs from it");
+    }
+
+    private static int count(Iterable<?> items) {
+        int n = 0;
+        for (Object ignored : items) {
+            n++;
+        }
+        return n;
     }
 
     /**
@@ -352,18 +825,18 @@ public final class ConfigSelfTest {
         RegionEdit.delete(name);
 
         RegionEdit.Result created = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 0, 0, 0, 4, 4, 4, true);
+                "minecraft:overworld", false, 0, 0, 0, 4, 4, 4, null, true);
         check(report, created.ok(), "a new region was refused: " + created.message());
 
         RegionEdit.Result again = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 100, 0, 100, 104, 4, 104, true);
+                "minecraft:overworld", false, 100, 0, 100, 104, 4, 104, null, true);
         check(report, !again.ok(), "'New region' overwrote a region that already existed");
         StackRegion kept = MobStacker.config.getRegion(name);
         check(report, kept != null && kept.getMinX() == 0,
                 "the refused create moved the existing region anyway");
 
         RegionEdit.Result reshaped = RegionEdit.apply(name, StackRegion.Type.ALLOW,
-                "minecraft:overworld", 100, 0, 100, 104, 4, 104, false);
+                "minecraft:overworld", false, 100, 0, 100, 104, 4, 104, null, false);
         check(report, reshaped.ok(), "redrawing an existing region was refused: " + reshaped.message());
         StackRegion moved = MobStacker.config.getRegion(name);
         check(report, moved != null && moved.getMinX() == 100,
@@ -374,6 +847,93 @@ public final class ConfigSelfTest {
                 "the self-test's own region survived being deleted");
 
         testRegionCorners(report);
+        testRegionSwitchAndDimension(report);
+    }
+
+    /**
+     * 1.12.0: a region switched off is not there for anything, and a whole-dimension region covers
+     * every block of its dimension and nothing of any other. Both ride {@code StackRegion.contains},
+     * so that is what is checked, plus the GUI's wire form and what the config file says.
+     */
+    private static void testRegionSwitchAndDimension(Report report) {
+        String name = "selftest_switch";
+        RegionEdit.delete(name);
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        StackRegion region = MobStacker.config.getRegion(name);
+        if (region == null) {
+            check(report, false, "could not create the region for the on/off check");
+            return;
+        }
+        String jsonOn = new com.google.gson.Gson().toJson(region);
+        check(report, !jsonOn.contains("disabled") && !jsonOn.contains("wholeDimension"),
+                "a region that is on and a box writes new keys to the config: " + jsonOn);
+        check(report, RegionEdit.setEnabled(name, false).ok() && !region.isEnabled()
+                        && !region.contains("minecraft:overworld", 2, 2, 2),
+                "a region switched off still covers its blocks");
+        check(report, new com.google.gson.Gson().toJson(region).contains("\"disabled\":true"),
+                "a region switched off does not say so in the config");
+        check(report, !RegionEdit.setEnabled(name, false).ok(), "switching a region off twice reported a change");
+        check(report, RegionEdit.setEnabled(name, true).ok() && region.contains("minecraft:overworld", 2, 2, 2),
+                "a region switched back on does not cover its blocks again");
+
+        RegionEdit.Result whole = RegionEdit.applyWholeDimension(name, StackRegion.Type.ALLOW, "minecraft:the_nether");
+        check(report, whole.ok() && region.isWholeDimension()
+                        && region.contains("minecraft:the_nether", 2_000_000, 200, -2_000_000)
+                        && !region.contains("minecraft:overworld", 2, 2, 2),
+                "a whole-dimension region does not cover exactly its dimension: " + whole.message());
+        check(report, java.util.Arrays.equals(region.getCorners(), new int[]{0, 0, 0, 4, 4, 4}),
+                "making a region its whole dimension lost the box it had");
+        check(report, region.volume() == Long.MAX_VALUE, "a whole dimension is not bigger than every box");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        check(report, !region.isWholeDimension() && !region.contains("minecraft:overworld", 9, 2, 2),
+                "giving a whole-dimension region corners did not make it a box again");
+        RegionEdit.delete(name);
+
+        RegionEdit.applyWholeDimension(name, StackRegion.Type.DENY, "minecraft:the_end");
+        StackRegion fresh = MobStacker.config.getRegion(name);
+        check(report, fresh != null && fresh.isWholeDimension()
+                        && java.util.Arrays.equals(fresh.getCorners(), StackRegion.WHOLE_DIMENSION_CORNERS),
+                "a new whole-dimension region did not start with the whole-world corners");
+        int[] c = StackRegion.WHOLE_DIMENSION_CORNERS;
+        // What an older version computes for it, knowing nothing of the flag: has to stay positive.
+        long oldVolume = (long) (c[3] - c[0] + 1) * (c[4] - c[1] + 1) * (c[5] - c[2] + 1);
+        check(report, oldVolume > 0, "an older version would read the whole-world corners with an overflowing volume");
+        RegionEdit.delete(name);
+
+        RegionEdit.Definition sent = new RegionEdit.Definition(StackRegion.Type.DENY, "minecraft:the_nether",
+                1, 2, 3, 4, 5, 6, true, List.of("minecraft:plains", "#minecraft:is_forest"));
+        RegionEdit.Definition read = RegionEdit.Definition.decode(sent.encode());
+        check(report, sent.equals(read), "a whole-dimension region does not survive the GUI's wire form: " + sent.encode());
+        RegionEdit.Definition cleared = RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6;biomes=");
+        check(report, cleared != null && cleared.biomes() != null && cleared.biomes().isEmpty(),
+                "an empty biome part does not clear the filter");
+        RegionEdit.Definition old = RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6");
+        check(report, old != null && !old.wholeDimension() && old.biomes() == null,
+                "the GUI's old wire form no longer reads as a box that keeps its biomes");
+
+        // The biome filter, as text.
+        check(report, RegionBiomes.parseList("plains,  #is_forest minecraft:plains").equals(
+                        List.of("minecraft:plains", "#minecraft:is_forest")),
+                "the biome box is not read as normalised entries without repeats: "
+                        + RegionBiomes.parseList("plains,  #is_forest minecraft:plains"));
+        check(report, RegionBiomes.entryProblem("#Bad Tag!") != null && RegionBiomes.entryProblem("modded:swamp_x") == null,
+                "biome entries are not judged by their shape");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 0, 0, 0, 4, 4, 4);
+        check(report, RegionEdit.editBiomes(name, List.of("plains"), true).ok()
+                        && MobStacker.config.getRegion(name).getBiomes().equals(List.of("minecraft:plains")),
+                "a biome could not be added to a region");
+        check(report, !RegionEdit.editBiomes(name, List.of("minecraft:plains"), true).ok(),
+                "adding a biome a region already has reported a change");
+        check(report, !RegionEdit.editBiomes(name, List.of("not a biome!"), true).ok(),
+                "a malformed biome was added to a region");
+        RegionEdit.apply(name, StackRegion.Type.ALLOW, "minecraft:overworld", 1, 1, 1, 5, 5, 5);
+        check(report, MobStacker.config.getRegion(name).hasBiomeFilter(), "reshaping a region by command dropped its biomes");
+        check(report, RegionEdit.editBiomes(name, List.of("minecraft:plains"), false).ok()
+                        && !MobStacker.config.getRegion(name).hasBiomeFilter(),
+                "taking a region's last biome off did not make it cover every biome");
+        RegionEdit.delete(name);
+        check(report, RegionEdit.Definition.decode("ALLOW;minecraft:overworld;1,2,3;4,5,6;nonsense") == null,
+                "an unknown trailing part of a region definition was accepted");
     }
 
     /**

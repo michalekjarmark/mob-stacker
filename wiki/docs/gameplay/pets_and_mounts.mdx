@@ -9,7 +9,8 @@ that:
 - saddled mobs, horse armour, a donkey's or llama's chest,
 - leashed mobs, and anything riding or being ridden,
 - an ocelot that trusts you, a fox that knows you,
-- a horse somebody has started to tame.
+- a horse somebody has started to tame,
+- an iron golem a player built (since 1.12.0; a village's golems still stack).
 
 A horse's saddle and chest live in an inventory of its own, so a merge would have wiped them along
 with the taming; hence the hard rule. Wild herds still stack, and foals are born wild, so a breeding
@@ -21,6 +22,9 @@ When you interact with a stack, **one animal steps out** and everything you do a
 
 - **Mounts** (horses, donkeys, mules, llamas, camels, skeleton and zombie horses): right-click the stack
   and one comes out to be tamed, saddled, fed or ridden.
+- **A saddle** on a stack of pigs or striders: one comes out and gets the saddle.
+- **A dye** on a stack of sheep, and **a golden apple** on a stack of weakened zombie villagers: one
+  comes out to be dyed or cured, since vanilla takes one per mob.
 - **Taming**: hold a bone to a stack of wolves, cod to cats or seeds to parrots, and one steps out. An
   empty hand does nothing, as in vanilla.
 - **Buckets**: a bucket takes one fish or axolotl, not the whole school.
@@ -49,3 +53,17 @@ this way is named `Lone <mob>`, and named mobs do not stack, so it stays on its 
 | `enableSeparator` | off |
 | `separatorItem` | `minecraft:diamond` |
 | `consumeSeparator` | on |
+
+## The assimilator item
+
+With `enableAssimilator` on, **sneaking and right-clicking a mob with the `assimilatorItem`** (default
+`minecraft:emerald`) switches whether it may stack: off keeps that mob, or the whole stack it is, out of
+stacks for good; another click lets it back in. The action bar says which. It uses up the item (or a
+point of its durability) if `consumeAssimilator` is on. Sneaking is needed so that trading with a
+villager, emeralds in hand, does not switch the villager.
+
+| Setting | Default |
+|---|---|
+| `enableAssimilator` | off |
+| `assimilatorItem` | `minecraft:emerald` |
+| `consumeAssimilator` | on |

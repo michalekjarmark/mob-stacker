@@ -59,6 +59,10 @@ public final class MobStackerForgeClient {
             MobStackerClientNetworking.onSync(event.getPayload());
             event.getSource().get().setPacketHandled(true);
         });
+        channels.get(com.frikinjay.mobstacker.StackLabels.CHANNEL).addListener((NetworkEvent.ServerCustomPayloadEvent event) -> {
+            com.frikinjay.mobstacker.client.MobStackerClientLabels.onLabel(event.getPayload());
+            event.getSource().get().setPacketHandled(true);
+        });
 
         modBus.addListener((RegisterKeyMappingsEvent event) -> MobStackerClient.keys().forEach(event::register));
         modBus.addListener((RegisterGuiOverlaysEvent event) -> event.registerAboveAll("region_hud",
@@ -70,7 +74,10 @@ public final class MobStackerForgeClient {
                 MobStackerClient.onEndClientTick(Minecraft.getInstance());
             }
         });
-        forgeBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> MobStackerClientNetworking.onDisconnect());
+        forgeBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
+            MobStackerClientNetworking.onDisconnect();
+            com.frikinjay.mobstacker.client.MobStackerClientLabels.clear();
+        });
         forgeBus.addListener((RegisterClientCommandsEvent event) -> event.getDispatcher().register(
                 Commands.literal(MobStackerClient.CONFIG_COMMAND).executes(context -> MobStackerClient.requestConfigScreen())));
         // Picking a region's corner takes the click before anything else sees it. Forge's own
