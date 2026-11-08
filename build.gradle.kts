@@ -68,10 +68,20 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }
 
+// What the jar says it runs on comes from the node's gradle.properties: minecraft_range (Fabric's
+// syntax), minecraft_range_maven and forge_loader_range (Forge/NeoForge), pack_format.
+val metadata = mapOf("version" to project.version.toString(), "java_version" to javaVersion.toString()) +
+    listOf("minecraft_range", "minecraft_range_maven", "forge_loader_range", "pack_format")
+        .mapNotNull { key -> findProperty(key)?.let { key to it.toString() } }
+
 tasks.processResources {
-    inputs.property("version", project.version)
-    filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml")) {
-        expand("version" to project.version)
+    inputs.properties(metadata)
+    filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
+        expand(metadata)
+    }
+    // 1.21 renamed the data pack folders to the singular (tags/entity_types -> tags/entity_type).
+    if (stonecutter.current.parsed >= "1.21") {
+        eachFile { path = path.replace("/tags/entity_types/", "/tags/entity_type/") }
     }
 }
 

@@ -17,6 +17,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   refmap, because Loom now writes the remapped names into the mixins themselves. Nothing changes in
   game.
 
+### Fixed
+- **The Fabric jar claimed to run on Minecraft 1.20.2-1.20.6** (`~1.20.1` in `fabric.mod.json`),
+  loaded there and crashed. It now asks for 1.20.1 exactly, as the Forge jar already did. Every jar
+  takes its Minecraft range, Java version and pack format from its own version's settings.
+
 ## [1.12.0] - 2026-11-07
 ### Added
 - **Mobs that should stay single now do, without any setting** (stacks that already exist are left
