@@ -29,3 +29,4 @@ build.bat
 
 # Loom dev runs (runServer / runClient)
 **/run/
+/davidex
