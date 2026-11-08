@@ -59,12 +59,19 @@ boxes). A mixin whose target is gone from a version on goes into `mixinsBefore` 
 1. `mc("<version>", "fabric", ...)` in `settings.gradle.kts`, and `versions/<node>/gradle.properties`
    (copy the nearest one; `minecraft_range` in Fabric's syntax, `minecraft_range_maven` and
    `forge_loader_range` for Forge/NeoForge, `pack_format`).
-2. `./gradlew :<node>:compileJava -PallErrors` lists every compile error at once.
-3. `./gradlew :<node>:checkMixins` checks every mixin against that version without running it
+2. The NBT keys vanilla writes on an entity in that version, for strict data matching (`MobData`):
+   once per Minecraft version, on the **vanilla** jar (Loom's
+   `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/<version>-*/*.jar`, not a
+   Forge/NeoForge patched one - their own data is what strict matching compares):
+   `java -cp asm.jar;asm-tree.jar tools/VanillaKeys.java <jar> > src/main/vanilla-keys/<version>.txt`.
+   The build refuses a version without its list. Check what the new keys mean for
+   `MobStacker.TOP_ONLY_KEYS` (what a copy of a stack's top mob must not get).
+3. `./gradlew :<node>:compileJava -PallErrors` lists every compile error at once.
+4. `./gradlew :<node>:checkMixins` checks every mixin against that version without running it
    (`tools/MixinCheck.java`): target classes, `@Shadow`, `@Accessor`/`@Invoker`, injector methods,
    handler arguments and return types, and that what each `@At` points at is in the method's bytecode.
    Loom no longer checks any of this at compile time, and the game reports one mixin at a time.
-4. `./gradlew :<node>:prodServer -PstrictMixins` (Fabric): a real server; strict, an injector that
+5. `./gradlew :<node>:prodServer -PstrictMixins` (Fabric): a real server; strict, an injector that
    finds nothing fails at once instead of silently doing nothing. Then the self-test over RCON.
 
 ## Testing a jar on a real server (Fabric)

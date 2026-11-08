@@ -79,8 +79,19 @@ val metadata = mapOf("version" to project.version.toString(), "java_version" to 
     listOf("minecraft_range", "minecraft_range_maven", "forge_loader_range", "pack_format")
         .mapNotNull { key -> findProperty(key)?.let { key to it.toString() } }
 
+// The NBT keys vanilla writes on an entity in this Minecraft, for strict data matching (MobData).
+// Generated once per version by tools/VanillaKeys.java (see versions/README.md).
+val vanillaKeys = rootProject.file("src/main/vanilla-keys/$minecraft.txt")
+
 tasks.processResources {
     inputs.properties(metadata)
+    inputs.file(vanillaKeys)
+    if (!vanillaKeys.isFile) {
+        throw GradleException("No $vanillaKeys: generate it with tools/VanillaKeys.java (versions/README.md)")
+    }
+    from(vanillaKeys) {
+        rename { "mobstacker_vanilla_keys.txt" }
+    }
     filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
         expand(metadata)
     }

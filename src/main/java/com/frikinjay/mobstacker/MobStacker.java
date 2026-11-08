@@ -765,10 +765,21 @@ public final class MobStacker {
             "Health", "AbsorptionAmount", "HurtTime", "HurtByTimestamp", "DeathTime",
             // What it remembers - a villager's bed and job site are claims on the world, released
             // when it dies (see shedClaims) - where it sleeps, and what it is tied to.
-            "Brain", "SleepingX", "SleepingY", "SleepingZ", "Leash",
+            "Brain", "SleepingX", "SleepingY", "SleepingZ",
+            //? if >=1.21 {
+            /*"leash",
+            *///?} else {
+            "Leash",
+            //?}
             // What it carries: one inventory, one saddle, one chest, one block. A copy would be a
             // second one, dropped again when the copy dies.
-            "Inventory", "Items", "ChestedHorse", "SaddleItem", "ArmorItem", "DecorItem", "Saddle",
+            "Inventory", "Items", "ChestedHorse", "SaddleItem", "Saddle",
+            // A horse's armour and a llama's carpet: their own keys until 1.20.5, the body slot every mob has from then.
+            //? if >=1.20.5 {
+            /*"body_armor_item",
+            *///?} else {
+            "ArmorItem", "DecorItem",
+            //?}
             "carriedBlockState",
             // What it is in the middle of: love (the stack's breeding is counted in its stack data),
             // a turtle's egg, a creeper's lit fuse - a copy of that one would blow the stack up one
