@@ -87,6 +87,9 @@ with that header. Java 25. Entities save through `ValueInput`/`ValueOutput` from
 
 ## Testing a jar on a real server (Fabric)
 
+`tools/test/run_server.py` does all of this in one go (run dir, RCON, scenarios, stop); see
+`tools/test/README.md`. By hand:
+
 `./gradlew :<node>:prodServer` installs a Fabric server with the built jar (remapped, as players get
 it) and Fabric API, with `-Dmobstacker.selftest=true`. The run dir is `versions/<node>/run/prod`
 (git-ignored); put `eula.txt` and a `server.properties` with RCON there first, then send

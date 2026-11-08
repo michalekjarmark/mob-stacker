@@ -1,0 +1,17 @@
+# Strict data matching against this version's vanilla NBT keys (src/main/vanilla-keys/<version>.txt).
+# Summoned without NBT, zombies go through finalizeSpawn and each gets its own random spawn bonus
+# attribute modifiers. If the version's keys were wrong, those attributes would count as another
+# mod's data and no two zombies would stack.
+mobstacker set stackMode everywhere
+difficulty easy
+kill @e[type=zombie,distance=..16]
+summon zombie ~ ~ ~
+summon zombie ~ ~ ~
+summon zombie ~ ~ ~
+summon zombie ~ ~ ~
+summon zombie ~ ~ ~
+mobstacker stack 16
+# Expected: every adult zombie in one stack (a baby, if one was rolled, stays apart).
+mobstacker stats 16
+# Why each zombie is or is not in the stack:
+execute as @e[type=zombie,distance=..16] run mobstacker inspect @s
