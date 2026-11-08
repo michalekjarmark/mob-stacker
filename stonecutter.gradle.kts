@@ -12,6 +12,13 @@ plugins {
 
 stonecutter active "1.20.1-fabric"
 
+// From 26.1 Minecraft ships unobfuscated, with Mojang's names: those nodes build with Architectury
+// Loom's no-remap mode. That plugin only marks the project and applies Loom, and it has to come before
+// Loom itself, so it is applied here, before the node's build.gradle.kts applies Loom.
+subprojects {
+    if (!name.startsWith("1.")) pluginManager.apply("dev.architectury.loom-no-remap")
+}
+
 stonecutter parameters {
     // `//? if fabric {` / `//? if forge {` / `//? if neoforge {` in the sources.
     constants.match(current.project.substringAfterLast('-'), "fabric", "forge", "neoforge")

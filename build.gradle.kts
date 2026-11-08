@@ -7,6 +7,11 @@ plugins {
 val loader = project.name.substringAfterLast('-')
 val minecraft = property("minecraft_version") as String
 val javaVersion = (property("java_version") as String).toInt()
+// 26.1 and newer: Minecraft is not obfuscated, and Loom runs without remapping (applied from
+// stonecutter.gradle.kts): no mappings, plain configurations, and the jar is `jar`, not `remapJar`.
+val unobfuscated = stonecutter.current.parsed >= "26.1"
+val modImpl = if (unobfuscated) "implementation" else "modImplementation"
+val modJar = if (unobfuscated) "jar" else "remapJar"
 
 group = property("maven_group") as String
 version = property("mod_version") as String
@@ -18,20 +23,35 @@ base {
 
 dependencies {
     minecraft("net.minecraft:minecraft:$minecraft")
-    mappings(loom.officialMojangMappings())
+    // A string, not the accessor: an unobfuscated node has no `mappings` configuration at all.
+    if (!unobfuscated) "mappings"(loom.officialMojangMappings())
 
     when (loader) {
         "fabric" -> {
-            modImplementation("net.fabricmc:fabric-loader:${property("fabric_loader_version")}")
+            modImpl("net.fabricmc:fabric-loader:${property("fabric_loader_version")}")
             // Fabric API: networking, keys, client commands, world render events. Nothing else.
-            modImplementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
+            modImpl("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
         }
         "forge" -> "forge"("net.minecraftforge:forge:${property("forge_version")}")
     }
 }
 
+// The access widener is written in Mojang's names, which are the "named" namespace while Minecraft is
+// obfuscated and the "official" one from 26.1. Unobfuscated nodes get a copy with that header (Loom
+// reads it while configuring, so the copy is written here), and the jar gets the same (processResources).
+val accessWidenerSource = rootProject.file("src/main/resources/mobstacker.accesswidener")
+fun officialAccessWidener(text: String) = text.replaceFirst("accessWidener v2 named", "accessWidener v2 official")
+val accessWidener = if (!unobfuscated) accessWidenerSource else
+    layout.buildDirectory.file("mobstacker.accesswidener").get().asFile.also { copy ->
+        val text = officialAccessWidener(accessWidenerSource.readText())
+        if (!copy.isFile || copy.readText() != text) {
+            copy.parentFile.mkdirs()
+            copy.writeText(text)
+        }
+    }
+
 loom {
-    accessWidenerPath = rootProject.file("src/main/resources/mobstacker.accesswidener")
+    accessWidenerPath = accessWidener
 
     if (loader == "forge") {
         forge {
@@ -91,6 +111,9 @@ tasks.processResources {
     }
     from(vanillaKeys) {
         rename { "mobstacker_vanilla_keys.txt" }
+    }
+    if (unobfuscated) {
+        filesMatching("mobstacker.accesswidener") { filter { line -> officialAccessWidener(line) } }
     }
     filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
         expand(metadata)
@@ -157,7 +180,7 @@ if (loader == "fabric") {
     tasks.register<net.fabricmc.loom.task.prod.ServerProductionRunTask>("prodServer") {
         group = "verification"
         val otherJar = providers.gradleProperty("prodJar").orNull
-        if (otherJar != null) mods.from(otherJar) else mods.from(tasks.named("remapJar"))
+        if (otherJar != null) mods.from(otherJar) else mods.from(tasks.named(modJar))
         mods.from(fabricApi)
         minecraftVersion = minecraft
         loaderVersion = fabricLoader
@@ -170,7 +193,7 @@ if (loader == "fabric") {
 // `./gradlew buildAndCollect`: every node's jar in build/libs/<mod_version>/ at the root.
 tasks.register<Copy>("buildAndCollect") {
     group = "build"
-    from(tasks.named("remapJar"))
+    from(tasks.named(modJar))
     into(rootProject.layout.buildDirectory.dir("libs/${project.version}"))
     dependsOn("build")
 }

@@ -16,7 +16,8 @@ import java.util.zip.ZipFile;
 /**
  * Lists every NBT key vanilla reads or writes on an entity, for strict data matching (MobData): every
  * string constant in a method of a {@code net/minecraft/world/entity/**} class that takes or returns a
- * {@code CompoundTag} (lambdas included - they take the tag they write into).
+ * {@code CompoundTag}, or from 1.21.6 the {@code ValueInput}/{@code ValueOutput} an entity is saved
+ * through (lambdas included - they take the tag they write into).
  *
  * <p>Run once per Minecraft version, on the <b>vanilla</b> jar (not Forge's or NeoForge's patched one:
  * their own data, ForgeData and the like, is exactly what strict matching compares), and the output
@@ -38,7 +39,9 @@ public final class VanillaKeys {
                     new ClassReader(in.readAllBytes()).accept(node, ClassReader.SKIP_FRAMES);
                 }
                 for (MethodNode method : node.methods) {
-                    if (!method.desc.contains("Lnet/minecraft/nbt/CompoundTag;")) {
+                    if (!method.desc.contains("Lnet/minecraft/nbt/CompoundTag;")
+                            && !method.desc.contains("Lnet/minecraft/world/level/storage/ValueInput")
+                            && !method.desc.contains("Lnet/minecraft/world/level/storage/ValueOutput")) {
                         continue;
                     }
                     for (AbstractInsnNode insn : method.instructions) {

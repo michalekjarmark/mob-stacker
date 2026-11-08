@@ -74,6 +74,17 @@ boxes). A mixin whose target is gone from a version on goes into `mixinsBefore` 
 5. `./gradlew :<node>:prodServer -PstrictMixins` (Fabric): a real server; strict, an injector that
    finds nothing fails at once instead of silently doing nothing. Then the self-test over RCON.
 
+## Unobfuscated versions (26.1 and newer)
+
+From 26.1 Minecraft ships with Mojang's own names, so nothing is remapped. `stonecutter.gradle.kts`
+applies Architectury Loom's `dev.architectury.loom-no-remap` to those nodes (it only marks the project
+and applies Loom, and has to come before it); `build.gradle.kts` (`unobfuscated`) then adds no
+mappings, puts Fabric Loader and Fabric API on `implementation` instead of `modImplementation`, and
+takes the jar from `jar` instead of `remapJar`. The access widener is written in Mojang's names, which
+are the `named` namespace on obfuscated versions and `official` from 26.1: Loom and the jar get a copy
+with that header. Java 25. Entities save through `ValueInput`/`ValueOutput` from 1.21.6, which
+`tools/VanillaKeys.java` reads as well as `CompoundTag`.
+
 ## Testing a jar on a real server (Fabric)
 
 `./gradlew :<node>:prodServer` installs a Fabric server with the built jar (remapped, as players get
