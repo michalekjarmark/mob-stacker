@@ -7,6 +7,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 via the `mod_version` in `gradle.properties`. This is an independently-developed fork of
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
+## [Unreleased]
+### Changed
+- **Internal: one source tree for every Minecraft version.** The build moved from three Gradle
+  modules (`common/`, `fabric/`, `forge/`) to [Stonecutter](https://stonecutter.kikugie.dev/): the
+  sources are in `src/main`, and every Minecraft version and loader is a node in `versions/` (see
+  `versions/README.md`). Gradle 9.9 on JDK 25, Architectury Loom 1.17. The 1.20.1 jars have the same
+  classes as 1.12.0's (compared class by class) and pass the self-test; they no longer carry a mixin
+  refmap, because Loom now writes the remapped names into the mixins themselves. Nothing changes in
+  game.
+
 ## [1.12.0] - 2026-11-07
 ### Added
 - **Mobs that should stay single now do, without any setting** (stacks that already exist are left
