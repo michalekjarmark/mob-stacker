@@ -1,0 +1,21 @@
+# The self-test, stacking and damage overflow. Run it on the old and the new jar and compare.
+# Mobs are summoned in a force-loaded chunk away from spawn: with no player online, entities in the
+# spawn chunks stop ticking after 15 seconds, and nothing merges there on its own.
+mobstacker selftest
+mobstacker set stackMode everywhere
+forceload add 200 200
+kill @e[type=cow,x=200,y=100,z=200,distance=..16]
+kill @e[type=zombie,x=200,y=100,z=200,distance=..16]
+summon cow 200 100 200 {NoGravity:1b}
+summon cow 200 100 200 {NoGravity:1b}
+summon cow 200 100 200 {NoGravity:1b}
+summon cow 200 100 200 {NoGravity:1b}
+summon cow 200 100 200 {NoGravity:1b}
+summon zombie 205 100 200 {NoAI:1b,NoGravity:1b}
+sleep 3
+# Expected: 5 cows in 1 stack (x5).
+execute positioned 200 100 200 run mobstacker stats 8
+# 25 damage to cows of 10 HP with damageOverflow on: two die, the stack is x3.
+damage @e[type=cow,limit=1,x=200,y=100,z=200,distance=..3] 25 minecraft:mob_attack by @e[type=zombie,limit=1,x=205,y=100,z=200,distance=..2]
+sleep 3
+execute positioned 200 100 200 run mobstacker stats 8
