@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * The one place that answers "is this kind of mob allowed to stack here".
@@ -47,7 +48,7 @@ public final class MobLists {
      */
     private static final Map<String, TagKey<EntityType<?>>> TAGS = new ConcurrentHashMap<>();
     private static final TagKey<EntityType<?>> NO_TAG =
-            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation("mobstacker", "not_a_tag"));
+            TagKey.create(Registries.ENTITY_TYPE, Compat.id("mobstacker", "not_a_tag"));
 
     /**
      * Anything that carries the four lists: the global config, and each region.

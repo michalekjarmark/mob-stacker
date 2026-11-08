@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * Shearing a stack of snow golems with {@code stackedHarvest} on takes every golem's pumpkin, the way
@@ -24,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(SnowGolem.class)
 public class SnowGolemMixin {
 
-    @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
+    @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = Compat.HURT_AND_BREAK, shift = At.Shift.AFTER))
     private void mobstacker$onShearAllGolems(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         SnowGolem self = (SnowGolem) (Object) this;
         ItemStack itemStack = player.getItemInHand(interactionHand);
@@ -33,7 +34,7 @@ public class SnowGolemMixin {
         ((StackShearable) self).mobstacker$shearMembers(SoundSource.PLAYERS, extra);
         if (!self.level().isClientSide) {
             for (int i = 0; i < extra; i++) {
-                itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));
+                Compat.hurtItem(itemStack, 1, player, mobstacker$getSlotForHand(interactionHand));
             }
         }
     }

@@ -8,7 +8,17 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 [MobStacker](https://github.com/frikinjay/mob-stacker) by frikinjay, under LGPL v3.
 
 ## [Unreleased]
+### Added
+- **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
+  on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
+  overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.
+
 ### Changed
+- **A stack keeps the gear in the body slot too** (from 1.20.5: horse and wolf armour): drop chances
+  are read and set through vanilla's own methods instead of its hand and armour arrays.
+- **Sweeping Edge on 1.21 reads the attacker's `sweeping_damage_ratio` attribute**, which is what the
+  enchantment became there, so a weapon from another mod that sweeps counts as well. 1.20.1 keeps the
+  enchantment's level / (level + 1).
 - **Internal: one source tree for every Minecraft version.** The build moved from three Gradle
   modules (`common/`, `fabric/`, `forge/`) to [Stonecutter](https://stonecutter.kikugie.dev/): the
   sources are in `src/main`, and every Minecraft version and loader is a node in `versions/` (see

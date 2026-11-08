@@ -6,7 +6,11 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
+//? if >=1.20.2 {
+/*import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
+*///?} else {
 import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
+//?}
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
@@ -24,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * A stack's label - "Cow x12" - since 1.12.0 (ROADMAP #46 + #56): <b>never stored on the mob</b>, and
@@ -45,7 +50,7 @@ import java.util.function.Consumer;
  */
 public final class StackLabels {
     /** S2C: one mob's label for a game that draws its own: id, count (0 = none), format, colour, always. */
-    public static final ResourceLocation CHANNEL = new ResourceLocation(MobStacker.MOD_ID, "stack_label");
+    public static final ResourceLocation CHANNEL = Compat.id(MobStacker.MOD_ID, "stack_label");
 
     /** How long after joining a game may still say it speaks the label channel; after that it does not. */
     private static final int JOIN_WATCH = 200;
@@ -114,12 +119,20 @@ public final class StackLabels {
         buf.writeUtf(MobStacker.getStackLabelFormat(mob));
         buf.writeVarInt(MobStacker.stackNameColor(mob, count).getId());
         buf.writeBoolean(MobStacker.getAlwaysShowStackLabels(mob));
+        //? if >=1.20.5 {
+        /*// A custom payload is a packet every protocol phase shares; in the play phase it is a game packet.
+        @SuppressWarnings("unchecked")
+        Packet<ClientGamePacketListener> packet = (Packet<ClientGamePacketListener>) (Packet<?>)
+                new ClientboundCustomPayloadPacket(com.frikinjay.mobstacker.network.RawPayload.of(CHANNEL, buf));
+        return packet;
+        *///?} else {
         return new ClientboundCustomPayloadPacket(CHANNEL, buf);
+        //?}
     }
 
     private static boolean carriesName(ClientboundSetEntityDataPacket packet) {
-        int name = EntityAccessor.mobstacker$customNameData().getId();
-        int visible = EntityAccessor.mobstacker$customNameVisibleData().getId();
+        int name = Compat.dataId(EntityAccessor.mobstacker$customNameData());
+        int visible = Compat.dataId(EntityAccessor.mobstacker$customNameVisibleData());
         for (SynchedEntityData.DataValue<?> value : packet.packedItems()) {
             if (value.id() == name || value.id() == visible) {
                 return true;

@@ -19,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import com.frikinjay.mobstacker.compat.Compat;
 
 @Mixin(Player.class)
 public class PlayerMixin {
@@ -88,10 +89,10 @@ public class PlayerMixin {
         ResourceLocation separatorResourceLocation;
 
         if (parts.length == 2) {
-            separatorResourceLocation = new ResourceLocation(parts[0], parts[1]);
+            separatorResourceLocation = Compat.id(parts[0], parts[1]);
         } else {
             // Fallback to "minecraft" namespace if no colon is present
-            separatorResourceLocation = new ResourceLocation("minecraft", separatorItemId);
+            separatorResourceLocation = Compat.id("minecraft", separatorItemId);
         }
         return separatorResourceLocation;
     }

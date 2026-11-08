@@ -36,6 +36,7 @@ import java.util.Map;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * The commands that look at and act on the stacks standing in the world, rather than on the config:
@@ -570,17 +571,17 @@ public final class StackToolsCommands {
         EntityType<?> type = stack.getType();
         double width = Math.max(0.6, stack.getBbWidth());
         double spread = Math.min(8.0, Math.max(1.5, width * Math.sqrt(MobStacker.getStackSize(stack)) * 0.6));
-        boolean grounded = !level.noCollision(type.getAABB(base.x, base.y - 0.5, base.z));
+        boolean grounded = !level.noCollision(Compat.spawnBox(type, base.x, base.y - 0.5, base.z));
         boolean wet = !level.getFluidState(stack.blockPosition()).isEmpty();
         Vec3 from = base.add(0.0, Math.min(0.5, stack.getBbHeight() * 0.5), 0.0);
         for (int attempt = 0; attempt < 12; attempt++) {
             double angle = stack.getRandom().nextDouble() * Math.PI * 2.0;
             double distance = Math.sqrt(stack.getRandom().nextDouble()) * spread;
             Vec3 spot = new Vec3(base.x + Math.cos(angle) * distance, base.y, base.z + Math.sin(angle) * distance);
-            if (!level.noCollision(type.getAABB(spot.x, spot.y, spot.z))) {
+            if (!level.noCollision(Compat.spawnBox(type, spot.x, spot.y, spot.z))) {
                 continue;
             }
-            if (grounded && level.noCollision(type.getAABB(spot.x, spot.y - 0.5, spot.z))) {
+            if (grounded && level.noCollision(Compat.spawnBox(type, spot.x, spot.y - 0.5, spot.z))) {
                 continue; // nothing to stand on: an edge, a hole, a ledge
             }
             if (wet != !level.getFluidState(BlockPos.containing(spot)).isEmpty()) {

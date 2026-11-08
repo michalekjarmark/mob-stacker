@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * A dispenser's shears treat a stack the way a player's do.
@@ -58,7 +59,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
 
     /** One point of wear per member sheared, as a player's shears take, on top of vanilla's one. */
     @ModifyArg(method = "execute", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/item/ItemStack;hurt(ILnet/minecraft/util/RandomSource;Lnet/minecraft/server/level/ServerPlayer;)Z"),
+            target = Compat.DISPENSER_SHEARS_WEAR),
             index = 0)
     private int mobstacker$wearForEveryMember(int amount) {
         int extra = mobstacker$membersShorn;

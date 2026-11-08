@@ -14,8 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.Enchantments;
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -29,8 +28,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin extends Entity {
 
+    //? if >=1.21 {
+    /*@Shadow
+    protected abstract void dropAllDeathLoot(net.minecraft.server.level.ServerLevel level, DamageSource damageSource);
+
+    /^* One more mob's death loot, as {@code die} drops it. ^/
+    @Unique
+    private void mobstacker$dropLoot(DamageSource damageSource) {
+        dropAllDeathLoot((net.minecraft.server.level.ServerLevel) level(), damageSource);
+    }
+    *///?} else {
     @Shadow
     protected abstract void dropAllDeathLoot(DamageSource damageSource);
+
+    /** One more mob's death loot, as {@code die} drops it. */
+    @Unique
+    private void mobstacker$dropLoot(DamageSource damageSource) {
+        dropAllDeathLoot(damageSource);
+    }
+    //?}
 
     @Shadow
     protected boolean dead;
@@ -210,7 +226,7 @@ public abstract class LivingEntityMixin extends Entity {
         }
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = Compat.DROP_ALL_DEATH_LOOT, shift = At.Shift.AFTER))
     private void mobstacker$onDieAllDropLoot(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
@@ -219,13 +235,13 @@ public abstract class LivingEntityMixin extends Entity {
             for (int i = 1; i < stackSize; i++) {
                 if(!mobstacker$self.level().isClientSide()) {
                     mobstacker$wearNextMemberGear(mobstacker$self);
-                    dropAllDeathLoot(damageSource);
+                    mobstacker$dropLoot(damageSource);
                 }
             }
         }
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = Compat.DROP_ALL_DEATH_LOOT, shift = At.Shift.AFTER))
     private void mobstacker$onDieAllCreateWRose(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
@@ -282,15 +298,14 @@ public abstract class LivingEntityMixin extends Entity {
         if (!(damageSource.getEntity() instanceof LivingEntity attacker)) {
             return amount;
         }
-        int level = EnchantmentHelper.getEnchantmentLevel(Enchantments.SWEEPING_EDGE, attacker);
-        if (level <= 0) {
+        float ratio = Compat.sweepingRatio(attacker);
+        if (ratio <= 0.0F) {
             return amount;
         }
         if (MobStacker.getSweepingEdgeVanillaConditions(mob) && !MobStacker.hadVanillaSweepConditions(attacker)) {
             return amount;
         }
-        // Vanilla: sweepDamage = 1.0 + (level / (level + 1)) * attackDamage.
-        float ratio = (float) level / (level + 1);
+        // Vanilla: sweepDamage = 1.0 + ratio * attackDamage.
         float sweepDamage = 1.0F + ratio * amount;
         if (!MobStacker.getSweepingEdgePerMob(mob)) {
             return amount + sweepDamage;
@@ -436,7 +451,7 @@ public abstract class LivingEntityMixin extends Entity {
         instance.setHealth(newHealth); // let the top mob die normally
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = Compat.DROP_ALL_DEATH_LOOT, shift = At.Shift.AFTER))
     private void mobstacker$overflowDeathLoot(DamageSource damageSource, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (self.level().isClientSide() || !(self instanceof Mob mob)) {
@@ -453,7 +468,7 @@ public abstract class LivingEntityMixin extends Entity {
         LivingEntity killCredit = mob.getKillCredit();
         for (int i = 0; i < extraKilled; i++) {
             mobstacker$wearNextMemberGear(mob);
-            dropAllDeathLoot(damageSource);
+            mobstacker$dropLoot(damageSource);
             if (mob.deathScore >= 0 && killCredit != null) {
                 killCredit.awardKillScore(mob, mob.deathScore, damageSource);
             }

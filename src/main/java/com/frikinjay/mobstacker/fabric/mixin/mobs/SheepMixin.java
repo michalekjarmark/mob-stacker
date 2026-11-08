@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * When a player's shears harvest the members of a stack on Fabric, where shearing is vanilla's
@@ -20,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(Sheep.class)
 public class SheepMixin {
-    @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V", shift = At.Shift.AFTER))
+    @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = Compat.HURT_AND_BREAK, shift = At.Shift.AFTER))
     private void mobstacker$onShearAllSheep(Player player, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         Sheep self = (Sheep) (Object) this;
         ItemStack itemStack = player.getItemInHand(interactionHand);
@@ -30,7 +31,7 @@ public class SheepMixin {
         ((StackShearable) self).mobstacker$shearMembers(SoundSource.PLAYERS, extra);
         if (!self.level().isClientSide) {
             for (int i = 0; i < extra; i++) {
-                itemStack.hurtAndBreak(1, player, entity -> entity.broadcastBreakEvent(mobstacker$getSlotForHand(interactionHand)));
+                Compat.hurtItem(itemStack, 1, player, mobstacker$getSlotForHand(interactionHand));
             }
         }
     }

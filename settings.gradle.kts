@@ -24,6 +24,7 @@ stonecutter {
             loaders.forEach { version("$minecraft-$it", minecraft) }
 
         mc("1.20.1", "fabric", "forge")
+        mc("1.21.1", "fabric")
 
         // The version the sources are committed in. Switch back to it before every commit.
         vcsVersion = "1.20.1-fabric"

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import com.frikinjay.mobstacker.compat.Compat;
 
 /**
  * Server side of the config-sync protocol used by the in-game GUI to edit a dedicated (or LAN)
@@ -38,11 +39,11 @@ import java.util.UUID;
  */
 public final class MobStackerNetworking {
     /** C2S: client asks for a full snapshot of the server's live config (sent when the GUI opens). */
-    public static final ResourceLocation REQUEST = new ResourceLocation(MobStacker.MOD_ID, "cfg_request");
+    public static final ResourceLocation REQUEST = Compat.id(MobStacker.MOD_ID, "cfg_request");
     /** C2S: client asks to change one setting ({@code String id}, {@code String rawValue}). */
-    public static final ResourceLocation EDIT = new ResourceLocation(MobStacker.MOD_ID, "cfg_edit");
+    public static final ResourceLocation EDIT = Compat.id(MobStacker.MOD_ID, "cfg_edit");
     /** S2C: full snapshot of every setting's current value, plus an authorization flag and a status line. */
-    public static final ResourceLocation SYNC = new ResourceLocation(MobStacker.MOD_ID, "cfg_sync");
+    public static final ResourceLocation SYNC = Compat.id(MobStacker.MOD_ID, "cfg_sync");
 
     /**
      * Prefix that turns an edit into a per-region override: {@code region:<name>:<setting>}. Reusing

@@ -15,6 +15,10 @@ public abstract class TurtleMixin {
     @Inject(method = "ageBoundaryReached", at = @At(value = "INVOKE", shift = At.Shift.AFTER,
             target = "Lnet/minecraft/world/entity/animal/Turtle;spawnAtLocation(Lnet/minecraft/world/level/ItemLike;I)Lnet/minecraft/world/entity/item/ItemEntity;"))
     private void mobstacker$scuteForEveryMember(CallbackInfo ci) {
+        //? if >=1.20.5 {
+        /*MobStacker.dropGiftForMembers((Turtle) (Object) this, Items.TURTLE_SCUTE, 1);
+        *///?} else {
         MobStacker.dropGiftForMembers((Turtle) (Object) this, Items.SCUTE, 1);
+        //?}
     }
 }

@@ -189,7 +189,11 @@ public abstract class MobMixin extends LivingEntity {
      */
     @Inject(method = "finalizeSpawn", at = @At("HEAD"))
     private void mobstacker$recordOrigin(ServerLevelAccessor level, DifficultyInstance difficulty, MobSpawnType reason,
+                                         //? if >=1.20.5 {
+                                         /*SpawnGroupData spawnData,
+                                         *///?} else {
                                          SpawnGroupData spawnData, CompoundTag entityTag,
+                                         //?}
                                          CallbackInfoReturnable<SpawnGroupData> cir) {
         MobStacker.recordOrigin((Mob) (Object) this, reason);
     }

@@ -31,8 +31,13 @@ public abstract class EntityRendererMixin<T extends Entity> {
     @Shadow
     protected abstract boolean shouldShowName(T entity);
 
+    //? if >=1.20.5 {
+    /*@Shadow
+    protected abstract void renderNameTag(T entity, Component name, PoseStack pose, MultiBufferSource buffers, int light, float partialTick);
+    *///?} else {
     @Shadow
     protected abstract void renderNameTag(T entity, Component name, PoseStack pose, MultiBufferSource buffers, int light);
+    //?}
 
     /**
      * At every return, not the last one: vanilla's {@code render} is {@code if (!shouldShowName)
@@ -50,7 +55,11 @@ public abstract class EntityRendererMixin<T extends Entity> {
         if (shouldShowName(entity)) {
             pose.translate(0.0F, MOBSTACKER$LINE, 0.0F);
         }
+        //? if >=1.20.5 {
+        /*renderNameTag(entity, label, pose, buffers, light, partialTick);
+        *///?} else {
         renderNameTag(entity, label, pose, buffers, light);
+        //?}
         pose.popPose();
     }
 }

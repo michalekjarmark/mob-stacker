@@ -486,7 +486,7 @@ public final class ConfigSelfTest {
         net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket sent =
                 com.frikinjay.mobstacker.StackLabels.withLabelInName(cow,
                         new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(cow.getId(), List.of()));
-        int nameId = com.frikinjay.mobstacker.mixin.EntityAccessor.mobstacker$customNameData().getId();
+        int nameId = com.frikinjay.mobstacker.compat.Compat.dataId(com.frikinjay.mobstacker.mixin.EntityAccessor.mobstacker$customNameData());
         String shown = sent.packedItems().stream().filter(value -> value.id() == nameId)
                 .map(value -> ((java.util.Optional<net.minecraft.network.chat.Component>) value.value())
                         .map(net.minecraft.network.chat.Component::getString).orElse(""))
@@ -504,11 +504,12 @@ public final class ConfigSelfTest {
     private static void testRound12(Report report, CommandSourceStack source) {
         // A chat panel's mark comes through the wire (JSON) and adds no text.
         Component start = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal("Regions:"), "regions", true);
-        Component sent = Component.Serializer.fromJson(Component.Serializer.toJson(start));
+        Component sent = com.frikinjay.mobstacker.compat.Compat.fromJson(
+                com.frikinjay.mobstacker.compat.Compat.toJson(start, net.minecraft.core.RegistryAccess.EMPTY), net.minecraft.core.RegistryAccess.EMPTY);
         check(report, com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(sent)
                         && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(sent))
                         && "Regions:".equals(sent.getString()),
-                "a chat panel's first line lost its mark on the way, or shows it: " + Component.Serializer.toJson(start));
+                "a chat panel's first line lost its mark on the way, or shows it: " + com.frikinjay.mobstacker.compat.Compat.toJson(start, net.minecraft.core.RegistryAccess.EMPTY));
         Component next = com.frikinjay.mobstacker.command.CommandFeedback.mark(Component.literal(" - farm"), "regions", false);
         check(report, !com.frikinjay.mobstacker.command.CommandFeedback.startsPanel(next)
                         && "regions".equals(com.frikinjay.mobstacker.command.CommandFeedback.panelOf(next))
@@ -619,8 +620,13 @@ public final class ConfigSelfTest {
         }
         // What a stack has and every member has with it...
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR).addPermanentModifier(
+                //? if >=1.20.5 {
+                /*new net.minecraft.world.entity.ai.attributes.AttributeModifier(com.frikinjay.mobstacker.compat.Compat.id("mobstacker", "selftest_bonus"), 3.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
+                *///?} else {
                 new net.minecraft.world.entity.ai.attributes.AttributeModifier("selftest bonus", 3.0,
                         net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+                //?}
         zombie.addTag("selftest_member");
         zombie.setRemainingFireTicks(100);
         zombie.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 600));
@@ -629,8 +635,13 @@ public final class ConfigSelfTest {
         zombie.setCustomName(net.minecraft.network.chat.Component.literal("Zed"));
         // ...and what is the top zombie's own.
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).addPermanentModifier(
-                new net.minecraft.world.entity.ai.attributes.AttributeModifier("Leader zombie bonus", 2.0,
+                //? if >=1.20.5 {
+                /*new net.minecraft.world.entity.ai.attributes.AttributeModifier(net.minecraft.resources.ResourceLocation.parse(com.frikinjay.mobstacker.compat.Compat.LEADER_ZOMBIE_BONUS), 2.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                *///?} else {
+                new net.minecraft.world.entity.ai.attributes.AttributeModifier(com.frikinjay.mobstacker.compat.Compat.LEADER_ZOMBIE_BONUS, 2.0,
                         net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+                //?}
         zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD));
         zombie.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
         MobStacker.setStackSize(zombie, 5);
@@ -715,7 +726,11 @@ public final class ConfigSelfTest {
         }
         net.minecraft.world.entity.animal.Pig pig = EntityType.PIG.create(level);
         if (pig != null) {
+            //? if >=1.20.5 {
+            /*pig.equipSaddle(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE), null);
+            *///?} else {
             pig.equipSaddle(null);
+            //?}
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(pig, level, false);
             check(report, copy instanceof net.minecraft.world.entity.animal.Pig bare && !bare.isSaddled(),
                     "a member of a pig stack got a copy of the top one's saddle");
@@ -753,7 +768,11 @@ public final class ConfigSelfTest {
         if (rideable != null) {
             net.minecraft.world.item.ItemStack saddle = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE);
             check(report, MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a stacked pig does not hand one pig over");
+            //? if >=1.20.5 {
+            /*rideable.equipSaddle(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE), null);
+            *///?} else {
             rideable.equipSaddle(null);
+            //?}
             check(report, !MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a pig that has one still counts as saddling");
         }
         // #57: what a mob merged away picked up is found by its drop chance; what it spawned with stays.
@@ -761,7 +780,12 @@ public final class ConfigSelfTest {
         if (picker != null) {
             // Cursed with vanishing, so the check leaves no sword lying in the world.
             net.minecraft.world.item.ItemStack sword = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD);
+            //? if >=1.21 {
+            /*sword.enchant(level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT)
+                    .getHolderOrThrow(net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE), 1);
+            *///?} else {
             sword.enchant(net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE, 1);
+            //?}
             picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, sword);
             picker.setGuaranteedDrop(net.minecraft.world.entity.EquipmentSlot.MAINHAND);
             picker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HELMET));

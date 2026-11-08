@@ -48,9 +48,19 @@ public abstract class LevelRendererMixin {
 
     @Inject(method = "renderLevel", require = 0, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/LevelRenderer;renderDebug(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;Lnet/minecraft/client/Camera;)V"))
+    //? if >=1.21 {
+    /*private void mobstacker$drawRegions(net.minecraft.client.DeltaTracker deltaTracker, boolean renderBlockOutline,
+                                        Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
+                                        Matrix4f frustumMatrix, Matrix4f projectionMatrix, CallbackInfo ci) {
+        // renderLevel has no pose stack to hand out any more: the camera's rotation is on the model-view
+        // matrix, which is still pushed here, and vanilla's debug renderer draws from a fresh stack.
+        MobStackerRegionOverlay.render(new PoseStack(), camera);
+    }
+    *///?} else {
     private void mobstacker$drawRegions(PoseStack poseStack, float partialTick, long finishNanoTime,
                                         boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
                                         LightTexture lightTexture, Matrix4f projectionMatrix, CallbackInfo ci) {
         MobStackerRegionOverlay.render(poseStack, camera);
     }
+    //?}
 }

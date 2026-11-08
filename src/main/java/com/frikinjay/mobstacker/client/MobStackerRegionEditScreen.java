@@ -35,7 +35,7 @@ import java.util.List;
  * The screen only ever checks the shape of what you typed; whether the edit is allowed is decided by
  * the server, exactly as it is for every other value in the GUI.
  */
-public final class MobStackerRegionEditScreen extends Screen {
+public final class MobStackerRegionEditScreen extends CompatScreen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
     /** A biome entry that is well-formed but names nothing this game knows: kept, and likely a typo. */
@@ -488,7 +488,7 @@ public final class MobStackerRegionEditScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics);
+        drawBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 

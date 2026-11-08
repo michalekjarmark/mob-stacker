@@ -97,6 +97,7 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import com.frikinjay.mobstacker.compat.Compat;
 
 public final class MobStacker {
     public static final String MOD_ID = "mobstacker";
@@ -177,13 +178,13 @@ public final class MobStacker {
      * new jar; see data/mobstacker/tags/entity_types/unstackable.json.
      */
     public static final TagKey<EntityType<?>> UNSTACKABLE_TAG =
-            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "unstackable"));
+            TagKey.create(Registries.ENTITY_TYPE, Compat.id(MOD_ID, "unstackable"));
     /**
      * Bosses, which stack only while {@code stackBosses} is on. Also pulls in the loaders' own
      * {@code #c:bosses} (Fabric) and {@code #forge:bosses} when they exist.
      */
     public static final TagKey<EntityType<?>> BOSSES_TAG =
-            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(MOD_ID, "bosses"));
+            TagKey.create(Registries.ENTITY_TYPE, Compat.id(MOD_ID, "bosses"));
     /**
      * A kind's base max health as registered, per type. Read off the type and not the mob, because
      * stackHealth raises a stack's own max health with every member: twenty cows would read as a
@@ -475,7 +476,7 @@ public final class MobStacker {
         // Temper is taming progress, and it is per horse: a half-tamed horse that merges back into
         // the herd takes every attempt spent on it with it, and the next one out starts at zero.
         if (entity instanceof AbstractHorse horse
-                && (horse.isTamed() || horse.isWearingArmor() || horse.getTemper() > 0)) {
+                && (horse.isTamed() || Compat.wearsArmor(horse) || horse.getTemper() > 0)) {
             return true;
         }
         if (entity instanceof AbstractChestedHorse chested && chested.hasChest()) {
@@ -780,7 +781,7 @@ public final class MobStacker {
      * calls in reinforcements. The members' own rolls were never kept, and nearly all of them were
      * plain zombies.
      */
-    private static final Set<String> TOP_ONLY_MODIFIERS = Set.of("Leader zombie bonus");
+    private static final Set<String> TOP_ONLY_MODIFIERS = Set.of(Compat.LEADER_ZOMBIE_BONUS);
 
     /** What a slot's drop chance is on a mob that never picked anything up. */
     private static final float NATURAL_DROP_CHANCE = 0.085F;
@@ -817,10 +818,10 @@ public final class MobStacker {
             data.remove("CustomName");
             data.remove("CustomNameVisible");
         }
-        ListTag attributes = data.getList("Attributes", Tag.TAG_COMPOUND);
+        ListTag attributes = data.getList(Compat.ATTRIBUTES_KEY, Tag.TAG_COMPOUND);
         for (int i = 0; i < attributes.size(); i++) {
-            attributes.getCompound(i).getList("Modifiers", Tag.TAG_COMPOUND).removeIf(modifier ->
-                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(tag.getString("Name")));
+            attributes.getCompound(i).getList(Compat.MODIFIERS_KEY, Tag.TAG_COMPOUND).removeIf(modifier ->
+                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(tag.getString(Compat.MODIFIER_ID_KEY)));
         }
         try {
             member.load(data);
@@ -973,7 +974,11 @@ public final class MobStacker {
             return !cat.isTame() && cat.isFood(held);
         }
         if (mob instanceof Parrot parrot) {
+            //? if >=1.20.5 {
+            /*return !parrot.isTame() && held.is(net.minecraft.tags.ItemTags.PARROT_FOOD);
+            *///?} else {
             return !parrot.isTame() && ParrotAccessor.mobstacker$tameFood().contains(held.getItem());
+            //?}
         }
         return false;
     }
@@ -1561,7 +1566,7 @@ public final class MobStacker {
             if (stack.isEmpty() || dropChance(mob, slot) <= 1.0F) {
                 continue;
             }
-            if (!EnchantmentHelper.hasVanishingCurse(stack)) {
+            if (!Compat.vanishes(stack)) {
                 mob.spawnAtLocation(stack);
             }
             mob.setItemSlot(slot, ItemStack.EMPTY);
@@ -1593,7 +1598,7 @@ public final class MobStacker {
             if (stack.isEmpty()) {
                 continue;
             }
-            loadout.put(slot.getName(), stack.save(new CompoundTag()));
+            loadout.put(slot.getName(), Compat.saveItem(stack, mob.level().registryAccess()));
             loadout.putFloat(slot.getName() + DROP_CHANCE_SUFFIX, dropChance(mob, slot));
         }
         return loadout;
@@ -1607,7 +1612,7 @@ public final class MobStacker {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             String key = slot.getName();
             boolean has = loadout != null && loadout.contains(key, 10);
-            mob.setItemSlot(slot, has ? ItemStack.of(loadout.getCompound(key)) : ItemStack.EMPTY);
+            mob.setItemSlot(slot, has ? Compat.loadItem(loadout.getCompound(key), mob.level().registryAccess()) : ItemStack.EMPTY);
             if (loadout != null && loadout.contains(key + DROP_CHANCE_SUFFIX)) {
                 setDropChance(mob, slot, loadout.getFloat(key + DROP_CHANCE_SUFFIX));
             }
@@ -1615,18 +1620,11 @@ public final class MobStacker {
     }
 
     private static float dropChance(Mob mob, EquipmentSlot slot) {
-        MobEquipmentAccessor chances = (MobEquipmentAccessor) mob;
-        return slot.getType() == EquipmentSlot.Type.ARMOR
-                ? chances.mobstacker$armorDropChances()[slot.getIndex()]
-                : chances.mobstacker$handDropChances()[slot.getIndex()];
+        return ((MobEquipmentAccessor) mob).mobstacker$dropChance(slot);
     }
 
     private static void setDropChance(Mob mob, EquipmentSlot slot, float chance) {
-        MobEquipmentAccessor chances = (MobEquipmentAccessor) mob;
-        float[] array = slot.getType() == EquipmentSlot.Type.ARMOR
-                ? chances.mobstacker$armorDropChances()
-                : chances.mobstacker$handDropChances();
-        array[slot.getIndex()] = chance;
+        mob.setDropChance(slot, chance);
     }
 
     /** The loadouts of the members below the top mob, oldest first. Never null. */
@@ -1716,7 +1714,7 @@ public final class MobStacker {
             // Naming a stack names the stack, so it stays a stack for good - down to its last mob.
             customData.putBoolean(NAMED_STACK_KEY, true);
         }
-        customData.putString(STACK_NAME_KEY, Component.Serializer.toJson(stripLiveCount(name, stackSize)));
+        customData.putString(STACK_NAME_KEY, Compat.toJson(stripLiveCount(name, stackSize), mob.level().registryAccess()));
         updateStackDisplay(mob);
     }
 
@@ -1846,7 +1844,7 @@ public final class MobStacker {
             return null;
         }
         try {
-            return Component.Serializer.fromJson(customData.getString(STACK_NAME_KEY));
+            return Compat.fromJson(customData.getString(STACK_NAME_KEY), mob.level().registryAccess());
         } catch (Exception e) {
             return null; // a name we can no longer read is no worse than no name at all
         }
@@ -2767,7 +2765,7 @@ public final class MobStacker {
         }
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = mob.getItemBySlot(slot);
-            if (!stack.isEmpty() && dropChance(mob, slot) > 1.0F && !EnchantmentHelper.hasVanishingCurse(stack)) {
+            if (!stack.isEmpty() && dropChance(mob, slot) > 1.0F && !Compat.vanishes(stack)) {
                 mob.spawnAtLocation(stack.copy());
                 mob.setItemSlot(slot, ItemStack.EMPTY);
             }
@@ -2778,8 +2776,8 @@ public final class MobStacker {
             for (EquipmentSlot slot : EquipmentSlot.values()) {
                 String key = slot.getName();
                 if (loadout.contains(key, Tag.TAG_COMPOUND) && loadout.getFloat(key + DROP_CHANCE_SUFFIX) > 1.0F) {
-                    ItemStack stack = ItemStack.of(loadout.getCompound(key));
-                    if (!stack.isEmpty() && !EnchantmentHelper.hasVanishingCurse(stack)) {
+                    ItemStack stack = Compat.loadItem(loadout.getCompound(key), mob.level().registryAccess());
+                    if (!stack.isEmpty() && !Compat.vanishes(stack)) {
                         mob.spawnAtLocation(stack);
                     }
                 }
@@ -2871,8 +2869,7 @@ public final class MobStacker {
             return;
         }
         long extra = (long) perHit * (members - 1);
-        weapon.hurtAndBreak((int) Math.min(extra, Integer.MAX_VALUE), attacker,
-                broken -> broken.broadcastBreakEvent(EquipmentSlot.MAINHAND));
+        Compat.hurtItem(weapon, (int) Math.min(extra, Integer.MAX_VALUE), attacker, EquipmentSlot.MAINHAND);
     }
 
     /**
@@ -2908,7 +2905,8 @@ public final class MobStacker {
         player.displayClientMessage(message, other == null);
         if (!player.getAbilities().instabuild && getConsumeAssimilator(mob)) {
             if (held.isDamageableItem()) {
-                held.hurtAndBreak(1, player, broken -> broken.broadcastBreakEvent(hand));
+                Compat.hurtItem(held, 1, player,
+                        hand == InteractionHand.MAIN_HAND ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND);
             } else {
                 held.shrink(1);
             }
@@ -3262,7 +3260,7 @@ public final class MobStacker {
             if (remaining <= 0) {
                 return;
             }
-            if (ItemStack.isSameItemSameTags(existing, incoming)) {
+            if (Compat.sameItemSameData(existing, incoming)) {
                 int space = existing.getMaxStackSize() - existing.getCount();
                 if (space > 0) {
                     int moved = Math.min(space, remaining);

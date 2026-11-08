@@ -152,15 +152,28 @@ public final class MobStackerRegionOverlay {
      * round 5-7 modpack that put the boxes under water and clouds whatever this code did, and before
      * that made them depend on the cloud setting. A buffer of our own is drawn exactly when and how
      * this class says. Grows as needed.
+     *
+     * <p>From 1.21 a vertex buffer is built once and drawn ({@link #draw}); what is kept is the memory
+     * under it.
      */
+    //? if >=1.21 {
+    /*private static final com.mojang.blaze3d.vertex.ByteBufferBuilder BYTES =
+            new com.mojang.blaze3d.vertex.ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+    *///?} else {
     private static final BufferBuilder BUILDER = new BufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+    //?}
 
     /**
      * Where the region names are drawn from, for the same reason as {@link #BUILDER}: text goes through
      * a buffer source, and the game's own is Iris's while the world is being drawn. Emptied at the end
      * of every frame's labels.
      */
+    //? if >=1.21 {
+    /*private static final MultiBufferSource.BufferSource LABELS =
+            MultiBufferSource.immediate(new com.mojang.blaze3d.vertex.ByteBufferBuilder(256));
+    *///?} else {
     private static final MultiBufferSource.BufferSource LABELS = MultiBufferSource.immediate(new BufferBuilder(256));
+    //?}
     /** Past this, a region's name is not drawn: it would be a speck, and there may be many. */
     private static final double LABEL_RANGE = 128.0;
 
@@ -420,7 +433,7 @@ public final class MobStackerRegionOverlay {
                         box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
                         rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
-            faceType.end(faces, RenderSystem.getVertexSorting());
+            draw(faceType, faces);
         }
 
         if (style == Style.WIREFRAME || style == Style.BOTH) {
@@ -432,7 +445,7 @@ public final class MobStackerRegionOverlay {
                 float[] rgb = rgbOf(view);
                 LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
-            edgeType.end(edges, RenderSystem.getVertexSorting());
+            draw(edgeType, edges);
         }
 
         if (preview != null) {
@@ -445,11 +458,11 @@ public final class MobStackerRegionOverlay {
                     preview.minX, preview.minY, preview.minZ,
                     preview.maxX, preview.maxY, preview.maxZ,
                     1.0F, 1.0F, 1.0F, FACE_ALPHA);
-            faceType.end(faces, RenderSystem.getVertexSorting());
+            draw(faceType, faces);
 
             BufferBuilder edges = begin(edgeType);
             LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
-            edgeType.end(edges, RenderSystem.getVertexSorting());
+            draw(edgeType, edges);
         }
 
         drawNames(pose, camera, regions, xray);
@@ -521,15 +534,35 @@ public final class MobStackerRegionOverlay {
     }
 
     /**
-     * Starts a batch of one type in {@link #BUILDER}; {@code type.end(...)} draws and empties it.
+     * Starts a batch of one type in the overlay's own buffer; {@link #draw} draws and empties it.
      * A batch left half-built by an exception in an earlier frame is thrown away first.
      */
     private static BufferBuilder begin(RenderType type) {
+        //? if >=1.21 {
+        /*BYTES.clear();
+        return new BufferBuilder(BYTES, type.mode(), type.format());
+        *///?} else {
         if (BUILDER.building()) {
             BUILDER.discard();
         }
         BUILDER.begin(type.mode(), type.format());
         return BUILDER;
+        //?}
+    }
+
+    /** Draws a batch {@link #begin} started, as the game's own buffer source would: sorted if the type asks. */
+    private static void draw(RenderType type, BufferBuilder builder) {
+        //? if >=1.21 {
+        /*com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
+        if (mesh != null) {
+            if (type.sortOnUpload()) {
+                mesh.sortQuads(BYTES, RenderSystem.getVertexSorting());
+            }
+            type.draw(mesh);
+        }
+        *///?} else {
+        type.end(builder, RenderSystem.getVertexSorting());
+        //?}
     }
 
     /**

@@ -49,6 +49,24 @@ the Gradle task `Set active project to <node>` (group `stonecutter`); it rewrite
 `src/`. **The sources are committed in the `vcsVersion` (`1.20.1-fabric`)**: run `Reset active
 project` before every commit, or the diff is full of flipped comments.
 
+Small renamed things (ids, item saving, text JSON, enchantments, mixin target descriptors) are said
+once in `compat/Compat.java`; screens extend `client/CompatScreen` (background, mouse wheel, text
+boxes). A mixin whose target is gone from a version on goes into `mixinsBefore` in
+`build.gradle.kts`, which leaves it out of that version's mixin config.
+
+## Adding a version
+
+1. `mc("<version>", "fabric", ...)` in `settings.gradle.kts`, and `versions/<node>/gradle.properties`
+   (copy the nearest one; `minecraft_range` in Fabric's syntax, `minecraft_range_maven` and
+   `forge_loader_range` for Forge/NeoForge, `pack_format`).
+2. `./gradlew :<node>:compileJava -PallErrors` lists every compile error at once.
+3. `./gradlew :<node>:checkMixins` checks every mixin against that version without running it
+   (`tools/MixinCheck.java`): target classes, `@Shadow`, `@Accessor`/`@Invoker`, injector methods,
+   handler arguments and return types, and that what each `@At` points at is in the method's bytecode.
+   Loom no longer checks any of this at compile time, and the game reports one mixin at a time.
+4. `./gradlew :<node>:prodServer -PstrictMixins` (Fabric): a real server; strict, an injector that
+   finds nothing fails at once instead of silently doing nothing. Then the self-test over RCON.
+
 ## Testing a jar on a real server (Fabric)
 
 `./gradlew :<node>:prodServer` installs a Fabric server with the built jar (remapped, as players get

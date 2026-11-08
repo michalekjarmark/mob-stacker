@@ -48,7 +48,7 @@ import java.util.function.Consumer;
  * and they are edited right there. Enter, or a click on a name, shows that setting on its own page
  * among its neighbours; Esc empties the box.
  */
-public final class MobStackerConfigScreen extends Screen {
+public final class MobStackerConfigScreen extends CompatScreen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
     private static final int MATCHED_TEXT = 0xFFFF55;
@@ -204,7 +204,7 @@ public final class MobStackerConfigScreen extends Screen {
         rebuildWidgets();
         if (searchFocused && searchBox != null) {
             setFocused(searchBox);
-            searchBox.moveCursorTo(Math.min(cursor, searchBox.getValue().length()));
+            cursorTo(searchBox, Math.min(cursor, searchBox.getValue().length()));
         }
     }
 
@@ -275,7 +275,7 @@ public final class MobStackerConfigScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         if (showRows && !categories.isEmpty() && delta != 0.0) {
             int maxOffset = maxScrollOffset();
             if (maxOffset > 0) {
@@ -287,7 +287,7 @@ public final class MobStackerConfigScreen extends Screen {
                 return true;
             }
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return superScroll(mouseX, mouseY, delta);
     }
 
     private int maxScrollOffset() {
@@ -531,7 +531,7 @@ public final class MobStackerConfigScreen extends Screen {
         if (searchBox != null) {
             if (keyCode == GLFW.GLFW_KEY_F && Screen.hasControlDown()) {
                 setFocused(searchBox);
-                searchBox.moveCursorToEnd();
+                cursorToEnd(searchBox);
                 return true;
             }
             if (this.getFocused() == searchBox) {
@@ -553,9 +553,9 @@ public final class MobStackerConfigScreen extends Screen {
     @Override
     public boolean charTyped(char typed, int modifiers) {
         if (searchBox != null && !(this.getFocused() instanceof EditBox) && !Character.isWhitespace(typed)
-                && net.minecraft.SharedConstants.isAllowedChatCharacter(typed)) {
+                && com.frikinjay.mobstacker.compat.Compat.isAllowedChatCharacter(typed)) {
             setFocused(searchBox);
-            searchBox.moveCursorToEnd();
+            cursorToEnd(searchBox);
             return searchBox.charTyped(typed, modifiers);
         }
         return super.charTyped(typed, modifiers);
@@ -578,7 +578,7 @@ public final class MobStackerConfigScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics);
+        drawBackground(guiGraphics, mouseX, mouseY, partialTick);
         renderHighlight(guiGraphics, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine.

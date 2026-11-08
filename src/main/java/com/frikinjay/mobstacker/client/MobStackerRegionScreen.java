@@ -39,7 +39,7 @@ import java.util.function.Consumer;
  * server's config directly, a remote server with the mod is edited over the config-sync channel (as
  * an operator; read-only otherwise), and anywhere else there is nothing to show.
  */
-public final class MobStackerRegionScreen extends Screen {
+public final class MobStackerRegionScreen extends CompatScreen {
     private static final int NORMAL_TEXT = 0xE0E0E0;
     private static final int ERROR_TEXT = 0xFF5555;
     private static final int ROW_HEIGHT = 24;
@@ -877,7 +877,7 @@ public final class MobStackerRegionScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         if (showRows && delta != 0.0) {
             int maxOffset = maxScrollOffset();
             if (maxOffset > 0) {
@@ -889,7 +889,7 @@ public final class MobStackerRegionScreen extends Screen {
                 return true;
             }
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return superScroll(mouseX, mouseY, delta);
     }
 
     private int maxScrollOffset() {
@@ -909,7 +909,7 @@ public final class MobStackerRegionScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics);
+        drawBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine - and
         // it has to come before them here, because the tooltip branches below return early.

@@ -149,8 +149,13 @@ public final class MobVariants {
     // over the top when the top one dies - gets back.
 
     /** Exactly the three {@code AbstractHorse.randomizeAttributes} rolls, and nothing else. */
+    //? if >=1.20.5 {
+    /*private static final List<net.minecraft.core.Holder<Attribute>> ROLLED_HORSE_ATTRIBUTES =
+            List.of(Attributes.MAX_HEALTH, Attributes.MOVEMENT_SPEED, Attributes.JUMP_STRENGTH);
+    *///?} else {
     private static final List<Attribute> ROLLED_HORSE_ATTRIBUTES =
             List.of(Attributes.MAX_HEALTH, Attributes.MOVEMENT_SPEED, Attributes.JUMP_STRENGTH);
+    //?}
 
     // --- Each member's own rolls ----------------------------------------------------------------
     // Until 1.9.1 a stack of horses had one set of numbers, the top horse's, and every horse that
@@ -168,7 +173,7 @@ public final class MobVariants {
             return null;
         }
         CompoundTag rolls = new CompoundTag();
-        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
+        for (var attribute : ROLLED_HORSE_ATTRIBUTES) {
             AttributeInstance instance = mob.getAttribute(attribute);
             if (instance != null) {
                 rolls.putDouble(attributeKey(attribute), instance.getBaseValue());
@@ -179,7 +184,7 @@ public final class MobVariants {
 
     /** Gives a horse a member's rolls back, at full health - a mob comes out of a stack whole. */
     private static void applyRolls(Mob mob, CompoundTag rolls) {
-        for (Attribute attribute : ROLLED_HORSE_ATTRIBUTES) {
+        for (var attribute : ROLLED_HORSE_ATTRIBUTES) {
             AttributeInstance instance = mob.getAttribute(attribute);
             String key = attributeKey(attribute);
             if (instance != null && rolls.contains(key)) {
@@ -189,9 +194,15 @@ public final class MobVariants {
         mob.setHealth(mob.getMaxHealth());
     }
 
+    //? if >=1.20.5 {
+    /*private static String attributeKey(net.minecraft.core.Holder<Attribute> attribute) {
+        return String.valueOf(BuiltInRegistries.ATTRIBUTE.getKey(attribute.value()));
+    }
+    *///?} else {
     private static String attributeKey(Attribute attribute) {
         return String.valueOf(BuiltInRegistries.ATTRIBUTE.getKey(attribute));
     }
+    //?}
 
     /** The rolls stored on a stack, exactly as stored. A copy; never null. */
     private static ListTag storedRolls(Mob mob) {

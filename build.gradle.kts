@@ -66,6 +66,11 @@ java {
 tasks.withType<JavaCompile>().configureEach {
     options.release = javaVersion
     options.encoding = "UTF-8"
+    // -PallErrors: every error at once, not the first hundred that stop at the first failing phase
+    // (handy when a new version is added).
+    if (project.hasProperty("allErrors")) {
+        options.compilerArgs.addAll(listOf("-Xmaxerrs", "5000", "-XDshould-stop.ifError=FLOW"))
+    }
 }
 
 // What the jar says it runs on comes from the node's gradle.properties: minecraft_range (Fabric's
@@ -79,10 +84,54 @@ tasks.processResources {
     filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
         expand(metadata)
     }
+    // Mixins whose target is gone from a version on: left out of the mixin config there (the class
+    // still compiles - an accessor is only an annotation - but Mixin would fail on the missing field).
+    val mixinsBefore = mapOf(
+        "ParrotAccessor" to "1.20.5", // Parrot.TAME_FOOD became the item tag #parrot_food
+    )
+    val droppedMixins = mixinsBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys
+    inputs.property("droppedMixins", droppedMixins.sorted().joinToString())
+    if (droppedMixins.isNotEmpty()) {
+        filesMatching("*.mixins.json") {
+            filter { line -> if (droppedMixins.any { line.trim().removeSuffix(",") == "\"$it\"" }) "" else line }
+        }
+    }
+    // -PstrictMixins: every injector must find its target (unless it says require = 0), so a target
+    // a new Minecraft version moved fails at once instead of silently doing nothing. For testing.
+    val strictMixins = project.hasProperty("strictMixins")
+    inputs.property("strictMixins", strictMixins)
+    if (strictMixins) {
+        filesMatching("*.mixins.json") {
+            filter { line -> line.replace("\"required\": true,", "\"required\": true, \"injectors\": { \"defaultRequire\": 1 },") }
+        }
+    }
     // 1.21 renamed the data pack folders to the singular (tags/entity_types -> tags/entity_type).
     if (stonecutter.current.parsed >= "1.21") {
         eachFile { path = path.replace("/tags/entity_types/", "/tags/entity_type/") }
     }
+}
+
+// `./gradlew :<node>:checkMixins`: every mixin against this node's Minecraft, without running it
+// (tools/MixinCheck.java): target classes, @Shadow, @Accessor/@Invoker, injector methods and what
+// their @At points at. Loom 1.17 has no annotation processor to say so at compile time.
+val mixinCheckAsm = configurations.detachedConfiguration(dependencies.create("org.ow2.asm:asm-tree:9.8"))
+tasks.register<JavaExec>("checkMixins") {
+    group = "verification"
+    dependsOn("classes")
+    val classpathList = layout.buildDirectory.file("mixin-check-classpath.txt")
+    val compileJars = sourceSets.main.get().compileClasspath
+    val classesDir = sourceSets.main.get().java.destinationDirectory
+    val resourcesDir = sourceSets.main.get().output.resourcesDir!!
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    classpath = mixinCheckAsm
+    // A source file as the main class: java runs it straight from source.
+    mainClass = rootProject.file("tools/MixinCheck.java").absolutePath
+    doFirst {
+        classpathList.get().asFile.writeText(compileJars.files.joinToString("\n") { it.absolutePath })
+    }
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(classesDir.get().asFile.absolutePath, resourcesDir.absolutePath, "@" + classpathList.get().asFile.absolutePath)
+    })
 }
 
 // `./gradlew :<node>:prodServer` (Fabric): a real server with the built jar - remapped, as players

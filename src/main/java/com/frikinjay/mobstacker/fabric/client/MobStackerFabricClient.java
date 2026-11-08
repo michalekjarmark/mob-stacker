@@ -34,13 +34,25 @@ public final class MobStackerFabricClient implements ClientModInitializer {
 
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
+                //? if >=1.20.5 {
+                /*ClientPlayNetworking.send(com.frikinjay.mobstacker.network.RawPayload.of(channel, buf));
+                *///?} else {
                 ClientPlayNetworking.send(channel, buf);
+                //?}
             }
         });
+        //? if >=1.20.5 {
+        /*// The payload types are registered by the common entrypoint (MobStackerFabric).
+        ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.network.RawPayload.type(MobStackerNetworking.SYNC),
+                (payload, context) -> MobStackerClientNetworking.onSync(payload.buf()));
+        ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.network.RawPayload.type(com.frikinjay.mobstacker.StackLabels.CHANNEL),
+                (payload, context) -> com.frikinjay.mobstacker.client.MobStackerClientLabels.onLabel(payload.buf()));
+        *///?} else {
         ClientPlayNetworking.registerGlobalReceiver(MobStackerNetworking.SYNC,
                 (client, handler, buf, responseSender) -> MobStackerClientNetworking.onSync(buf));
         ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.StackLabels.CHANNEL,
                 (client, handler, buf, responseSender) -> com.frikinjay.mobstacker.client.MobStackerClientLabels.onLabel(buf));
+        //?}
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             MobStackerClientNetworking.onDisconnect();
             com.frikinjay.mobstacker.client.MobStackerClientLabels.clear();

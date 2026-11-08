@@ -29,7 +29,12 @@ public final class MobStackerRegionHud {
 
     public static void render(GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.options.hideGui || minecraft.options.renderDebug
+        //? if >=1.20.2 {
+        /*boolean debugScreen = minecraft.gui.getDebugOverlay().showDebugScreen();
+        *///?} else {
+        boolean debugScreen = minecraft.options.renderDebug;
+        //?}
+        if (minecraft.player == null || minecraft.options.hideGui || debugScreen
                 || !MobStackerRegionOverlay.anythingShowing()) {
             return;
         }

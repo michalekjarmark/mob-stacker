@@ -36,7 +36,7 @@ import java.util.Map;
  * a remote server that has the mod (showing the synced snapshot and sending edits as packets), and
  * it shows without editing for a player who is not an operator.
  */
-public final class MobStackerListScreen extends Screen {
+public final class MobStackerListScreen extends CompatScreen {
     private static final int ROW_HEIGHT = 22;
     /** Where the rows start with nothing above them but the tab title. */
     private static final int GLOBAL_LIST_TOP = 72;
@@ -282,7 +282,7 @@ public final class MobStackerListScreen extends Screen {
         String full = MobLists.normaliseEntityId(typed);
         if (!full.equals(typed)) {
             entryBox.setValue(full);
-            entryBox.moveCursorToEnd();
+            cursorToEnd(entryBox);
             completion.close();
         }
     }
@@ -328,7 +328,7 @@ public final class MobStackerListScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    protected boolean onScroll(double mouseX, double mouseY, double delta) {
         int max = Math.max(0, rows.size() - visibleRows);
         if (max > 0 && delta != 0.0) {
             int next = Math.max(0, Math.min(scrollOffset - (int) Math.signum(delta), max));
@@ -338,7 +338,7 @@ public final class MobStackerListScreen extends Screen {
             }
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return superScroll(mouseX, mouseY, delta);
     }
 
     /**
@@ -631,10 +631,10 @@ public final class MobStackerListScreen extends Screen {
         }
         // The cursor only blinks in a box that is ticked.
         if (entryBox != null) {
-            entryBox.tick();
+            tickBox(entryBox);
         }
         if (sizeBox != null) {
-            sizeBox.tick();
+            tickBox(sizeBox);
         }
     }
 
@@ -735,7 +735,7 @@ public final class MobStackerListScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        drawBackground(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
         graphics.drawCenteredString(this.font, Component.literal(tabTitle()), this.width / 2, 26, 0xFFFFFF);
 
