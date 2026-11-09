@@ -168,7 +168,7 @@ public final class MobStackerNetworking {
             }
             Sent sent = entry.getValue();
             if (sent.version() != MobStacker.configVersion
-                    || (checkAccess && (sent.authorized() != player.hasPermissions(EDIT_PERMISSION_LEVEL)
+                    || (checkAccess && (sent.authorized() != Compat.hasPermission(player, EDIT_PERMISSION_LEVEL)
                     || sent.seesAll() != MobStacker.seesAllRegions(player)))) {
                 sendSync(player, "");
             }
@@ -177,7 +177,7 @@ public final class MobStackerNetworking {
 
     private static void handleEdit(ServerPlayer player, String id, String raw) {
         // Re-check permission on the server for every edit; never trust the client's own gate.
-        if (!player.hasPermissions(EDIT_PERMISSION_LEVEL)) {
+        if (!Compat.hasPermission(player, EDIT_PERMISSION_LEVEL)) {
             sendSync(player, "You are not allowed to change the config.");
             return;
         }
@@ -453,7 +453,7 @@ public final class MobStackerNetworking {
             return; // vanilla / non-mod client: send nothing, stay invisible to it
         }
         FriendlyByteBuf buf = newBuffer();
-        boolean authorized = player.hasPermissions(EDIT_PERMISSION_LEVEL);
+        boolean authorized = Compat.hasPermission(player, EDIT_PERMISSION_LEVEL);
         boolean seesAll = MobStacker.seesAllRegions(player);
         buf.writeBoolean(authorized);
         buf.writeUtf(status == null ? "" : status);

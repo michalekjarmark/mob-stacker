@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.StackColor;
@@ -135,7 +136,7 @@ public final class MobStackerClientRegions {
         if (minecraft.level == null) {
             return List.of();
         }
-        String here = minecraft.level.dimension().location().toString();
+        String here = Compat.keyId(minecraft.level.dimension()).toString();
         List<View> out = new ArrayList<>();
         for (View view : all()) {
             if (here.equals(view.dimension())) {

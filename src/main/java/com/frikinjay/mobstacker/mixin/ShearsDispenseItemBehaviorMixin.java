@@ -36,7 +36,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
             target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/sounds/SoundSource;)V"))
     private static void mobstacker$shearWithTheStack(Shearable shearable, SoundSource source) {
         if (!(shearable instanceof Mob mob) || MobStacker.getStackSize(mob) <= 1) {
-            shearable.shear(source);
+            Compat.shear(shearable, source);
             return;
         }
         if (!MobStacker.getStackedHarvest(mob)) {
@@ -44,13 +44,13 @@ public abstract class ShearsDispenseItemBehaviorMixin {
             // and the stack is one mob, so one comes out to be sheared on its own.
             Mob one = MobStacker.separateOne(mob, false);
             if (one instanceof Shearable single && single.readyForShearing()) {
-                single.shear(source);
+                Compat.shear(single, source);
                 return;
             }
         }
         // Counted before the top one is sheared: a mooshroom stops being one the moment it is.
         int extra = MobStacker.extraHarvests(mob);
-        shearable.shear(source);
+        Compat.shear(shearable, source);
         if (extra > 0 && shearable instanceof StackShearable stack) {
             stack.mobstacker$shearMembers(source, extra);
             mobstacker$membersShorn = extra;

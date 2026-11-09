@@ -32,7 +32,7 @@ public class SnowGolemMixin {
         // As in SheepMixin: vanilla's own shear already dropped the top golem's pumpkin.
         int extra = MobStacker.extraHarvests(self);
         ((StackShearable) self).mobstacker$shearMembers(SoundSource.PLAYERS, extra);
-        if (!self.level().isClientSide) {
+        if (!self.level().isClientSide()) {
             for (int i = 0; i < extra; i++) {
                 Compat.hurtItem(itemStack, 1, player, mobstacker$getSlotForHand(interactionHand));
             }

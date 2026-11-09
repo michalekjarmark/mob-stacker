@@ -31,7 +31,7 @@ public class MushroomCowMixin {
         ItemStack itemStack = player.getItemInHand(interactionHand);
         // As in SheepMixin: vanilla's own shear already dropped five mushrooms for the top mob.
         int extra = MobStacker.extraHarvests(self);
-        if(!self.level().isClientSide) {
+        if(!self.level().isClientSide()) {
             ((StackShearable) self).mobstacker$shearMembers(SoundSource.PLAYERS, extra);
             for (int i = 0; i < extra; i++) {
                 Compat.hurtItem(itemStack, 1, player, mobstacker$getSlotForHand(interactionHand));

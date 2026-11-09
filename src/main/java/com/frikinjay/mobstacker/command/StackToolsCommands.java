@@ -73,7 +73,7 @@ public final class StackToolsCommands {
 
     /** Operators only: the root lets region owners in as well, for region share (see MobStackerCommands). */
     private static boolean isAdmin(CommandSourceStack source) {
-        return source.hasPermission(2);
+        return Compat.hasPermission(source, 2);
     }
 
     static void attach(LiteralArgumentBuilder<CommandSourceStack> root) {
@@ -135,7 +135,7 @@ public final class StackToolsCommands {
         BlockPos pos = mob.blockPosition();
         StackRegion region = MobStacker.regionAt(mob);
         MutableComponent where = label("At ").append(value(pos.getX() + " " + pos.getY() + " " + pos.getZ()))
-                .append(label(" in ")).append(value(mob.level().dimension().location().toString()))
+                .append(label(" in ")).append(value(Compat.keyId(mob.level().dimension()).toString()))
                 .append(label(", "));
         where.append(region == null
                 ? label("in no region")
@@ -144,8 +144,8 @@ public final class StackToolsCommands {
         CommandFeedback.success(source, () -> where, false);
         // What a region does NOT cover here and why, since the answer above cannot say: switched off,
         // or the spot is inside its area but in a biome its filter leaves out (1.12.0).
-        String dimension = mob.level().dimension().location().toString();
-        String biome = mob.level().getBiome(pos).unwrapKey().map(key -> key.location().toString()).orElse("?");
+        String dimension = Compat.keyId(mob.level().dimension()).toString();
+        String biome = mob.level().getBiome(pos).unwrapKey().map(key -> Compat.keyId(key).toString()).orElse("?");
         for (StackRegion other : MobStacker.config.getRegions()) {
             if (other == region) {
                 continue;

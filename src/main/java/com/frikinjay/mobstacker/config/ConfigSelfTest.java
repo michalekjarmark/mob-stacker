@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.config;
 
+import net.minecraft.world.entity.MobSpawnType;
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.StackRefusal;
@@ -403,11 +405,11 @@ public final class ConfigSelfTest {
 
         // The mod's own tags have to come out of the jar on both loaders (a Forge jar without a
         // pack.mcmeta loads none of its data).
-        check(report, EntityType.BEE.is(MobStacker.UNSTACKABLE_TAG),
+        check(report, EntityType.BEE.builtInRegistryHolder().is(MobStacker.UNSTACKABLE_TAG),
                 "#mobstacker:unstackable was not loaded from the jar (no bee in it)");
-        check(report, EntityType.WITHER.is(MobStacker.BOSSES_TAG) && EntityType.WARDEN.is(MobStacker.BOSSES_TAG),
+        check(report, EntityType.WITHER.builtInRegistryHolder().is(MobStacker.BOSSES_TAG) && EntityType.WARDEN.builtInRegistryHolder().is(MobStacker.BOSSES_TAG),
                 "#mobstacker:bosses was not loaded from the jar (no wither or warden in it)");
-        check(report, !EntityType.COW.is(MobStacker.UNSTACKABLE_TAG) && !EntityType.COW.is(MobStacker.BOSSES_TAG),
+        check(report, !EntityType.COW.builtInRegistryHolder().is(MobStacker.UNSTACKABLE_TAG) && !EntityType.COW.builtInRegistryHolder().is(MobStacker.BOSSES_TAG),
                 "a cow is in one of the mod's never-stack tags");
     }
 
@@ -417,7 +419,7 @@ public final class ConfigSelfTest {
      * world.
      */
     private static void testSpawnCounting(Report report, CommandSourceStack source) {
-        net.minecraft.world.entity.Mob cow = EntityType.COW.create(source.getLevel());
+        net.minecraft.world.entity.Mob cow = Compat.create(EntityType.COW, source.getLevel(), MobSpawnType.COMMAND);
         ArmorStand stand = new ArmorStand(EntityType.ARMOR_STAND, source.getLevel());
         if (cow == null) {
             check(report, false, "could not create a cow for the spawn-count check");
@@ -436,7 +438,7 @@ public final class ConfigSelfTest {
                 "a new config does not start with vanilla's spawn caps");
 
         // A whole-dimension deny region refuses stacking anywhere in it, and nothing while it is off.
-        String dimension = source.getLevel().dimension().location().toString();
+        String dimension = Compat.keyId(source.getLevel().dimension()).toString();
         cow.setPos(1_234_567, 100, -7_654_321);
         StackMode mode = MobStacker.config.getStackMode();
         MobStacker.config.setStackMode(StackMode.EVERYWHERE);
@@ -446,7 +448,7 @@ public final class ConfigSelfTest {
         check(report, MobStacker.regionAt(cow) != null, "regionAt does not find a whole-dimension region");
         // Its biome filter, judged on whatever biome is really at that spot in this world.
         net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> here = source.getLevel().getBiome(cow.blockPosition());
-        String hereId = here.unwrapKey().map(key -> key.location().toString()).orElse("minecraft:plains");
+        String hereId = here.unwrapKey().map(key -> Compat.keyId(key).toString()).orElse("minecraft:plains");
         String elsewhere = "minecraft:the_void".equals(hereId) ? "minecraft:plains" : "minecraft:the_void";
         RegionEdit.editBiomes("selftest_nostack", List.of(elsewhere), true);
         check(report, MobStacker.locationRefusal(cow) == null,
@@ -519,7 +521,7 @@ public final class ConfigSelfTest {
 
         // inspect lists every rule that keeps a mob out, the first being the one the scan asks first.
         net.minecraft.server.level.ServerLevel level = source.getLevel();
-        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        net.minecraft.world.entity.animal.Cow cow = Compat.create(EntityType.COW, level, MobSpawnType.COMMAND);
         if (cow != null) {
             MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
             check(report, MobStacker.stackRefusals(cow).isEmpty() && MobStacker.stackRefusal(cow) == null,
@@ -538,7 +540,7 @@ public final class ConfigSelfTest {
             com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
             String typed = "mobstacker list deny entity add #rai";
             List<String> offered = new java.util.ArrayList<>();
-            dispatcher.getCompletionSuggestions(dispatcher.parse(typed, source.withPermission(4))).join().getList()
+            dispatcher.getCompletionSuggestions(dispatcher.parse(typed, Compat.withPermission(source, 4))).join().getList()
                     .forEach(suggestion -> offered.add(suggestion.getText()));
             check(report, offered.contains("#minecraft:raiders"),
                     "'" + typed + "' does not offer #minecraft:raiders: " + offered);
@@ -586,7 +588,7 @@ public final class ConfigSelfTest {
         // "help <words>" answers with the search; an unknown setting gets a "did you mean".
         try {
             com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher = source.getServer().getCommands().getDispatcher();
-            CommandSourceStack quiet = source.withPermission(4).withSuppressedOutput();
+            CommandSourceStack quiet = Compat.withPermission(source, 4).withSuppressedOutput();
             check(report, dispatcher.execute("mobstacker help seperator item", quiet) >= 1,
                     "'help seperator item' finds nothing");
             check(report, dispatcher.execute("mobstacker help combat", quiet) == 1,
@@ -597,15 +599,14 @@ public final class ConfigSelfTest {
 
         // A zombie villager being cured stays out of stacks (round 13: it walked back in and the
         // stack took its cure).
-        net.minecraft.world.entity.monster.ZombieVillager zombie = EntityType.ZOMBIE_VILLAGER.create(source.getLevel());
+        net.minecraft.world.entity.monster.ZombieVillager zombie = Compat.create(EntityType.ZOMBIE_VILLAGER, source.getLevel(), MobSpawnType.COMMAND);
         if (zombie != null) {
             MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.EVERYWHERE);
             check(report, !MobStacker.stackRefusals(zombie).contains(StackRefusal.BEING_CURED),
                     "a zombie villager nobody cures is refused as being cured");
-            net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
-            zombie.saveWithoutId(tag);
+            net.minecraft.nbt.CompoundTag tag = Compat.save(zombie);
             tag.putInt("ConversionTime", 200);
-            zombie.load(tag);
+            Compat.load(zombie, tag);
             check(report, zombie.isConverting() && MobStacker.stackRefusal(zombie) == StackRefusal.BEING_CURED,
                     "a zombie villager being cured may stack: " + MobStacker.stackRefusals(zombie));
             MobStacker.config.setStackMode(com.frikinjay.mobstacker.config.StackMode.OFF);
@@ -614,7 +615,7 @@ public final class ConfigSelfTest {
 
     private static void testMemberCopies(Report report, CommandSourceStack source) {
         net.minecraft.server.level.ServerLevel level = source.getLevel();
-        net.minecraft.world.entity.monster.Zombie zombie = EntityType.ZOMBIE.create(level);
+        net.minecraft.world.entity.monster.Zombie zombie = Compat.create(EntityType.ZOMBIE, level, MobSpawnType.COMMAND);
         if (zombie == null) {
             check(report, false, "could not create a zombie for the member-copy check");
             return;
@@ -658,7 +659,7 @@ public final class ConfigSelfTest {
                         != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData(),
                 "a member shares the stack's own stack data");
         check(report, member.isBaby(), "a baby zombie stack let out an adult");
-        check(report, member.getTags().contains("selftest_member"), "a member lost the stack's scoreboard tag");
+        check(report, Compat.tags(member).contains("selftest_member"), "a member lost the stack's scoreboard tag");
         check(report, member.getRemainingFireTicks() > 0, "a member of a burning stack is not burning");
         check(report, member.hasEffect(net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN), "a member lost the stack's effect");
         check(report, member.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR)
@@ -676,67 +677,62 @@ public final class ConfigSelfTest {
                 "the remainder of a named stack lost its name");
 
         // An enderman's block, a creeper's fuse (but not its charge), a turtle's egg (but not its home).
-        net.minecraft.world.entity.monster.EnderMan enderman = EntityType.ENDERMAN.create(level);
+        net.minecraft.world.entity.monster.EnderMan enderman = Compat.create(EntityType.ENDERMAN, level, MobSpawnType.COMMAND);
         if (enderman != null) {
             enderman.setCarriedBlock(net.minecraft.world.level.block.Blocks.DIRT.defaultBlockState());
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(enderman, level, false);
             check(report, copy instanceof net.minecraft.world.entity.monster.EnderMan carrying && carrying.getCarriedBlock() == null,
                     "a member of an enderman stack got the top one's block");
         }
-        net.minecraft.world.entity.monster.Creeper creeper = EntityType.CREEPER.create(level);
+        net.minecraft.world.entity.monster.Creeper creeper = Compat.create(EntityType.CREEPER, level, MobSpawnType.COMMAND);
         if (creeper != null) {
-            net.minecraft.nbt.CompoundTag charged = creeper.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            net.minecraft.nbt.CompoundTag charged = Compat.save(creeper);
             charged.putBoolean("powered", true);
             charged.putBoolean("ignited", true);
             charged.remove(MobStacker.STACK_DATA_KEY);
-            creeper.load(charged);
+            Compat.load(creeper, charged);
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(creeper, level, true);
             check(report, copy instanceof net.minecraft.world.entity.monster.Creeper next && next.isPowered() && !next.isIgnited(),
                     "the remainder of an exploding charged creeper stack is not charged, or is lit too");
         }
-        net.minecraft.world.entity.animal.Turtle turtle = EntityType.TURTLE.create(level);
+        net.minecraft.world.entity.animal.Turtle turtle = Compat.create(EntityType.TURTLE, level, MobSpawnType.COMMAND);
         if (turtle != null) {
             turtle.setHomePos(new net.minecraft.core.BlockPos(1234, 64, -987));
-            net.minecraft.nbt.CompoundTag egg = turtle.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            net.minecraft.nbt.CompoundTag egg = Compat.save(turtle);
             egg.putBoolean("HasEgg", true);
             egg.remove(MobStacker.STACK_DATA_KEY);
-            turtle.load(egg);
+            Compat.load(turtle, egg);
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(turtle, level, false);
             net.minecraft.nbt.CompoundTag saved = copy == null ? new net.minecraft.nbt.CompoundTag()
-                    : copy.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+                    : Compat.save(copy);
             check(report, Nbt.getInt(saved, "HomePosX") == 1234 && Nbt.getInt(saved, "HomePosZ") == -987,
                     "a member of a turtle stack got a new home: " + Nbt.getInt(saved, "HomePosX") + ", " + Nbt.getInt(saved, "HomePosZ"));
             check(report, !Nbt.getBoolean(saved, "HasEgg"), "a member of a turtle stack got the top one's egg");
         }
 
         // A villager's job and its claims, a pig's saddle, a cow in love, a sheep's wool.
-        net.minecraft.world.entity.npc.Villager villager = EntityType.VILLAGER.create(level);
+        net.minecraft.world.entity.npc.Villager villager = Compat.create(EntityType.VILLAGER, level, MobSpawnType.COMMAND);
         if (villager != null) {
-            villager.setVillagerData(villager.getVillagerData()
-                    .setProfession(net.minecraft.world.entity.npc.VillagerProfession.FARMER).setLevel(2));
+            Compat.setProfession(villager, net.minecraft.world.entity.npc.VillagerProfession.FARMER, 2);
             villager.setVillagerXp(30);
             villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME,
                     net.minecraft.core.GlobalPos.of(level.dimension(), new net.minecraft.core.BlockPos(1, 2, 3)));
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(villager, level, false);
             check(report, copy instanceof net.minecraft.world.entity.npc.Villager jobless
-                            && jobless.getVillagerData().getProfession() == net.minecraft.world.entity.npc.VillagerProfession.NONE
+                            && !Compat.hasProfession(jobless)
                             && jobless.getVillagerXp() == 0,
                     "a member of a villager stack got the top one's job");
             check(report, copy != null && copy.getBrain().getMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.HOME).isEmpty(),
                     "a member of a villager stack got the top one's bed");
         }
-        net.minecraft.world.entity.animal.Pig pig = EntityType.PIG.create(level);
+        net.minecraft.world.entity.animal.Pig pig = Compat.create(EntityType.PIG, level, MobSpawnType.COMMAND);
         if (pig != null) {
-            //? if >=1.20.5 {
-            /*pig.equipSaddle(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE), null);
-            *///?} else {
-            pig.equipSaddle(null);
-            //?}
+            Compat.saddle(pig);
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(pig, level, false);
             check(report, copy instanceof net.minecraft.world.entity.animal.Pig bare && !bare.isSaddled(),
                     "a member of a pig stack got a copy of the top one's saddle");
         }
-        net.minecraft.world.entity.animal.Sheep sheep = EntityType.SHEEP.create(level);
+        net.minecraft.world.entity.animal.Sheep sheep = Compat.create(EntityType.SHEEP, level, MobSpawnType.COMMAND);
         if (sheep != null) {
             sheep.setColor(net.minecraft.world.item.DyeColor.LIME);
             sheep.setSheared(true);
@@ -750,7 +746,7 @@ public final class ConfigSelfTest {
         }
 
         // stackHealth: the stack's max health is every member's together; a member has one mob's.
-        net.minecraft.world.entity.animal.Cow cow = EntityType.COW.create(level);
+        net.minecraft.world.entity.animal.Cow cow = Compat.create(EntityType.COW, level, MobSpawnType.COMMAND);
         if (cow != null) {
             boolean wasWhole = MobStacker.config.getKillWholeStackOnDeath();
             boolean wasPooled = MobStacker.config.getStackHealth();
@@ -765,19 +761,15 @@ public final class ConfigSelfTest {
         }
 
         // #58: a saddle on a stacked pig hands one pig over, like a horse.
-        net.minecraft.world.entity.animal.Pig rideable = EntityType.PIG.create(level);
+        net.minecraft.world.entity.animal.Pig rideable = Compat.create(EntityType.PIG, level, MobSpawnType.COMMAND);
         if (rideable != null) {
             net.minecraft.world.item.ItemStack saddle = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE);
             check(report, MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a stacked pig does not hand one pig over");
-            //? if >=1.20.5 {
-            /*rideable.equipSaddle(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE), null);
-            *///?} else {
-            rideable.equipSaddle(null);
-            //?}
+            Compat.saddle(rideable);
             check(report, !MobStacker.isSaddlingInteraction(rideable, saddle), "a saddle on a pig that has one still counts as saddling");
         }
         // #57: what a mob merged away picked up is found by its drop chance; what it spawned with stays.
-        net.minecraft.world.entity.monster.Zombie picker = EntityType.ZOMBIE.create(level);
+        net.minecraft.world.entity.monster.Zombie picker = Compat.create(EntityType.ZOMBIE, level, MobSpawnType.COMMAND);
         if (picker != null) {
             // Cursed with vanishing, so the check leaves no sword lying in the world.
             net.minecraft.world.item.ItemStack sword = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_SWORD);
@@ -798,14 +790,14 @@ public final class ConfigSelfTest {
         }
 
         // #59 and a zombie villager's cure: vanilla takes one dye, one apple per mob, so one steps out.
-        net.minecraft.world.entity.animal.Sheep white = EntityType.SHEEP.create(level);
+        net.minecraft.world.entity.animal.Sheep white = Compat.create(EntityType.SHEEP, level, MobSpawnType.COMMAND);
         if (white != null) {
-            net.minecraft.world.item.ItemStack red = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.RED_DYE);
+            net.minecraft.world.item.ItemStack red = new net.minecraft.world.item.ItemStack(Compat.dye(net.minecraft.world.item.DyeColor.RED));
             check(report, MobStacker.isDyeingInteraction(white, red), "a dye on a stacked sheep does not hand one sheep over");
             white.setColor(net.minecraft.world.item.DyeColor.RED);
             check(report, !MobStacker.isDyeingInteraction(white, red), "a dye that changes nothing still hands a sheep over");
         }
-        net.minecraft.world.entity.monster.ZombieVillager patient = EntityType.ZOMBIE_VILLAGER.create(level);
+        net.minecraft.world.entity.monster.ZombieVillager patient = Compat.create(EntityType.ZOMBIE_VILLAGER, level, MobSpawnType.COMMAND);
         if (patient != null) {
             net.minecraft.world.item.ItemStack apple = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE);
             check(report, !MobStacker.isCuringInteraction(patient, apple), "a golden apple without weakness counts as a cure");
@@ -824,7 +816,7 @@ public final class ConfigSelfTest {
         }
 
         // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread).
-        net.minecraft.nbt.CompoundTag saved = zombie.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+        net.minecraft.nbt.CompoundTag saved = Compat.save(zombie);
         check(report, Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
                         && Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
                 "a mob's save holds its live stack data, or a copy that differs from it");
@@ -1154,8 +1146,8 @@ public final class ConfigSelfTest {
         region.setOwner(owner.getUUID(), "Owner");
         MobStacker.config.addRegion(region);
         try {
-            CommandSourceStack asStranger = source.withEntity(stranger).withPermission(0);
-            CommandSourceStack asOwner = source.withEntity(owner).withPermission(0);
+            CommandSourceStack asStranger = Compat.withPermission(source.withEntity(stranger), 0);
+            CommandSourceStack asOwner = Compat.withPermission(source.withEntity(owner), 0);
             check(report, !root.canUse(asStranger), "/mobstacker is open to a player who owns no region");
             check(report, root.canUse(asOwner), "/mobstacker is closed to a region owner");
             for (CommandNode<CommandSourceStack> child : root.getChildren()) {

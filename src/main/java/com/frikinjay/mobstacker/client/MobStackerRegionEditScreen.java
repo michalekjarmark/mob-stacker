@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
@@ -122,7 +123,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
                                                           boolean remote, boolean editable) {
         Minecraft client = Minecraft.getInstance();
         BlockPos pos = client.player != null ? client.player.blockPosition() : BlockPos.ZERO;
-        String dimension = client.level != null ? client.level.dimension().location().toString() : "";
+        String dimension = client.level != null ? Compat.keyId(client.level.dimension()).toString() : "";
         int[] corners = {pos.getX() - 8, pos.getY() - 4, pos.getZ() - 8,
                 pos.getX() + 8, pos.getY() + 12, pos.getZ() + 8};
         return new MobStackerRegionEditScreen(parent, null, StackRegion.Type.ALLOW, false, dimension,
@@ -291,7 +292,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         corners[5] = b.getZ();
         // The dimension the corners were clicked in is the only one they mean anything in.
         if (this.minecraft != null && this.minecraft.level != null) {
-            String here = this.minecraft.level.dimension().location().toString();
+            String here = Compat.keyId(this.minecraft.level.dimension()).toString();
             int index = dimensions.indexOf(here);
             if (index >= 0) {
                 dimensionIndex = index;
@@ -331,7 +332,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         dimensions.clear();
         if (this.minecraft != null && this.minecraft.getConnection() != null) {
             for (ResourceKey<Level> key : this.minecraft.getConnection().levels()) {
-                dimensions.add(key.location().toString());
+                dimensions.add(Compat.keyId(key).toString());
             }
         }
         dimensions.sort(String::compareTo);

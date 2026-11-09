@@ -117,7 +117,7 @@ public final class StackLabels {
         int count = MobStacker.getStackSize(mob);
         buf.writeVarInt(show ? count : 0);
         buf.writeUtf(MobStacker.getStackLabelFormat(mob));
-        buf.writeVarInt(MobStacker.stackNameColor(mob, count).getId());
+        buf.writeVarInt(Compat.formatId(MobStacker.stackNameColor(mob, count)));
         buf.writeBoolean(MobStacker.getAlwaysShowStackLabels(mob));
         //? if >=1.20.5 {
         /*// A custom payload is a packet every protocol phase shares; in the play phase it is a game packet.
@@ -148,11 +148,11 @@ public final class StackLabels {
      * every player watching, and in singleplayer it is never even serialised.
      */
     public static Packet<?> personalise(ServerPlayer player, Packet<?> packet) {
-        if (!(packet instanceof ClientboundSetEntityDataPacket data) || !player.server.isSameThread()
+        if (!(packet instanceof ClientboundSetEntityDataPacket data) || !player.level().getServer().isSameThread()
                 || !carriesName(data)) {
             return packet;
         }
-        Entity entity = player.serverLevel().getEntity(data.id());
+        Entity entity = ((ServerLevel) player.level()).getEntity(data.id());
         if (!(entity instanceof Mob mob)) {
             return packet;
         }
@@ -221,7 +221,7 @@ public final class StackLabels {
             return;
         }
         // The real name; every player's own connection turns it into what that player should see.
-        level.getChunkSource().broadcast(mob, new ClientboundSetEntityDataPacket(mob.getId(), realNameValues(mob)));
+        Compat.sendToTracking(level, mob, new ClientboundSetEntityDataPacket(mob.getId(), realNameValues(mob)));
     }
 
     /**
@@ -257,8 +257,8 @@ public final class StackLabels {
 
     /** Sends one player every stacked mob's real name around them, which their connection personalises. */
     private static void resendAround(ServerPlayer player) {
-        double range = player.server.getPlayerList().getViewDistance() * 16.0 + 16.0;
-        for (Mob mob : player.serverLevel().getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(range),
+        double range = player.level().getServer().getPlayerList().getViewDistance() * 16.0 + 16.0;
+        for (Mob mob : ((ServerLevel) player.level()).getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(range),
                 candidate -> MobStacker.getStackSize(candidate) > 1)) {
             player.connection.send(new ClientboundSetEntityDataPacket(mob.getId(), realNameValues(mob)));
         }

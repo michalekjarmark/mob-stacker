@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.compat.Nbt;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -65,13 +66,11 @@ public final class MobVariants {
             rule(Villager.class, "villager type, or one of them has a profession",
                     // Only jobless villagers stack: a profession carries a trade list and a
                     // workstation that belong to one villager and could not survive a merge.
-                    (a, b) -> a.getVariant() == b.getVariant()
-                            && a.getVillagerData().getProfession() == VillagerProfession.NONE
-                            && b.getVillagerData().getProfession() == VillagerProfession.NONE),
+                    (a, b) -> Compat.sameVillagerType(a, b)
+                            && !Compat.hasProfession(a) && !Compat.hasProfession(b)),
             rule(ZombieVillager.class, "villager type, or one of them has a profession",
-                    (a, b) -> a.getVariant() == b.getVariant()
-                            && a.getVillagerData().getProfession() == VillagerProfession.NONE
-                            && b.getVillagerData().getProfession() == VillagerProfession.NONE),
+                    (a, b) -> Compat.sameVillagerType(a, b)
+                            && !Compat.hasProfession(a) && !Compat.hasProfession(b)),
             rule(Slime.class, "size",
                     (a, b) -> a.getSize() == b.getSize()),
             rule(Frog.class, "variant",
@@ -104,7 +103,7 @@ public final class MobVariants {
                             && a.hasLeftHorn() == b.hasLeftHorn() && a.hasRightHorn() == b.hasRightHorn()),
             rule(TropicalFish.class, "pattern or colours",
                     // Pattern, body colour and pattern colour together make the 22 named fish.
-                    (a, b) -> a.getVariant() == b.getVariant()
+                    (a, b) -> Compat.fishPattern(a) == Compat.fishPattern(b)
                             && a.getBaseColor() == b.getBaseColor()
                             && a.getPatternColor() == b.getPatternColor()),
             rule(Creeper.class, "one of them is charged",

@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.StackShearable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -36,7 +37,7 @@ public class SheepShearMixin implements StackShearable {
         mobstacker$shearingQuietly = true;
         try {
             for (int i = 0; i < count; i++) {
-                self.shear(source);
+                Compat.shear(self, source);
             }
         } finally {
             mobstacker$shearingQuietly = false;

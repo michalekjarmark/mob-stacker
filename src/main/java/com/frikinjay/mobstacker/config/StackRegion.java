@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.config;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
@@ -229,7 +230,7 @@ public class StackRegion implements MobLists.Holder {
      * asks; the plain form is for the area alone.
      */
     public boolean contains(Level level, BlockPos pos) {
-        if (!contains(level.dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ())) {
+        if (!contains(Compat.keyId(level.dimension()).toString(), pos.getX(), pos.getY(), pos.getZ())) {
             return false;
         }
         List<String> filter = biomes;

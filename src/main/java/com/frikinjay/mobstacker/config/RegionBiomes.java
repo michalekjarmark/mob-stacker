@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.config;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -74,8 +75,8 @@ public final class RegionBiomes {
         String value = normalise(entry);
         Object key = parsed(value);
         boolean known = key instanceof TagKey<?> tag
-                ? biomes.getTag(TagKey.create(Registries.BIOME, tag.location())).isPresent()
-                : key instanceof ResourceKey<?> id && biomes.containsKey(id.location());
+                ? Compat.hasTag(biomes, TagKey.create(Registries.BIOME, tag.location()))
+                : key instanceof ResourceKey<?> id && biomes.containsKey(Compat.keyId(id));
         return known ? null : "'" + value + "' is not a biome " + (value.startsWith(TAG_PREFIX) ? "tag " : "")
                 + "this game knows - kept, and it matches nothing until it exists";
     }

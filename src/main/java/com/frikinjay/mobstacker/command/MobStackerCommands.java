@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.command;
 
+import net.minecraft.world.entity.MobSpawnType;
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
@@ -399,8 +401,8 @@ public class MobStackerCommands {
             message.append(Component.literal(" Did you mean ").withStyle(ChatFormatting.RED))
                     .append(Component.literal(meant.id()).withStyle(style -> style.withColor(ChatFormatting.YELLOW)
                             .withUnderlined(true)
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, fixed))
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(fixed)))))
+                            .withClickEvent(Compat.suggestCommand(fixed))
+                            .withHoverEvent(Compat.showText(Component.literal(fixed)))))
                     .append(Component.literal("?").withStyle(ChatFormatting.RED));
         } else {
             message.append(Component.literal(" Try /mobstacker help <words>").withStyle(ChatFormatting.RED));
@@ -553,8 +555,8 @@ public class MobStackerCommands {
             String command = "/mobstacker set " + option.id() + " ";
             CommandFeedback.success(source, () -> Component.literal(option.id()).withStyle(style -> style
                             .withColor(ChatFormatting.WHITE).withUnderlined(true)
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command))
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(command))))
+                            .withClickEvent(Compat.suggestCommand(command))
+                            .withHoverEvent(Compat.showText(Component.literal(command))))
                     .append(Component.literal(" = ").withStyle(ChatFormatting.GRAY))
                     .append(valueComponent(option))
                     .append(Component.literal("   [" + option.category().display() + "]").withStyle(ChatFormatting.DARK_GRAY)), false);
@@ -626,7 +628,7 @@ public class MobStackerCommands {
     private static CompletableFuture<Suggestions> suggestEntities(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
         String remaining = builder.getRemaining().toLowerCase();
         BuiltInRegistries.ENTITY_TYPE.forEach(entityType -> {
-            if (entityType.create(context.getSource().getLevel()) instanceof Mob) {
+            if (Compat.create(entityType, context.getSource().getLevel(), MobSpawnType.COMMAND) instanceof Mob) {
                 ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
                 if (id.toString().toLowerCase().startsWith(remaining)) {
                     builder.suggest(id.toString());
@@ -657,7 +659,7 @@ public class MobStackerCommands {
         String remaining = builder.getRemaining().toLowerCase();
         Set<String> modsWithMobs = new HashSet<>();
         BuiltInRegistries.ENTITY_TYPE.forEach(entityType -> {
-            if (entityType.create(context.getSource().getLevel()) instanceof Mob) {
+            if (Compat.create(entityType, context.getSource().getLevel(), MobSpawnType.COMMAND) instanceof Mob) {
                 modsWithMobs.add(BuiltInRegistries.ENTITY_TYPE.getKey(entityType).getNamespace());
             }
         });
@@ -671,7 +673,7 @@ public class MobStackerCommands {
 
     /** An operator: everything in this tree but {@code region share} asks for this. */
     private static boolean isAdmin(CommandSourceStack source) {
-        return source.hasPermission(2);
+        return Compat.hasPermission(source, 2);
     }
 
     /**
@@ -727,15 +729,9 @@ public class MobStackerCommands {
     private static String playerName(MinecraftServer server, String uuid, String stored) {
         try {
             UUID id = UUID.fromString(uuid);
-            ServerPlayer online = server.getPlayerList().getPlayer(id);
-            if (online != null) {
-                return online.getGameProfile().getName();
-            }
-            if (server.getProfileCache() != null) {
-                Optional<GameProfile> known = server.getProfileCache().get(id);
-                if (known.isPresent() && known.get().getName() != null) {
-                    return known.get().getName();
-                }
+            String known = Compat.knownName(server, id);
+            if (known != null) {
+                return known;
             }
         } catch (IllegalArgumentException ignored) {
             // not a UUID: show what was stored
@@ -794,17 +790,17 @@ public class MobStackerCommands {
             CommandFeedback.success(source, () -> Component.literal(region.getName() + " has no owner now").withStyle(ChatFormatting.GREEN), true);
             return 1;
         }
-        Collection<GameProfile> profiles = GameProfileArgument.getGameProfiles(context, "player");
+        List<Compat.PlayerRef> profiles = Compat.profiles(context, "player");
         if (profiles.size() != 1) {
             source.sendFailure(Component.literal("A region has one owner - name a single player").withStyle(ChatFormatting.RED));
             return 0;
         }
-        GameProfile profile = profiles.iterator().next();
-        region.setOwner(profile.getId(), profile.getName());
+        Compat.PlayerRef profile = profiles.get(0);
+        region.setOwner(profile.id(), profile.name());
         // The owner sees it anyway; staying on the list as well would outlive a change of owner.
-        region.unshare(profile.getId());
+        region.unshare(profile.id());
         MobStacker.config.save();
-        CommandFeedback.success(source, () -> Component.literal(region.getName() + " now belongs to " + profile.getName()
+        CommandFeedback.success(source, () -> Component.literal(region.getName() + " now belongs to " + profile.name()
                 + " - they see it, and may share it with /mobstacker region share").withStyle(ChatFormatting.GREEN), true);
         return 1;
     }
@@ -816,15 +812,15 @@ public class MobStackerCommands {
         }
         CommandSourceStack source = context.getSource();
         List<String> added = new ArrayList<>();
-        for (GameProfile profile : GameProfileArgument.getGameProfiles(context, "player")) {
-            if (region.isOwnedBy(profile.getId())) {
-                CommandFeedback.success(source, () -> Component.literal(profile.getName() + " owns " + region.getName()
+        for (Compat.PlayerRef profile : Compat.profiles(context, "player")) {
+            if (region.isOwnedBy(profile.id())) {
+                CommandFeedback.success(source, () -> Component.literal(profile.name() + " owns " + region.getName()
                         + " and sees it anyway").withStyle(ChatFormatting.YELLOW), false);
-            } else if (region.share(profile.getId(), profile.getName())) {
-                added.add(profile.getName());
+            } else if (region.share(profile.id(), profile.name())) {
+                added.add(profile.name());
             } else {
                 CommandFeedback.success(source, () -> Component.literal(region.getName() + " is already shared with "
-                        + profile.getName()).withStyle(ChatFormatting.YELLOW), false);
+                        + profile.name()).withStyle(ChatFormatting.YELLOW), false);
             }
         }
         if (added.isEmpty()) {
@@ -1299,7 +1295,7 @@ public class MobStackerCommands {
 
         BlockPos corner1 = BlockPosArgument.getBlockPos(context, "corner1");
         BlockPos corner2 = BlockPosArgument.getBlockPos(context, "corner2");
-        String dimension = context.getSource().getLevel().dimension().location().toString();
+        String dimension = Compat.keyId(context.getSource().getLevel().dimension()).toString();
 
         return reportRegionEdit(context, RegionEdit.apply(name, type, dimension,
                 corner1.getX(), corner1.getY(), corner1.getZ(),
@@ -1320,10 +1316,10 @@ public class MobStackerCommands {
     /** The dimension named after {@code dimension}, or the one the command was run in. */
     private static String dimensionArgument(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         try {
-            return DimensionArgument.getDimension(context, "dimension").dimension().location().toString();
+            return Compat.keyId(DimensionArgument.getDimension(context, "dimension").dimension()).toString();
         } catch (IllegalArgumentException notGiven) {
             // Brigadier's answer to asking for an argument the command was typed without.
-            return context.getSource().getLevel().dimension().location().toString();
+            return Compat.keyId(context.getSource().getLevel().dimension()).toString();
         }
     }
 
@@ -1409,7 +1405,7 @@ public class MobStackerCommands {
         String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
         var biomes = context.getSource().getServer().registryAccess().registryOrThrow(Registries.BIOME);
         List<String> all = new ArrayList<>();
-        biomes.getTagNames().forEach(tag -> all.add(RegionBiomes.TAG_PREFIX + tag.location()));
+        Compat.tagKeys(biomes).forEach(tag -> all.add(RegionBiomes.TAG_PREFIX + tag.location()));
         biomes.keySet().forEach(id -> all.add(id.toString()));
         for (String entry : all) {
             String bare = entry.startsWith(RegionBiomes.TAG_PREFIX) ? entry.substring(1) : entry;
@@ -1488,7 +1484,7 @@ public class MobStackerCommands {
         BlockPos corner1 = BlockPosArgument.getBlockPos(context, "corner1");
         BlockPos corner2 = BlockPosArgument.getBlockPos(context, "corner2");
         // The corners are read in the dimension the command is run from, so the region follows.
-        String dimension = context.getSource().getLevel().dimension().location().toString();
+        String dimension = Compat.keyId(context.getSource().getLevel().dimension()).toString();
         boolean moved = !dimension.equals(region.getDimension());
 
         int result = reportRegionEdit(context, RegionEdit.apply(name, region.getType(), dimension,
@@ -1666,8 +1662,8 @@ public class MobStackerCommands {
      */
     private static MutableComponent clickable(String text, ChatFormatting color, String command, String hover) {
         return Component.literal(text).withStyle(style -> style.withColor(color).withUnderlined(true)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(hover))));
+                .withClickEvent(Compat.runCommand(command))
+                .withHoverEvent(Compat.showText(Component.literal(hover))));
     }
 
     // --- per-region settings -------------------------------------------------------------------

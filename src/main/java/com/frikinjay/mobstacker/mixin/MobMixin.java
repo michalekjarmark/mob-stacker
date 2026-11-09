@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.StackAi;
 import net.minecraft.nbt.CompoundTag;
@@ -268,7 +269,7 @@ public abstract class MobMixin extends LivingEntity {
         }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
-            InteractionResult result = separated.interact(player, hand);
+            InteractionResult result = Compat.interact(separated, player, hand);
             if (dyeing && !result.consumesAction()) {
                 // A dye is the item's interaction, not the sheep's: Player.interactOn would hand it
                 // the stack that was clicked, which is the very thing this is here to avoid.

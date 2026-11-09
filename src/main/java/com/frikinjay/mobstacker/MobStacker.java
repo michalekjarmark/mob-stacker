@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import net.minecraft.world.entity.MobSpawnType;
 import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobLists;
@@ -336,7 +337,7 @@ public final class MobStacker {
         }
 
         // Kinds that never stack (1.12.0). The tag is the server's to change, through a data pack.
-        if (entity.getType().is(UNSTACKABLE_TAG) && refuse(all, StackRefusal.UNSTACKABLE)) {
+        if (entity.getType().builtInRegistryHolder().is(UNSTACKABLE_TAG) && refuse(all, StackRefusal.UNSTACKABLE)) {
             return StackRefusal.UNSTACKABLE;
         }
         if (!getStackBosses(entity) && isBoss(entity) && refuse(all, StackRefusal.BOSS)) {
@@ -465,13 +466,13 @@ public final class MobStacker {
         if (entity.isVehicle() || entity.isPassenger() || entity.isLeashed()) {
             return true;
         }
-        if (entity instanceof OwnableEntity owned && owned.getOwnerUUID() != null) {
+        if (entity instanceof OwnableEntity owned && Compat.ownerId(owned) != null) {
             return true;
         }
         if (entity instanceof TamableAnimal tamable && tamable.isTame()) {
             return true;
         }
-        if (entity instanceof Saddleable saddleable && saddleable.isSaddled()) {
+        if (Compat.isSaddled(entity)) {
             return true;
         }
         // Temper is taming progress, and it is per horse: a half-tamed horse that merges back into
@@ -551,7 +552,7 @@ public final class MobStacker {
      * {@code bossHealthThreshold} (0 turns that last test off).
      */
     public static boolean isBoss(Mob mob) {
-        if (mob.getType().is(BOSSES_TAG) || isBossEntity(mob)) {
+        if (mob.getType().builtInRegistryHolder().is(BOSSES_TAG) || isBossEntity(mob)) {
             return true;
         }
         int threshold = getBossHealthThreshold(mob);
@@ -619,12 +620,12 @@ public final class MobStacker {
         // Caught after the job was already taken (a workstation right next to the stack): the
         // profession, its trades and its experience go with the claim, and the rest of the stack is
         // jobless again, as it was before.
-        if (stack.getVillagerData().getProfession() != VillagerProfession.NONE) {
+        if (Compat.hasProfession(stack)) {
             leaving.setVillagerData(stack.getVillagerData());
             AbstractVillagerAccessor stackTrades = (AbstractVillagerAccessor) stack;
             ((AbstractVillagerAccessor) leaving).mobstacker$setOffers(stackTrades.mobstacker$offers());
             leaving.setVillagerXp(stack.getVillagerXp());
-            stack.setVillagerData(stack.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            Compat.makeJobless(stack);
             stackTrades.mobstacker$setOffers(null);
             stack.setVillagerXp(0);
         }
@@ -815,13 +816,13 @@ public final class MobStacker {
      * @return the new mob, or null when its kind cannot be created
      */
     public static Mob memberOf(Mob stack, ServerLevel level, boolean remainder) {
-        if (!(stack.getType().create(level) instanceof Mob member)) {
+        if (!(Compat.createForLoad(stack.getType(), level) instanceof Mob member)) {
             return null;
         }
         AttributeInstance freshMaxHealth = member.getAttribute(Attributes.MAX_HEALTH);
         double oneMobsMaxHealth = freshMaxHealth == null ? 0.0 : freshMaxHealth.getBaseValue();
 
-        CompoundTag data = stack.saveWithoutId(new CompoundTag());
+        CompoundTag data = Compat.save(stack);
         // Before the copy: the save holds the stack's live stack data, not a copy of it.
         data.remove(STACK_DATA_KEY);
         data = data.copy();
@@ -836,13 +837,13 @@ public final class MobStacker {
                     modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(Nbt.getString(tag, Compat.MODIFIER_ID_KEY)));
         }
         try {
-            member.load(data);
+            Compat.load(member, data);
         } catch (RuntimeException e) {
             // Another mod's data that does not load back: a plain mob of the kind, rather than the
             // stack losing its members or the server its tick.
             logger.warn("Could not copy a stacked {} from its saved data, making a plain one: {}",
                     BuiltInRegistries.ENTITY_TYPE.getKey(stack.getType()), e.toString());
-            if (!(stack.getType().create(level) instanceof Mob plain)) {
+            if (!(Compat.createForLoad(stack.getType(), level) instanceof Mob plain)) {
                 return null;
             }
             member = plain;
@@ -860,10 +861,10 @@ public final class MobStacker {
             maxHealth.setBaseValue(oneMobsMaxHealth);
         }
         member.setHealth(member.getMaxHealth());
-        if (member instanceof Villager villager && villager.getVillagerData().getProfession() != VillagerProfession.NONE) {
+        if (member instanceof Villager villager && Compat.hasProfession(villager)) {
             // Only jobless villagers stack, so a job the stack took on is the top villager's (shedClaims
             // hands it to the one it takes out). A new profession also clears the trades.
-            villager.setVillagerData(villager.getVillagerData().setProfession(VillagerProfession.NONE).setLevel(1));
+            Compat.makeJobless(villager);
             villager.setVillagerXp(0);
         }
 
@@ -919,20 +920,13 @@ public final class MobStacker {
         }
         for (int i = 0; i < take; i++) {
             ItemStack milk = new ItemStack(Items.MILK_BUCKET);
-            if (!player.getInventory().add(milk)) {
-                player.drop(milk, false);
-            }
+            Compat.giveOrDrop(player, milk);
         }
     }
 
     private static int countItem(Player player, Item item) {
         int found = 0;
-        for (ItemStack stack : player.getInventory().items) {
-            if (stack.is(item)) {
-                found += stack.getCount();
-            }
-        }
-        for (ItemStack stack : player.getInventory().offhand) {
+        for (ItemStack stack : Compat.carriedItems(player)) {
             if (stack.is(item)) {
                 found += stack.getCount();
             }
@@ -942,17 +936,7 @@ public final class MobStacker {
 
     private static void takeItem(Player player, Item item, int count) {
         int left = count;
-        for (ItemStack stack : player.getInventory().items) {
-            if (left <= 0) {
-                return;
-            }
-            if (stack.is(item)) {
-                int taken = Math.min(left, stack.getCount());
-                stack.shrink(taken);
-                left -= taken;
-            }
-        }
-        for (ItemStack stack : player.getInventory().offhand) {
+        for (ItemStack stack : Compat.carriedItems(player)) {
             if (left <= 0) {
                 return;
             }
@@ -1004,8 +988,7 @@ public final class MobStacker {
      * right-click. Horses are handled before this is asked.
      */
     public static boolean isSaddlingInteraction(Mob mob, ItemStack held) {
-        return held.is(Items.SADDLE) && mob instanceof Saddleable saddleable
-                && saddleable.isSaddleable() && !saddleable.isSaddled();
+        return held.is(Items.SADDLE) && Compat.takesSaddle(mob);
     }
 
     /**
@@ -1018,8 +1001,9 @@ public final class MobStacker {
      * {@code MobMixin} calls it on the sheep that stepped out itself.
      */
     public static boolean isDyeingInteraction(Mob mob, ItemStack held) {
-        return held.getItem() instanceof DyeItem dye && mob instanceof Sheep sheep
-                && sheep.isAlive() && !sheep.isSheared() && sheep.getColor() != dye.getDyeColor();
+        net.minecraft.world.item.DyeColor color = Compat.dyeColor(held);
+                return color != null && mob instanceof Sheep sheep
+                && sheep.isAlive() && !sheep.isSheared() && sheep.getColor() != color;
     }
 
     /**
@@ -1116,7 +1100,7 @@ public final class MobStacker {
             return false;
         }
         ResourceLocation separator = ResourceLocation.tryParse(getSeparatorItem(entity));
-        return separator != null && held.is(BuiltInRegistries.ITEM.get(separator));
+        return separator != null && held.is(Compat.item(separator));
     }
 
     /**
@@ -1291,8 +1275,7 @@ public final class MobStacker {
             mergedBabyAge = Math.min(targetAge.getAge(), sourceAge.getAge());
         }
 
-        CompoundTag targetNbt = new CompoundTag();
-        target.saveWithoutId(targetNbt);
+        CompoundTag targetNbt = Compat.save(target);
 
         // With keepMemberEquipment the stack remembers what the mob being merged away was wearing
         // (and everything its own members were wearing), so nothing has to be thrown on the floor.
@@ -1326,7 +1309,7 @@ public final class MobStacker {
 
         updateStackDataInNbt(targetNbt, newStackSize);
 
-        target.load(targetNbt);
+        Compat.load(target, targetNbt);
         target.setYHeadRot(headRot);
         target.yBodyRot = bodyRot;
 
@@ -1349,8 +1332,7 @@ public final class MobStacker {
     }
 
     private static void copyRelevantNbtData(Mob source, CompoundTag targetNbt) {
-        CompoundTag sourceNbt = new CompoundTag();
-        source.saveWithoutId(sourceNbt);
+        CompoundTag sourceNbt = Compat.save(source);
 
         Nbt.keys(sourceNbt).stream()
                 .filter(key -> !isExcludedNbtKey(key))
@@ -1435,7 +1417,7 @@ public final class MobStacker {
      * mob's own name, names a boss's bar, and tells the players watching when the label changed.
      */
     public static void updateStackDisplay(Mob entity) {
-        if (entity.level().isClientSide) {
+        if (entity.level().isClientSide()) {
             return;
         }
         clearOldLabel(entity);
@@ -1579,7 +1561,7 @@ public final class MobStacker {
                 continue;
             }
             if (!Compat.vanishes(stack)) {
-                mob.spawnAtLocation(stack);
+                Compat.spawnAtLocation(mob, stack);
             }
             mob.setItemSlot(slot, ItemStack.EMPTY);
             setDropChance(mob, slot, NATURAL_DROP_CHANCE);
@@ -2410,8 +2392,8 @@ public final class MobStacker {
      * {@value MobStackerPermissions#VIEW_ALL_REGIONS}.
      */
     public static boolean seesAllRegions(ServerPlayer player) {
-        return player.hasPermissions(2)
-                || player.server.isSingleplayerOwner(player.getGameProfile())
+        return Compat.hasPermission(player, 2)
+                || Compat.isSingleplayerOwner(player)
                 || MobStackerPermissions.check(player, MobStackerPermissions.VIEW_ALL_REGIONS, 2);
     }
 
@@ -2778,7 +2760,7 @@ public final class MobStacker {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             ItemStack stack = mob.getItemBySlot(slot);
             if (!stack.isEmpty() && dropChance(mob, slot) > 1.0F && !Compat.vanishes(stack)) {
-                mob.spawnAtLocation(stack.copy());
+                Compat.spawnAtLocation(mob, stack.copy());
                 mob.setItemSlot(slot, ItemStack.EMPTY);
             }
         }
@@ -2790,7 +2772,7 @@ public final class MobStacker {
                 if (Nbt.has(loadout, key, Tag.TAG_COMPOUND) && Nbt.getFloat(loadout, key + DROP_CHANCE_SUFFIX) > 1.0F) {
                     ItemStack stack = Compat.loadItem(Nbt.getCompound(loadout, key), mob.level().registryAccess());
                     if (!stack.isEmpty() && !Compat.vanishes(stack)) {
-                        mob.spawnAtLocation(stack);
+                        Compat.spawnAtLocation(mob, stack);
                     }
                 }
             }
@@ -2798,7 +2780,7 @@ public final class MobStacker {
         if (mob instanceof EnderMan enderMan && enderMan.getCarriedBlock() != null) {
             ItemStack block = new ItemStack(enderMan.getCarriedBlock().getBlock());
             if (!block.isEmpty()) {
-                mob.spawnAtLocation(block);
+                Compat.spawnAtLocation(mob, block);
             }
             enderMan.setCarriedBlock(null);
         }
@@ -2853,7 +2835,7 @@ public final class MobStacker {
         int max = new ItemStack(item).getMaxStackSize();
         while (left > 0) {
             int count = (int) Math.min(left, max);
-            mob.spawnAtLocation(new ItemStack(item, count));
+            Compat.spawnAtLocation(mob, new ItemStack(item, count));
             left -= count;
         }
     }
@@ -2897,7 +2879,7 @@ public final class MobStacker {
         }
         ItemStack held = player.getItemInHand(hand);
         ResourceLocation id = ResourceLocation.tryParse(getAssimilatorItem(mob));
-        if (held.isEmpty() || id == null || !held.is(BuiltInRegistries.ITEM.get(id))) {
+        if (held.isEmpty() || id == null || !held.is(Compat.item(id))) {
             return false;
         }
         boolean nowStacks = !getCanStack(mob);
@@ -2914,7 +2896,7 @@ public final class MobStacker {
             message.append(Component.literal((nowStacks ? " - but it does not now: " : " - it did not anyway: ")
                     + other.reason()).withStyle(ChatFormatting.GRAY));
         }
-        player.displayClientMessage(message, other == null);
+        Compat.tell(player, message, other == null);
         if (!player.getAbilities().instabuild && getConsumeAssimilator(mob)) {
             if (held.isDamageableItem()) {
                 Compat.hurtItem(held, 1, player,
@@ -3064,7 +3046,7 @@ public final class MobStacker {
      * spawns an entity, so it is transient and gated behind its own config flag.
      */
     public static void spawnKillHologram(ServerLevel level, Mob mob, int killed) {
-        ArmorStand stand = EntityType.ARMOR_STAND.create(level);
+        ArmorStand stand = Compat.create(EntityType.ARMOR_STAND, level, MobSpawnType.COMMAND);
         if (stand == null) {
             return;
         }
@@ -3075,7 +3057,7 @@ public final class MobStacker {
         ((ArmorStandAccessor) stand).mobstacker$setMarker(true);
         stand.setSilent(true);
         stand.setNoBasePlate(true);
-        stand.setInvulnerable(true);
+        Compat.setInvulnerable(stand);
         stand.setCustomName(Component.literal("-" + killed)
                 .withStyle(setting("killHologramColor", mob, config.getKillHologramColor()).format(),
                         ChatFormatting.BOLD));
@@ -3121,7 +3103,7 @@ public final class MobStacker {
     public static boolean isLegacyKillHologram(ArmorStand stand) {
         if (!stand.isMarker() || !stand.isInvisible() || !stand.isNoGravity()
                 || !stand.isInvulnerable() || !stand.isSilent()
-                || !stand.isNoBasePlate() || !stand.isCustomNameVisible()) {
+                || !Compat.hasNoBasePlate(stand) || !stand.isCustomNameVisible()) {
             return false;
         }
         Component name = stand.getCustomName();
