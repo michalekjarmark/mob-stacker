@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.command;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.ICustomDataHolder;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.MobVariants;
@@ -267,13 +268,13 @@ public final class StackToolsCommands {
         if (loadouts > 0) {
             parts.add(loadouts + " members' gear");
         }
-        if (data.contains(MobVariants.MEMBER_ROLLS_KEY, 9)) {
-            parts.add(data.getList(MobVariants.MEMBER_ROLLS_KEY, 10).size() + " members' horse stats");
+        if (Nbt.has(data, MobVariants.MEMBER_ROLLS_KEY, 9)) {
+            parts.add(Nbt.getList(data, MobVariants.MEMBER_ROLLS_KEY, 10).size() + " members' horse stats");
         }
         long now = mob.level().getGameTime();
-        long cooldownEnd = data.getLong(MobStacker.BREED_COOLDOWN_END_KEY);
-        int love = data.getInt(MobStacker.BREED_LOVE_KEY);
-        int cooling = now < cooldownEnd ? data.getInt(MobStacker.BREED_COOLDOWN_COUNT_KEY) : 0;
+        long cooldownEnd = Nbt.getLong(data, MobStacker.BREED_COOLDOWN_END_KEY);
+        int love = Nbt.getInt(data, MobStacker.BREED_LOVE_KEY);
+        int cooling = now < cooldownEnd ? Nbt.getInt(data, MobStacker.BREED_COOLDOWN_COUNT_KEY) : 0;
         if (love > 0 || cooling > 0) {
             parts.add(love + " in love, " + cooling + " resting from breeding"
                     + (cooling > 0 ? " for " + ((cooldownEnd - now) / 20) + " s" : ""));
@@ -282,7 +283,7 @@ public final class StackToolsCommands {
         if (grace > 0) {
             parts.add("kept out of stacks for " + (grace / 20) + " s more");
         }
-        if (!data.getBoolean(MobStacker.CAN_STACK_KEY) && data.contains(MobStacker.CAN_STACK_KEY)) {
+        if (!Nbt.getBoolean(data, MobStacker.CAN_STACK_KEY) && data.contains(MobStacker.CAN_STACK_KEY)) {
             parts.add("CanStack off");
         }
         if (!parts.isEmpty()) {

@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.config;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.StackRefusal;
 import com.frikinjay.mobstacker.config.ConfigOption.Result.Status;
@@ -703,9 +704,9 @@ public final class ConfigSelfTest {
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(turtle, level, false);
             net.minecraft.nbt.CompoundTag saved = copy == null ? new net.minecraft.nbt.CompoundTag()
                     : copy.saveWithoutId(new net.minecraft.nbt.CompoundTag());
-            check(report, saved.getInt("HomePosX") == 1234 && saved.getInt("HomePosZ") == -987,
-                    "a member of a turtle stack got a new home: " + saved.getInt("HomePosX") + ", " + saved.getInt("HomePosZ"));
-            check(report, !saved.getBoolean("HasEgg"), "a member of a turtle stack got the top one's egg");
+            check(report, Nbt.getInt(saved, "HomePosX") == 1234 && Nbt.getInt(saved, "HomePosZ") == -987,
+                    "a member of a turtle stack got a new home: " + Nbt.getInt(saved, "HomePosX") + ", " + Nbt.getInt(saved, "HomePosZ"));
+            check(report, !Nbt.getBoolean(saved, "HasEgg"), "a member of a turtle stack got the top one's egg");
         }
 
         // A villager's job and its claims, a pig's saddle, a cow in love, a sheep's wool.
@@ -824,8 +825,8 @@ public final class ConfigSelfTest {
 
         // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread).
         net.minecraft.nbt.CompoundTag saved = zombie.saveWithoutId(new net.minecraft.nbt.CompoundTag());
-        check(report, saved.getCompound(MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
-                        && saved.getCompound(MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
+        check(report, Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
+                        && Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
                 "a mob's save holds its live stack data, or a copy that differs from it");
     }
 

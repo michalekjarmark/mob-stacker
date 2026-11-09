@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.ICustomDataHolder;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
@@ -38,8 +39,8 @@ public class EntityDataMixin implements ICustomDataHolder {
 
     @Inject(method = "load", at = @At("RETURN"))
     private void mobstacker$onLoad(CompoundTag compound, CallbackInfo ci) {
-        if (compound.contains(STACK_DATA_KEY, 10)) {
-            this.mobstacker$stackData = compound.getCompound(STACK_DATA_KEY);
+        if (Nbt.has(compound, STACK_DATA_KEY, 10)) {
+            this.mobstacker$stackData = Nbt.getCompound(compound, STACK_DATA_KEY);
         }
     }
 

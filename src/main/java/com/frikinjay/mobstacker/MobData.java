@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.Mob;
@@ -90,7 +91,7 @@ public final class MobData {
         }
         CompoundTag all = mob.saveWithoutId(new CompoundTag());
         CompoundTag modded = new CompoundTag();
-        for (String key : all.getAllKeys()) {
+        for (String key : Nbt.keys(all)) {
             if (!VANILLA_KEYS.contains(key) && !ALWAYS_IGNORED.contains(key)) {
                 modded.put(key, all.get(key));
             }
@@ -109,8 +110,8 @@ public final class MobData {
         if (da.isEmpty() && db.isEmpty()) {
             return null;
         }
-        Set<String> keys = new TreeSet<>(da.getAllKeys());
-        keys.addAll(db.getAllKeys());
+        Set<String> keys = new TreeSet<>(Nbt.keys(da));
+        keys.addAll(Nbt.keys(db));
         for (String key : keys) {
             if (ignored.contains(key)) {
                 continue;
@@ -120,8 +121,8 @@ public final class MobData {
             if (ta instanceof CompoundTag ca && tb instanceof CompoundTag cb) {
                 // One level in, so a container such as ForgeCaps can name the mod's own entry and
                 // that one entry can be ignored without ignoring the whole container.
-                Set<String> inner = new TreeSet<>(ca.getAllKeys());
-                inner.addAll(cb.getAllKeys());
+                Set<String> inner = new TreeSet<>(Nbt.keys(ca));
+                inner.addAll(Nbt.keys(cb));
                 for (String sub : inner) {
                     String path = key + "." + sub;
                     if (!ignored.contains(path) && !Objects.equals(ca.get(sub), cb.get(sub))) {
