@@ -1,0 +1,68 @@
+mobstacker set stackMode everywhere
+weather clear
+time set day
+gamerule doMobSpawning false
+gamerule doDaylightCycle false
+forceload add 0 0 360 64
+mobstacker list deny mod list
+mobstacker list deny entity list
+sleep 2
+# --- A: control, cows stack (x=10) ---
+summon cow 10 -60 10
+summon cow 10 -60 10
+summon cow 10 -60 10
+# --- B: unstackable tag: bees (x=40), wandering traders (x=70) ---
+summon bee 40 -60 10
+summon bee 40 -60 10
+summon bee 40 -60 10
+summon wandering_trader 70 -60 10 {Offers:{Recipes:[]}}
+summon wandering_trader 70 -60 10 {Offers:{Recipes:[]}}
+# --- C: NoAI cows (x=100) ---
+summon cow 100 -60 10 {NoAI:1b}
+summon cow 100 -60 10 {NoAI:1b}
+summon cow 100 -60 10 {NoAI:1b}
+# --- D: love mode: one cow in love next to a stack of two (x=130) ---
+summon cow 130 -60 10
+summon cow 130 -60 10
+summon cow 130 -60 10 {InLove:600}
+# --- E: iron golems: player-built (x=160) vs village (x=190) ---
+summon iron_golem 160 -60 10 {PlayerCreated:1b}
+summon iron_golem 160 -60 10 {PlayerCreated:1b}
+summon iron_golem 190 -60 10
+summon iron_golem 190 -60 10
+# --- F: pillagers: patrol leaders (x=220) vs plain (x=250) ---
+summon pillager 220 -60 10 {PatrolLeader:1b,HandItems:[{},{}]}
+summon pillager 220 -60 10 {PatrolLeader:1b,HandItems:[{},{}]}
+summon pillager 250 -60 10 {HandItems:[{},{}]}
+summon pillager 250 -60 10 {HandItems:[{},{}]}
+summon pillager 250 -60 10 {HandItems:[{},{}]}
+# --- G: endermen carrying dirt (x=280) vs empty-handed (x=310) ---
+summon enderman 280 -60 10 {carriedBlockState:{Name:"minecraft:dirt"}}
+summon enderman 280 -60 10 {carriedBlockState:{Name:"minecraft:dirt"}}
+summon enderman 310 -60 10
+summon enderman 310 -60 10
+# --- H: elder guardians are bosses (x=10, z=40) ---
+summon elder_guardian 10 -60 40
+summon elder_guardian 10 -60 40
+sleep 4
+execute positioned 10 -60 10 run mobstacker stats 6
+execute positioned 40 -60 10 run mobstacker stats 8
+execute positioned 40 -60 10 run mobstacker inspect @e[type=bee,limit=1,sort=nearest]
+execute positioned 70 -60 10 run mobstacker stats 6
+execute positioned 70 -60 10 run mobstacker inspect @e[type=wandering_trader,limit=1,sort=nearest]
+execute positioned 100 -60 10 run mobstacker stats 6
+execute positioned 100 -60 10 run mobstacker inspect @e[type=cow,limit=1,sort=nearest]
+execute positioned 130 -60 10 run mobstacker stats 6
+execute positioned 130 -60 10 run mobstacker inspect @e[type=cow,limit=1,sort=nearest,nbt={InLove:600}]
+execute as @e[type=cow,x=125,y=-64,z=5,dx=10,dy=10,dz=10] run data get entity @s InLove
+execute positioned 160 -60 10 run mobstacker stats 6
+execute positioned 160 -60 10 run mobstacker inspect @e[type=iron_golem,limit=1,sort=nearest]
+execute positioned 190 -60 10 run mobstacker stats 6
+execute positioned 220 -60 10 run mobstacker stats 6
+execute positioned 220 -60 10 run mobstacker inspect @e[type=pillager,limit=1,sort=nearest]
+execute positioned 250 -60 10 run mobstacker stats 6
+execute positioned 280 -60 10 run mobstacker stats 10
+execute positioned 280 -60 10 run mobstacker inspect @e[type=enderman,limit=1,sort=nearest]
+execute positioned 310 -60 10 run mobstacker stats 10
+execute positioned 10 -60 40 run mobstacker stats 8
+execute positioned 10 -60 40 run mobstacker inspect @e[type=elder_guardian,limit=1,sort=nearest]

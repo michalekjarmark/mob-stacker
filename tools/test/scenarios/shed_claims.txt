@@ -1,0 +1,63 @@
+gamerule mobGriefing false
+# --- I: a stack of 5 endermen that carries a block hands it to one member (x=120, z=70) ---
+summon enderman 120 -60 70 {carriedBlockState:{Name:"minecraft:dirt"}}
+sleep 1
+mobstacker stacksize @e[type=enderman,x=115,y=-64,z=65,dx=10,dy=10,dz=10,limit=1] 5
+sleep 3
+execute positioned 120 -60 70 run mobstacker stats 10
+execute as @e[type=enderman,x=110,y=-64,z=60,dx=20,dy=10,dz=20] run data get entity @s carriedBlockState
+# --- J: villagers: 4 stack, then a bed appears (x=40, z=70) ---
+summon villager 40 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 40 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 40 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 40 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+# --- K: villagers: 4 stack, then a lectern appears (x=80, z=70) ---
+summon villager 80 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 80 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 80 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+summon villager 80 -60 70 {VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+sleep 3
+execute positioned 40 -60 70 run mobstacker stats 8
+execute positioned 80 -60 70 run mobstacker stats 8
+setblock 43 -60 70 red_bed[facing=south,part=head]
+setblock 43 -60 69 red_bed[facing=south,part=foot]
+setblock 83 -60 70 lectern
+sleep 30
+execute positioned 40 -60 70 run mobstacker stats 12
+execute as @e[type=villager,x=25,y=-64,z=55,dx=30,dy=10,dz=30] run data get entity @s Brain.memories
+execute positioned 80 -60 70 run mobstacker stats 12
+execute as @e[type=villager,x=65,y=-64,z=55,dx=30,dy=10,dz=30] run data get entity @s VillagerData.profession
+execute as @e[type=villager,x=65,y=-64,z=55,dx=30,dy=10,dz=30] run data get entity @s Brain.memories
+# --- L: a tag on the deny list (x=160, z=70) ---
+mobstacker list deny entity add #raiders
+summon pillager 160 -60 70 {HandItems:[{},{}]}
+summon pillager 160 -60 70 {HandItems:[{},{}]}
+summon pillager 160 -60 70 {HandItems:[{},{}]}
+sleep 3
+execute positioned 160 -60 70 run mobstacker stats 6
+execute positioned 160 -60 70 run mobstacker inspect @e[type=pillager,limit=1,sort=nearest]
+mobstacker list deny entity add #somemod:whatever
+mobstacker list deny entity list
+mobstacker list deny entity remove #minecraft:raiders
+mobstacker list deny entity remove #somemod:whatever
+sleep 3
+execute positioned 160 -60 70 run mobstacker stats 6
+# --- M: bossHealthThreshold 20 makes husks bosses (x=200, z=70) ---
+mobstacker set bossHealthThreshold 20
+summon husk 200 -60 70 {HandItems:[{},{}]}
+summon husk 200 -60 70 {HandItems:[{},{}]}
+summon husk 200 -60 70 {HandItems:[{},{}]}
+sleep 3
+execute positioned 200 -60 70 run mobstacker stats 6
+execute positioned 200 -60 70 run mobstacker inspect @e[type=husk,limit=1,sort=nearest]
+# --- N: stackBosses on: husks and new elder guardians stack (x=240, z=70) ---
+mobstacker set stackBosses true
+summon elder_guardian 240 -60 70
+summon elder_guardian 240 -60 70
+sleep 3
+execute positioned 200 -60 70 run mobstacker stats 6
+execute positioned 240 -60 70 run mobstacker stats 10
+mobstacker get bossHealthThreshold
+mobstacker set bossHealthThreshold 30
+mobstacker reset stackBosses
+mobstacker reset bossHealthThreshold

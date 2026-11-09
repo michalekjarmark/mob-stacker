@@ -1,0 +1,9 @@
+mobstacker selftest
+mobstacker region add whole deny dimension
+mobstacker region add box allow 0 0 0 10 10 10
+mobstacker region biomes box add #minecraft:is_overworld
+mobstacker region disable whole
+mobstacker region list
+mobstacker region show box
+mobstacker region bounds box dimension minecraft:the_nether
+mobstacker region show box

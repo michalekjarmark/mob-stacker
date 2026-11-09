@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.api.MobStackerAPI;
 import com.frikinjay.mobstacker.config.MobLists;
 import com.frikinjay.mobstacker.config.MobStackerConfig;
@@ -829,10 +830,10 @@ public final class MobStacker {
             data.remove("CustomName");
             data.remove("CustomNameVisible");
         }
-        ListTag attributes = data.getList(Compat.ATTRIBUTES_KEY, Tag.TAG_COMPOUND);
+        ListTag attributes = Nbt.getList(data, Compat.ATTRIBUTES_KEY, Tag.TAG_COMPOUND);
         for (int i = 0; i < attributes.size(); i++) {
-            attributes.getCompound(i).getList(Compat.MODIFIERS_KEY, Tag.TAG_COMPOUND).removeIf(modifier ->
-                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(tag.getString(Compat.MODIFIER_ID_KEY)));
+            Nbt.getList(Nbt.getCompound(attributes, i), Compat.MODIFIERS_KEY, Tag.TAG_COMPOUND).removeIf(modifier ->
+                    modifier instanceof CompoundTag tag && TOP_ONLY_MODIFIERS.contains(Nbt.getString(tag, Compat.MODIFIER_ID_KEY)));
         }
         try {
             member.load(data);
@@ -1351,7 +1352,7 @@ public final class MobStacker {
         CompoundTag sourceNbt = new CompoundTag();
         source.saveWithoutId(sourceNbt);
 
-        sourceNbt.getAllKeys().stream()
+        Nbt.keys(sourceNbt).stream()
                 .filter(key -> !isExcludedNbtKey(key))
                 .forEach(key -> targetNbt.put(key, sourceNbt.get(key)));
     }
@@ -1373,8 +1374,8 @@ public final class MobStacker {
     }
 
     private static void updateStackDataInNbt(CompoundTag nbt, int stackSize) {
-        CompoundTag stackData = nbt.contains(STACK_DATA_KEY, 10) ?
-                nbt.getCompound(STACK_DATA_KEY) : new CompoundTag();
+        CompoundTag stackData = Nbt.has(nbt, STACK_DATA_KEY, 10) ?
+                Nbt.getCompound(nbt, STACK_DATA_KEY) : new CompoundTag();
         stackData.putInt(STACK_SIZE_KEY, stackSize);
         nbt.put(STACK_DATA_KEY, stackData);
     }
@@ -1622,10 +1623,10 @@ public final class MobStacker {
     public static void applyLoadout(Mob mob, CompoundTag loadout) {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             String key = slot.getName();
-            boolean has = loadout != null && loadout.contains(key, 10);
-            mob.setItemSlot(slot, has ? Compat.loadItem(loadout.getCompound(key), mob.level().registryAccess()) : ItemStack.EMPTY);
+            boolean has = loadout != null && Nbt.has(loadout, key, 10);
+            mob.setItemSlot(slot, has ? Compat.loadItem(Nbt.getCompound(loadout, key), mob.level().registryAccess()) : ItemStack.EMPTY);
             if (loadout != null && loadout.contains(key + DROP_CHANCE_SUFFIX)) {
-                setDropChance(mob, slot, loadout.getFloat(key + DROP_CHANCE_SUFFIX));
+                setDropChance(mob, slot, Nbt.getFloat(loadout, key + DROP_CHANCE_SUFFIX));
             }
         }
     }
@@ -1644,8 +1645,8 @@ public final class MobStacker {
             return new ListTag();
         }
         CompoundTag customData = holder.mobstacker$getCustomData();
-        return customData.contains(MEMBER_EQUIPMENT_KEY, 9)
-                ? customData.getList(MEMBER_EQUIPMENT_KEY, 10) : new ListTag();
+        return Nbt.has(customData, MEMBER_EQUIPMENT_KEY, 9)
+                ? Nbt.getList(customData, MEMBER_EQUIPMENT_KEY, 10) : new ListTag();
     }
 
     public static void setMemberLoadouts(Mob mob, ListTag loadouts) {
@@ -1674,7 +1675,7 @@ public final class MobStacker {
         if (loadouts.isEmpty()) {
             return null;
         }
-        CompoundTag first = loadouts.getCompound(0).copy();
+        CompoundTag first = Nbt.getCompound(loadouts, 0).copy();
         loadouts.remove(0);
         setMemberLoadouts(mob, loadouts);
         return first;
@@ -1692,10 +1693,10 @@ public final class MobStacker {
         if (loadouts.isEmpty()) {
             return; // nothing was stored (the setting was off while this stack was built)
         }
-        applyLoadout(target, loadouts.getCompound(0));
+        applyLoadout(target, Nbt.getCompound(loadouts, 0));
         ListTag rest = new ListTag();
         for (int i = 1; i < loadouts.size() && rest.size() < newStackSize - 1; i++) {
-            rest.add(loadouts.getCompound(i).copy());
+            rest.add(Nbt.getCompound(loadouts, i).copy());
         }
         setMemberLoadouts(target, rest);
     }
@@ -1779,7 +1780,7 @@ public final class MobStacker {
             return false;
         }
         CompoundTag data = holder.mobstacker$getCustomData();
-        if (!data.getBoolean(JUST_SEPARATED_KEY)) {
+        if (!Nbt.getBoolean(data, JUST_SEPARATED_KEY)) {
             return false;
         }
         data.remove(JUST_SEPARATED_KEY);
@@ -1800,7 +1801,7 @@ public final class MobStacker {
     /** Ticks still owed to the player who was handed this mob, or 0. */
     public static int separationGrace(Mob mob) {
         return mob instanceof ICustomDataHolder holder
-                ? holder.mobstacker$getCustomData().getInt(SEPARATION_GRACE_KEY)
+                ? Nbt.getInt(holder.mobstacker$getCustomData(), SEPARATION_GRACE_KEY)
                 : 0;
     }
 
@@ -1810,7 +1811,7 @@ public final class MobStacker {
             return;
         }
         CompoundTag data = holder.mobstacker$getCustomData();
-        int left = data.getInt(SEPARATION_GRACE_KEY);
+        int left = Nbt.getInt(data, SEPARATION_GRACE_KEY);
         if (left <= 0) {
             return;
         }
@@ -1829,7 +1830,7 @@ public final class MobStacker {
     public static void refreshSeparationGrace(Mob mob) {
         if (mob instanceof ICustomDataHolder holder) {
             CompoundTag data = holder.mobstacker$getCustomData();
-            if (data.getInt(SEPARATION_GRACE_KEY) > 0) {
+            if (Nbt.getInt(data, SEPARATION_GRACE_KEY) > 0) {
                 putSeparationGrace(mob, data);
             }
         }
@@ -1837,12 +1838,12 @@ public final class MobStacker {
 
     public static boolean isPlayerNamed(Mob mob) {
         return mob instanceof ICustomDataHolder holder
-                && holder.mobstacker$getCustomData().getBoolean(PLAYER_NAMED_KEY);
+                && Nbt.getBoolean(holder.mobstacker$getCustomData(), PLAYER_NAMED_KEY);
     }
 
     public static boolean isNamedStack(Mob mob) {
         return mob instanceof ICustomDataHolder holder
-                && holder.mobstacker$getCustomData().getBoolean(NAMED_STACK_KEY);
+                && Nbt.getBoolean(holder.mobstacker$getCustomData(), NAMED_STACK_KEY);
     }
 
     /** The name the player gave this mob, without the " xN" count, or null when they gave none. */
@@ -1851,11 +1852,11 @@ public final class MobStacker {
             return null;
         }
         CompoundTag customData = holder.mobstacker$getCustomData();
-        if (!customData.getBoolean(PLAYER_NAMED_KEY) || !customData.contains(STACK_NAME_KEY, 8)) {
+        if (!Nbt.getBoolean(customData, PLAYER_NAMED_KEY) || !Nbt.has(customData, STACK_NAME_KEY, 8)) {
             return null;
         }
         try {
-            return Compat.fromJson(customData.getString(STACK_NAME_KEY), mob.level().registryAccess());
+            return Compat.fromJson(Nbt.getString(customData, STACK_NAME_KEY), mob.level().registryAccess());
         } catch (Exception e) {
             return null; // a name we can no longer read is no worse than no name at all
         }
@@ -1888,16 +1889,16 @@ public final class MobStacker {
             return;
         }
         CompoundTag sourceData = from.mobstacker$getCustomData();
-        if (!sourceData.getBoolean(PLAYER_NAMED_KEY)) {
+        if (!Nbt.getBoolean(sourceData, PLAYER_NAMED_KEY)) {
             return;
         }
         CompoundTag targetData = to.mobstacker$getCustomData();
         targetData.putBoolean(PLAYER_NAMED_KEY, true);
-        if (sourceData.getBoolean(NAMED_STACK_KEY)) {
+        if (Nbt.getBoolean(sourceData, NAMED_STACK_KEY)) {
             targetData.putBoolean(NAMED_STACK_KEY, true);
         }
-        if (sourceData.contains(STACK_NAME_KEY, 8)) {
-            targetData.putString(STACK_NAME_KEY, sourceData.getString(STACK_NAME_KEY));
+        if (Nbt.has(sourceData, STACK_NAME_KEY, 8)) {
+            targetData.putString(STACK_NAME_KEY, Nbt.getString(sourceData, STACK_NAME_KEY));
         }
     }
 
@@ -1910,7 +1911,7 @@ public final class MobStacker {
      */
     public static void recordOrigin(Mob mob, MobSpawnType reason) {
         if (mob instanceof ICustomDataHolder holder && reason != null
-                && !holder.mobstacker$getCustomData().contains(ORIGIN_KEY, 8)) {
+                && !Nbt.has(holder.mobstacker$getCustomData(), ORIGIN_KEY, 8)) {
             holder.mobstacker$getCustomData().putString(ORIGIN_KEY, reason.name());
         }
     }
@@ -1928,7 +1929,7 @@ public final class MobStacker {
             return null;
         }
         CompoundTag data = holder.mobstacker$getCustomData();
-        return data.contains(ORIGIN_KEY, 8) ? data.getString(ORIGIN_KEY) : null;
+        return Nbt.has(data, ORIGIN_KEY, 8) ? Nbt.getString(data, ORIGIN_KEY) : null;
     }
 
     /** A mob the mod makes out of another (a remainder, a separated mob, a conversion) came from where that one did. */
@@ -1954,8 +1955,8 @@ public final class MobStacker {
             return false;
         }
         if (getStackSize(mob) > 1 && mob instanceof ICustomDataHolder holder
-                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
-            for (String origin : holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY).getAllKeys()) {
+                && Nbt.has(holder.mobstacker$getCustomData(), MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            for (String origin : Nbt.keys(Nbt.getCompound(holder.mobstacker$getCustomData(), MEMBER_ORIGINS_KEY))) {
                 if (!originStacks(mob, NO_ORIGIN.equals(origin) ? null : origin)) {
                     return false;
                 }
@@ -2008,10 +2009,10 @@ public final class MobStacker {
     public static Map<String, Integer> memberOrigins(Mob mob) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         if (mob instanceof ICustomDataHolder holder
-                && holder.mobstacker$getCustomData().contains(MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
-            CompoundTag stored = holder.mobstacker$getCustomData().getCompound(MEMBER_ORIGINS_KEY);
-            for (String origin : stored.getAllKeys()) {
-                int count = stored.getInt(origin);
+                && Nbt.has(holder.mobstacker$getCustomData(), MEMBER_ORIGINS_KEY, Tag.TAG_COMPOUND)) {
+            CompoundTag stored = Nbt.getCompound(holder.mobstacker$getCustomData(), MEMBER_ORIGINS_KEY);
+            for (String origin : Nbt.keys(stored)) {
+                int count = Nbt.getInt(stored, origin);
                 if (count > 0) {
                     counts.merge(origin, count, Integer::sum);
                 }
@@ -2115,9 +2116,9 @@ public final class MobStacker {
         long now = level.getGameTime();
         int stackSize = getStackSize(self);
 
-        int love = data.getInt(BREED_LOVE_KEY);
-        int cooldownCount = data.getInt(BREED_COOLDOWN_COUNT_KEY);
-        long cooldownEnd = data.getLong(BREED_COOLDOWN_END_KEY);
+        int love = Nbt.getInt(data, BREED_LOVE_KEY);
+        int cooldownCount = Nbt.getInt(data, BREED_COOLDOWN_COUNT_KEY);
+        long cooldownEnd = Nbt.getLong(data, BREED_COOLDOWN_END_KEY);
         if (now >= cooldownEnd) {
             cooldownCount = 0; // cooldown expired: every member is free to breed again
         }
@@ -2221,9 +2222,9 @@ public final class MobStacker {
             return;
         }
         CompoundTag dst = targetHolder.mobstacker$getCustomData();
-        dst.putInt(BREED_LOVE_KEY, Math.min(src.getInt(BREED_LOVE_KEY), targetStackSize));
-        dst.putInt(BREED_COOLDOWN_COUNT_KEY, Math.min(src.getInt(BREED_COOLDOWN_COUNT_KEY), targetStackSize));
-        dst.putLong(BREED_COOLDOWN_END_KEY, src.getLong(BREED_COOLDOWN_END_KEY));
+        dst.putInt(BREED_LOVE_KEY, Math.min(Nbt.getInt(src, BREED_LOVE_KEY), targetStackSize));
+        dst.putInt(BREED_COOLDOWN_COUNT_KEY, Math.min(Nbt.getInt(src, BREED_COOLDOWN_COUNT_KEY), targetStackSize));
+        dst.putLong(BREED_COOLDOWN_END_KEY, Nbt.getLong(src, BREED_COOLDOWN_END_KEY));
     }
 
     /**
@@ -2317,7 +2318,7 @@ public final class MobStacker {
             return 1;
         }
         CompoundTag customData = holder.mobstacker$getCustomData();
-        return customData.contains(STACK_SIZE_KEY) ? customData.getInt(STACK_SIZE_KEY) : 1;
+        return customData.contains(STACK_SIZE_KEY) ? Nbt.getInt(customData, STACK_SIZE_KEY) : 1;
     }
 
     public static void setStackSize(Mob entity, int size) {
@@ -2346,7 +2347,7 @@ public final class MobStacker {
             return 0.0F;
         }
         CompoundTag customData = holder.mobstacker$getCustomData();
-        return customData.contains(MEMBER_DAMAGE_KEY) ? customData.getFloat(MEMBER_DAMAGE_KEY) : 0.0F;
+        return customData.contains(MEMBER_DAMAGE_KEY) ? Nbt.getFloat(customData, MEMBER_DAMAGE_KEY) : 0.0F;
     }
 
     public static void setStackMemberDamage(Mob entity, float damage) {
@@ -2366,7 +2367,7 @@ public final class MobStacker {
             return true;
         }
         CompoundTag customData = holder.mobstacker$getCustomData();
-        return !customData.contains(CAN_STACK_KEY) || customData.getBoolean(CAN_STACK_KEY);
+        return !customData.contains(CAN_STACK_KEY) || Nbt.getBoolean(customData, CAN_STACK_KEY);
     }
 
     public static void setCanStack(Mob entity, boolean canStack) {
@@ -2783,11 +2784,11 @@ public final class MobStacker {
         }
         ListTag members = getMemberLoadouts(mob);
         for (int i = 0; i < members.size(); i++) {
-            CompoundTag loadout = members.getCompound(i);
+            CompoundTag loadout = Nbt.getCompound(members, i);
             for (EquipmentSlot slot : EquipmentSlot.values()) {
                 String key = slot.getName();
-                if (loadout.contains(key, Tag.TAG_COMPOUND) && loadout.getFloat(key + DROP_CHANCE_SUFFIX) > 1.0F) {
-                    ItemStack stack = Compat.loadItem(loadout.getCompound(key), mob.level().registryAccess());
+                if (Nbt.has(loadout, key, Tag.TAG_COMPOUND) && Nbt.getFloat(loadout, key + DROP_CHANCE_SUFFIX) > 1.0F) {
+                    ItemStack stack = Compat.loadItem(Nbt.getCompound(loadout, key), mob.level().registryAccess());
                     if (!stack.isEmpty() && !Compat.vanishes(stack)) {
                         mob.spawnAtLocation(stack);
                     }

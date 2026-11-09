@@ -10,6 +10,7 @@ JDK 25 for anything that runs Gradle.
 | `rcon.py` | RCON client: `rcon.py <command>...` or `rcon.py -f <scenario>`, against a server that is already running. |
 | `scenarios/basic.txt` | Self-test, stacking, damage overflow (expected: x5, then x3). |
 | `scenarios/strict_data.txt` | Strict data matching against the version's vanilla keys (zombies with random spawn bonuses stack). |
+| `mcclient.py <name>` | A scripted **player** (offline mode, 1.20.1's protocol 763 only): logs in, speaks MobStacker's config channel and prints every snapshot, chat line and command tree it is sent; `--cmd` types a command as that player (RCON is always an operator), `--edit` sends a GUI edit, `--modded` prints stack labels and names, `--stay`/`--wait` keep it connected. Against Forge no snapshot comes (no FML handshake); it goes on after 3 s. |
 | `compare_jars.py <old> <new>` | Class-by-class `javap -c` comparison of two builds, constant-pool order ignored. |
 | `mc_jar.py <version>` | Path of Loom's vanilla Mojmap jar for a version, for `javap` and `tools/VanillaKeys.java`. |
 
@@ -31,9 +32,50 @@ The two transcripts should say the same (self-test count, x5 then x3, the zombie
 - **No player, no ticking**: entities in the spawn chunks stop ticking 15 s after the last player
   left (or the server started without one). Test mobs go in a `forceload`ed chunk elsewhere, or are
   merged with `/mobstacker stack`.
-- Despawning needs a player in range, so it cannot be tested this way (the old harness logs a
-  scripted client in for that: `tests/harness/mcclient.py`, 1.20.1 protocol only).
+- Despawning needs a player in range: log `mcclient.py` in (1.20.1 only) and `tp` it 2000 blocks
+  away, which despawns everything that may despawn at once.
+- **Offline mode and `op <name>`**: a name the server has never seen is looked up at Mojang, so log
+  each test player in once (`mcclient.py <name> --stay 0.3`) before `op`, `region owner` or `region
+  share` name them.
+- `/summon` without NBT runs `finalizeSpawn` (random colours, jockeys, gear on Hard) and records the
+  origin COMMAND; with any NBT it does neither (`{Color:0b}`, `{HandItems:[{},{}]}` give plain mobs).
+- `/kill` takes a whole stack; `/damage <n> minecraft:generic` is world damage and hurts every member
+  (since 1.10.0): for a hit use `damage <target> <n> minecraft:mob_attack by <some mob>`.
+- A stack's remainder appears about a second after a kill (the death animation): wait 1.1 s between
+  kills. Build a big stack with one summon and `/mobstacker stacksize <target> <n>`: forty summons on
+  one spot cram each other first.
+- Idle mobs stop wandering after 100 ticks with no player around (vanilla `noActionTime`): to see a
+  stack move, give it a target (zombies next to a villager).
+- `difficulty` comes back from `server.properties` on every start; snow golems melt in rain and
+  undead burn by day (`weather clear`, `time set`).
 - Forge/NeoForge have no production server task: test those with `:<node>:runServer` (dev mappings,
   not the remapped jar) or in a real instance.
 - Two servers at once need different `--rcon-port`/`--server-port` (set when the run dir is created;
   afterwards edit its `server.properties`).
+
+## Scenarios from the 1.20.1 test rounds
+
+Written for 1.20.1 (rounds 9-13), so their NBT is 1.20.x's (`HandItems`, `carriedBlockState`, ...);
+1.20.5 and 1.21.5 changed parts of it. Each sets up its own area on a fresh flat world and prints what
+to compare; the comments in the file say what to expect.
+
+| File | What it checks |
+|---|---|
+| `loader_basics.txt` | Stacking, inspect, a region, stats: the first check of a new loader (Forge round 1). |
+| `never_stack.txt` | What never stacks: the unstackable tag, NoAI, love mode, raiders, bosses (1.12.0). |
+| `shed_claims.txt` | A stack hands a claim to one member: an enderman's block, a villager's bed and job. |
+| `member_copies.txt` | A mob made out of a stack is a copy of it (no armour or leader bonus re-rolled; #35). |
+| `picked_gear.txt` | Picked-up gear drops when its mob is merged away (#57). |
+| `sweep_fixes.txt` | The 1.12.0 code sweep: creepers, tadpoles, axolotl and frog breeding (the creeper needs `mcclient.py`). |
+| `original_options.txt` | multiplyGiftDrops, turtles' scutes, killBatchSize, stackOutgoingDamage. |
+| `despawn_setup.txt` | Old spawn caps moved to vanilla; despawnPickedUpMobs in a region (then `mcclient.py`, see Traps). |
+| `regions_beyond_boxes.txt` | Whole-dimension regions, on/off, type changes. |
+| `region_biomes.txt` | Biome filters on regions. |
+| `forge_regions.txt` | The same on a Forge dev server. |
+| `harvest_off.txt` | stackedHarvest off: shears take one sheep out. |
+| `cure.txt` | A zombie villager being cured stays out of its stack (round 13). |
+| `origins.txt` | Spawn origins recorded per member, stackPlacedMobs, unstack. |
+| `rotation.txt` | A merge does not turn the stack (Rotation). |
+
+Wiki tools are in `tools/wiki/`: `wiki_check.py wiki/docs` (MDX hazards, `$page#anchor` links) and the
+settings page generator (`settings_dump.py` + `wiki_settings.py`, see their first lines).

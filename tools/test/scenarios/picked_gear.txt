@@ -1,0 +1,26 @@
+# 1.12.0 #57: with stackEquippedMobs on and keepMemberEquipment off, what a mob picked up is dropped
+# when it is merged away (it used to vanish). Run on a fresh flat world: python tools/test/run_server.py <node> tools/test/scenarios/picked_gear.txt
+time set 18000
+gamerule doDaylightCycle false
+gamerule doMobSpawning false
+forceload add 280 60 330 100
+sleep 2
+mobstacker set stackEquippedMobs true
+mobstacker set keepMemberEquipment false
+mobstacker set stackMode everywhere
+scoreboard objectives add c57 dummy
+# A bare stack of 3 (the survivor, being bigger), then a zombie holding a sword it picked up and a
+# helmet it spawned with, next to it.
+summon zombie 300 -60 80 {Tags:["c57s"],NoAI:0b}
+sleep 1
+mobstacker stacksize @e[tag=c57s,limit=1] 3
+summon zombie 301 -60 80 {Tags:["c57p"],HandItems:[{id:"minecraft:diamond_sword",Count:1b},{}],HandDropChances:[2.0f,0.085f],ArmorItems:[{},{},{},{id:"minecraft:iron_helmet",Count:1b}]}
+sleep 4
+execute positioned 300 -60 80 run mobstacker stats 6
+execute store result score #swords c57 if entity @e[type=item,nbt={Item:{id:"minecraft:diamond_sword"}}]
+scoreboard players get #swords c57
+execute store result score #helmets c57 if entity @e[type=item,nbt={Item:{id:"minecraft:iron_helmet"}}]
+scoreboard players get #helmets c57
+execute as @e[type=zombie,x=290,y=-64,z=70,dx=20,dy=10,dz=20] run data get entity @s HandItems[0]
+mobstacker reset stackEquippedMobs
+mobstacker reset keepMemberEquipment

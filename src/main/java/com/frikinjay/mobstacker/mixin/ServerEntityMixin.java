@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.ICustomDataHolder;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.StackLabels;
@@ -41,7 +42,7 @@ public class ServerEntityMixin {
     private void mobstacker$updateStackDisplayBeforeSendingChanges(CallbackInfo ci) {
         if (entity instanceof Mob livingEntity && livingEntity instanceof ICustomDataHolder) {
             CompoundTag customData = ((ICustomDataHolder) livingEntity).mobstacker$getCustomData();
-            int stackSize = customData.getInt(MobStacker.STACK_SIZE_KEY);
+            int stackSize = Nbt.getInt(customData, MobStacker.STACK_SIZE_KEY);
             // Once a second: the label is sent only when it changed (StackLabels#refresh), and what can
             // change it without a size change - a setting, a region boundary - is not in a hurry.
             if (stackSize > 1 && (livingEntity.tickCount + livingEntity.getId()) % 20 == 0) {

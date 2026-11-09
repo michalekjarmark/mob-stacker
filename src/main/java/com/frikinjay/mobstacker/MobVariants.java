@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Nbt;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -188,7 +189,7 @@ public final class MobVariants {
             AttributeInstance instance = mob.getAttribute(attribute);
             String key = attributeKey(attribute);
             if (instance != null && rolls.contains(key)) {
-                instance.setBaseValue(rolls.getDouble(key));
+                instance.setBaseValue(Nbt.getDouble(rolls, key));
             }
         }
         mob.setHealth(mob.getMaxHealth());
@@ -210,8 +211,8 @@ public final class MobVariants {
             return new ListTag();
         }
         CompoundTag data = holder.mobstacker$getCustomData();
-        return data.contains(MEMBER_ROLLS_KEY, Tag.TAG_LIST)
-                ? data.getList(MEMBER_ROLLS_KEY, Tag.TAG_COMPOUND).copy() : new ListTag();
+        return Nbt.has(data, MEMBER_ROLLS_KEY, Tag.TAG_LIST)
+                ? Nbt.getList(data, MEMBER_ROLLS_KEY, Tag.TAG_COMPOUND).copy() : new ListTag();
     }
 
     private static void storeRolls(Mob mob, ListTag rolls, int stackSize) {
@@ -282,7 +283,7 @@ public final class MobVariants {
         if (rolls.isEmpty()) {
             return;
         }
-        applyRolls(separated, rolls.getCompound(0));
+        applyRolls(separated, Nbt.getCompound(rolls, 0));
         rolls.remove(0);
         storeRolls(stack, rolls, MobStacker.getStackSize(stack));
     }
@@ -304,9 +305,9 @@ public final class MobVariants {
         int top = rolls.size() - newStackSize;
         ListTag rest = new ListTag();
         if (top >= 0) {
-            applyRolls(survivor, rolls.getCompound(top));
+            applyRolls(survivor, Nbt.getCompound(rolls, top));
             for (int i = top + 1; i < rolls.size(); i++) {
-                rest.add(rolls.getCompound(i).copy());
+                rest.add(Nbt.getCompound(rolls, i).copy());
             }
         } else {
             // Fewer recorded than survived (the stack size was set by hand): keep what there is.

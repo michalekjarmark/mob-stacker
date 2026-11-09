@@ -1,0 +1,35 @@
+mobstacker set stackMode everywhere
+weather clear
+time set day
+forceload add 96 96 216 216
+sleep 2
+summon cow 100 -60 100 {Rotation:[0f,0f]}
+summon cow 100 -60 100 {Rotation:[0f,0f]}
+summon cow 100 -60 100 {Rotation:[0f,0f]}
+sleep 2
+summon cow 100 -60 100
+summon cow 100 -60 100
+sleep 3
+execute positioned 100 -60 100 run mobstacker inspect @e[type=cow,limit=1,sort=nearest]
+mobstacker set stackPlacedMobs false
+execute positioned 100 -60 100 run mobstacker inspect @e[type=cow,limit=1,sort=nearest]
+mobstacker set stackPlacedMobs true
+mobstacker set stackMode off
+execute positioned 100 -60 100 run mobstacker unstack 10
+sleep 3
+execute if entity @e[type=cow,x=90,y=-64,z=90,dx=20,dy=10,dz=20,nbt={StackData:{Origin:"COMMAND"}}]
+execute if entity @e[type=cow,x=90,y=-64,z=90,dx=20,dy=10,dz=20,nbt=!{StackData:{Origin:"COMMAND"}}]
+execute if entity @e[type=cow,x=90,y=-64,z=90,dx=20,dy=10,dz=20,nbt={StackData:{MemberOrigins:{}}}]
+mobstacker set stackMode everywhere
+mobstacker region add frz allow 190 -64 190 210 0 210
+mobstacker region set frz stackAi frozen
+summon cow 200 -60 200 {Rotation:[0f,0f]}
+sleep 2
+mobstacker stacksize @e[type=cow,x=190,y=-64,z=190,dx=20,dy=10,dz=20,limit=1] 5
+sleep 2
+summon cow 202 -60 200 {Rotation:[90f,0f]}
+sleep 3
+summon cow 201 -60 201 {Rotation:[180f,0f]}
+sleep 3
+execute as @e[type=cow,x=190,y=-64,z=190,dx=20,dy=10,dz=20] run data get entity @s Rotation
+execute as @e[type=cow,x=190,y=-64,z=190,dx=20,dy=10,dz=20] run data get entity @s StackData.StackSize

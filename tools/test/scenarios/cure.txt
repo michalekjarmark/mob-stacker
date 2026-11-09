@@ -1,0 +1,22 @@
+# Round 13: a zombie villager being cured must not walk back into its stack (it did, and the stack
+# took the cure). Run on a fresh world: python tools/test/run_server.py <node> tools/test/scenarios/cure.txt
+mobstacker set stackMode everywhere
+weather clear
+time set night
+gamerule doMobSpawning false
+gamerule doDaylightCycle false
+forceload add 0 0 64 64
+sleep 2
+# A stack of three plain zombie villagers (x=10), weakened so nothing burns or wanders much.
+summon zombie_villager 10 -60 10 {VillagerData:{type:"minecraft:plains",profession:"minecraft:none",level:1},PersistenceRequired:1b}
+summon zombie_villager 10 -60 10 {VillagerData:{type:"minecraft:plains",profession:"minecraft:none",level:1},PersistenceRequired:1b}
+summon zombie_villager 10 -60 10 {VillagerData:{type:"minecraft:plains",profession:"minecraft:none",level:1},PersistenceRequired:1b}
+sleep 3
+execute as @e[type=zombie_villager] run data get entity @s CustomName
+# One being cured, right next to the stack: it must stay on its own.
+summon zombie_villager 11 -60 10 {VillagerData:{type:"minecraft:plains",profession:"minecraft:none",level:1},PersistenceRequired:1b,ConversionTime:2400}
+sleep 4
+execute as @e[type=zombie_villager] run data get entity @s ConversionTime
+execute as @e[type=zombie_villager] run data get entity @s CustomName
+execute as @e[type=zombie_villager,nbt={ConversionTime:-1}] run mobstacker inspect @s
+execute as @e[type=zombie_villager,nbt=!{ConversionTime:-1}] run mobstacker inspect @s

@@ -1,0 +1,45 @@
+mobstacker selftest
+mobstacker set stackMode everywhere
+weather clear
+time set day
+gamerule doMobSpawning false
+gamerule doDaylightCycle false
+forceload add 0 96 127 191
+# --- caps: a config still holding the old lowered caps moves to vanilla on load ---
+mobstacker get monsterMobCap
+mobstacker set monsterMobCap 22
+mobstacker set creatureMobCap 5
+mobstacker set ambientMobCap 7
+mobstacker set axolotlsMobCap 2
+mobstacker set undergroundWaterCreatureMobCap 2
+mobstacker set waterCreatureMobCap 2
+mobstacker set waterAmbientMobCap 8
+mobstacker reload
+mobstacker get monsterMobCap
+mobstacker get waterAmbientMobCap
+# --- region lmd (x 0..64, z 100..160) lets picked-up mobs despawn; outside it does not ---
+mobstacker region add lmd allow 0 -64 100 64 0 160
+mobstacker region set lmd despawnPickedUpMobs true
+mobstacker set persistentStackSize 4
+gamerule mobGriefing true
+summon husk 20 -60 120 {CanPickUpLoot:1b,HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+summon husk 100 -60 120 {CanPickUpLoot:1b,HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+summon item 20 -60 120 {Item:{id:"minecraft:iron_sword",Count:1b}}
+summon item 100 -60 120 {Item:{id:"minecraft:iron_sword",Count:1b}}
+sleep 3
+gamerule mobGriefing false
+execute as @e[type=husk,x=10,y=-64,z=110,dx=20,dy=10,dz=20] run data get entity @s PersistenceRequired
+execute as @e[type=husk,x=10,y=-64,z=110,dx=20,dy=10,dz=20] run data get entity @s HandItems[0].id
+execute as @e[type=husk,x=90,y=-64,z=110,dx=20,dy=10,dz=20] run data get entity @s PersistenceRequired
+execute as @e[type=husk,x=90,y=-64,z=110,dx=20,dy=10,dz=20] run data get entity @s HandItems[0].id
+# --- an enderman with a block inside the region; stacks of 5 and 2 and a lone husk ---
+summon enderman 30 -60 130 {carriedBlockState:{Name:"minecraft:dirt"}}
+summon husk 40 -60 140 {HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+summon husk 52 -60 152 {HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+summon husk 60 -60 105 {HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+sleep 1
+mobstacker stacksize @e[type=husk,x=35,y=-64,z=135,dx=10,dy=10,dz=10,limit=1] 5
+mobstacker stacksize @e[type=husk,x=47,y=-64,z=147,dx=10,dy=10,dz=10,limit=1] 2
+sleep 1
+execute as @e[type=husk] run data get entity @s Pos
+execute as @e[type=enderman] run data get entity @s carriedBlockState
