@@ -59,6 +59,7 @@ unknown (conditions at 26.1).
 | `ServerPlayer.getServer()` | gone: `player.level().getServer()` (works on every version) | `MobStackerNeoForge` |
 | `MinecraftServer.handleCustomClickAction(id, payload)` (vanilla) | NeoForge adds the player and the profile to the call | `Compat.HANDLE_CUSTOM_CLICK_ACTION` |
 | dispenser `tryShearLivingEntity` | `tryShearEntity` (as vanilla) | `Compat.DISPENSER_SHEAR_ENTITY` |
+| mods are built inside `Minecraft`'s constructor (`Minecraft.getInstance()` is set) | mods are built from `Main.main` **before** `Minecraft` exists: `Minecraft.getInstance()` is **null** in the mod's constructor - the client crashes at launch ("Cannot read field gameDirectory"), a server never shows it | Nothing called from a mod constructor asks the game for anything: `MobStackerClient.init(transport, gameDirectory)`, NeoForge passes `FMLPaths.GAMEDIR.get()` |
 
 Key categories: vanilla's `KeyMapping.Category.register` is enough on NeoForge too (its
 `ClientHooks.onRegisterKeyMappings` only appends the categories registered through the event to the
@@ -118,6 +119,9 @@ panel, caught before any release). After such a replace, look at the helpers' `e
 - 26.3 rejects `gamerule doMobSpawning` (game rules were renamed somewhere after 1.21.1); the line
   fails on its own and the scenario goes on.
 - `tools/test/mcclient.py` speaks the 1.20.1 protocol only: anything on a newer client needs a person.
+- The server scripts never build the mod's client side. **Start a new node's client once** before a
+  jar goes to a person (`./gradlew :<node>:runClient`, up to the title screen): the NeoForge 26.3 jar
+  passed every server test and crashed the client at launch.
 - Reading vanilla: `javap -p -c -cp <jar> <class>` on the node's jar in
   `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/<mc>*/` (JDK 25's `javap` reads
   every version); data files (loot tables, tags) are in the same jar.

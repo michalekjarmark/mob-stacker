@@ -42,7 +42,7 @@ public final class MobStackerFabricClient implements ClientModInitializer {
                 ClientPlayNetworking.send(channel, buf);
                 //?}
             }
-        });
+        }, net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath());
         //? if >=1.20.5 {
         /*// The payload types are registered by the common entrypoint (MobStackerFabric).
         ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.network.RawPayload.type(MobStackerNetworking.SYNC),

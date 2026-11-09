@@ -53,7 +53,8 @@ public final class MobStackerNeoForgeClient {
                     //?}
                 }
             }
-        });
+            // FML's own: from 26.1 this runs before the game's Minecraft object exists.
+        }, net.neoforged.fml.loading.FMLPaths.GAMEDIR.get());
 
         modBus.addListener((RegisterKeyMappingsEvent event) -> MobStackerClient.keys().forEach(event::register));
         modBus.addListener((RegisterGuiLayersEvent event) -> event.registerAboveAll(

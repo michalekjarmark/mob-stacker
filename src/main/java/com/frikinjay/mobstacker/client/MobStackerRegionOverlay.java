@@ -188,9 +188,11 @@ public final class MobStackerRegionOverlay {
     /**
      * Reads the player's overlay settings. Called once by the loader's client entrypoint; the drawing
      * itself is hooked into the world renderer by {@code LevelRendererMixin}, on every loader alike.
+     *
+     * @param gameDirectory the game's folder, as the loader knows it (see {@link MobStackerClient#init})
      */
-    public static void init() {
-        file = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("mobstacker-overlay.json");
+    public static void init(Path gameDirectory) {
+        file = gameDirectory.resolve("config").resolve("mobstacker-overlay.json");
         load();
         // Every box is drawn last of all, straight into the finished frame. Drawn any earlier, what
         // the world drew after it covered it: clouds with every setting, and with "Fabulous" graphics

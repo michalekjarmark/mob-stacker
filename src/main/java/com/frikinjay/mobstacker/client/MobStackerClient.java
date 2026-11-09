@@ -53,13 +53,17 @@ public final class MobStackerClient {
 
     /**
      * Called once by the loader's client entrypoint, with the loader's way of talking to the server.
+     * <p>
+     * The game's folder comes from the loader too: on NeoForge from Minecraft 26.1 the mod is built
+     * before the game's {@code Minecraft} object exists ({@code Minecraft.getInstance()} is still
+     * null), so nothing called from here may ask the game for anything.
      */
-    public static void init(MobStackerClientNetworking.Transport transport) {
+    public static void init(MobStackerClientNetworking.Transport transport, java.nio.file.Path gameDirectory) {
         // Client side of the config-sync protocol (S2C snapshot receiver + disconnect cleanup).
         MobStackerClientNetworking.init(transport);
         // In-world region boxes. Purely a client-side view of the world, so nothing here is sent
         // anywhere and a server never knows or cares whether a player has them switched on.
-        MobStackerRegionOverlay.init();
+        MobStackerRegionOverlay.init(gameDirectory);
     }
 
     /** The key bindings, for the loader to register. */
