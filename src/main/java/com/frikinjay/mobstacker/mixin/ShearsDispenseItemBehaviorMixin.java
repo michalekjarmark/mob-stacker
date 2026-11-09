@@ -32,6 +32,19 @@ public abstract class ShearsDispenseItemBehaviorMixin {
     @Unique
     private static int mobstacker$membersShorn;
 
+    //? if neoforge {
+    /*/^* NeoForge's dispenser shears through IShearable.onSheared; NeoForgeShearing does the stack's part. ^/
+    @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
+            target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ljava/util/List;"))
+    private static java.util.List<net.minecraft.world.item.ItemStack> mobstacker$shearWithTheStack(
+            net.neoforged.neoforge.common.IShearable shearable, net.minecraft.world.entity.player.Player player,
+            net.minecraft.world.item.ItemStack item, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        com.frikinjay.mobstacker.neoforge.NeoForgeShearing.Sheared sheared =
+                com.frikinjay.mobstacker.neoforge.NeoForgeShearing.shear(shearable, player, item, level, pos);
+        mobstacker$membersShorn = sheared.members();
+        return sheared.drops();
+    }
+    *///?} else {
     @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/sounds/SoundSource;)V"))
     private static void mobstacker$shearWithTheStack(Shearable shearable, SoundSource source) {
@@ -56,6 +69,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
             mobstacker$membersShorn = extra;
         }
     }
+    //?}
 
     /** One point of wear per member sheared, as a player's shears take, on top of vanilla's one. */
     @ModifyArg(method = "execute", at = @At(value = "INVOKE",

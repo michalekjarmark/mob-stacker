@@ -6,7 +6,7 @@ JDK 25 for anything that runs Gradle.
 
 | Tool | What it does |
 |---|---|
-| `run_server.py <node> [scenarios...]` | Starts a production **Fabric** test server for a node (`prodServer -PstrictMixins`), waits for it, runs scenario files over RCON, stops it. `--jar <jar> --dir <name>` runs another jar (e.g. the last release) in its own run dir, for the same test on both. Writes `eula.txt` on first use, which accepts the Minecraft EULA for that test server. |
+| `run_server.py <node> [scenarios...]` | Starts a test server for a node, waits for it, runs scenario files over RCON, stops it. Fabric: a production server (`prodServer -PstrictMixins`); Forge/NeoForge: the dev server (`runServer -PstrictMixins`, run dir `versions/<node>/run`), which on NeoForge 1.20.5+ runs on the same names as production. `--jar <jar> --dir <name>` runs another jar (e.g. the last release) in its own run dir, for the same test on both. Writes `eula.txt` on first use, which accepts the Minecraft EULA for that test server. |
 | `rcon.py` | RCON client: `rcon.py <command>...` or `rcon.py -f <scenario>`, against a server that is already running. |
 | `scenarios/basic.txt` | Self-test, stacking, damage overflow (expected: x5, then x3). |
 | `scenarios/strict_data.txt` | Strict data matching against the version's vanilla keys (zombies with random spawn bonuses stack). |
@@ -48,8 +48,10 @@ The two transcripts should say the same (self-test count, x5 then x3, the zombie
   stack move, give it a target (zombies next to a villager).
 - `difficulty` comes back from `server.properties` on every start; snow golems melt in rain and
   undead burn by day (`weather clear`, `time set`).
-- Forge/NeoForge have no production server task: test those with `:<node>:runServer` (dev mappings,
-  not the remapped jar) or in a real instance.
+- Forge/NeoForge have no production server task: `run_server.py` uses `:<node>:runServer` for them
+  (dev mappings; on Forge 1.20.1 not the SRG-remapped jar). The dev run logs "access transformer file
+  does not exist" on NeoForge: the file is made when the jar is packed, and in dev Loom applies the
+  widener itself.
 - Two servers at once need different `--rcon-port`/`--server-port` (set when the run dir is created;
   afterwards edit its `server.properties`).
 

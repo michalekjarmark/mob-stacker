@@ -1,0 +1,43 @@
+modLoader = "javafml"
+loaderVersion = "${forge_loader_range}"
+license = "LGPL-3.0"
+issueTrackerURL = "https://github.com/michalekjarmark/mob-stacker/issues"
+
+[[mods]]
+modId = "mobstacker"
+version = "${version}"
+displayName = "MobStacker: Restacked"
+authors = "michalekjarmark, davidex"
+credits = "frikinjay (original author)"
+displayURL = "https://github.com/michalekjarmark/mob-stacker"
+logoFile = "assets/mobstacker/icon.png"
+description = '''
+Greatly increases performance by stacking mobs together. An actively-developed fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback, per-world config and an in-game config GUI.
+'''
+# Stacking is the server's business: a client without the mod joins a server with it, and a client
+# with it joins any server. NeoForge has no display test any more; the mod's channels are optional
+# (MobStackerNeoForge), which is what lets either side in without the other.
+
+# NeoForge loads these only when they are named here (from 1.20.5).
+[[mixins]]
+config = "mobstacker.mixins.json"
+
+[[mixins]]
+config = "mobstacker-neoforge.mixins.json"
+
+[[accessTransformers]]
+file = "META-INF/accesstransformer.cfg"
+
+[[dependencies.mobstacker]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mobstacker]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_range_maven}"
+ordering = "NONE"
+side = "BOTH"
