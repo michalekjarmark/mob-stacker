@@ -1,0 +1,27 @@
+# A dispenser's shears on a stack of 5 white sheep, stackedHarvest on (the default): wool for all
+# five (5-15 blocks), one sheared stack of 5. From 1.21.5 the wool comes from a loot table that gives
+# nothing for a sheep already sheared: 26.3-1 found only the top sheep's wool. Compare old and new.
+mobstacker set stackMode everywhere
+mobstacker set stackedHarvest true
+forceload add 300 300
+sleep 3
+kill @e[type=sheep,x=300,y=100,z=300,distance=..16]
+kill @e[type=item,x=300,y=100,z=300,distance=..16]
+# A 1x1 pen of glass with the dispenser as its north wall, facing the sheep.
+fill 298 99 297 302 99 302 minecraft:stone
+fill 299 100 299 301 101 301 minecraft:glass
+fill 300 100 300 300 101 300 minecraft:air
+setblock 300 100 299 minecraft:dispenser[facing=south]
+item replace block 300 100 299 container.0 with minecraft:shears
+summon sheep 300.5 100 300.5 {Color:0b}
+sleep 2
+mobstacker stacksize @e[type=sheep,limit=1,x=300,y=100,z=300,distance=..2] 5
+sleep 1
+execute positioned 300 100 300 run mobstacker stats 4
+# Power the dispenser: one shot shears the whole stack.
+setblock 300 100 298 minecraft:redstone_block
+sleep 3
+execute positioned 300 100 300 run mobstacker stats 4
+execute as @e[type=sheep,x=300,y=100,z=300,distance=..2] run data get entity @s Sheared
+execute as @e[type=item,x=300,y=100,z=300,distance=..4] run data get entity @s Item
+setblock 300 100 298 minecraft:air

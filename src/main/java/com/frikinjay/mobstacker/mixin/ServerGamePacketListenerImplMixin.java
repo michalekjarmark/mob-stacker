@@ -31,7 +31,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     @Shadow public ServerPlayer player;
     //?}
 
-    @ModifyVariable(method = "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V",
+    @ModifyVariable(method = com.frikinjay.mobstacker.compat.Compat.SEND_WITH_LISTENER,
             at = @At("HEAD"), argsOnly = true)
     private Packet<?> mobstacker$personaliseStackLabel(Packet<?> packet) {
         //? if >=1.20.2 {

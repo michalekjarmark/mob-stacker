@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.compat.Nbt;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -89,7 +90,7 @@ public final class MobData {
         if (cached != null && now - cached.gameTime() < CACHE_TICKS && now >= cached.gameTime()) {
             return cached.data();
         }
-        CompoundTag all = mob.saveWithoutId(new CompoundTag());
+        CompoundTag all = Compat.save(mob);
         CompoundTag modded = new CompoundTag();
         for (String key : Nbt.keys(all)) {
             if (!VANILLA_KEYS.contains(key) && !ALWAYS_IGNORED.contains(key)) {

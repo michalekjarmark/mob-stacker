@@ -74,7 +74,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "onChangedBlock", at = @At("HEAD"))
     private void mobstacker$onChangedBlock(CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if (!mobstacker$thisEntity.level().isClientSide && mobstacker$thisEntity instanceof Mob) {
+        if (!mobstacker$thisEntity.level().isClientSide() && mobstacker$thisEntity instanceof Mob) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             if (MobStacker.getCanStack(mobstacker$self) && MobStacker.canStack(mobstacker$self)) {
                 MobStacker.tryMergeIntoNearbyStack(mobstacker$self);
@@ -91,7 +91,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "die", at = @At("HEAD"))
     private void mobstacker$beginDropCompaction(DamageSource damageSource, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
-        if (!self.level().isClientSide && self instanceof Mob mob && MobStacker.getStackSize(mob) > 1
+        if (!self.level().isClientSide() && self instanceof Mob mob && MobStacker.getStackSize(mob) > 1
                 && (MobStacker.getCompactDrops(mob) || MobStacker.getCompactExperience(mob))) {
             MobStacker.beginDropCapture(mob);
         }
@@ -100,7 +100,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "die", at = @At("RETURN"))
     private void mobstacker$finishDropCompaction(DamageSource damageSource, CallbackInfo ci) {
         LivingEntity self = (LivingEntity) (Object) this;
-        if (!self.level().isClientSide && self instanceof Mob mob) {
+        if (!self.level().isClientSide() && self instanceof Mob mob) {
             MobStacker.finishDropCaptureAndCompact(mob);
         }
     }
@@ -185,7 +185,7 @@ public abstract class LivingEntityMixin extends Entity {
                 .append(Component.literal(killed + "× " + name).withStyle(ChatFormatting.YELLOW))
                 .append(Component.literal("  •  ").withStyle(ChatFormatting.DARK_GRAY))
                 .append(Component.literal(remaining + " left").withStyle(ChatFormatting.GREEN));
-        player.displayClientMessage(message, true);
+        Compat.actionBar(player, message);
     }
 
     /**
@@ -211,16 +211,16 @@ public abstract class LivingEntityMixin extends Entity {
         serverLevel.sendParticles(ParticleTypes.POOF, x, y, z, puffs, spreadXZ, spreadY * 0.6, spreadXZ, 0.03);
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = Compat.AWARD_KILL_SCORE, shift = At.Shift.AFTER))
     private void mobstacker$onDieAllScore(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             int stackSize = MobStacker.getStackSize(mobstacker$self);
             LivingEntity livingEntity = mobstacker$self.getKillCredit();
-            if (mobstacker$self.deathScore >= 0 && livingEntity != null) {
+            if (livingEntity != null) {
                 for (int i = 1; i < stackSize; i++) {
-                    livingEntity.awardKillScore(mobstacker$self, mobstacker$self.deathScore, damageSource);
+                    Compat.awardKillScore(livingEntity, mobstacker$self, damageSource);
                 }
             }
         }
@@ -280,8 +280,20 @@ public abstract class LivingEntityMixin extends Entity {
      * the leftover of a <em>killing blow</em> carries onto the mobs below. Sweeping Edge always adds
      * its damage; how far into the stack that damage then reaches is up to the stack.
      */
+    //? if >=1.21.2 {
+    /*@ModifyVariable(method = "hurtServer", at = @At("HEAD"), ordinal = 0, argsOnly = true)
+    private float mobstacker$applySweepingEdgeToStack(float amount, net.minecraft.server.level.ServerLevel level, DamageSource damageSource) {
+        return mobstacker$sweepingEdge(amount, damageSource);
+    }
+    *///?} else {
     @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private float mobstacker$applySweepingEdgeToStack(float amount, DamageSource damageSource) {
+        return mobstacker$sweepingEdge(amount, damageSource);
+    }
+    //?}
+
+    @Unique
+    private float mobstacker$sweepingEdge(float amount, DamageSource damageSource) {
         mobstacker$pendingSweepDamage = 0.0F;
         mobstacker$pendingSweepRawAmount = 0.0F;
         LivingEntity self = (LivingEntity) (Object) this;
@@ -375,7 +387,19 @@ public abstract class LivingEntityMixin extends Entity {
      * already taken it.
      */
     @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
+    //? if >=1.21.2 {
+    /*private void mobstacker$overflowDamage(LivingEntity instance, float newHealth, net.minecraft.server.level.ServerLevel level,
+                                           DamageSource source, float amount) {
+        mobstacker$overflow(instance, newHealth, source, amount);
+    }
+    *///?} else {
     private void mobstacker$overflowDamage(LivingEntity instance, float newHealth, DamageSource source, float amount) {
+        mobstacker$overflow(instance, newHealth, source, amount);
+    }
+    //?}
+
+    @Unique
+    private void mobstacker$overflow(LivingEntity instance, float newHealth, DamageSource source, float amount) {
         // Three independent mechanisms live here, and any one is reason enough to run: damage
         // overflow (the killing blow's leftover carries down the stack), per-mob Sweeping Edge (the
         // members carry their own wounds between swings) and damage from the world hurting every
@@ -469,8 +493,8 @@ public abstract class LivingEntityMixin extends Entity {
         for (int i = 0; i < extraKilled; i++) {
             mobstacker$wearNextMemberGear(mob);
             mobstacker$dropLoot(damageSource);
-            if (mob.deathScore >= 0 && killCredit != null) {
-                killCredit.awardKillScore(mob, mob.deathScore, damageSource);
+            if (killCredit != null) {
+                Compat.awardKillScore(killCredit, mob, damageSource);
             }
             mob.createWitherRose(killCredit);
         }
@@ -497,7 +521,7 @@ public abstract class LivingEntityMixin extends Entity {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void mobstacker$onConstructed(EntityType<?> entityType, Level level, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if (!level.isClientSide && mobstacker$thisEntity instanceof Mob) {
+        if (!level.isClientSide() && mobstacker$thisEntity instanceof Mob) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             if (MobStacker.getStackSize(mobstacker$self) == 1) {
                 MobStacker.setStackSize(mobstacker$self, 1);
@@ -509,9 +533,9 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("RETURN"))
-    private void mobstacker$onReadAdditionalSaveData(CompoundTag compound, CallbackInfo ci) {
+    private void mobstacker$onReadAdditionalSaveData(CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
-        if (!mobstacker$thisEntity.level().isClientSide && mobstacker$thisEntity instanceof Mob) {
+        if (!mobstacker$thisEntity.level().isClientSide() && mobstacker$thisEntity instanceof Mob) {
             mobstacker$self = (Mob) mobstacker$thisEntity;
             MobStacker.updateStackDisplay(mobstacker$self);
         }

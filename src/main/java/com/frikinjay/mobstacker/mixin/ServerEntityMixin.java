@@ -28,11 +28,12 @@ public class ServerEntityMixin {
 
     /** The label a player is told about when the mob comes into view (StackLabels#addPairing). */
     @Inject(method = "sendPairingData", at = @At("TAIL"))
-    //? if neoforge {
+    //? if neoforge && <26.1 {
     /*private void mobstacker$stackLabelOnPairing(ServerPlayer player,
                                                 net.neoforged.neoforge.network.bundle.PacketAndPayloadAcceptor<ClientGamePacketListener> out,
                                                 CallbackInfo ci) {
         // NeoForge hands pairing an acceptor that also takes payloads; the label goes in as a packet.
+        // (Gone by 26.1, unconfirmed: NeoForge's pairing takes vanilla's consumer there.)
         if (entity instanceof Mob mob) {
             StackLabels.addPairing(player, mob, packet -> out.accept(packet));
         }

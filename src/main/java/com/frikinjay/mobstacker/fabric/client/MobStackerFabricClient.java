@@ -12,7 +12,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+//? if <26.1 {
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+//?}
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.network.FriendlyByteBuf;
@@ -40,7 +42,7 @@ public final class MobStackerFabricClient implements ClientModInitializer {
                 ClientPlayNetworking.send(channel, buf);
                 //?}
             }
-        });
+        }, net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath());
         //? if >=1.20.5 {
         /*// The payload types are registered by the common entrypoint (MobStackerFabric).
         ClientPlayNetworking.registerGlobalReceiver(com.frikinjay.mobstacker.network.RawPayload.type(MobStackerNetworking.SYNC),
@@ -64,7 +66,13 @@ public final class MobStackerFabricClient implements ClientModInitializer {
                 dispatcher.register(ClientCommandManager.literal(MobStackerClient.CONFIG_COMMAND)
                         .executes(context -> MobStackerClient.requestConfigScreen())));
 
+        //? if >=26.1 {
+        /*net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.addLast(
+                com.frikinjay.mobstacker.compat.Compat.id("mobstacker", "region_line"),
+                (graphics, tickDelta) -> MobStackerRegionHud.render(graphics));
+        *///?} else {
         HudRenderCallback.EVENT.register((graphics, tickDelta) -> MobStackerRegionHud.render(graphics));
+        //?}
         // Both fire before the block or the held item is used, so a click can be taken for picking a
         // region's corner instead.
         UseBlockCallback.EVENT.register((player, level, hand, hitResult) ->

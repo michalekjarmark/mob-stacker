@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.mixin.client;
 
+//? if <26.1 {
+
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.client.renderer.entity.layers.SheepFurLayer;
 import net.minecraft.network.chat.Component;
@@ -22,3 +24,4 @@ public class SheepFurLayerMixin {
         return MobStacker.easterEggName(sheep);
     }
 }
+//?}

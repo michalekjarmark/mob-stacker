@@ -59,7 +59,7 @@ final class ScreenText {
         FormattedCharSequence line = fit(font, text, maxWidth);
         int width = font.width(line);
         int left = centerX - width / 2;
-        graphics.drawString(font, line, left, y, 0xFFFFFF);
+        Gfx.text(graphics, font, line, left, y, 0xFFFFFF);
         return new Line(left, y, width, text, font.width(text) > maxWidth);
     }
 }

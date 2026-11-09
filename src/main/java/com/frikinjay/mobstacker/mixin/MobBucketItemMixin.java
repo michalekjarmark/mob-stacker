@@ -22,6 +22,17 @@ public class MobBucketItemMixin {
      * {@link MobStacker#markPouredFromBucket}. Marked here, between being added to the level and its
      * first tick, which is the tick {@code stackOnSpawn} would otherwise have merged it on.
      */
+    //? if >=26.1 {
+    /*// From 26.1 (unconfirmed) the bucket creates the mob and adds it itself: it is marked on the way in.
+    @org.spongepowered.asm.mixin.injection.ModifyArg(method = "spawn", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/server/level/ServerLevel;addFreshEntityWithPassengers(Lnet/minecraft/world/entity/Entity;)V"))
+    private Entity mobstacker$holdPouredMobOut(Entity entity) {
+        if (entity instanceof Mob mob) {
+            MobStacker.markPouredFromBucket(mob);
+        }
+        return entity;
+    }
+    *///?} else {
     @Redirect(method = "spawn", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/EntityType;spawn(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/entity/MobSpawnType;ZZ)Lnet/minecraft/world/entity/Entity;"))
     private Entity mobstacker$holdPouredMobOut(EntityType<?> type, ServerLevel level, ItemStack stack,
@@ -33,4 +44,5 @@ public class MobBucketItemMixin {
         }
         return entity;
     }
+    //?}
 }

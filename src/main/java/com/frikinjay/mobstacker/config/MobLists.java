@@ -128,7 +128,7 @@ public final class MobLists {
         for (String entry : entities) {
             if (entry.startsWith(TAG_PREFIX)) {
                 TagKey<EntityType<?>> tag = tagOf(entry);
-                if (tag != NO_TAG && type.is(tag)) {
+                if (tag != NO_TAG && type.builtInRegistryHolder().is(tag)) {
                     return true;
                 }
             }
@@ -152,7 +152,7 @@ public final class MobLists {
     /** Every entity tag the running game knows, as list entries ({@code #minecraft:raiders}), sorted. */
     public static List<String> tagEntries() {
         List<String> out = new ArrayList<>();
-        BuiltInRegistries.ENTITY_TYPE.getTagNames().forEach(tag -> out.add(TAG_PREFIX + tag.location()));
+        Compat.tagKeys(BuiltInRegistries.ENTITY_TYPE).forEach(tag -> out.add(TAG_PREFIX + tag.location()));
         out.sort(String::compareTo);
         return out;
     }
@@ -284,7 +284,7 @@ public final class MobLists {
         }
         if (isTag(normalised)) {
             TagKey<EntityType<?>> tag = tagOf(normalised);
-            return tag != NO_TAG && BuiltInRegistries.ENTITY_TYPE.getTag(tag).isPresent();
+            return tag != NO_TAG && Compat.hasTag(BuiltInRegistries.ENTITY_TYPE, tag);
         }
         ResourceLocation id = ResourceLocation.tryParse(normalised);
         return id != null && BuiltInRegistries.ENTITY_TYPE.containsKey(id);

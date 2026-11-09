@@ -25,6 +25,7 @@ stonecutter {
 
         mc("1.20.1", "fabric", "forge")
         mc("1.21.1", "fabric", "neoforge")
+        mc("26.3", "fabric", "neoforge")
 
         // The version the sources are committed in. Switch back to it before every commit.
         vcsVersion = "1.20.1-fabric"

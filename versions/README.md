@@ -6,6 +6,10 @@ One source tree (`src/main`) builds a jar for every Minecraft version and loader
 Java version and the loader's own versions. Everything the same on every node (`mod_version`) is in
 the root `gradle.properties`.
 
+**Before adding a version, read [`KNOWN-CAVEATS.md`](KNOWN-CAVEATS.md)**: what changed between the
+versions built so far that fails silently (invisible text, mouse buttons, typing, shearing loot) or
+refuses to load, and where the code handles it.
+
 ## Build
 
 Gradle runs on **JDK 25** (Stonecutter 0.10 needs it); each node compiles with the JDK its Minecraft

@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -141,7 +142,7 @@ public final class MobStackerRegionPicker {
         reset();
         Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
-            client.player.displayClientMessage(
+            Compat.tell(client.player, 
                     Component.literal(reason).withStyle(ChatFormatting.GRAY), true);
         }
         if (screen != null) {
@@ -165,7 +166,7 @@ public final class MobStackerRegionPicker {
         String text = first == null
                 ? "Click the first corner   (sneak + click to cancel)"
                 : "Click the opposite corner   (sneak + click to cancel)";
-        client.player.displayClientMessage(
+        Compat.tell(client.player, 
                 Component.literal(text).withStyle(ChatFormatting.YELLOW), true);
     }
 

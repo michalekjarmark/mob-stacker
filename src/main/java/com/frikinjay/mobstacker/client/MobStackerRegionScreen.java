@@ -275,7 +275,7 @@ public final class MobStackerRegionScreen extends CompatScreen {
                     valid = false;
                 }
             }
-            box.setTextColor(valid ? NORMAL_TEXT : ERROR_TEXT);
+            Gfx.textColor(box, valid ? NORMAL_TEXT : ERROR_TEXT);
             if (valid) {
                 applyEdit(MobStackerNetworking.REGION_PRIORITY, value);
             }
@@ -350,19 +350,19 @@ public final class MobStackerRegionScreen extends CompatScreen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         if (itemCompletions.keyPressed(keyCode, this.getFocused())) {
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return superKey(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    protected boolean onClick(double mouseX, double mouseY, int button) {
         if (itemCompletions.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return superClick(mouseX, mouseY, button);
     }
 
     /**
@@ -565,10 +565,10 @@ public final class MobStackerRegionScreen extends CompatScreen {
                 }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
-                        box.setTextColor(NORMAL_TEXT);
+                        Gfx.textColor(box, NORMAL_TEXT);
                         applyEdit(option.id(), text);
                     } else {
-                        box.setTextColor(ERROR_TEXT);
+                        Gfx.textColor(box, ERROR_TEXT);
                     }
                     // Only for what somebody typed: a repaint from the config is not a question, and a
                     // box that may not be edited never gets typed into.
@@ -581,7 +581,7 @@ public final class MobStackerRegionScreen extends CompatScreen {
                 row.display = value -> {
                     repainting = true;
                     box.setValue(value);
-                    box.setTextColor(NORMAL_TEXT);
+                    Gfx.textColor(box, NORMAL_TEXT);
                     repainting = false;
                 };
             }
@@ -908,13 +908,13 @@ public final class MobStackerRegionScreen extends CompatScreen {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    protected void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         drawBackground(guiGraphics, mouseX, mouseY, partialTick);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        superRender(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine - and
         // it has to come before them here, because the tooltip branches below return early.
         itemCompletions.render(guiGraphics, this.height, mouseX, mouseY);
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        Gfx.centered(guiGraphics, this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         if (!showRows) {
             renderEmptyNotice(guiGraphics);
@@ -924,10 +924,8 @@ public final class MobStackerRegionScreen extends CompatScreen {
         MobStackerClientRegions.View region = currentRegion();
         ChatFormatting typeColor = !region.enabled() ? ChatFormatting.GRAY
                 : region.type() == StackRegion.Type.DENY ? ChatFormatting.RED : ChatFormatting.GREEN;
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(region.name() + "  [" + region.type() + "]" + (region.enabled() ? "" : "  (off)"))
-                        .withStyle(typeColor),
-                this.width / 2, 26, 0xFFFFFF);
+        Gfx.centered(guiGraphics, this.font, Component.literal(region.name() + "  [" + region.type() + "]" + (region.enabled() ? "" : "  (off)"))
+                        .withStyle(typeColor), this.width / 2, 26, 0xFFFFFF);
         // The scroll range rides along with the category, because the only gap below it belongs
         // to the priority box and the overlay row.
         Component header = Component.literal(categories.get(categoryIndex).display()
@@ -938,17 +936,15 @@ public final class MobStackerRegionScreen extends CompatScreen {
                             + Math.min(total, scrollOffset + visibleRows) + " of " + total)
                     .withStyle(ChatFormatting.GRAY));
         }
-        guiGraphics.drawCenteredString(this.font, header, this.width / 2, 50, 0xFFFFFF);
-        guiGraphics.drawString(this.font,
-                Component.literal("priority").withStyle(ChatFormatting.GRAY),
-                this.width / 2 - 170, 74, NORMAL_TEXT);
+        Gfx.centered(guiGraphics, this.font, header, this.width / 2, 50, 0xFFFFFF);
+        Gfx.text(guiGraphics, this.font, Component.literal("priority").withStyle(ChatFormatting.GRAY), this.width / 2 - 170, 74, NORMAL_TEXT);
 
         // Gold means the region has its own value for that setting; grey means it follows the
         // global config. Keeping it on the label avoids a second column that long ids would run into.
         for (Row row : rows) {
             Component label = Component.literal(row.option.id())
                     .withStyle(row.overridden ? ChatFormatting.GOLD : ChatFormatting.GRAY);
-            guiGraphics.drawString(this.font, label, this.width / 2 - 170, row.y + 6, NORMAL_TEXT);
+            Gfx.text(guiGraphics, this.font, label, this.width / 2 - 170, row.y + 6, NORMAL_TEXT);
         }
 
         renderFooter(guiGraphics);
@@ -1056,20 +1052,14 @@ public final class MobStackerRegionScreen extends CompatScreen {
 
     private void renderEmptyNotice(GuiGraphics guiGraphics) {
         if (remote && !MobStackerClientNetworking.hasSnapshot()) {
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Loading regions from the server…").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2 - 4, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("Loading regions from the server…").withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2 - 4, 0xFFFFFF);
             return;
         }
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal("No regions defined.").withStyle(ChatFormatting.YELLOW),
-                this.width / 2, this.height / 2 - 16, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font,
-                Component.literal(editable
+        Gfx.centered(guiGraphics, this.font, Component.literal("No regions defined.").withStyle(ChatFormatting.YELLOW), this.width / 2, this.height / 2 - 16, 0xFFFFFF);
+        Gfx.centered(guiGraphics, this.font, Component.literal(editable
                                 ? "Draw one with \"New region…\" below, or /mobstacker region add <name> allow <corner> <corner>"
                                 : "Regions are created with /mobstacker region add <name> allow <corner> <corner>")
-                        .withStyle(ChatFormatting.GRAY),
-                this.width / 2, this.height / 2, 0xFFFFFF);
+                        .withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2, 0xFFFFFF);
     }
 
     /** True over the footer line, whose tooltip says all of what the line may have had to cut. */
@@ -1099,9 +1089,7 @@ public final class MobStackerRegionScreen extends CompatScreen {
 
         statusLine = null;
         if (remote && !editable) {
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height - 46, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY), this.width / 2, this.height - 46, 0xFFFFFF);
             return;
         }
         // An edit's answer names the region's corners and every biome it is limited to, so it can

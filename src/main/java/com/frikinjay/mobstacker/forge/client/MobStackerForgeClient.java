@@ -54,7 +54,7 @@ public final class MobStackerForgeClient {
                     connection.send(new ServerboundCustomPayloadPacket(channel, buf));
                 }
             }
-        });
+        }, Minecraft.getInstance().gameDirectory.toPath());
         channels.get(MobStackerNetworking.SYNC).addListener((NetworkEvent.ServerCustomPayloadEvent event) -> {
             MobStackerClientNetworking.onSync(event.getPayload());
             event.getSource().get().setPacketHandled(true);

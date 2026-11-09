@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
+//? if <26.1 {
+
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
@@ -91,3 +93,4 @@ final class MobStackerOverlayDebug {
         return target == null ? "-" : String.valueOf(target.frameBufferId);
     }
 }
+//?}

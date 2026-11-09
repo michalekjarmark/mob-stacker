@@ -29,9 +29,16 @@ public abstract class ChatComponentMixin {
     @Shadow
     public abstract void rescaleChat();
 
+    //? if >=26.1 {
+    /*@Inject(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V",
+            at = @At("HEAD"))
+    private void mobstacker$replacePanel(Component message, MessageSignature signature,
+                                         net.minecraft.client.multiplayer.chat.GuiMessageSource source, GuiMessageTag tag, CallbackInfo ci) {
+    *///?} else {
     @Inject(method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;Lnet/minecraft/client/GuiMessageTag;)V",
             at = @At("HEAD"))
     private void mobstacker$replacePanel(Component message, MessageSignature signature, GuiMessageTag tag, CallbackInfo ci) {
+    //?}
         if (!CommandFeedback.startsPanel(message)) {
             return;
         }

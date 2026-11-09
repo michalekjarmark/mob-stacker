@@ -1,8 +1,8 @@
 package com.frikinjay.mobstacker.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.events.GuiEventListener;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +44,7 @@ final class IdCompletions {
             if (completion.handleKey(keyCode, true)) {
                 return true;
             }
-            if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+            if ((keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER)
                     && completion.shouldEnterComplete()) {
                 completion.accept();
                 return true;

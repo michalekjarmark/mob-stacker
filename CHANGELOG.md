@@ -9,6 +9,22 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 
 ## [Unreleased]
 ### Added
+- **Minecraft 26.3 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5 and
+  Fabric API 0.160.5+26.3 or newer, Java 25), the same features as on 1.20.1 from the same code. On
+  26.x the region boxes are drawn as the game's own gizmos (with X-ray as "always on top") and stack
+  labels as one more name tag line, since both of the game's drawing systems were replaced. Checked on
+  a server (the self-test, stacking, damage overflow, strict data matching, a dispenser shearing a
+  stack) and in one round in game (screens, region boxes and the picker, labels, interactions,
+  conversions); its findings are fixed (the right mouse button on switches, typing into the search
+  without clicking it first, text boxes that went blank, wool from a sheared stack, region names
+  that jumped along their box).
+  Not on 26.3 yet: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
+  stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x.
+- **Minecraft 26.3 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.3 or
+  newer, Java 25), the same code as the Fabric jar for 26.3, with the access transformer written from
+  the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert
+  it). Checked on a dev server: the self-test, stacking, damage overflow, strict data matching and a
+  dispenser shearing a stack; not yet the client.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.
@@ -19,6 +35,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   game.
 
 ### Changed
+- **A click in the mod's chat panels runs at once again from Minecraft 1.21.6** (`region list`'s
+  names and `[on]`/`[off]`, page links): the game asks before it runs a clicked command that needs a
+  permission, so the panels send their commands as a custom click action instead, which the server
+  runs as the player who clicked, with that player's own permissions, and only for `/mobstacker`
+  commands. Works with or without the mod on the client.
 - **A stack keeps the gear in the body slot too** (from 1.20.5: horse and wolf armour): drop chances
   are read and set through vanilla's own methods instead of its hand and armour arrays.
 - **Sweeping Edge on 1.21 reads the attacker's `sweeping_damage_ratio` attribute**, which is what the

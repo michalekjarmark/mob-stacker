@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.client;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.client.MobStackerClientLabels;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -63,3 +64,72 @@ public abstract class EntityRendererMixin<T extends Entity> {
         pose.popPose();
     }
 }
+//?} else {
+/*import com.frikinjay.mobstacker.client.MobStackerClientLabels;
+import com.frikinjay.mobstacker.client.StackLabelState;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityAttachment;
+import net.minecraft.world.phys.Vec3;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+/^*
+ * Draws a stack's label (MobStackerClientLabels) the way vanilla draws a name tag, from 26.1 where
+ * entities are drawn from a render state: the label is worked out with the state, and submitted as one
+ * more name tag line above the mob's own name when that is showing, in its place when it is not -
+ * the same as below 26.1.
+ ^/
+@Mixin(EntityRenderer.class)
+public abstract class EntityRendererMixin<T extends Entity, S extends EntityRenderState> {
+    /^* One line of name-tag text, in blocks: vanilla's own (9 * 1.15 * 0.025). ^/
+    @Unique
+    private static final float MOBSTACKER$LINE = 9.0F * 1.15F * 0.025F;
+
+    @Shadow @Final protected EntityRenderDispatcher entityRenderDispatcher;
+
+    @Inject(method = "createRenderState(Lnet/minecraft/world/entity/Entity;F)Lnet/minecraft/client/renderer/entity/state/EntityRenderState;",
+            at = @At("RETURN"))
+    private void mobstacker$extractStackLabel(T entity, float partialTick, CallbackInfoReturnable<S> cir) {
+        S state = cir.getReturnValue();
+        if (!(state instanceof StackLabelState holder)) {
+            return;
+        }
+        Component label = MobStackerClientLabels.labelFor(entity, entityRenderDispatcher.crosshairPickEntity);
+        holder.mobstacker$setLabel(label);
+        holder.mobstacker$setLabelAt(label == null || state.nameTagAttachment != null ? null
+                : entity.getAttachments().getNullable(EntityAttachment.NAME_TAG, 0, entity.getYRot(partialTick)));
+    }
+
+    @Inject(method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+            at = @At("RETURN"))
+    private void mobstacker$submitStackLabel(S state, PoseStack pose, SubmitNodeCollector collector,
+                                             CameraRenderState camera, CallbackInfo ci) {
+        if (!(state instanceof StackLabelState holder) || holder.mobstacker$label() == null) {
+            return;
+        }
+        Vec3 at = state.nameTagAttachment != null ? state.nameTagAttachment : holder.mobstacker$labelAt();
+        if (at == null) {
+            return;
+        }
+        pose.pushPose();
+        if (state.nameTag != null) {
+            pose.translate(0.0F, MOBSTACKER$LINE, 0.0F);
+        }
+        collector.submitNameTag(pose, at, 0, holder.mobstacker$label(), !state.isDiscrete, state.lightCoords, camera);
+        pose.popPose();
+    }
+}
+*///?}

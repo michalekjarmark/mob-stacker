@@ -11,7 +11,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.SwordItem;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -26,22 +25,30 @@ public class PlayerMixin {
 
     /** The assimilator, before anything else the click could mean (a villager's trades, for one). */
     @Inject(method = "interactOn", at = @At("HEAD"), cancellable = true)
+    //? if >=26.1 {
+    /*private void mobstacker$assimilator(Entity entity, InteractionHand hand, net.minecraft.world.phys.Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
+    *///?} else {
     private void mobstacker$assimilator(Entity entity, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+    //?}
         if (entity instanceof Mob mob && MobStacker.useAssimilator((Player) (Object) this, mob, hand)) {
             cir.setReturnValue(InteractionResult.SUCCESS);
         }
     }
 
     @Inject(method = "interactOn", at = @At("HEAD"))
+    //? if >=26.1 {
+    /*private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, net.minecraft.world.phys.Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
+    *///?} else {
     private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
-        if(entity instanceof Mob && !entity.level().isClientSide && MobStacker.getEnableSeparator(entity)) {
+    //?}
+        if(entity instanceof Mob && !entity.level().isClientSide() && MobStacker.getEnableSeparator(entity)) {
             Player player = (Player) (Object) this;
             int stackSize = MobStacker.getStackSize((Mob) entity);
             ItemStack itemStack = player.getItemInHand(interactionHand);
 
             ResourceLocation separatorResourceLocation = mobstacker$getResourceLocation(entity);
 
-            if (stackSize > 1 && itemStack.is(BuiltInRegistries.ITEM.get(separatorResourceLocation))) {
+            if (stackSize > 1 && itemStack.is(Compat.item(separatorResourceLocation))) {
                 MobStacker.separateEntity((Mob) entity);
                 if(!player.isCreative() && MobStacker.getConsumeSeparator(entity)) {
                     itemStack.setCount(itemStack.getCount() - 1);
@@ -59,14 +66,14 @@ public class PlayerMixin {
     @Inject(method = "attack", at = @At("HEAD"))
     private void mobstacker$captureSweepContext(Entity target, CallbackInfo ci) {
         Player player = (Player) (Object) this;
-        if (!player.level().isClientSide) {
+        if (!player.level().isClientSide()) {
             MobStacker.setVanillaSweepContext(player, mobstacker$wouldVanillaSweep(player, target));
         }
     }
 
     @Unique
     private static boolean mobstacker$wouldVanillaSweep(Player player, Entity target) {
-        if (!(target instanceof LivingEntity) || !(player.getMainHandItem().getItem() instanceof SwordItem)) {
+        if (!(target instanceof LivingEntity) || !Compat.isSword(player.getMainHandItem())) {
             return false;
         }
         if (player.getAttackStrengthScale(0.5F) <= 0.9F || player.isSprinting() || !player.onGround()) {
@@ -78,8 +85,7 @@ public class PlayerMixin {
         // Vanilla also skips the sweep on a critical hit, but a crit needs the player to be falling,
         // which the onGround() check above already rules out. What is left is vanilla's own
         // "standing still enough" condition.
-        double moved = player.walkDist - player.walkDistO;
-        return moved < (double) player.getSpeed();
+        return Compat.stillEnoughToSweep(player);
     }
 
     @Unique

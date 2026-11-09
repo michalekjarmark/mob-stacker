@@ -11,6 +11,9 @@ authors = "michalekjarmark, davidex"
 credits = "frikinjay (original author)"
 displayURL = "https://github.com/michalekjarmark/mob-stacker"
 logoFile = "assets/mobstacker/icon.png"
+# NeoForge 26.x warns on screen about a mod with logoFile alone; iconFile (a square icon) answers it,
+# and NeoForge 1.21.1 does not know the key and keeps reading logoFile.
+iconFile = "assets/mobstacker/icon.png"
 description = '''
 Greatly increases performance by stacking mobs together. An actively-developed fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback, per-world config and an in-game config GUI.
 '''

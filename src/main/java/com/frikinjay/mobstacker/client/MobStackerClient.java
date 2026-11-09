@@ -1,10 +1,10 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -20,26 +20,29 @@ import java.util.List;
  */
 public final class MobStackerClient {
 
+    /** An unbound key of the mod's own category in Controls. */
+    private static KeyMapping key(String name) {
+        //? if >=26.1 {
+        /*return new KeyMapping(name, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+        *///?} else {
+        return new KeyMapping(name, InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.mobstacker");
+        //?}
+    }
+
+    //? if >=26.1 {
+    /*/^* The keys' heading in Controls: key.category.mobstacker.mobstacker in the language file. ^/
+    private static final KeyMapping.Category CATEGORY =
+            KeyMapping.Category.register(com.frikinjay.mobstacker.compat.Compat.id("mobstacker", "mobstacker"));
+    *///?}
+
     /** The client command that opens the config screen. */
     public static final String CONFIG_COMMAND = "mobstackerconfig";
 
-    private static final KeyMapping OPEN_CONFIG = new KeyMapping(
-            "key.mobstacker.open_config",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_UNKNOWN, // unbound by default; the player assigns it in Controls
-            "key.categories.mobstacker");
+    private static final KeyMapping OPEN_CONFIG = key("key.mobstacker.open_config"); // unbound by default; the player assigns it in Controls
 
-    private static final KeyMapping TOGGLE_OVERLAY = new KeyMapping(
-            "key.mobstacker.toggle_region_overlay",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_UNKNOWN, // unbound by default, like the config key
-            "key.categories.mobstacker");
+    private static final KeyMapping TOGGLE_OVERLAY = key("key.mobstacker.toggle_region_overlay"); // unbound by default, like the config key
 
-    private static final KeyMapping TOGGLE_XRAY = new KeyMapping(
-            "key.mobstacker.toggle_region_xray",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_UNKNOWN, // unbound by default, like the other two
-            "key.categories.mobstacker");
+    private static final KeyMapping TOGGLE_XRAY = key("key.mobstacker.toggle_region_xray"); // unbound by default, like the other two
 
     // Set by the client command; the screen is opened on the next tick so the chat screen (which
     // closes right after a command runs) doesn't immediately override it.
@@ -50,13 +53,17 @@ public final class MobStackerClient {
 
     /**
      * Called once by the loader's client entrypoint, with the loader's way of talking to the server.
+     * <p>
+     * The game's folder comes from the loader too: on NeoForge from Minecraft 26.1 the mod is built
+     * before the game's {@code Minecraft} object exists ({@code Minecraft.getInstance()} is still
+     * null), so nothing called from here may ask the game for anything.
      */
-    public static void init(MobStackerClientNetworking.Transport transport) {
+    public static void init(MobStackerClientNetworking.Transport transport, java.nio.file.Path gameDirectory) {
         // Client side of the config-sync protocol (S2C snapshot receiver + disconnect cleanup).
         MobStackerClientNetworking.init(transport);
         // In-world region boxes. Purely a client-side view of the world, so nothing here is sent
         // anywhere and a server never knows or cares whether a player has them switched on.
-        MobStackerRegionOverlay.init();
+        MobStackerRegionOverlay.init(gameDirectory);
     }
 
     /** The key bindings, for the loader to register. */
@@ -80,7 +87,7 @@ public final class MobStackerClient {
         while (TOGGLE_OVERLAY.consumeClick()) {
             boolean on = MobStackerRegionOverlay.toggleAll();
             if (client.player != null) {
-                client.player.displayClientMessage(Component.translatable(
+                Compat.tell(client.player, Component.translatable(
                         on ? "message.mobstacker.overlay_on" : "message.mobstacker.overlay_off"), true);
             }
         }
@@ -93,7 +100,7 @@ public final class MobStackerClient {
                         ? "message.mobstacker.xray_on" : "message.mobstacker.xray_off";
             }
             if (client.player != null) {
-                client.player.displayClientMessage(Component.translatable(message), true);
+                Compat.tell(client.player, Component.translatable(message), true);
             }
         }
         if (openRequested) {

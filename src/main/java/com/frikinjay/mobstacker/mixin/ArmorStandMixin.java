@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.mixin;
 
+//? if <26.1 {
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import org.spongepowered.asm.mixin.Mixin;
@@ -30,7 +32,7 @@ public abstract class ArmorStandMixin {
         if (self.level().isClientSide() || self.isRemoved()) {
             return;
         }
-        if (self.getTags().contains(MobStacker.KILL_HOLOGRAM_TAG)) {
+        if (Compat.tags(self).contains(MobStacker.KILL_HOLOGRAM_TAG)) {
             if (!MobStacker.isTrackedKillHologram(self)) {
                 MobStacker.discardStrayKillHologram(self);
             }
@@ -42,3 +44,4 @@ public abstract class ArmorStandMixin {
         }
     }
 }
+//?}

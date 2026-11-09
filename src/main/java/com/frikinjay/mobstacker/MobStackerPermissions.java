@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.world.entity.Entity;
 
 import java.lang.invoke.MethodHandle;
@@ -53,6 +54,6 @@ public final class MobStackerPermissions {
                 MobStacker.logger.warn("MobStacker: asking the permissions mod about {} failed", node, e);
             }
         }
-        return entity.hasPermissions(defaultLevel);
+        return Compat.hasPermission(entity, defaultLevel);
     }
 }

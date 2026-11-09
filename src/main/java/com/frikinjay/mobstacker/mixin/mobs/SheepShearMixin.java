@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.StackShearable;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -29,20 +30,35 @@ public class SheepShearMixin implements StackShearable {
     @Unique
     private boolean mobstacker$shearingQuietly;
 
-    /** Shears the members under the top sheep, quietly. A player's shears and a dispenser's both. */
+    /**
+     * Shears the members under the top sheep, quietly. A player's shears and a dispenser's both. Each
+     * member is the top sheep sheared once more, so it is made woolly again first: from 1.21.5 the
+     * wool comes from the shearing loot table, which gives nothing for a sheep already sheared (and
+     * vanilla has just sheared the top one).
+     */
     @Override
     public void mobstacker$shearMembers(SoundSource source, int count) {
         Sheep self = (Sheep) (Object) this;
         mobstacker$shearingQuietly = true;
         try {
             for (int i = 0; i < count; i++) {
-                self.shear(source);
+                self.setSheared(false);
+                Compat.shear(self, source);
             }
         } finally {
             mobstacker$shearingQuietly = false;
         }
     }
 
+    //? if >=26.1 {
+    /*@Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;playSound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
+    private void mobstacker$oneSnipPerClick(net.minecraft.server.level.ServerLevel level, Entity player, Entity entity, SoundEvent sound,
+                                            SoundSource source, float volume, float pitch) {
+        if (!mobstacker$shearingQuietly) {
+            level.playSound(player, entity, sound, source, volume, pitch);
+        }
+    }
+    *///?} else {
     @Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;playSound(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
     private void mobstacker$oneSnipPerClick(Level level, Player player, Entity entity, SoundEvent sound,
                                             SoundSource source, float volume, float pitch) {
@@ -50,4 +66,5 @@ public class SheepShearMixin implements StackShearable {
             level.playSound(player, entity, sound, source, volume, pitch);
         }
     }
+    //?}
 }

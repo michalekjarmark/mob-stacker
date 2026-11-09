@@ -46,7 +46,11 @@ public final class MobStackerNeoForge {
         });
         modBus.addListener(MobStackerNeoForge::registerPayloads);
 
+        //? if >=26.1 {
+        /*if (FMLEnvironment.getDist() == Dist.CLIENT) {
+        *///?} else {
         if (FMLEnvironment.dist == Dist.CLIENT) {
+        //?}
             MobStackerNeoForgeClient.init(modBus);
         }
     }
@@ -62,13 +66,13 @@ public final class MobStackerNeoForge {
         registrar.playToServer(RawPayload.type(MobStackerNetworking.REQUEST), RawPayload.codec(MobStackerNetworking.REQUEST),
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {
-                        MobStackerNetworking.onRequest(player.getServer(), player);
+                        MobStackerNetworking.onRequest(player.level().getServer(), player);
                     }
                 });
         registrar.playToServer(RawPayload.type(MobStackerNetworking.EDIT), RawPayload.codec(MobStackerNetworking.EDIT),
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {
-                        MobStackerNetworking.onEdit(player.getServer(), player, payload.buf());
+                        MobStackerNetworking.onEdit(player.level().getServer(), player, payload.buf());
                     }
                 });
         registrar.playToClient(RawPayload.type(MobStackerNetworking.SYNC), RawPayload.codec(MobStackerNetworking.SYNC),

@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.world.entity.Entity;
@@ -23,3 +24,4 @@ public abstract class ServerChunkCacheMixin {
         return MobStacker.countedForSpawning(entities);
     }
 }
+//?}

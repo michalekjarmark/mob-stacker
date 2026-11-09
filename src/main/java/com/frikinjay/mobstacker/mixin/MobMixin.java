@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.StackAi;
 import net.minecraft.nbt.CompoundTag;
@@ -41,8 +42,10 @@ public abstract class MobMixin extends LivingEntity {
     @Shadow
     private boolean persistenceRequired;
 
+    //? if <26.1 {
     @Shadow
     protected abstract boolean shouldDespawnInPeaceful();
+    //?}
 
     /** Whether the mob was persistent before the pickup now running (despawnPickedUpMobs). */
     @Unique
@@ -86,7 +89,12 @@ public abstract class MobMixin extends LivingEntity {
         if (level().isClientSide() || !MobStacker.keepsFromDespawning((Mob) (Object) this)) {
             return;
         }
-        if (level().getDifficulty() == Difficulty.PEACEFUL && shouldDespawnInPeaceful()) {
+        //? if >=26.1 {
+        /*boolean leavesInPeaceful = !getType().isAllowedInPeaceful();
+        *///?} else {
+        boolean leavesInPeaceful = shouldDespawnInPeaceful();
+        //?}
+        if (level().getDifficulty() == Difficulty.PEACEFUL && leavesInPeaceful) {
             return;
         }
         noActionTime = 0;
@@ -94,8 +102,7 @@ public abstract class MobMixin extends LivingEntity {
     }
 
     /** stackOutgoingDamage: the hit of vanilla's standard melee attack, as hard as the whole stack. */
-    @ModifyArg(method = "doHurtTarget", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"), index = 1)
+    @ModifyArg(method = "doHurtTarget", at = @At(value = "INVOKE", target = Compat.MELEE_HURT), index = Compat.MELEE_HURT_DAMAGE)
     private float mobstacker$stackMeleeDamage(float damage) {
         return MobStacker.stackMeleeDamage((Mob) (Object) this, damage);
     }
@@ -198,8 +205,8 @@ public abstract class MobMixin extends LivingEntity {
         MobStacker.recordOrigin((Mob) (Object) this, reason);
     }
 
-    @Inject(method = "convertTo", at = @At("RETURN"), cancellable = true)
-    private <T extends Mob> void mobstacker$convertTo(EntityType<T> entityType, boolean bl, CallbackInfoReturnable<T> cir) {
+    @Inject(method = Compat.CONVERT_TO, at = @At("RETURN"), cancellable = true)
+    private <T extends Mob> void mobstacker$convertTo(CallbackInfoReturnable<T> cir) {
         Mob instance = (Mob) (Object) this;
         T mob = cir.getReturnValue();
         if (mob == null) {
@@ -238,8 +245,20 @@ public abstract class MobMixin extends LivingEntity {
      * the stack away; the stack is sent to the client again once the bucket is filled.
      */
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
+    //? if >=26.1 {
+    /*private void mobstacker$interactWithOneOfTheStack(Player player, InteractionHand hand, net.minecraft.world.phys.Vec3 location,
+                                                      CallbackInfoReturnable<InteractionResult> cir) {
+        mobstacker$handOverOne(player, hand, cir);
+    }
+    *///?} else {
     private void mobstacker$interactWithOneOfTheStack(Player player, InteractionHand hand,
                                                       CallbackInfoReturnable<InteractionResult> cir) {
+        mobstacker$handOverOne(player, hand, cir);
+    }
+    //?}
+
+    @Unique
+    private void mobstacker$handOverOne(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
         Mob self = (Mob) (Object) this;
         if (self.level().isClientSide()) {
             return;
@@ -268,7 +287,7 @@ public abstract class MobMixin extends LivingEntity {
         }
         Mob separated = MobStacker.separateOne(self, false);
         if (separated != null) {
-            InteractionResult result = separated.interact(player, hand);
+            InteractionResult result = Compat.interact(separated, player, hand);
             if (dyeing && !result.consumesAction()) {
                 // A dye is the item's interaction, not the sheep's: Player.interactOn would hand it
                 // the stack that was clicked, which is the very thing this is here to avoid.

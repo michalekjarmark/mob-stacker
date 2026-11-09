@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.command;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.mixin.CommandSourceStackAccessor;
 import net.minecraft.commands.CommandSourceStack;
@@ -111,7 +112,7 @@ public final class CommandFeedback {
         source.sendSuccess(message, broadcast);
         if (MobStacker.config.getAlwaysShowFeedback()
                 && ((CommandSourceStackAccessor) source).mobstacker$source() instanceof ServerPlayer player
-                && !player.acceptsSuccess()) {
+                && !Compat.acceptsSuccess(player)) {
             // Still respects a silenced stack (a function), as vanilla's sendSystemMessage does.
             source.sendSystemMessage(message.get());
         }

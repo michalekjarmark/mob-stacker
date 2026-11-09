@@ -46,10 +46,15 @@ public final class MobStackerNeoForgeClient {
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
                 if (Minecraft.getInstance().getConnection() != null) {
+                    //? if >=26.1 {
+                    /*net.neoforged.neoforge.client.network.ClientPacketDistributor.sendToServer(RawPayload.of(channel, buf));
+                    *///?} else {
                     PacketDistributor.sendToServer(RawPayload.of(channel, buf));
+                    //?}
                 }
             }
-        });
+            // FML's own: from 26.1 this runs before the game's Minecraft object exists.
+        }, net.neoforged.fml.loading.FMLPaths.GAMEDIR.get());
 
         modBus.addListener((RegisterKeyMappingsEvent event) -> MobStackerClient.keys().forEach(event::register));
         modBus.addListener((RegisterGuiLayersEvent event) -> event.registerAboveAll(

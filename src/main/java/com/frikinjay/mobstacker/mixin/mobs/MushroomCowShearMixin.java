@@ -22,7 +22,7 @@ public class MushroomCowShearMixin implements StackShearable {
     @Override
     public void mobstacker$shearMembers(SoundSource source, int count) {
         MushroomCow self = (MushroomCow) (Object) this;
-        if (self.level().isClientSide) {
+        if (self.level().isClientSide()) {
             return;
         }
         for (int i = 0; i < count; i++) {

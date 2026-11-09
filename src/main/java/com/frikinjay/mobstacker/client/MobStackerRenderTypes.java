@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
+//? if <26.1 {
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -122,3 +124,4 @@ final class MobStackerRenderTypes extends RenderStateShard {
         };
     }
 }
+//?}

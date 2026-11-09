@@ -29,12 +29,17 @@ public final class MobStackerRegionHud {
 
     public static void render(GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
-        //? if >=1.20.2 {
+        //? if >=26.1 {
+        /*boolean debugScreen = minecraft.getDebugOverlay().showDebugScreen();
+        boolean hidden = false; // Fabric draws HUD elements only while the HUD is shown
+        *///?} else if >=1.20.2 {
         /*boolean debugScreen = minecraft.gui.getDebugOverlay().showDebugScreen();
+        boolean hidden = minecraft.options.hideGui;
         *///?} else {
         boolean debugScreen = minecraft.options.renderDebug;
+        boolean hidden = minecraft.options.hideGui;
         //?}
-        if (minecraft.player == null || minecraft.options.hideGui || debugScreen
+        if (minecraft.player == null || hidden || debugScreen
                 || !MobStackerRegionOverlay.anythingShowing()) {
             return;
         }
@@ -53,6 +58,6 @@ public final class MobStackerRegionHud {
                 line.append(Component.literal("  +" + (here.size() - 1) + " more here").withStyle(ChatFormatting.DARK_GRAY));
             }
         }
-        graphics.drawString(minecraft.font, line, 4, 4, 0xFFFFFF, true);
+        Gfx.text(graphics, minecraft.font, line, 4, 4, 0xFFFFFF, true);
     }
 }

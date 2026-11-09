@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
 import com.frikinjay.mobstacker.config.StackRegion;
@@ -19,7 +21,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -122,7 +123,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
                                                           boolean remote, boolean editable) {
         Minecraft client = Minecraft.getInstance();
         BlockPos pos = client.player != null ? client.player.blockPosition() : BlockPos.ZERO;
-        String dimension = client.level != null ? client.level.dimension().location().toString() : "";
+        String dimension = client.level != null ? Compat.keyId(client.level.dimension()).toString() : "";
         int[] corners = {pos.getX() - 8, pos.getY() - 4, pos.getZ() - 8,
                 pos.getX() + 8, pos.getY() + 12, pos.getZ() + 8};
         return new MobStackerRegionEditScreen(parent, null, StackRegion.Type.ALLOW, false, dimension,
@@ -142,7 +143,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         nameBox.setEditable(editable);
         nameBox.setResponder(text -> {
             name = text.trim();
-            nameBox.setTextColor(RegionEdit.nameProblem(name) == null ? NORMAL_TEXT : ERROR_TEXT);
+            Gfx.textColor(nameBox, RegionEdit.nameProblem(name) == null ? NORMAL_TEXT : ERROR_TEXT);
         });
         addRenderableWidget(nameBox);
 
@@ -239,7 +240,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
             box.setEditable(editable);
             box.setResponder(text -> {
                 Integer parsed = parse(text);
-                box.setTextColor(parsed == null ? ERROR_TEXT : NORMAL_TEXT);
+                Gfx.textColor(box, parsed == null ? ERROR_TEXT : NORMAL_TEXT);
                 if (parsed != null) {
                     corners[index] = parsed;
                 }
@@ -291,7 +292,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         corners[5] = b.getZ();
         // The dimension the corners were clicked in is the only one they mean anything in.
         if (this.minecraft != null && this.minecraft.level != null) {
-            String here = this.minecraft.level.dimension().location().toString();
+            String here = Compat.keyId(this.minecraft.level.dimension()).toString();
             int index = dimensions.indexOf(here);
             if (index >= 0) {
                 dimensionIndex = index;
@@ -331,7 +332,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         dimensions.clear();
         if (this.minecraft != null && this.minecraft.getConnection() != null) {
             for (ResourceKey<Level> key : this.minecraft.getConnection().levels()) {
-                dimensions.add(key.location().toString());
+                dimensions.add(Compat.keyId(key).toString());
             }
         }
         dimensions.sort(String::compareTo);
@@ -487,10 +488,10 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    protected void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         drawBackground(guiGraphics, mouseX, mouseY, partialTick);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        superRender(guiGraphics, mouseX, mouseY, partialTick);
+        Gfx.centered(guiGraphics, this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         int labelX = this.width / 2 + LABEL_X_OFFSET;
         drawLabel(guiGraphics, "name", labelX, NAME_Y + LABEL_INSET);
@@ -501,9 +502,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         drawLabel(guiGraphics, "only in biomes", labelX, BIOMES_Y + LABEL_INSET);
         // In the gap between the dimension button and the first corner row, not across either. The
         // same grey as the labels beside it: dark grey disappeared into the dirt background.
-        guiGraphics.drawString(this.font,
-                Component.literal("X            Y            Z").withStyle(ChatFormatting.GRAY),
-                this.width / 2 - 86, AXIS_HEADER_Y, NORMAL_TEXT);
+        Gfx.text(guiGraphics, this.font, Component.literal("X            Y            Z").withStyle(ChatFormatting.GRAY), this.width / 2 - 86, AXIS_HEADER_Y, NORMAL_TEXT);
 
         // Below the pick button, not across it. A message always wins over the standing hint,
         // whether it is a refusal or the picker saying it has filled the boxes in - a confirmation
@@ -546,7 +545,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         List<String> entries = RegionBiomes.parseList(biomeText);
         biomeNote = null;
         if (RegionBiomes.listProblem(entries) != null) {
-            box.setTextColor(ERROR_TEXT);
+            Gfx.textColor(box, ERROR_TEXT);
             return;
         }
         Registry<Biome> biomes = this.minecraft == null || this.minecraft.level == null ? null
@@ -558,33 +557,33 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
                 break;
             }
         }
-        box.setTextColor(biomeNote == null ? NORMAL_TEXT : UNKNOWN_TEXT);
+        Gfx.textColor(box, biomeNote == null ? NORMAL_TEXT : UNKNOWN_TEXT);
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         boolean inBiomeBox = biomeCompletion.isFor(this.getFocused());
         if (biomeCompletion.handleKey(keyCode, inBiomeBox)) {
             return true;
         }
-        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+        if ((keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER)
                 && inBiomeBox && biomeCompletion.shouldEnterComplete()) {
             biomeCompletion.accept();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return superKey(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    protected boolean onClick(double mouseX, double mouseY, int button) {
         if (biomeCompletion.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return superClick(mouseX, mouseY, button);
     }
 
     private void drawLabel(GuiGraphics guiGraphics, String text, int x, int y) {
-        guiGraphics.drawString(this.font, Component.literal(text).withStyle(ChatFormatting.GRAY), x, y, NORMAL_TEXT);
+        Gfx.text(guiGraphics, this.font, Component.literal(text).withStyle(ChatFormatting.GRAY), x, y, NORMAL_TEXT);
     }
 
     @Override

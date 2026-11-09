@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.StackShearable;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.animal.SnowGolem;
@@ -21,11 +22,11 @@ public class SnowGolemShearMixin implements StackShearable {
     @Override
     public void mobstacker$shearMembers(SoundSource source, int count) {
         SnowGolem self = (SnowGolem) (Object) this;
-        if (self.level().isClientSide) {
+        if (self.level().isClientSide()) {
             return;
         }
         for (int i = 0; i < count; i++) {
-            self.spawnAtLocation(new ItemStack(Items.CARVED_PUMPKIN), 1.7F);
+            Compat.spawnAtLocation(self, new ItemStack(Items.CARVED_PUMPKIN), 1.7F);
         }
     }
 }

@@ -34,7 +34,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
 
     //? if neoforge {
     /*/^* NeoForge's dispenser shears through IShearable.onSheared; NeoForgeShearing does the stack's part. ^/
-    @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
+    @Redirect(method = Compat.DISPENSER_SHEAR_ENTITY, at = @At(value = "INVOKE",
             target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ljava/util/List;"))
     private static java.util.List<net.minecraft.world.item.ItemStack> mobstacker$shearWithTheStack(
             net.neoforged.neoforge.common.IShearable shearable, net.minecraft.world.entity.player.Player player,
@@ -45,11 +45,25 @@ public abstract class ShearsDispenseItemBehaviorMixin {
         return sheared.drops();
     }
     *///?} else {
+    //? if >=26.1 {
+    /*@Redirect(method = "tryShearEntity", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/sounds/SoundSource;Lnet/minecraft/world/item/ItemStack;)V"))
+    private static void mobstacker$shearWithTheStack(Shearable shearable, net.minecraft.server.level.ServerLevel level,
+                                                     SoundSource source, net.minecraft.world.item.ItemStack shears) {
+        mobstacker$shearStack(shearable, source);
+    }
+    *///?} else {
     @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/sounds/SoundSource;)V"))
     private static void mobstacker$shearWithTheStack(Shearable shearable, SoundSource source) {
+        mobstacker$shearStack(shearable, source);
+    }
+    //?}
+
+    @org.spongepowered.asm.mixin.Unique
+    private static void mobstacker$shearStack(Shearable shearable, SoundSource source) {
         if (!(shearable instanceof Mob mob) || MobStacker.getStackSize(mob) <= 1) {
-            shearable.shear(source);
+            Compat.shear(shearable, source);
             return;
         }
         if (!MobStacker.getStackedHarvest(mob)) {
@@ -57,13 +71,13 @@ public abstract class ShearsDispenseItemBehaviorMixin {
             // and the stack is one mob, so one comes out to be sheared on its own.
             Mob one = MobStacker.separateOne(mob, false);
             if (one instanceof Shearable single && single.readyForShearing()) {
-                single.shear(source);
+                Compat.shear(single, source);
                 return;
             }
         }
         // Counted before the top one is sheared: a mooshroom stops being one the moment it is.
         int extra = MobStacker.extraHarvests(mob);
-        shearable.shear(source);
+        Compat.shear(shearable, source);
         if (extra > 0 && shearable instanceof StackShearable stack) {
             stack.mobstacker$shearMembers(source, extra);
             mobstacker$membersShorn = extra;

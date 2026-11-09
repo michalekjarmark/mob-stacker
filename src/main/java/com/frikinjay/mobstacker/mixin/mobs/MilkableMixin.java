@@ -23,7 +23,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>Targets {@link Cow} and {@link Goat}, which covers mooshrooms too — their own
  * {@code mobInteract} hands a bucket straight to {@code Cow.mobInteract}.
  */
+//? if >=26.1 {
+/*@Mixin({net.minecraft.world.entity.animal.cow.AbstractCow.class, Goat.class})
+*///?} else {
 @Mixin({Cow.class, Goat.class})
+//?}
 public class MilkableMixin {
 
     @Inject(method = "mobInteract", at = @At("HEAD"))

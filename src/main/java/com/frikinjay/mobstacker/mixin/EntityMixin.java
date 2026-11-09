@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -29,11 +30,17 @@ public class EntityMixin {
      * {@code spawnAtLocation}, so while a stacked mob is dying we divert its drops into a buffer
      * (see {@link MobStacker#tryCaptureDrop}) and re-emit them merged once the death finishes.
      */
+    //? if >=1.21.2 {
+    /*@Inject(method = "spawnAtLocation(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
+            at = @At("HEAD"), cancellable = true)
+    private void mobstacker$captureCompactDrop(net.minecraft.server.level.ServerLevel level, ItemStack stack, float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
+    *///?} else {
     @Inject(method = "spawnAtLocation(Lnet/minecraft/world/item/ItemStack;F)Lnet/minecraft/world/entity/item/ItemEntity;",
             at = @At("HEAD"), cancellable = true)
     private void mobstacker$captureCompactDrop(ItemStack stack, float yOffset, CallbackInfoReturnable<ItemEntity> cir) {
+    //?}
         Entity self = (Entity) (Object) this;
-        if (!self.level().isClientSide && MobStacker.tryCaptureDrop(self, stack)) {
+        if (!self.level().isClientSide() && MobStacker.tryCaptureDrop(self, stack)) {
             cir.setReturnValue(null);
         }
     }
@@ -48,7 +55,7 @@ public class EntityMixin {
     @Inject(method = "shouldBeSaved", at = @At("HEAD"), cancellable = true)
     private void mobstacker$dontSaveKillHolograms(CallbackInfoReturnable<Boolean> cir) {
         Entity self = (Entity) (Object) this;
-        if (self.getTags().contains(MobStacker.KILL_HOLOGRAM_TAG)) {
+        if (Compat.tags(self).contains(MobStacker.KILL_HOLOGRAM_TAG)) {
             cir.setReturnValue(false);
         }
     }

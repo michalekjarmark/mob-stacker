@@ -14,7 +14,12 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * fish and hands the water bucket back ({@code Axolotl.usePlayerItem}), and simply shrinking the food
  * ate the bucket with it (see {@code MobStacker.takeFood}).
  */
+// usePlayerItem moved up to Mob in 26.1 (unconfirmed); an invoker has to target the class that declares it.
+//? if >=26.1 {
+/*@Mixin(net.minecraft.world.entity.Mob.class)
+*///?} else {
 @Mixin(Animal.class)
+//?}
 public interface AnimalInvoker {
 
     @Invoker("usePlayerItem")
