@@ -1,0 +1,23 @@
+# 1.12.0 sweep fixes, the parts a console can do. Run on a fresh flat world: python tools/test/run_server.py <node> tools/test/scenarios/sweep_fixes.txt
+# The exploding creeper needs a player: log in "python tools/test/mcclient.py Tester --port <server port> --stay 40" first (tools/test/README.md).
+gamerule doMobSpawning false
+forceload add 190 190 215 215
+sleep 2
+# --- A: a stack of 5 tadpoles grows up into a stack of 5 frogs (x=200, z=200) ---
+fill 199 -61 199 203 -60 203 water
+summon tadpole 201 -61 201 {Tags:["c60t"],Age:23900}
+sleep 1
+mobstacker stacksize @e[tag=c60t,limit=1] 5
+execute positioned 201 -61 201 run mobstacker stats 8
+sleep 8
+execute positioned 201 -61 201 run mobstacker stats 8
+execute as @e[type=frog,x=190,y=-64,z=190,dx=25,dy=10,dz=25] run data get entity @s StackData.StackSize
+# --- B: a stack of 5 creepers next to the player: one explodes, 4 stay ---
+difficulty normal
+gamemode survival Tester
+effect give Tester minecraft:resistance 60 4
+execute at Tester run summon creeper ~4 ~ ~ {Tags:["c60c"]}
+mobstacker stacksize @e[tag=c60c,limit=1] 5
+sleep 10
+execute at Tester run mobstacker stats 20
+execute as @e[type=creeper] run data get entity @s StackData.StackSize

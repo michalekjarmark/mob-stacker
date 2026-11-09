@@ -1,0 +1,45 @@
+mobstacker selftest
+mobstacker set stackMode everywhere
+weather clear
+time set day
+gamerule doMobSpawning false
+gamerule doDaylightCycle false
+forceload add 0 0 127 63
+# --- multiplyGiftDrops: a stack of 5 chickens lays 5 eggs (x=10) ---
+summon chicken 10 -60 10 {EggLayTime:60}
+sleep 1
+mobstacker stacksize @e[type=chicken,x=5,y=-64,z=5,dx=10,dy=10,dz=10,limit=1] 5
+sleep 4
+execute as @e[type=item,x=0,y=-64,z=0,dx=20,dy=10,dz=20] run data get entity @s Item
+# --- a stack of 3 baby turtles grows up: 3 scutes (x=40) ---
+summon turtle 40 -60 10 {Age:-60}
+sleep 1
+mobstacker stacksize @e[type=turtle,x=35,y=-64,z=5,dx=10,dy=10,dz=10,limit=1] 3
+sleep 4
+execute as @e[type=item,x=30,y=-64,z=0,dx=20,dy=10,dz=20] run data get entity @s Item
+# --- killBatchSize 3: a 20-damage hit on a stack of 10 husks leaves 7 (x=70) ---
+mobstacker set killBatchSize 3
+mobstacker set damageOverflow false
+summon husk 70 -60 10 {HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+summon cow 75 -60 10
+sleep 1
+mobstacker stacksize @e[type=husk,x=65,y=-64,z=5,dx=10,dy=10,dz=10,limit=1] 10
+damage @e[type=husk,x=65,y=-64,z=5,dx=10,dy=10,dz=10,limit=1] 100 minecraft:mob_attack by @e[type=cow,limit=1,x=70,y=-64,z=5,dx=10,dy=10,dz=10]
+sleep 2
+execute positioned 70 -60 10 run mobstacker stats 8
+mobstacker reset killBatchSize
+mobstacker reset damageOverflow
+# --- stackOutgoingDamage: a stack of 5 husks hits a villager 5 times as hard (x=100) ---
+fill 98 -61 8 102 -57 12 glass hollow
+fill 99 -60 9 101 -58 11 air
+summon villager 100 -60 9 {NoAI:1b,Health:200f,Attributes:[{Name:"generic.max_health",Base:200d}],VillagerData:{profession:"minecraft:none",level:1,type:"minecraft:plains"}}
+mobstacker set stackOutgoingDamage true
+summon husk 100 -60 11 {HandItems:[{},{}],ArmorItems:[{},{},{},{}]}
+sleep 1
+mobstacker stacksize @e[type=husk,x=95,y=-64,z=5,dx=10,dy=10,dz=10,limit=1] 5
+sleep 1.5
+execute as @e[type=villager,x=95,y=-64,z=5,dx=10,dy=10,dz=10] run data get entity @s Health
+sleep 1
+execute as @e[type=villager,x=95,y=-64,z=5,dx=10,dy=10,dz=10] run data get entity @s Health
+execute as @e[type=zombie_villager,x=95,y=-64,z=5,dx=10,dy=10,dz=10] run data get entity @s Health
+mobstacker reset stackOutgoingDamage

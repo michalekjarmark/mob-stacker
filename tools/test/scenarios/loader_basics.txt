@@ -1,0 +1,41 @@
+mobstacker set stackMode everywhere
+weather clear
+time set day
+gamerule doMobSpawning false
+forceload add 0 0 64 64
+mobstacker region add pen allow 0 -64 0 64 0 64
+mobstacker region set pen stackAi frozen
+sleep 2
+summon cow 10 -60 10
+summon cow 10 -60 10
+summon cow 10 -60 10
+summon cow 10 -60 10
+summon cow 10 -60 10
+sleep 3
+execute positioned 10 -60 10 run mobstacker stats 6
+execute positioned 10 -60 10 run mobstacker inspect @e[type=cow,limit=1,sort=nearest]
+damage @e[type=cow,limit=1,x=5,y=-64,z=5,dx=10,dy=10,dz=10] 100 minecraft:fall
+sleep 1
+execute positioned 10 -60 10 run mobstacker stats 6
+summon sheep 30 -60 30 {Color:14b}
+summon sheep 30 -60 30 {Color:14b}
+summon sheep 30 -60 30 {Color:14b}
+summon sheep 30 -60 30 {Color:14b}
+summon mooshroom 40 -60 40
+summon mooshroom 40 -60 40
+summon mooshroom 40 -60 40
+summon mooshroom 40 -60 40
+sleep 3
+execute positioned 30 -60 30 run mobstacker stats 3
+execute positioned 40 -60 40 run mobstacker stats 3
+setblock 30 -60 29 dispenser[facing=south]{Items:[{Slot:0b,id:"minecraft:shears",Count:1b}]}
+setblock 40 -60 39 dispenser[facing=south]{Items:[{Slot:0b,id:"minecraft:shears",Count:1b}]}
+sleep 1
+setblock 31 -60 29 redstone_block
+setblock 41 -60 39 redstone_block
+sleep 2
+execute positioned 30 -60 30 run mobstacker inspect @e[type=sheep,limit=1,sort=nearest]
+execute as @e[type=item,x=25,y=-64,z=25,dx=10,dy=10,dz=10] run data get entity @s Item
+execute as @e[type=item,x=35,y=-64,z=35,dx=10,dy=10,dz=10] run data get entity @s Item
+execute positioned 40 -60 40 run mobstacker inspect @e[type=cow,limit=1,sort=nearest]
+data get block 30 -60 29 Items

@@ -1,0 +1,45 @@
+mobstacker selftest
+mobstacker set stackMode everywhere
+gamerule doMobSpawning false
+forceload add 0 0 63 63
+# --- a whole-dimension deny region stops two cows stacking far from any box ---
+mobstacker region add nostack deny dimension
+mobstacker region add nether allow dimension minecraft:the_nether
+mobstacker region add farm allow 0 -61 0 10 -55 10
+summon cow 40 -60 40
+summon cow 40 -60 40
+sleep 3
+execute positioned 40 -60 40 run mobstacker stats 6
+mobstacker inspect @e[type=cow,limit=1,x=35,y=-64,z=35,dx=10,dy=10,dz=10]
+# --- switched off: the same cows stack ---
+mobstacker region disable nostack
+mobstacker region disable nostack
+sleep 3
+execute positioned 40 -60 40 run mobstacker stats 6
+mobstacker region list
+mobstacker region show nostack
+# --- switched on again; the type change keeps it a whole dimension ---
+mobstacker region enable nostack
+mobstacker region type nostack allow
+mobstacker region show nostack
+# --- farm becomes the whole dimension and back to its box ---
+mobstacker region bounds farm dimension
+mobstacker region show farm
+mobstacker region bounds farm 0 -61 0 10 -55 10
+mobstacker region show farm
+mobstacker region add nostack allow dimension
+# --- paging: 12 more regions ---
+mobstacker region add p01 allow 100 -60 100 101 -59 101
+mobstacker region add p02 allow 100 -60 100 101 -59 101
+mobstacker region add p03 allow 100 -60 100 101 -59 101
+mobstacker region add p04 allow 100 -60 100 101 -59 101
+mobstacker region add p05 allow 100 -60 100 101 -59 101
+mobstacker region add p06 allow 100 -60 100 101 -59 101
+mobstacker region add p07 allow 100 -60 100 101 -59 101
+mobstacker region add p08 allow 100 -60 100 101 -59 101
+mobstacker region add p09 allow 100 -60 100 101 -59 101
+mobstacker region add p10 allow 100 -60 100 101 -59 101
+mobstacker region list
+mobstacker region list 2
+mobstacker region list 9
+tellraw @a "done"

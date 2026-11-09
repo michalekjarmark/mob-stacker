@@ -1,0 +1,26 @@
+mobstacker selftest
+mobstacker set stackMode regions
+gamerule doMobSpawning false
+forceload add 0 0 63 63
+mobstacker region add farm allow 0 -61 0 20 -55 20
+mobstacker region biomes farm add desert
+mobstacker region biomes farm add desert
+mobstacker region biomes farm add #is_ocean
+mobstacker region biomes farm add mymod:nowhere
+mobstacker region biomes farm
+summon cow 10 -60 10
+summon cow 10 -60 10
+sleep 3
+execute positioned 10 -60 10 run mobstacker stats 6
+mobstacker inspect @e[type=cow,limit=1,x=5,y=-64,z=5,dx=10,dy=10,dz=10]
+mobstacker region biomes farm add #minecraft:is_overworld
+sleep 3
+execute positioned 10 -60 10 run mobstacker stats 6
+mobstacker region bounds farm 0 -61 0 30 -55 30
+mobstacker region show farm
+mobstacker region list
+mobstacker region biomes farm remove minecraft:desert
+mobstacker region biomes farm remove minecraft:desert
+mobstacker region biomes farm clear
+mobstacker region biomes farm clear
+mobstacker region biomes farm add "bad biome"

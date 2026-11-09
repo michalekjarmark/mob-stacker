@@ -1,0 +1,15 @@
+mobstacker set stackedHarvest false
+kill @e[type=item]
+summon sheep 50 -60 50 {Color:4b}
+summon sheep 50 -60 50 {Color:4b}
+summon sheep 50 -60 50 {Color:4b}
+sleep 3
+setblock 50 -60 49 dispenser[facing=south]{Items:[{Slot:0b,id:"minecraft:shears",Count:1b}]}
+sleep 1
+setblock 51 -60 49 redstone_block
+sleep 2
+execute as @e[type=sheep,x=45,y=-64,z=45,dx=10,dy=10,dz=10] run data get entity @s Sheared
+execute positioned 50 -60 50 run mobstacker stats 4
+execute as @e[type=item,x=45,y=-64,z=45,dx=10,dy=10,dz=10] run data get entity @s Item.Count
+data get block 50 -60 49 Items[0].tag.Damage
+mobstacker set stackedHarvest true

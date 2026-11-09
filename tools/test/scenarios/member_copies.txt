@@ -1,0 +1,70 @@
+# 1.12.0 #35: a mob made out of a stack is a copy of the stack's saved data, not a new roll.
+# Run on a fresh flat world: python tools/test/run_server.py <node> tools/test/scenarios/member_copies.txt
+difficulty hard
+time set 18000
+gamerule doDaylightCycle false
+gamerule doMobSpawning false
+gamerule mobGriefing false
+forceload add 280 -50 520 20
+sleep 2
+summon armor_stand 300 -60 -40 {Tags:["c35hit"],NoGravity:1b}
+# --- A: a zombie stack with a leader bonus, a tag and an effect loses its top (x=300, z=0) ---
+summon zombie 300 -60 0 {Tags:["c35z2"],Health:2f,PersistenceRequired:1b,Attributes:[{Name:"minecraft:generic.max_health",Base:20.0d,Modifiers:[{Name:"Leader zombie bonus",Amount:1.0d,Operation:2,UUID:[I;1,2,3,4]}]}]}
+sleep 1
+mobstacker stacksize @e[tag=c35z2,limit=1] 6
+effect give @e[tag=c35z2,limit=1] minecraft:slowness 600 0
+attribute @e[tag=c35z2,limit=1] minecraft:generic.max_health get
+damage @e[tag=c35z2,limit=1] 5 minecraft:mob_attack by @e[tag=c35hit,limit=1]
+sleep 3
+execute positioned 300 -60 0 run mobstacker stats 10
+attribute @e[tag=c35z2,limit=1] minecraft:generic.max_health get
+data get entity @e[tag=c35z2,limit=1] ActiveEffects
+data get entity @e[tag=c35z2,limit=1] Tags
+data get entity @e[tag=c35z2,limit=1] Health
+data get entity @e[tag=c35z2,limit=1] PersistenceRequired
+data get entity @e[tag=c35z2,limit=1] ArmorItems
+# --- B: turtles keep their home beach when taken out (x=340, z=0) ---
+summon turtle 340 -60 0 {Tags:["c35t2"],HomePosX:777,HomePosY:-60,HomePosZ:-555}
+sleep 1
+mobstacker stacksize @e[tag=c35t2,limit=1] 3
+execute positioned 340 -60 0 run mobstacker unstack 4 confirm
+sleep 2
+execute as @e[type=turtle,x=330,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s HomePosX
+# --- C: a sword one zombie picked up stays with it (x=380, z=0) ---
+summon zombie 380 -60 0 {Tags:["c35s"],HandItems:[{id:"minecraft:diamond_sword",Count:1b},{}],HandDropChances:[2.0f,0.085f],ArmorItems:[{},{},{},{id:"minecraft:iron_helmet",Count:1b}]}
+sleep 1
+mobstacker stacksize @e[tag=c35s,limit=1] 3
+execute positioned 380 -60 0 run mobstacker stats 6
+damage @e[tag=c35s,limit=1] 30 minecraft:mob_attack by @e[tag=c35hit,limit=1]
+sleep 3
+execute positioned 380 -60 0 run mobstacker stats 6
+execute positioned 380 -60 0 run data get entity @e[type=item,limit=1,sort=nearest] Item.id
+execute as @e[type=zombie,x=370,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s HandItems[0].id
+execute as @e[type=zombie,x=370,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s ArmorItems[3].id
+# --- D: a lit creeper stack blows up one creeper, the rest are not lit (x=420, z=0) ---
+summon creeper 420 -60 0 {Tags:["c35c"],powered:1b}
+sleep 1
+mobstacker stacksize @e[tag=c35c,limit=1] 3
+execute positioned 420 -60 0 run mobstacker stats 6
+data merge entity @e[tag=c35c,limit=1] {ignited:1b}
+sleep 5
+execute positioned 420 -60 0 run mobstacker stats 10
+execute as @e[type=creeper,x=410,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s ignited
+execute as @e[type=creeper,x=410,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s powered
+# --- E: one saddle on a stack of pigs stays one saddle (x=460, z=0) ---
+summon pig 460 -60 0 {Tags:["c35p"],Saddle:1b}
+sleep 1
+mobstacker stacksize @e[tag=c35p,limit=1] 3
+execute positioned 460 -60 0 run mobstacker stats 6
+execute positioned 460 -60 0 run mobstacker unstack 6 confirm
+sleep 2
+execute as @e[type=pig,x=450,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s Saddle
+# --- F: a baby, a sheared lime sheep (x=500, z=0) ---
+summon sheep 500 -60 0 {Tags:["c35w"],Color:5b,Sheared:1b,Age:-12000}
+sleep 1
+mobstacker stacksize @e[tag=c35w,limit=1] 3
+execute positioned 500 -60 0 run mobstacker unstack 4 confirm
+sleep 2
+execute as @e[type=sheep,x=490,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s Color
+execute as @e[type=sheep,x=490,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s Sheared
+execute as @e[type=sheep,x=490,y=-64,z=-10,dx=20,dy=10,dz=20] run data get entity @s Age
