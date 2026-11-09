@@ -36,7 +36,7 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 |---|---|---|---|
 | 26.1 | Loom fails; no `mappings`/`modImplementation`/`remapJar`/`neoForge` accessor. | Minecraft is not obfuscated from 26.1. | `stonecutter.gradle.kts` applies `dev.architectury.loom-no-remap` to non-`1.x` nodes; `build.gradle.kts` `unobfuscated`, configurations by string. |
 | 26.1 | `validateAccessWidener` fails / widener not applied. | The widener's namespace is `official`, not `named`. | `build.gradle.kts` writes an `official` copy for Loom and filters the jar's. Lines whose target is gone go in `widenerBefore` (`LivingEntity deathScore` from 1.21.2). |
-| 26.1 | **NeoForge 26.x has no access transformer yet.** | `remapJar` converts the widener to an AT only while obfuscated. | Unsolved. |
+| 26.1 | NeoForge 26.x: no access transformer in the jar (fields the widener opens are private at run time). | `remapJar` converts the widener to an AT only while obfuscated, and 26.x has no remapping. | `build.gradle.kts` writes `META-INF/accesstransformer.cfg` from the node's widener lines (`accessTransformerOf`; Mojang's names are the run-time names there) and leaves the widener out of the jar. |
 | 1.21.2 | Mixin apply error on a `@Redirect` that `checkMixins` passed. | A redirect that captures the target method's arguments (`LivingEntity.actuallyHurt` gained a `ServerLevel`). | Version-specific handler in `LivingEntityMixin`. |
 | ≤26.3 | Mixin apply error on an `@Invoker` that `checkMixins` passed. | The method moved to a superclass (`Animal.usePlayerItem` -> `Mob`). | `AnimalInvoker` targets `Mob` on 26.x. |
 | 1.21.6 | Entity save/load methods missing. | `ValueOutput`/`ValueInput` replace `CompoundTag` there. | `Compat.save`/`load` (`TagValueOutput`/`TagValueInput`, `ProblemReporter.DISCARDING`); `EntityDataMixin`. `tools/VanillaKeys.java` reads both shapes. |
@@ -45,6 +45,24 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.1 | Every drawing class fails to compile. | New renderer (`com.mojang.renderpearl`), GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`, entities through render states and `SubmitNodeCollector`. | Region boxes are **gizmos** (`emitGizmos`, `client.LevelRendererGizmosMixin`), stack labels a render-state name tag line (`EntityRendererMixin`, `client.EntityRenderStateMixin`), screens bridged by `client/CompatScreen` (drawing *and* input events). The old classes compile below 26.1 only. |
 | any | A mixin config with a dropped entry is invalid JSON. | Entries are dropped per node by `mixinsBefore`/`mixinsFrom`; a dropped last entry leaves a trailing comma. | Version-limited entries go at the **top** of their list in `mobstacker.mixins.json`. |
 | 1.20.1 node | `x instanceof Player p` does not compile where `x` is already a `Player`. | The 1.20.1 node compiles with Java 17 (21 allows it). | Write it the Java 17 way in shared code. |
+
+## NeoForge between 1.21.1 and 26.3
+
+Found porting the NeoForge module (davidex's, for 1.21.1) to 26.3; where each changed in between is
+unknown (conditions at 26.1).
+
+| 1.21.1 | 26.3 | Where |
+|---|---|---|
+| `FMLEnvironment.dist` | `FMLEnvironment.getDist()` (FML 12) | `MobStackerNeoForge` |
+| `PacketDistributor.sendToServer` | `client.network.ClientPacketDistributor.sendToServer` | `MobStackerNeoForgeClient` |
+| `ServerEntity.sendPairingData(player, PacketAndPayloadAcceptor)` | vanilla's `Consumer<Packet<...>>` (the acceptor is gone) | `ServerEntityMixin` (`neoforge && <26.1`) |
+| `ServerPlayer.getServer()` | gone: `player.level().getServer()` (works on every version) | `MobStackerNeoForge` |
+| `MinecraftServer.handleCustomClickAction(id, payload)` (vanilla) | NeoForge adds the player and the profile to the call | `Compat.HANDLE_CUSTOM_CLICK_ACTION` |
+| dispenser `tryShearLivingEntity` | `tryShearEntity` (as vanilla) | `Compat.DISPENSER_SHEAR_ENTITY` |
+
+Key categories: vanilla's `KeyMapping.Category.register` is enough on NeoForge too (its
+`ClientHooks.onRegisterKeyMappings` only appends the categories registered through the event to the
+same list); register a category one way, not both, or it is listed twice.
 
 **`checkMixins` is not the last word**: it found neither of the two mixin errors above. Run every new
 node's jar on a real server with every injector required (`prodServer -PstrictMixins`, or

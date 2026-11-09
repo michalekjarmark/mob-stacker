@@ -85,6 +85,36 @@ if (loader == "neoforge" && !unobfuscated) {
     }
 }
 
+// From 26.1 there is no remapJar to convert it, and the widener's names are the names the game runs
+// with: the access transformer is written from the node's widener lines here (like the widener copy
+// above, while configuring) and packed as a resource.
+fun accessTransformerOf(widener: String): String = widener.lines().mapNotNull { line ->
+    val parts = line.trim().split(Regex("\\s+"))
+    val access = when (parts.firstOrNull()) {
+        "accessible" -> "public"
+        "mutable", "extendable" -> "public-f"
+        else -> return@mapNotNull null
+    }
+    when {
+        parts.size == 3 && parts[1] == "class" -> "$access ${parts[2].replace('/', '.')}"
+        parts.size == 5 && parts[1] == "field" -> "$access ${parts[2].replace('/', '.')} ${parts[3]}"
+        parts.size == 5 && parts[1] == "method" -> "$access ${parts[2].replace('/', '.')} ${parts[3]}${parts[4]}"
+        else -> throw GradleException("Cannot turn this access widener line into an access transformer: $line")
+    }
+}.joinToString("\n", postfix = "\n")
+if (loader == "neoforge" && unobfuscated) {
+    val generated = layout.buildDirectory.dir("generated/accesstransformer").get().asFile
+    val at = generated.resolve("META-INF/accesstransformer.cfg")
+    val text = accessTransformerOf(accessWidener.readText())
+    if (!at.isFile || at.readText() != text) {
+        at.parentFile.mkdirs()
+        at.writeText(text)
+    }
+    sourceSets.main { resources.srcDir(generated) }
+    // The widener itself is Fabric's; NeoForge reads the transformer (remapJar leaves it out below 26.1).
+    tasks.named<Jar>("jar") { exclude("mobstacker.accesswidener") }
+}
+
 // Every loader's code is in the one source tree, in its own package; a node compiles its own.
 val otherLoaders = listOf("fabric", "forge", "neoforge") - loader
 sourceSets.main {

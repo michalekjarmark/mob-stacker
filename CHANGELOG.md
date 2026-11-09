@@ -20,6 +20,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   that jumped along their box).
   Not on 26.3 yet: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
   stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x.
+- **Minecraft 26.3 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.3 or
+  newer, Java 25), the same code as the Fabric jar for 26.3, with the access transformer written from
+  the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert
+  it). Checked on a dev server: the self-test, stacking, damage overflow, strict data matching and a
+  dispenser shearing a stack; not yet the client.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.

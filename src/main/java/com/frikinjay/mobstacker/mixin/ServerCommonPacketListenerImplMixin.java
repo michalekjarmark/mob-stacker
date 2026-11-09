@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ServerCommonPacketListenerImpl.class)
 public abstract class ServerCommonPacketListenerImplMixin {
     @Inject(method = "handleCustomClickAction", cancellable = true, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;)V"))
+            target = Compat.HANDLE_CUSTOM_CLICK_ACTION))
     private void mobstacker$clickedCommand(ServerboundCustomClickActionPacket packet, CallbackInfo ci) {
         if ((Object) this instanceof ServerGamePacketListenerImpl game && packet.id().equals(Compat.CLICKED_COMMAND)) {
             packet.payload().flatMap(Tag::asString).ifPresent(command -> MobStackerCommands.runClicked(game.player, command));

@@ -34,7 +34,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
 
     //? if neoforge {
     /*/^* NeoForge's dispenser shears through IShearable.onSheared; NeoForgeShearing does the stack's part. ^/
-    @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
+    @Redirect(method = Compat.DISPENSER_SHEAR_ENTITY, at = @At(value = "INVOKE",
             target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ljava/util/List;"))
     private static java.util.List<net.minecraft.world.item.ItemStack> mobstacker$shearWithTheStack(
             net.neoforged.neoforge.common.IShearable shearable, net.minecraft.world.entity.player.Player player,
