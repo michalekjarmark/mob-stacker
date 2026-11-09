@@ -54,6 +54,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   game.
 
 ### Fixed
+- **A world moved to a newer Minecraft version keeps the gear of the mobs under a stack's top one**
+  (`keepMemberEquipment`), and a horse stack its members' own speed, jump and health. Both are kept
+  in the stack's own data, which Minecraft does not convert when it upgrades a world: from 1.20.5
+  items are saved in a new shape, and the horse attributes were renamed in 1.20.5 and 1.21.2. The
+  stack data now carries the data version it was saved in, and loading it runs every member's items
+  through Minecraft's own converters. Data from 1.12.0 and earlier has no version and is taken as
+  1.20.1's. Checked with a 1.20.1 world opened on 1.21.1 and 26.3.
 - **The Fabric jar claimed to run on Minecraft 1.20.2-1.20.6** (`~1.20.1` in `fabric.mod.json`),
   loaded there and crashed. It now asks for 1.20.1 exactly, as the Forge jar already did. Every jar
   takes its Minecraft range, Java version and pack format from its own version's settings.
