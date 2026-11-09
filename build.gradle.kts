@@ -46,10 +46,18 @@ dependencies {
 // obfuscated and the "official" one from 26.1. Unobfuscated nodes get a copy with that header (Loom
 // reads it while configuring, so the copy is written here), and the jar gets the same (processResources).
 val accessWidenerSource = rootProject.file("src/main/resources/mobstacker.accesswidener")
+// Widener lines for members a version no longer has (Loom refuses a line it cannot find), by the
+// "Class member" text in the line and the version they are gone from.
+val widenerBefore = mapOf(
+    "LivingEntity deathScore" to "1.21.2", // the kill score is no longer a field
+)
+val droppedWidenerLines = widenerBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys
+fun nodeAccessWidenerLine(line: String) =
+    if (droppedWidenerLines.any { line.contains(it) }) "" else if (unobfuscated) officialAccessWidener(line) else line
 fun officialAccessWidener(text: String) = text.replaceFirst("accessWidener v2 named", "accessWidener v2 official")
-val accessWidener = if (!unobfuscated) accessWidenerSource else
+val accessWidener = if (!unobfuscated && droppedWidenerLines.isEmpty()) accessWidenerSource else
     layout.buildDirectory.file("mobstacker.accesswidener").get().asFile.also { copy ->
-        val text = officialAccessWidener(accessWidenerSource.readText())
+        val text = accessWidenerSource.readLines().joinToString("\n") { nodeAccessWidenerLine(it) } + "\n"
         if (!copy.isFile || copy.readText() != text) {
             copy.parentFile.mkdirs()
             copy.writeText(text)
@@ -127,8 +135,10 @@ tasks.processResources {
     from(vanillaKeys) {
         rename { "mobstacker_vanilla_keys.txt" }
     }
-    if (unobfuscated) {
-        filesMatching("mobstacker.accesswidener") { filter { line -> officialAccessWidener(line) } }
+    inputs.property("droppedWidenerLines", droppedWidenerLines.sorted().joinToString())
+    inputs.property("unobfuscated", unobfuscated)
+    if (unobfuscated || droppedWidenerLines.isNotEmpty()) {
+        filesMatching("mobstacker.accesswidener") { filter { line -> nodeAccessWidenerLine(line) } }
     }
     filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
         expand(metadata)
@@ -137,8 +147,30 @@ tasks.processResources {
     // still compiles - an accessor is only an annotation - but Mixin would fail on the missing field).
     val mixinsBefore = mapOf(
         "ParrotAccessor" to "1.20.5", // Parrot.TAME_FOOD became the item tag #parrot_food
+        // 26.1: the region boxes are gizmos (client.LevelRendererGizmosMixin), and the sheep's wool
+        // reads its name from a render state.
+        "client.LevelRendererMixin" to "26.1",
+        "client.SheepFurLayerMixin" to "26.1",
+        // 26.1 (unconfirmed): these conversions are convertTo (MobMixin carries the stack), spawning
+        // reads the level's entities in NaturalSpawner, the easter-egg names are read off render
+        // states, and armour stands no longer tick on their own.
+        "ServerChunkCacheMixin" to "26.1",
+        "ArmorStandMixin" to "26.1",
+        "mobs.PigMixin" to "26.1",
+        "mobs.VillagerMixin" to "26.1",
+        "mobs.TadpoleMixin" to "26.1",
+        "mobs.ZombieMixin" to "26.1",
+        "client.LivingEntityRendererMixin" to "26.1",
+        "client.RabbitRendererMixin" to "26.1",
     )
-    val droppedMixins = mixinsBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys
+    // And the other way round: mixins for a target that only exists from a version on.
+    val mixinsFrom = mapOf(
+        "client.LevelRendererGizmosMixin" to "26.1",
+        "client.EntityRenderStateMixin" to "26.1",
+        "NaturalSpawnerMixin" to "26.1",
+    )
+    val droppedMixins = mixinsBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys +
+        mixinsFrom.filter { (_, version) -> stonecutter.current.parsed < version }.keys
     inputs.property("droppedMixins", droppedMixins.sorted().joinToString())
     if (droppedMixins.isNotEmpty()) {
         filesMatching("*.mixins.json") {

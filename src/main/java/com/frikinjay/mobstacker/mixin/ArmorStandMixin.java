@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -43,3 +44,4 @@ public abstract class ArmorStandMixin {
         }
     }
 }
+//?}

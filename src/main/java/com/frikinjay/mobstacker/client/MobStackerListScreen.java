@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.frikinjay.mobstacker.MobStacker;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.MobListKind;
@@ -17,7 +18,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -378,12 +378,12 @@ public final class MobStackerListScreen extends CompatScreen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         boolean inEntry = entryBox != null && this.getFocused() == entryBox;
         if (completion.handleKey(keyCode, inEntry)) {
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+        if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
             if (inEntry && completion.shouldEnterComplete()) {
                 completion.accept();
             } else if (inEntry) {
@@ -398,15 +398,15 @@ public final class MobStackerListScreen extends CompatScreen {
                 return true;
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return superKey(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    protected boolean onClick(double mouseX, double mouseY, int button) {
         if (completion.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return superClick(mouseX, mouseY, button);
     }
 
     // ------------------------------------------------------------------ reading
@@ -734,40 +734,34 @@ public final class MobStackerListScreen extends CompatScreen {
     // ------------------------------------------------------------------ rendering
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    protected void draw(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         drawBackground(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
-        graphics.drawCenteredString(this.font, Component.literal(tabTitle()), this.width / 2, 26, 0xFFFFFF);
+        Gfx.centered(graphics, this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        Gfx.centered(graphics, this.font, Component.literal(tabTitle()), this.width / 2, 26, 0xFFFFFF);
 
         // Under the button it explains, never across it.
         if (regionName != null && tab != CEILINGS_TAB) {
-            graphics.drawCenteredString(this.font,
-                    Component.literal(editableHere()
+            Gfx.centered(graphics, this.font, Component.literal(editableHere()
                                     ? "This region has its own copy of this list"
                                     : "Showing the global list — give this region its own copy to change it")
-                            .withStyle(ChatFormatting.GRAY),
-                    this.width / 2, 68, MUTED_TEXT);
+                            .withStyle(ChatFormatting.GRAY), this.width / 2, 68, MUTED_TEXT);
         }
 
         List<String> shown = this.rows;
         int listTop = listTop();
         if (shown.isEmpty()) {
-            graphics.drawCenteredString(this.font, Component.literal(emptyText()),
-                    this.width / 2, listTop + 6, MUTED_TEXT);
+            Gfx.centered(graphics, this.font, Component.literal(emptyText()), this.width / 2, listTop + 6, MUTED_TEXT);
         } else {
             int y = listTop + 6;
             int last = Math.min(shown.size(), scrollOffset + visibleRows);
             for (int i = scrollOffset; i < last; i++) {
                 String label = shown.get(i);
                 boolean loaded = rowIsLoaded(label);
-                graphics.drawString(this.font, label, this.width / 2 - 170, y,
-                        loaded ? NORMAL_TEXT : MUTED_TEXT);
+                Gfx.text(graphics, this.font, label, this.width / 2 - 170, y, loaded ? NORMAL_TEXT : MUTED_TEXT);
                 if (!loaded) {
                     // Kept, not deleted - a list written while a mod was installed has to survive
                     // the mod being away - but never silently: this is also what a typo looks like.
-                    graphics.drawString(this.font,
-                            Component.literal("(not loaded)").withStyle(ChatFormatting.DARK_GRAY),
-                            this.width / 2 - 166 + this.font.width(label), y, MUTED_TEXT);
+                    Gfx.text(graphics, this.font, Component.literal("(not loaded)").withStyle(ChatFormatting.DARK_GRAY), this.width / 2 - 166 + this.font.width(label), y, MUTED_TEXT);
                 }
                 y += ROW_HEIGHT;
             }
@@ -785,7 +779,7 @@ public final class MobStackerListScreen extends CompatScreen {
             noteY += NOTE_HEIGHT;
         }
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        superRender(graphics, mouseX, mouseY, partialTick);
         completion.render(graphics, this.height, mouseX, mouseY);
         for (ScreenText.Line line : noteLines) {
             if (line.renderTooltip(graphics, this.font, this.width, mouseX, mouseY)) {

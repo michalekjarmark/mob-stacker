@@ -25,17 +25,25 @@ public abstract class ItemStackMixin {
     private int mobstacker$damageBeforeHit = -1;
 
     @Inject(method = Compat.WEAPON_HIT_METHOD, at = @At("HEAD"))
+    //? if >=26.1 {
+    /*private void mobstacker$beforeHit(LivingEntity target, LivingEntity attacker, CallbackInfo ci) {
+    *///?} else {
     private void mobstacker$beforeHit(LivingEntity target, Player attacker, CallbackInfo ci) {
+    //?}
         mobstacker$damageBeforeHit = ((ItemStack) (Object) this).getDamageValue();
     }
 
     @Inject(method = Compat.WEAPON_HIT_METHOD, at = @At("RETURN"))
+    //? if >=26.1 {
+    /*private void mobstacker$afterHit(LivingEntity target, LivingEntity attacker, CallbackInfo ci) {
+    *///?} else {
     private void mobstacker$afterHit(LivingEntity target, Player attacker, CallbackInfo ci) {
+    //?}
         int before = mobstacker$damageBeforeHit;
         mobstacker$damageBeforeHit = -1;
         ItemStack self = (ItemStack) (Object) this;
-        if (before >= 0 && !self.isEmpty()) {
-            MobStacker.wearWeaponForStack(self, target, attacker, self.getDamageValue() - before);
+        if (before >= 0 && !self.isEmpty() && (LivingEntity) attacker instanceof Player player) {
+            MobStacker.wearWeaponForStack(self, target, player, self.getDamageValue() - before);
         }
     }
 }

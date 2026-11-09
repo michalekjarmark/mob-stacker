@@ -698,16 +698,29 @@ public final class ConfigSelfTest {
         net.minecraft.world.entity.animal.Turtle turtle = Compat.create(EntityType.TURTLE, level, MobSpawnType.COMMAND);
         if (turtle != null) {
             turtle.setHomePos(new net.minecraft.core.BlockPos(1234, 64, -987));
+            // The keys vanilla saves a turtle's egg and home under: renamed in 1.21.5 (unconfirmed).
+            //? if >=1.21.5 {
+            /*String eggKey = "has_egg";
+            *///?} else {
+            String eggKey = "HasEgg";
+            //?}
             net.minecraft.nbt.CompoundTag egg = Compat.save(turtle);
-            egg.putBoolean("HasEgg", true);
+            egg.putBoolean(eggKey, true);
             egg.remove(MobStacker.STACK_DATA_KEY);
             Compat.load(turtle, egg);
             net.minecraft.world.entity.Mob copy = MobStacker.memberOf(turtle, level, false);
             net.minecraft.nbt.CompoundTag saved = copy == null ? new net.minecraft.nbt.CompoundTag()
                     : Compat.save(copy);
-            check(report, Nbt.getInt(saved, "HomePosX") == 1234 && Nbt.getInt(saved, "HomePosZ") == -987,
-                    "a member of a turtle stack got a new home: " + Nbt.getInt(saved, "HomePosX") + ", " + Nbt.getInt(saved, "HomePosZ"));
-            check(report, !Nbt.getBoolean(saved, "HasEgg"), "a member of a turtle stack got the top one's egg");
+            //? if >=1.21.5 {
+            /*int[] home = saved.getIntArray("home_pos").orElse(new int[3]);
+            int homeX = home.length == 3 ? home[0] : 0;
+            int homeZ = home.length == 3 ? home[2] : 0;
+            *///?} else {
+            int homeX = Nbt.getInt(saved, "HomePosX");
+            int homeZ = Nbt.getInt(saved, "HomePosZ");
+            //?}
+            check(report, homeX == 1234 && homeZ == -987, "a member of a turtle stack got a new home: " + homeX + ", " + homeZ);
+            check(report, !Nbt.getBoolean(saved, eggKey), "a member of a turtle stack got the top one's egg");
         }
 
         // A villager's job and its claims, a pig's saddle, a cow in love, a sheep's wool.

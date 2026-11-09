@@ -9,6 +9,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 
 ## [Unreleased]
 ### Added
+- **Minecraft 26.3 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5 and
+  Fabric API 0.160.5+26.3 or newer, Java 25), the same features as on 1.20.1 from the same code. On
+  26.x the region boxes are drawn as the game's own gizmos (with X-ray as "always on top") and stack
+  labels as one more name tag line, since both of the game's drawing systems were replaced. Checked on
+  a server: the self-test, stacking, damage overflow and strict data matching; not yet the client.
+  Not on 26.3 yet: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
+  stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.

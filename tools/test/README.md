@@ -57,7 +57,8 @@ The two transcripts should say the same (self-test count, x5 then x3, the zombie
 
 ## Scenarios from the 1.20.1 test rounds
 
-Written for 1.20.1 (rounds 9-13), so their NBT is 1.20.x's (`HandItems`, `carriedBlockState`, ...);
+Written for 1.20.1 (rounds 9-13) on a **flat** world: run them with `run_server.py --flat --dir <new
+dir>` (a normal world puts their mobs inside stone). Their NBT is 1.20.x's (`HandItems`, `carriedBlockState`, ...);
 1.20.5 and 1.21.5 changed parts of it. Each sets up its own area on a fresh flat world and prints what
 to compare; the comments in the file say what to expect.
 

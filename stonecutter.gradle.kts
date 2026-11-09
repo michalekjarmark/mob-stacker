@@ -81,6 +81,21 @@ stonecutter parameters {
     // Fabric API for 26.1 (unconfirmed) names the payload registries after Mojang's directions.
     replaceBothWays("26.1", "PayloadTypeRegistry.playC2S()", "PayloadTypeRegistry.serverboundPlay()", wholeWord = false)
     replaceBothWays("26.1", "PayloadTypeRegistry.playS2C()", "PayloadTypeRegistry.clientboundPlay()", wholeWord = false)
+    // 1.21.2: a registry is looked up.
+    replaceBothWays("1.21.2", ".registry(Registries.", ".lookup(Registries.", wholeWord = false)
+    // 26.1 (unconfirmed): the GUI is extracted, screens are set on the Gui, and Fabric API follows the
+    // names (client commands, key mappings).
+    moved("26.1", "GuiGraphics", "GuiGraphicsExtractor")
+    replacements.regex(current.parsed >= "26.1") {
+        replace("\\b(minecraft|client)\\.setScreen\\(", "$1.gui.setScreen(", "\\b(minecraft|client)\\.gui\\.setScreen\\(", "$1.setScreen(")
+    }
+    replacements.regex(current.parsed >= "26.1") {
+        replace("\\b(minecraft|client)\\.screen\\b(?!\\()", "$1.gui.screen()", "\\b(minecraft|client)\\.gui\\.screen\\(\\)", "$1.screen")
+    }
+    moved("26.1", "ClientCommandManager", "ClientCommands")
+    moved("26.1", "net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper", "net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper")
+    replaceBothWays("26.1", "KeyBindingHelper::registerKeyBinding", "KeyMappingHelper::registerKeyMapping", wholeWord = true)
+    moved("26.1", "net.minecraft.client.renderer.entity.layers.SheepFurLayer", "net.minecraft.client.renderer.entity.layers.SheepWoolLayer")
     moved("26.1", "net.minecraft.world.entity.monster.Slime", "net.minecraft.world.entity.monster.cubemob.Slime")
     moved("26.1", "EnderMan", "Enderman")
     moved("26.1", "net.minecraft.client.GuiMessage", "net.minecraft.client.multiplayer.chat.GuiMessage")

@@ -25,14 +25,22 @@ public class PlayerMixin {
 
     /** The assimilator, before anything else the click could mean (a villager's trades, for one). */
     @Inject(method = "interactOn", at = @At("HEAD"), cancellable = true)
+    //? if >=26.1 {
+    /*private void mobstacker$assimilator(Entity entity, InteractionHand hand, net.minecraft.world.phys.Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
+    *///?} else {
     private void mobstacker$assimilator(Entity entity, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+    //?}
         if (entity instanceof Mob mob && MobStacker.useAssimilator((Player) (Object) this, mob, hand)) {
             cir.setReturnValue(InteractionResult.SUCCESS);
         }
     }
 
     @Inject(method = "interactOn", at = @At("HEAD"))
+    //? if >=26.1 {
+    /*private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, net.minecraft.world.phys.Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
+    *///?} else {
     private void mobstacker$onInteract(Entity entity, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
+    //?}
         if(entity instanceof Mob && !entity.level().isClientSide() && MobStacker.getEnableSeparator(entity)) {
             Player player = (Player) (Object) this;
             int stackSize = MobStacker.getStackSize((Mob) entity);

@@ -12,6 +12,7 @@ There is one jar per Minecraft version and loader. Take the one for yours from
 | 1.20.1 | Forge | `mobstacker-1.20.1-forge-<version>.jar` | Forge 47 or newer, nothing else, Java 17 |
 | 1.20.1 | NeoForge | the Forge jar above | NeoForge 47.1 or newer, Java 17 |
 | 1.21, 1.21.1 | Fabric | `mobstacker-1.21.1-fabric-<version>.jar` | [Fabric API](https://modrinth.com/mod/fabric-api) for 1.21.1, Java 21 |
+| 26.3 | Fabric | `mobstacker-26.3-fabric-<version>.jar` | Fabric Loader 0.19.5 or newer, [Fabric API](https://modrinth.com/mod/fabric-api) for 26.3, Java 25 |
 
 The Minecraft version in a jar's name is the one it is made for: a jar does not load on another
 version, so take the one that matches your game. Every jar of the same release has the same features
@@ -29,7 +30,7 @@ and settings.
 > moving a world from one loader to the other keeps its settings.
 
 > [!WARNING]
-> **Updating a world from Minecraft 1.20.1 to 1.21.1** keeps its stacks, its config and its regions,
+> **Updating a world from Minecraft 1.20.1 to 1.21.1 or newer** keeps its stacks, its config and its regions,
 > but not yet the armour and weapons kept for the mobs *under* a stack's top one
 > ([Equipment]($gameplay/equipment)): Minecraft 1.21 saves items differently, and that gear is not
 > converted yet. Unstack the stacks that matter (`/mobstacker unstack`) before the update.

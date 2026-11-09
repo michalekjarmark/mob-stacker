@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.mixin.client;
 
+//? if <26.1 {
+
 import com.frikinjay.mobstacker.client.MobStackerRegionOverlay;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
@@ -64,3 +66,4 @@ public abstract class LevelRendererMixin {
     }
     //?}
 }
+//?}

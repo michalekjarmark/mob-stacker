@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.config.RegionBiomes;
 import com.frikinjay.mobstacker.config.RegionEdit;
@@ -20,7 +21,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -488,10 +488,10 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    protected void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         drawBackground(guiGraphics, mouseX, mouseY, partialTick);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        superRender(guiGraphics, mouseX, mouseY, partialTick);
+        Gfx.centered(guiGraphics, this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         int labelX = this.width / 2 + LABEL_X_OFFSET;
         drawLabel(guiGraphics, "name", labelX, NAME_Y + LABEL_INSET);
@@ -502,9 +502,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         drawLabel(guiGraphics, "only in biomes", labelX, BIOMES_Y + LABEL_INSET);
         // In the gap between the dimension button and the first corner row, not across either. The
         // same grey as the labels beside it: dark grey disappeared into the dirt background.
-        guiGraphics.drawString(this.font,
-                Component.literal("X            Y            Z").withStyle(ChatFormatting.GRAY),
-                this.width / 2 - 86, AXIS_HEADER_Y, NORMAL_TEXT);
+        Gfx.text(guiGraphics, this.font, Component.literal("X            Y            Z").withStyle(ChatFormatting.GRAY), this.width / 2 - 86, AXIS_HEADER_Y, NORMAL_TEXT);
 
         // Below the pick button, not across it. A message always wins over the standing hint,
         // whether it is a refusal or the picker saying it has filled the boxes in - a confirmation
@@ -563,29 +561,29 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         boolean inBiomeBox = biomeCompletion.isFor(this.getFocused());
         if (biomeCompletion.handleKey(keyCode, inBiomeBox)) {
             return true;
         }
-        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+        if ((keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER)
                 && inBiomeBox && biomeCompletion.shouldEnterComplete()) {
             biomeCompletion.accept();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return superKey(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    protected boolean onClick(double mouseX, double mouseY, int button) {
         if (biomeCompletion.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return superClick(mouseX, mouseY, button);
     }
 
     private void drawLabel(GuiGraphics guiGraphics, String text, int x, int y) {
-        guiGraphics.drawString(this.font, Component.literal(text).withStyle(ChatFormatting.GRAY), x, y, NORMAL_TEXT);
+        Gfx.text(guiGraphics, this.font, Component.literal(text).withStyle(ChatFormatting.GRAY), x, y, NORMAL_TEXT);
     }
 
     @Override

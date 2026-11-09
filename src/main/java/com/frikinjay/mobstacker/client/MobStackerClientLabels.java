@@ -34,7 +34,7 @@ public final class MobStackerClientLabels {
         int id = buf.readVarInt();
         int count = buf.readVarInt();
         String format = buf.readUtf();
-        ChatFormatting color = ChatFormatting.getById(buf.readVarInt());
+        ChatFormatting color = com.frikinjay.mobstacker.compat.Compat.formatById(buf.readVarInt());
         boolean always = buf.readBoolean();
         Minecraft.getInstance().execute(() -> {
             if (count <= 1) {
@@ -68,7 +68,14 @@ public final class MobStackerClientLabels {
             return null;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (!Minecraft.renderNames() || entity == minecraft.getCameraEntity() || entity.isVehicle()
+        // From 26.1 (unconfirmed) the label is only submitted where vanilla submits name tags, which
+        // already leaves out a hidden HUD.
+        //? if >=26.1 {
+        /*boolean namesShown = true;
+        *///?} else {
+        boolean namesShown = Minecraft.renderNames();
+        //?}
+        if (!namesShown || entity == minecraft.getCameraEntity() || entity.isVehicle()
                 || (minecraft.player != null && entity.isInvisibleTo(minecraft.player))) {
             return null;
         }

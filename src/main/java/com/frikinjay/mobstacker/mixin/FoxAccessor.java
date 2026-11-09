@@ -16,6 +16,11 @@ import java.util.UUID;
 @Mixin(Fox.class)
 public interface FoxAccessor {
 
+    //? if >=26.1 {
+    /*@Invoker("getTrustedEntities")
+    java.util.stream.Stream<?> mobstacker$trustedEntities();
+    *///?} else {
     @Invoker("getTrustedUUIDs")
     List<UUID> mobstacker$trustedUUIDs();
+    //?}
 }

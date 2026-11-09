@@ -19,7 +19,11 @@ import java.util.Locale;
  * Forge round). Every cycling button on the mod's screens is one of these now. Enter and Space step
  * forward, like a click.
  */
+//? if >=26.1 {
+/*public final class StepButton extends Button.Plain {
+*///?} else {
 public final class StepButton extends Button {
+//?}
     private static final List<String> COLOR_NAMES = new ArrayList<>();
 
     static {
@@ -42,6 +46,27 @@ public final class StepButton extends Button {
         this.step = step;
     }
 
+    //? if >=26.1 {
+    /*@Override
+    protected boolean isValidClickButton(net.minecraft.client.input.MouseButtonInfo info) {
+        return info.button() == 0 || info.button() == 1;
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        backwards = event.button() == 1;
+        try {
+            return super.mouseClicked(event, doubleClick);
+        } finally {
+            backwards = false;
+        }
+    }
+
+    @Override
+    public void onPress(net.minecraft.client.input.InputWithModifiers input) {
+        step.step(this, backwards ? -1 : 1);
+    }
+    *///?} else {
     @Override
     protected boolean isValidClickButton(int button) {
         return button == 0 || button == 1;
@@ -61,6 +86,7 @@ public final class StepButton extends Button {
     public void onPress() {
         step.step(this, backwards ? -1 : 1);
     }
+    //?}
 
     /** {@code index} moved {@code direction} steps round a ring of {@code size}. */
     public static int stepIndex(int index, int direction, int size) {

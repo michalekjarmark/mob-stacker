@@ -45,9 +45,23 @@ public abstract class ShearsDispenseItemBehaviorMixin {
         return sheared.drops();
     }
     *///?} else {
+    //? if >=26.1 {
+    /*@Redirect(method = "tryShearEntity", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/sounds/SoundSource;Lnet/minecraft/world/item/ItemStack;)V"))
+    private static void mobstacker$shearWithTheStack(Shearable shearable, net.minecraft.server.level.ServerLevel level,
+                                                     SoundSource source, net.minecraft.world.item.ItemStack shears) {
+        mobstacker$shearStack(shearable, source);
+    }
+    *///?} else {
     @Redirect(method = "tryShearLivingEntity", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/sounds/SoundSource;)V"))
     private static void mobstacker$shearWithTheStack(Shearable shearable, SoundSource source) {
+        mobstacker$shearStack(shearable, source);
+    }
+    //?}
+
+    @org.spongepowered.asm.mixin.Unique
+    private static void mobstacker$shearStack(Shearable shearable, SoundSource source) {
         if (!(shearable instanceof Mob mob) || MobStacker.getStackSize(mob) <= 1) {
             Compat.shear(shearable, source);
             return;

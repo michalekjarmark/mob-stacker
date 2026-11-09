@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LightningBolt;
@@ -24,3 +25,4 @@ public class PigMixin {
     }
 
 }
+//?}

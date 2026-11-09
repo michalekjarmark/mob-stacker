@@ -44,6 +44,15 @@ public class SheepShearMixin implements StackShearable {
         }
     }
 
+    //? if >=26.1 {
+    /*@Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;playSound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
+    private void mobstacker$oneSnipPerClick(net.minecraft.server.level.ServerLevel level, Entity player, Entity entity, SoundEvent sound,
+                                            SoundSource source, float volume, float pitch) {
+        if (!mobstacker$shearingQuietly) {
+            level.playSound(player, entity, sound, source, volume, pitch);
+        }
+    }
+    *///?} else {
     @Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;playSound(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
     private void mobstacker$oneSnipPerClick(Level level, Player player, Entity entity, SoundEvent sound,
                                             SoundSource source, float volume, float pitch) {
@@ -51,4 +60,5 @@ public class SheepShearMixin implements StackShearable {
             level.playSound(player, entity, sound, source, volume, pitch);
         }
     }
+    //?}
 }

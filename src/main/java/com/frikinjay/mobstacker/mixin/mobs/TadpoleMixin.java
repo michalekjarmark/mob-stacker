@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -28,3 +29,4 @@ public class TadpoleMixin {
         return frog;
     }
 }
+//?}

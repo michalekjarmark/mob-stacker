@@ -495,7 +495,11 @@ public final class MobStacker {
         if (entity instanceof Ocelot ocelot) {
             return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
         }
+        //? if >=26.1 {
+        /*return entity instanceof Fox fox && ((FoxAccessor) fox).mobstacker$trustedEntities().findAny().isPresent();
+        *///?} else {
         return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();
+        //?}
     }
 
     /**
@@ -786,7 +790,11 @@ public final class MobStacker {
             // What it is in the middle of: love (the stack's breeding is counted in its stack data),
             // a turtle's egg, a creeper's lit fuse - a copy of that one would blow the stack up one
             // creeper at a time.
-            "InLove", "LoveCause", "HasEgg", "ignited");
+            "InLove", "LoveCause", "HasEgg", "ignited",
+            // The same under the names 1.21.5 and later save them as (the saddle and the body slot are
+            // equipment there: see memberOf).
+            "sleeping_pos", "has_egg", "last_hurt_by_mob", "last_hurt_by_player",
+            "last_hurt_by_player_memory_time", "ticks_since_last_hurt_by_mob");
 
     /**
      * Attribute modifiers vanilla gives the odd mob when it spawns, which a copy would give every
@@ -855,6 +863,12 @@ public final class MobStacker {
                 setDropChance(member, slot, NATURAL_DROP_CHANCE);
             }
         }
+        //? if >=1.21.5 {
+        /*// A saddle and body armour are equipment slots from 1.21.5 (unconfirmed), not keys of their own
+        // that TOP_ONLY_KEYS leaves out: they belong to the top mob alone, as they did before.
+        member.setItemSlot(EquipmentSlot.SADDLE, ItemStack.EMPTY);
+        member.setItemSlot(EquipmentSlot.BODY, ItemStack.EMPTY);
+        *///?}
         AttributeInstance maxHealth = member.getAttribute(Attributes.MAX_HEALTH);
         if (getStackHealth(stack) && maxHealth != null) {
             // stackHealth raised the stack's max health by every mob it took in; a member has one mob's.
@@ -1614,7 +1628,11 @@ public final class MobStacker {
     }
 
     private static float dropChance(Mob mob, EquipmentSlot slot) {
+        //? if >=26.1 {
+        /*return mob.getDropChances().byEquipment(slot);
+        *///?} else {
         return ((MobEquipmentAccessor) mob).mobstacker$dropChance(slot);
+        //?}
     }
 
     private static void setDropChance(Mob mob, EquipmentSlot slot, float chance) {
@@ -2826,6 +2844,12 @@ public final class MobStacker {
      * egg, a scute); the other members drop theirs. In full stacks, so a stack of a hundred
      * chickens leaves seven entities, not a hundred.
      */
+    /** How many more times a stack's gift (an egg, a scute) is given: once per member under the top. */
+    public static int giftMembers(Mob mob) {
+        int members = getStackSize(mob) - 1;
+        return members <= 0 || mob.level().isClientSide() || !getMultiplyGiftDrops(mob) ? 0 : members;
+    }
+
     public static void dropGiftForMembers(Mob mob, ItemLike item, int each) {
         int members = getStackSize(mob) - 1;
         if (members <= 0 || mob.level().isClientSide() || !getMultiplyGiftDrops(mob)) {

@@ -36,6 +36,6 @@ final class ScreenTooltip {
                 wrapped.addAll(split);
             }
         }
-        graphics.renderTooltip(font, wrapped, mouseX, mouseY);
+        Gfx.tooltip(graphics, font, wrapped, mouseX, mouseY);
     }
 }

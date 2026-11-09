@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.ConfigOption.Category;
 import com.frikinjay.mobstacker.config.MobStackerSettings;
@@ -18,7 +20,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -524,95 +525,85 @@ public final class MobStackerConfigScreen extends CompatScreen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         if (itemCompletions.keyPressed(keyCode, this.getFocused())) {
             return true;
         }
         if (searchBox != null) {
-            if (keyCode == GLFW.GLFW_KEY_F && Screen.hasControlDown()) {
+            if (keyCode == InputConstants.KEY_F && controlDown(modifiers)) {
                 setFocused(searchBox);
                 cursorToEnd(searchBox);
                 return true;
             }
             if (this.getFocused() == searchBox) {
                 // Esc empties the box first and closes the screen only once it is empty.
-                if (keyCode == GLFW.GLFW_KEY_ESCAPE && !query.isEmpty()) {
+                if (keyCode == InputConstants.KEY_ESCAPE && !query.isEmpty()) {
                     searchBox.setValue("");
                     return true;
                 }
-                if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && !hits.isEmpty()) {
+                if ((keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) && !hits.isEmpty()) {
                     showOnItsPage(hits.get(0).option());
                     return true;
                 }
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return superKey(keyCode, scanCode, modifiers);
     }
 
     /** Typing with no text box in focus starts a search, so there is nothing to click first. */
     @Override
-    public boolean charTyped(char typed, int modifiers) {
+    protected boolean onChar(char typed, int modifiers) {
         if (searchBox != null && !(this.getFocused() instanceof EditBox) && !Character.isWhitespace(typed)
                 && com.frikinjay.mobstacker.compat.Compat.isAllowedChatCharacter(typed)) {
             setFocused(searchBox);
             cursorToEnd(searchBox);
-            return searchBox.charTyped(typed, modifiers);
+            return typeInto(searchBox, typed, modifiers);
         }
-        return super.charTyped(typed, modifiers);
+        return superChar(typed, modifiers);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    protected boolean onClick(double mouseX, double mouseY, int button) {
         if (itemCompletions.mouseClicked(mouseX, mouseY, this.height)) {
             return true;
         }
-        if (searching() && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (searching() && button == InputConstants.MOUSE_BUTTON_LEFT) {
             Row row = rowAt((int) mouseX, (int) mouseY);
             if (row != null) {
                 showOnItsPage(row.option);
                 return true;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return superClick(mouseX, mouseY, button);
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    protected void draw(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         drawBackground(guiGraphics, mouseX, mouseY, partialTick);
         renderHighlight(guiGraphics, partialTick);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        superRender(guiGraphics, mouseX, mouseY, partialTick);
         // Lifted in front of everything but tooltips, so drawing it before the labels is fine.
         itemCompletions.render(guiGraphics, this.height, mouseX, mouseY);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
+        Gfx.centered(guiGraphics, this.font, this.title, this.width / 2, TITLE_Y, 0xFFFFFF);
 
         if (showRows) {
             renderRows(guiGraphics, mouseX, mouseY);
         } else if (remote) {
             // Connected to a mod server, still waiting for the first snapshot.
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Loading config from the server…").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2 - 4, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("Loading config from the server…").withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2 - 4, 0xFFFFFF);
         } else if (connectedNoMod) {
             // On a server that doesn't run MobStacker: say so plainly, and don't point at the
             // /mobstacker commands (they don't exist there either).
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("This server doesn't have MobStacker: Restacked installed.")
-                            .withStyle(ChatFormatting.YELLOW),
-                    this.width / 2, this.height / 2 - 16, 0xFFFFFF);
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("There are no MobStacker settings to configure here.")
-                            .withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("This server doesn't have MobStacker: Restacked installed.")
+                            .withStyle(ChatFormatting.YELLOW), this.width / 2, this.height / 2 - 16, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("There are no MobStacker settings to configure here.")
+                            .withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2, 0xFFFFFF);
         } else {
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Editing works in singleplayer, or on a MobStacker server as an operator.")
-                            .withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2 - 16, 0xFFFFFF);
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("On other servers, configure with /mobstacker commands.")
-                            .withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height / 2, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("Editing works in singleplayer, or on a MobStacker server as an operator.")
+                            .withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2 - 16, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("On other servers, configure with /mobstacker commands.")
+                            .withStyle(ChatFormatting.GRAY), this.width / 2, this.height / 2, 0xFFFFFF);
         }
     }
 
@@ -639,22 +630,18 @@ public final class MobStackerConfigScreen extends CompatScreen {
                     ? Component.literal("Search: nothing matches").withStyle(ChatFormatting.RED)
                     : Component.literal("Search: " + hits.size() + (hits.size() == 1 ? " setting" : " settings"))
                             .withStyle(ChatFormatting.GOLD);
-            guiGraphics.drawCenteredString(this.font, header, this.width / 2, headerY, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, header, this.width / 2, headerY, 0xFFFFFF);
             if (hits.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font,
-                        Component.literal("Try fewer letters, or a word from what the setting does.")
-                                .withStyle(ChatFormatting.GRAY),
-                        this.width / 2, LIST_TOP + 6, 0xFFFFFF);
+                Gfx.centered(guiGraphics, this.font, Component.literal("Try fewer letters, or a word from what the setting does.")
+                                .withStyle(ChatFormatting.GRAY), this.width / 2, LIST_TOP + 6, 0xFFFFFF);
             } else if (maxScrollOffset() == 0) {
-                guiGraphics.drawCenteredString(this.font,
-                        Component.literal("Enter or a click on a name: see it on its page").withStyle(ChatFormatting.DARK_GRAY),
-                        this.width / 2, hintY, 0xFFFFFF);
+                Gfx.centered(guiGraphics, this.font, Component.literal("Enter or a click on a name: see it on its page").withStyle(ChatFormatting.DARK_GRAY), this.width / 2, hintY, 0xFFFFFF);
             }
         } else if (!categories.isEmpty()) {
             Category category = categories.get(categoryIndex);
             Component header = Component.literal(category.display() + "  (" + (categoryIndex + 1) + "/" + categories.size() + ")")
                     .withStyle(ChatFormatting.GOLD);
-            guiGraphics.drawCenteredString(this.font, header, this.width / 2, headerY, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, header, this.width / 2, headerY, 0xFFFFFF);
         }
 
         if (maxScrollOffset() > 0) {
@@ -662,26 +649,24 @@ public final class MobStackerConfigScreen extends CompatScreen {
             Component hint = Component.literal("scroll for more  (" + (scrollOffset + 1) + "-"
                             + Math.min(total, scrollOffset + visibleRows) + " of " + total + ")")
                     .withStyle(ChatFormatting.DARK_GRAY);
-            guiGraphics.drawCenteredString(this.font, hint, this.width / 2, hintY, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, hint, this.width / 2, hintY, 0xFFFFFF);
         }
 
         int labelX = this.width / 2 - 170;
         for (Row row : rows) {
             if (searching()) {
                 // The name with what matched in yellow, and the page it lives on under it.
-                guiGraphics.drawString(this.font, markedName(row.option), labelX, row.y + 1, NORMAL_TEXT);
-                guiGraphics.drawString(this.font, Component.literal("in " + row.option.category().display())
+                Gfx.text(guiGraphics, this.font, markedName(row.option), labelX, row.y + 1, NORMAL_TEXT);
+                Gfx.text(guiGraphics, this.font, Component.literal("in " + row.option.category().display())
                         .withStyle(ChatFormatting.GRAY), labelX, row.y + 12, NORMAL_TEXT);
             } else {
-                guiGraphics.drawString(this.font, row.option.id(), labelX, row.y + 6, NORMAL_TEXT);
+                Gfx.text(guiGraphics, this.font, row.option.id(), labelX, row.y + 6, NORMAL_TEXT);
             }
         }
 
         // A short note about why edits are disabled, when relevant.
         if (remote && !editable) {
-            guiGraphics.drawCenteredString(this.font,
-                    Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY),
-                    this.width / 2, this.height - 46, 0xFFFFFF);
+            Gfx.centered(guiGraphics, this.font, Component.literal("Read-only — operator permission is required to edit.").withStyle(ChatFormatting.GRAY), this.width / 2, this.height - 46, 0xFFFFFF);
         } else if (remote) {
             String status = MobStackerClientNetworking.status();
             if (status != null && !status.isEmpty()) {

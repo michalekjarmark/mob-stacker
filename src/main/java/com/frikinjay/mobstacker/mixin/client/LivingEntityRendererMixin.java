@@ -1,5 +1,6 @@
 package com.frikinjay.mobstacker.mixin.client;
 
+//? if <26.1 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.network.chat.Component;
@@ -22,3 +23,4 @@ public class LivingEntityRendererMixin {
         return MobStacker.easterEggName(entity);
     }
 }
+//?}

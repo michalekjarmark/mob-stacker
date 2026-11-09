@@ -211,7 +211,7 @@ public abstract class LivingEntityMixin extends Entity {
         serverLevel.sendParticles(ParticleTypes.POOF, x, y, z, puffs, spreadXZ, spreadY * 0.6, spreadXZ, 0.03);
     }
 
-    @Inject(method = "die", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V", shift = At.Shift.AFTER))
+    @Inject(method = "die", at = @At(value = "INVOKE", target = Compat.AWARD_KILL_SCORE, shift = At.Shift.AFTER))
     private void mobstacker$onDieAllScore(DamageSource damageSource, CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if(mobstacker$thisEntity instanceof Mob && MobStacker.getKillWholeStackOnDeath(mobstacker$thisEntity)) {
@@ -280,8 +280,20 @@ public abstract class LivingEntityMixin extends Entity {
      * the leftover of a <em>killing blow</em> carries onto the mobs below. Sweeping Edge always adds
      * its damage; how far into the stack that damage then reaches is up to the stack.
      */
+    //? if >=1.21.2 {
+    /*@ModifyVariable(method = "hurtServer", at = @At("HEAD"), ordinal = 0, argsOnly = true)
+    private float mobstacker$applySweepingEdgeToStack(float amount, net.minecraft.server.level.ServerLevel level, DamageSource damageSource) {
+        return mobstacker$sweepingEdge(amount, damageSource);
+    }
+    *///?} else {
     @ModifyVariable(method = "hurt", at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private float mobstacker$applySweepingEdgeToStack(float amount, DamageSource damageSource) {
+        return mobstacker$sweepingEdge(amount, damageSource);
+    }
+    //?}
+
+    @Unique
+    private float mobstacker$sweepingEdge(float amount, DamageSource damageSource) {
         mobstacker$pendingSweepDamage = 0.0F;
         mobstacker$pendingSweepRawAmount = 0.0F;
         LivingEntity self = (LivingEntity) (Object) this;
@@ -375,7 +387,19 @@ public abstract class LivingEntityMixin extends Entity {
      * already taken it.
      */
     @Redirect(method = "actuallyHurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;setHealth(F)V"))
+    //? if >=1.21.2 {
+    /*private void mobstacker$overflowDamage(LivingEntity instance, float newHealth, net.minecraft.server.level.ServerLevel level,
+                                           DamageSource source, float amount) {
+        mobstacker$overflow(instance, newHealth, source, amount);
+    }
+    *///?} else {
     private void mobstacker$overflowDamage(LivingEntity instance, float newHealth, DamageSource source, float amount) {
+        mobstacker$overflow(instance, newHealth, source, amount);
+    }
+    //?}
+
+    @Unique
+    private void mobstacker$overflow(LivingEntity instance, float newHealth, DamageSource source, float amount) {
         // Three independent mechanisms live here, and any one is reason enough to run: damage
         // overflow (the killing blow's leftover carries down the stack), per-mob Sweeping Edge (the
         // members carry their own wounds between swings) and damage from the world hurting every
@@ -509,7 +533,7 @@ public abstract class LivingEntityMixin extends Entity {
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("RETURN"))
-    private void mobstacker$onReadAdditionalSaveData(CompoundTag compound, CallbackInfo ci) {
+    private void mobstacker$onReadAdditionalSaveData(CallbackInfo ci) {
         mobstacker$thisEntity = (LivingEntity) (Object) this;
         if (!mobstacker$thisEntity.level().isClientSide() && mobstacker$thisEntity instanceof Mob) {
             mobstacker$self = (Mob) mobstacker$thisEntity;

@@ -42,11 +42,16 @@ motd=mobstacker test server
 """
 
 
-def prepare(run_dir, rcon_port, server_port, password):
+def prepare(run_dir, rcon_port, server_port, password, flat=False):
     run_dir.mkdir(parents=True, exist_ok=True)
     props = run_dir / "server.properties"
     if not props.exists():
-        props.write_text(PROPERTIES.format(rcon=rcon_port, password=password, port=server_port), encoding="utf-8")
+        text = PROPERTIES.format(rcon=rcon_port, password=password, port=server_port)
+        if flat:
+            # The 1.20.1 rounds' scenarios stand their mobs on a flat world's ground (y -60); in a
+            # normal world that is solid stone and they suffocate.
+            text += "level-type=minecraft\\:flat\ndifficulty=easy\n"
+        props.write_text(text, encoding="utf-8")
     eula = run_dir / "eula.txt"
     if not eula.exists():
         eula.write_text("eula=true\n", encoding="utf-8")
@@ -81,11 +86,13 @@ def main():
     parser.add_argument("--password", default="mstest")
     parser.add_argument("--timeout", type=int, default=600, help="seconds to wait for the server to start")
     parser.add_argument("--keep", action="store_true", help="leave the server running afterwards")
+    parser.add_argument("--flat", action="store_true",
+                        help="a flat world, for the scenarios from the 1.20.1 rounds (only when the run dir is new)")
     args = parser.parse_args()
 
     production = args.node.endswith("-fabric")
     run_dir = ROOT / "versions" / args.node / "run" / (args.dir if production else "")
-    rcon_port, password = prepare(run_dir, args.rcon_port, args.server_port, args.password)
+    rcon_port, password = prepare(run_dir, args.rcon_port, args.server_port, args.password, args.flat)
     log = run_dir / "gradle-run.log"
     gradlew = ROOT / ("gradlew.bat" if os.name == "nt" else "gradlew")
     env = dict(os.environ)

@@ -1,6 +1,12 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
+//? if <26.1 {
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+//?}
 import com.google.gson.Gson;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -14,9 +20,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
@@ -120,6 +123,7 @@ public final class MobStackerRegionOverlay {
     private static WeakReference<IntegratedServer> keyedServer = new WeakReference<>(null);
     private static String keyedFolder;
 
+    //? if <26.1 {
     /**
      * The solid world's depth, which is what the boxes and their names are tested against: terrain
      * and mobs hide them, nothing see-through does. Kept just before the translucent terrain is drawn
@@ -173,6 +177,7 @@ public final class MobStackerRegionOverlay {
             MultiBufferSource.immediate(new com.mojang.blaze3d.vertex.ByteBufferBuilder(256));
     *///?} else {
     private static final MultiBufferSource.BufferSource LABELS = MultiBufferSource.immediate(new BufferBuilder(256));
+    //?}
     //?}
     /** Past this, a region's name is not drawn: it would be a speck, and there may be many. */
     private static final double LABEL_RANGE = 128.0;
@@ -335,6 +340,7 @@ public final class MobStackerRegionOverlay {
         return view.showAll || !view.shown.isEmpty();
     }
 
+    //? if <26.1 {
     // ------------------------------------------------------------------ drawing
 
     /**
@@ -565,6 +571,84 @@ public final class MobStackerRegionOverlay {
         //?}
     }
 
+    //?} else {
+    /*/^*
+     * Hands this frame's boxes and names to the game's gizmos (from 26.1 the way debug shapes are drawn
+     * in the world): the same regions, colours, style and names as below 26.1, through walls when the
+     * server allows it and the player has it on. Called while the game collects the frame's gizmos
+     * ({@code LevelRendererGizmosMixin}).
+     ^/
+    public static void emitGizmos() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || minecraft.getCameraEntity() == null) {
+            return;
+        }
+        boolean xray = throughWalls();
+        List<MobStackerClientRegions.View> regions = anythingShowing()
+                ? MobStackerClientRegions.inCurrentDimension()
+                : List.of();
+        AABB preview = MobStackerRegionPicker.previewBox();
+        Style style = state.style;
+        for (MobStackerClientRegions.View view : regions) {
+            if (!isShown(view.name()) || !view.hasBox()) {
+                continue;
+            }
+            box(boxOf(view), argbOf(view), style, xray);
+        }
+        if (preview != null) {
+            // Always faces and edges, in white (see the drawing below 26.1).
+            box(preview, 0xFFFFFF, Style.BOTH, xray);
+        }
+        Vec3 eye = minecraft.getCameraEntity().getEyePosition();
+        for (MobStackerClientRegions.View view : regions) {
+            if (!isShown(view.name()) || !view.hasBox()) {
+                continue;
+            }
+            AABB box = boxOf(view);
+            if (box.contains(eye)) {
+                continue;
+            }
+            double x = Mth.clamp(eye.x, box.minX, box.maxX);
+            double y = Mth.clamp(eye.y, box.minY, box.maxY);
+            double z = Mth.clamp(eye.z, box.minZ, box.maxZ);
+            double distance = Math.sqrt(eye.distanceToSqr(x, y, z));
+            if (distance > LABEL_RANGE) {
+                continue;
+            }
+            String name = view.name()
+                    + (view.type() == com.frikinjay.mobstacker.config.StackRegion.Type.DENY ? " (deny)" : "")
+                    + (view.enabled() ? "" : " (off)");
+            float scale = net.minecraft.gizmos.TextGizmo.Style.DEFAULT_SCALE * (float) Math.max(1.0, distance / 10.0);
+            net.minecraft.gizmos.GizmoProperties text = net.minecraft.gizmos.Gizmos.billboardText(name, new Vec3(x, y + 0.5, z),
+                    net.minecraft.gizmos.TextGizmo.Style.forColorAndCentered(0xFF000000 | argbOf(view)).withScale(scale));
+            if (xray) {
+                text.setAlwaysOnTop();
+            }
+        }
+    }
+
+    /^* One box in the chosen style: faces at the faces' alpha, edges at the edges'. ^/
+    private static void box(AABB box, int rgb, Style style, boolean xray) {
+        int face = ((int) (FACE_ALPHA * 255.0F) << 24) | rgb;
+        int edge = ((int) (EDGE_ALPHA * 255.0F) << 24) | rgb;
+        net.minecraft.gizmos.GizmoStyle look = switch (style) {
+            case FILLED -> net.minecraft.gizmos.GizmoStyle.fill(face);
+            case WIREFRAME -> net.minecraft.gizmos.GizmoStyle.stroke(edge);
+            default -> net.minecraft.gizmos.GizmoStyle.strokeAndFill(edge, 1.0F, face);
+        };
+        net.minecraft.gizmos.GizmoProperties drawn = net.minecraft.gizmos.Gizmos.cuboid(box, look);
+        if (xray) {
+            drawn.setAlwaysOnTop();
+        }
+    }
+
+    /^* The region's colour as 0xRRGGBB, grey while it is switched off. ^/
+    private static int argbOf(MobStackerClientRegions.View view) {
+        Integer packed = view.enabled() ? Compat.rgb(view.color().format()) : Compat.rgb(ChatFormatting.GRAY);
+        return (packed == null ? 0xFFFFFF : packed) & 0xFFFFFF;
+    }
+    *///?}
+
     /**
      * A region's corners are block coordinates and both ends are inside it, so the box that actually
      * encloses it runs to the far side of the maximum block — hence the +1 on each axis.
@@ -576,7 +660,7 @@ public final class MobStackerRegionOverlay {
 
     /** The region's colour, or grey while it is switched off - still there, doing nothing. */
     private static float[] rgbOf(MobStackerClientRegions.View view) {
-        Integer packed = view.enabled() ? view.color().format().getColor() : ChatFormatting.GRAY.getColor();
+        Integer packed = view.enabled() ? Compat.rgb(view.color().format()) : Compat.rgb(ChatFormatting.GRAY);
         int value = packed == null ? 0xFFFFFF : packed;
         return new float[]{
                 ((value >> 16) & 0xFF) / 255.0F,

@@ -109,6 +109,43 @@ public final class Compat {
             "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V";
     //?}
 
+    /** {@code LivingEntity.die}'s kill score call: the score itself is gone from 1.21.2. */
+    //? if >=1.21.2 {
+    /*public static final String AWARD_KILL_SCORE =
+            "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;)V";
+    *///?} else {
+    public static final String AWARD_KILL_SCORE =
+            "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;ILnet/minecraft/world/damagesource/DamageSource;)V";
+    //?}
+
+    /** The hit in {@code Mob.doHurtTarget} and the index of its damage: hurtServer from 1.21.2. */
+    //? if >=1.21.2 {
+    /*public static final String MELEE_HURT =
+            "Lnet/minecraft/world/entity/Entity;hurtServer(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;F)Z";
+    public static final int MELEE_HURT_DAMAGE = 2;
+    *///?} else {
+    public static final String MELEE_HURT =
+            "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z";
+    public static final int MELEE_HURT_DAMAGE = 1;
+    //?}
+
+    /** {@code Mob.convertTo}: the overload every conversion ends in (two of them from 1.21.2). */
+    //? if >=1.21.2 {
+    /*public static final String CONVERT_TO =
+            "convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/EntitySpawnReason;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;";
+    *///?} else {
+    public static final String CONVERT_TO = "convertTo";
+    //?}
+
+    /** A packet sent with a listener (unconfirmed: 26.1 takes Netty's listener). */
+    //? if >=26.1 {
+    /*public static final String SEND_WITH_LISTENER =
+            "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V";
+    *///?} else {
+    public static final String SEND_WITH_LISTENER =
+            "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V";
+    //?}
+
     /** {@code namespace:path}. The constructor went private in 1.21. */
     public static ResourceLocation id(String namespace, String path) {
         //? if >=1.21 {
@@ -700,6 +737,12 @@ public final class Compat {
         *///?} else {
         return format.getId();
         //?}
+    }
+
+    /** A text colour's RGB, or null for a format that is no colour (bold, reset...). */
+    public static Integer rgb(ChatFormatting format) {
+        net.minecraft.network.chat.TextColor color = net.minecraft.network.chat.TextColor.fromLegacyFormat(format);
+        return color == null ? null : color.getValue();
     }
 
     /** The colour {@link #formatId} gave, or null. */

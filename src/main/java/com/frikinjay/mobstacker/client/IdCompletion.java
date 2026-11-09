@@ -1,5 +1,7 @@
 package com.frikinjay.mobstacker.client;
 
+import com.frikinjay.mobstacker.compat.Compat;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -10,7 +12,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -222,19 +223,19 @@ final class IdCompletion {
             return false;
         }
         switch (keyCode) {
-            case GLFW.GLFW_KEY_TAB -> {
+            case InputConstants.KEY_TAB -> {
                 accept();
                 return true;
             }
-            case GLFW.GLFW_KEY_DOWN -> {
+            case InputConstants.KEY_DOWN -> {
                 index = Math.floorMod(index + 1, shown.size());
                 return true;
             }
-            case GLFW.GLFW_KEY_UP -> {
+            case InputConstants.KEY_UP -> {
                 index = Math.floorMod(index - 1, shown.size());
                 return true;
             }
-            case GLFW.GLFW_KEY_ESCAPE -> {
+            case InputConstants.KEY_ESCAPE -> {
                 // Closes the list, not the screen: losing a half-typed entry to Escape would be its
                 // own small betrayal.
                 close();
@@ -279,8 +280,10 @@ final class IdCompletion {
         // Drawing last is not enough on its own - the screen's own text is batched and comes out in
         // front of a plain fill. Lifting the whole list forward is how vanilla's own command
         // suggestions do it.
-        graphics.pose().pushPose();
-        graphics.pose().translate(0.0F, 0.0F, Z);
+        Gfx.inFront(graphics, Z, () -> drawList(graphics, font, area, mouseX, mouseY));
+    }
+
+    private void drawList(GuiGraphics graphics, Font font, int[] area, int mouseX, int mouseY) {
         graphics.fill(area[0] - 1, area[1] - 1, area[0] + area[2] + 1, area[3], BACKGROUND);
         int hovered = -1;
         if (mouseX >= area[0] && mouseX <= area[0] + area[2] && mouseY >= area[1] && mouseY < area[3]) {
@@ -288,10 +291,8 @@ final class IdCompletion {
         }
         for (int i = 0; i < shown.size(); i++) {
             boolean picked = i == index || i == hovered;
-            graphics.drawString(font, shown.get(i), area[0] + 2, area[1] + i * LINE_HEIGHT + 2,
-                    picked ? PICKED : TEXT);
+            Gfx.text(graphics, font, shown.get(i), area[0] + 2, area[1] + i * LINE_HEIGHT + 2, picked ? PICKED : TEXT);
         }
-        graphics.pose().popPose();
     }
 
     /**
@@ -369,7 +370,7 @@ final class IdCompletion {
         }
         List<String> ids = new ArrayList<>(sorted(biomes.keySet()));
         List<String> tags = new ArrayList<>();
-        biomes.getTagNames().forEach(tag -> tags.add(TAG + tag.location()));
+        Compat.tagKeys(biomes).forEach(tag -> tags.add(TAG + tag.location()));
         tags.sort(String::compareTo);
         ids.addAll(tags);
         return ids;
