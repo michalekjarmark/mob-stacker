@@ -10,6 +10,7 @@ JDK 25 for anything that runs Gradle.
 | `rcon.py` | RCON client: `rcon.py <command>...` or `rcon.py -f <scenario>`, against a server that is already running. |
 | `scenarios/basic.txt` | Self-test, stacking, damage overflow (expected: x5, then x3). |
 | `scenarios/strict_data.txt` | Strict data matching against the version's vanilla keys (zombies with random spawn bonuses stack). |
+| `scenarios/shear_dispenser.txt` | A dispenser's shears on a stack of 5 sheep: wool for all five (any world; builds its own pen). 26.3-1 found only the top sheep's wool from 1.21.5. |
 | `mcclient.py <name>` | A scripted **player** (offline mode, 1.20.1's protocol 763 only): logs in, speaks MobStacker's config channel and prints every snapshot, chat line and command tree it is sent; `--cmd` types a command as that player (RCON is always an operator), `--edit` sends a GUI edit, `--modded` prints stack labels and names, `--stay`/`--wait` keep it connected. Against Forge no snapshot comes (no FML handshake); it goes on after 3 s. |
 | `compare_jars.py <old> <new>` | Class-by-class `javap -c` comparison of two builds, constant-pool order ignored. |
 | `mc_jar.py <version>` | Path of Loom's vanilla Mojmap jar for a version, for `javap` and `tools/VanillaKeys.java`. |

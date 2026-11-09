@@ -146,6 +146,9 @@ public final class Compat {
             "send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V";
     //?}
 
+    /** The custom click action of a command in a chat panel (see {@link #runCommand}). */
+    public static final ResourceLocation CLICKED_COMMAND = id("mobstacker", "command");
+
     /** {@code namespace:path}. The constructor went private in 1.21. */
     public static ResourceLocation id(String namespace, String path) {
         //? if >=1.21 {
@@ -639,16 +642,23 @@ public final class Compat {
         //? if >=1.21.5 {
         /*return new ClickEvent.SuggestCommand(command);
         *///?} else {
-        return Compat.suggestCommand(command);
+        return new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command);
         //?}
     }
 
-    /** Clicking the text runs the command. */
+    /**
+     * Clicking the text runs the command, at once, as on 1.20.1. From 1.21.6 (unconfirmed) the client
+     * asks first whenever a clicked command needs a permission (all of the mod's panels), so from then
+     * the click is a custom action that the server runs as the player who clicked
+     * ({@code ServerCommonPacketListenerImplMixin}, {@code MobStackerCommands.runClicked}).
+     */
     public static ClickEvent runCommand(String command) {
-        //? if >=1.21.5 {
+        //? if >=1.21.6 {
+        /*return new ClickEvent.Custom(CLICKED_COMMAND, java.util.Optional.of(net.minecraft.nbt.StringTag.valueOf(command)));
+        *///?} else if >=1.21.5 {
         /*return new ClickEvent.RunCommand(command);
         *///?} else {
-        return Compat.runCommand(command);
+        return new ClickEvent(ClickEvent.Action.RUN_COMMAND, command);
         //?}
     }
 
@@ -657,7 +667,7 @@ public final class Compat {
         //? if >=1.21.5 {
         /*return new HoverEvent.ShowText(text);
         *///?} else {
-        return Compat.showText(text);
+        return new HoverEvent(HoverEvent.Action.SHOW_TEXT, text);
         //?}
     }
 

@@ -20,7 +20,9 @@ import net.minecraft.network.chat.Component;
  *   <li>{@link #onScroll} for the wheel, whatever {@code mouseScrolled} looks like (1.20.2 added a
  *       horizontal amount);</li>
  *   <li>the text box calls that changed: {@link #cursorToEnd}, {@link #cursorTo}, {@link #tickBox},
- *       {@link #typeInto}; and {@link #controlDown}.</li>
+ *       {@link #typeInto}; and {@link #controlDown};</li>
+ *   <li>{@link #typesAnywhere}, for a screen that takes typing with no text box in focus (from 26.1
+ *       the game sends characters only while something asks for them).</li>
  * </ul>
  */
 public abstract class CompatScreen extends Screen {
@@ -38,6 +40,9 @@ public abstract class CompatScreen extends Screen {
     //? if >=26.1 {
     /*@Override
     public final void extractRenderState(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (typesAnywhere()) {
+            wantTyping();
+        }
         draw(graphics, mouseX, mouseY, partialTick);
     }
 
@@ -94,6 +99,11 @@ public abstract class CompatScreen extends Screen {
 
     // ---- keys, characters, clicks ----
 
+    /** Whether typing with no text box in focus means something here (the config screen's search). */
+    protected boolean typesAnywhere() {
+        return false;
+    }
+
     /** A key went down. The default is {@link #superKey}. */
     protected boolean onKey(int keyCode, int scanCode, int modifiers) {
         return superKey(keyCode, scanCode, modifiers);
@@ -146,6 +156,35 @@ public abstract class CompatScreen extends Screen {
     /^* Types a character into a text box, as the screen would. ^/
     protected static boolean typeInto(EditBox box, char typed, int modifiers) {
         return box.charTyped(new net.minecraft.client.input.CharacterEvent(typed));
+    }
+
+    /^*
+     * Asks for typed characters while no text box takes them, on a screen that {@link #typesAnywhere}.
+     * From 26.1 the game (SDL) sends characters only while something asked for them, which a text box
+     * does when it gets the focus and stops when it loses it; so this asks again, once a frame,
+     * whenever no box has them.
+     ^/
+    private void wantTyping() {
+        if (this.minecraft != null && !(getFocused() instanceof EditBox box && box.canConsumeInput())) {
+            this.minecraft.textInputManager().startTextInput(this);
+        }
+    }
+
+    /^*
+     * A screen that takes typing anywhere keeps the keys to itself, as a focused text box does: the
+     * game's own global keys (the friends list, on O) would otherwise take a letter before the screen.
+     ^/
+    @Override
+    public boolean isInputCaptured() {
+        return typesAnywhere() || super.isInputCaptured();
+    }
+
+    @Override
+    public void removed() {
+        if (this.minecraft != null) {
+            this.minecraft.textInputManager().stopTextInput(this);
+        }
+        super.removed();
     }
     *///?} else {
     @Override

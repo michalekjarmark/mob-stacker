@@ -30,13 +30,19 @@ public class SheepShearMixin implements StackShearable {
     @Unique
     private boolean mobstacker$shearingQuietly;
 
-    /** Shears the members under the top sheep, quietly. A player's shears and a dispenser's both. */
+    /**
+     * Shears the members under the top sheep, quietly. A player's shears and a dispenser's both. Each
+     * member is the top sheep sheared once more, so it is made woolly again first: from 1.21.5 the
+     * wool comes from the shearing loot table, which gives nothing for a sheep already sheared (and
+     * vanilla has just sheared the top one).
+     */
     @Override
     public void mobstacker$shearMembers(SoundSource source, int count) {
         Sheep self = (Sheep) (Object) this;
         mobstacker$shearingQuietly = true;
         try {
             for (int i = 0; i < count; i++) {
+                self.setSheared(false);
                 Compat.shear(self, source);
             }
         } finally {

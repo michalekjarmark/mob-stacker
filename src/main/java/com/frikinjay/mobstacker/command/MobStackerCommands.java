@@ -1657,6 +1657,18 @@ public class MobStackerCommands {
     }
 
     /**
+     * A command clicked in a chat panel, from 1.21.6 where the click is a custom action
+     * ({@code Compat.runCommand}): run as the player who clicked, exactly as if typed, so the
+     * player's own permissions decide. Only the mod's own commands: a click never runs anything else.
+     */
+    public static void runClicked(ServerPlayer player, String command) {
+        String line = command.startsWith("/") ? command.substring(1) : command;
+        if (line.startsWith("mobstacker ")) {
+            player.level().getServer().getCommands().performPrefixedCommand(player.createCommandSourceStack(), line);
+        }
+    }
+
+    /**
      * Text that runs {@code command} when clicked in chat, with {@code hover} as its tooltip:
      * underlined, the way a link looks, so it stands out from the text around it.
      */

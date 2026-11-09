@@ -15,6 +15,7 @@
     "client.EntityRendererMixin"
   ],
   "mixins": [
+    "ServerCommonPacketListenerImplMixin",
     "NaturalSpawnerMixin",
     "ServerChunkCacheMixin",
     "ArmorStandMixin",

@@ -168,6 +168,8 @@ tasks.processResources {
         "client.LevelRendererGizmosMixin" to "26.1",
         "client.EntityRenderStateMixin" to "26.1",
         "NaturalSpawnerMixin" to "26.1",
+        // 1.21.6 (unconfirmed): a clicked command in a chat panel is a custom click action.
+        "ServerCommonPacketListenerImplMixin" to "1.21.6",
     )
     val droppedMixins = mixinsBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys +
         mixinsFrom.filter { (_, version) -> stonecutter.current.parsed < version }.keys

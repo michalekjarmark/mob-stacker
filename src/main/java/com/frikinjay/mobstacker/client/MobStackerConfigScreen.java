@@ -357,10 +357,10 @@ public final class MobStackerConfigScreen extends CompatScreen {
                 }
                 box.setResponder(text -> {
                     if (isValid(option, text)) {
-                        box.setTextColor(NORMAL_TEXT);
+                        Gfx.textColor(box, NORMAL_TEXT);
                         applyOption(option, text);
                     } else {
-                        box.setTextColor(ERROR_TEXT);
+                        Gfx.textColor(box, ERROR_TEXT);
                     }
                     // Only for what somebody typed: a repaint from the config is not a question, and a
                     // box that may not be edited never gets typed into.
@@ -373,7 +373,7 @@ public final class MobStackerConfigScreen extends CompatScreen {
                 row.display = value -> {
                     repainting = true;
                     box.setValue(value);
-                    box.setTextColor(NORMAL_TEXT);
+                    Gfx.textColor(box, NORMAL_TEXT);
                     repainting = false;
                 };
             }
@@ -548,6 +548,11 @@ public final class MobStackerConfigScreen extends CompatScreen {
             }
         }
         return superKey(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    protected boolean typesAnywhere() {
+        return searchBox != null;
     }
 
     /** Typing with no text box in focus starts a search, so there is nothing to click first. */

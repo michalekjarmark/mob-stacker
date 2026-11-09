@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker.client;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -24,6 +25,11 @@ public final class Gfx {
         *///?} else {
         return rgb;
         //?}
+    }
+
+    /** A text box's colour: like the text the screens draw, opaque when it says no alpha. */
+    public static void textColor(EditBox box, int rgb) {
+        box.setTextColor(color(rgb));
     }
 
     public static void text(GuiGraphics graphics, Font font, String text, int x, int y, int color) {

@@ -143,7 +143,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         nameBox.setEditable(editable);
         nameBox.setResponder(text -> {
             name = text.trim();
-            nameBox.setTextColor(RegionEdit.nameProblem(name) == null ? NORMAL_TEXT : ERROR_TEXT);
+            Gfx.textColor(nameBox, RegionEdit.nameProblem(name) == null ? NORMAL_TEXT : ERROR_TEXT);
         });
         addRenderableWidget(nameBox);
 
@@ -240,7 +240,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
             box.setEditable(editable);
             box.setResponder(text -> {
                 Integer parsed = parse(text);
-                box.setTextColor(parsed == null ? ERROR_TEXT : NORMAL_TEXT);
+                Gfx.textColor(box, parsed == null ? ERROR_TEXT : NORMAL_TEXT);
                 if (parsed != null) {
                     corners[index] = parsed;
                 }
@@ -545,7 +545,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
         List<String> entries = RegionBiomes.parseList(biomeText);
         biomeNote = null;
         if (RegionBiomes.listProblem(entries) != null) {
-            box.setTextColor(ERROR_TEXT);
+            Gfx.textColor(box, ERROR_TEXT);
             return;
         }
         Registry<Biome> biomes = this.minecraft == null || this.minecraft.level == null ? null
@@ -557,7 +557,7 @@ public final class MobStackerRegionEditScreen extends CompatScreen {
                 break;
             }
         }
-        box.setTextColor(biomeNote == null ? NORMAL_TEXT : UNKNOWN_TEXT);
+        Gfx.textColor(box, biomeNote == null ? NORMAL_TEXT : UNKNOWN_TEXT);
     }
 
     @Override

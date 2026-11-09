@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.config.ConfigOption;
 import com.frikinjay.mobstacker.config.StackColor;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
@@ -17,7 +18,8 @@ import java.util.Locale;
  * stops was a long way round to go back one. The region screen's colour button got its own
  * right-click, and every other cycling button (the config screen's colours and modes) did not (the
  * Forge round). Every cycling button on the mod's screens is one of these now. Enter and Space step
- * forward, like a click.
+ * forward, like a click. The buttons are {@link InputConstants}' numbers: 26.x counts them as SDL does
+ * (left 1, right 3), not as GLFW did (left 0, right 1).
  */
 //? if >=26.1 {
 /*public final class StepButton extends Button.Plain {
@@ -49,12 +51,12 @@ public final class StepButton extends Button {
     //? if >=26.1 {
     /*@Override
     protected boolean isValidClickButton(net.minecraft.client.input.MouseButtonInfo info) {
-        return info.button() == 0 || info.button() == 1;
+        return info.button() == InputConstants.MOUSE_BUTTON_LEFT || info.button() == InputConstants.MOUSE_BUTTON_RIGHT;
     }
 
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
-        backwards = event.button() == 1;
+        backwards = event.button() == InputConstants.MOUSE_BUTTON_RIGHT;
         try {
             return super.mouseClicked(event, doubleClick);
         } finally {
@@ -69,12 +71,12 @@ public final class StepButton extends Button {
     *///?} else {
     @Override
     protected boolean isValidClickButton(int button) {
-        return button == 0 || button == 1;
+        return button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT;
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        backwards = button == 1;
+        backwards = button == InputConstants.MOUSE_BUTTON_RIGHT;
         try {
             return super.mouseClicked(mouseX, mouseY, button);
         } finally {

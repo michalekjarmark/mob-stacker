@@ -599,7 +599,9 @@ public final class MobStackerRegionOverlay {
             // Always faces and edges, in white (see the drawing below 26.1).
             box(preview, 0xFFFFFF, Style.BOTH, xray);
         }
-        Vec3 eye = minecraft.getCameraEntity().getEyePosition();
+        // The camera of this frame, as below 26.1: the entity's eyes move only once a tick, and a name
+        // placed by them jumped along the box instead of sliding.
+        Vec3 eye = minecraft.gameRenderer.mainCamera().position();
         for (MobStackerClientRegions.View view : regions) {
             if (!isShown(view.name()) || !view.hasBox()) {
                 continue;
