@@ -4,6 +4,8 @@
 mobstacker selftest
 mobstacker set stackMode everywhere
 forceload add 200 200
+# The chunk loads a moment later; kill before that would miss the last run's cows.
+sleep 3
 kill @e[type=cow,x=200,y=100,z=200,distance=..16]
 kill @e[type=zombie,x=200,y=100,z=200,distance=..16]
 summon cow 200 100 200 {NoGravity:1b}
