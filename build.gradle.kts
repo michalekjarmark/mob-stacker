@@ -21,6 +21,10 @@ base {
     archivesName = "mobstacker-$minecraft-$loader"
 }
 
+repositories {
+    if (loader == "neoforge") maven("https://maven.neoforged.net/releases/")
+}
+
 dependencies {
     minecraft("net.minecraft:minecraft:$minecraft")
     // A string, not the accessor: an unobfuscated node has no `mappings` configuration at all.
@@ -33,6 +37,8 @@ dependencies {
             modImpl("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
         }
         "forge" -> "forge"("net.minecraftforge:forge:${property("forge_version")}")
+        // A string, like the others: unobfuscated nodes have no neoForge accessor.
+        "neoforge" -> "neoForge"("net.neoforged:neoforge:${property("neoforge_version")}")
     }
 }
 
@@ -63,6 +69,14 @@ loom {
     }
 }
 
+// NeoForge reads access transformers, not wideners: the jar gets the widener converted into
+// META-INF/accesstransformer.cfg (named in neoforge.mods.toml). In dev Loom applies it by itself.
+if (loader == "neoforge" && !unobfuscated) {
+    tasks.named<net.fabricmc.loom.task.RemapJarTask>("remapJar") {
+        atAccessWideners.add("mobstacker.accesswidener")
+    }
+}
+
 // Every loader's code is in the one source tree, in its own package; a node compiles its own.
 val otherLoaders = listOf("fabric", "forge", "neoforge") - loader
 sourceSets.main {
@@ -72,6 +86,7 @@ sourceSets.main {
     resources {
         if (loader != "fabric") exclude("fabric.mod.json", "mobstacker-fabric.mixins.json")
         if (loader != "forge") exclude("META-INF/mods.toml", "mobstacker-forge.mixins.json", "pack.mcmeta")
+        if (loader != "neoforge") exclude("META-INF/neoforge.mods.toml", "mobstacker-neoforge.mixins.json")
     }
 }
 
@@ -94,9 +109,9 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 // What the jar says it runs on comes from the node's gradle.properties: minecraft_range (Fabric's
-// syntax), minecraft_range_maven and forge_loader_range (Forge/NeoForge), pack_format.
+// syntax), minecraft_range_maven and forge_loader_range (Forge/NeoForge), neoforge_range, pack_format.
 val metadata = mapOf("version" to project.version.toString(), "java_version" to javaVersion.toString()) +
-    listOf("minecraft_range", "minecraft_range_maven", "forge_loader_range", "pack_format")
+    listOf("minecraft_range", "minecraft_range_maven", "forge_loader_range", "neoforge_range", "pack_format")
         .mapNotNull { key -> findProperty(key)?.let { key to it.toString() } }
 
 // The NBT keys vanilla writes on an entity in this Minecraft, for strict data matching (MobData).
@@ -135,7 +150,8 @@ tasks.processResources {
     val strictMixins = project.hasProperty("strictMixins")
     inputs.property("strictMixins", strictMixins)
     if (strictMixins) {
-        filesMatching("*.mixins.json") {
+        // Forge's own config already says defaultRequire 1; a second "injectors" key would be invalid.
+        filesMatching(listOf("mobstacker.mixins.json", "mobstacker-fabric.mixins.json", "mobstacker-neoforge.mixins.json")) {
             filter { line -> line.replace("\"required\": true,", "\"required\": true, \"injectors\": { \"defaultRequire\": 1 },") }
         }
     }

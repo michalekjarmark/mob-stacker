@@ -3,10 +3,13 @@
     python tools/test/run_server.py 1.21.1-fabric tools/test/scenarios/basic.txt
     python tools/test/run_server.py 1.20.1-fabric --jar old.jar --dir old tools/test/scenarios/basic.txt
 
-It runs `gradlew :<node>:prodServer -PstrictMixins` (Fabric nodes only - Loom has no production
-server task for Forge/NeoForge): a real server installed by Loom with the built jar (or --jar, e.g.
-the last release, for the same test on both) and Fabric API, the self-test command on, and every
-injector required to find its target. JAVA_HOME must point at a JDK 25 (Gradle runs on it).
+For a Fabric node it runs `gradlew :<node>:prodServer -PstrictMixins`: a real server installed by Loom
+with the built jar (or --jar, e.g. the last release, for the same test on both) and Fabric API, the
+self-test command on, and every injector required to find its target. Loom has no production server
+for Forge/NeoForge, so for those nodes it runs the dev server instead (`:<node>:runServer`, run dir
+versions/<node>/run, --jar and --dir do not apply): on NeoForge from 1.20.5 that is close to
+production (it runs on Mojang's names either way), on Forge 1.20.1 it does not test the SRG remap.
+JAVA_HOME must point at a JDK 25 (Gradle runs on it).
 
 The run dir is versions/<node>/run/<dir> (git-ignored). On first use it gets a server.properties
 with RCON on, offline mode, a fixed seed (so two runs see the same world) and an eula.txt -
@@ -80,16 +83,23 @@ def main():
     parser.add_argument("--keep", action="store_true", help="leave the server running afterwards")
     args = parser.parse_args()
 
-    run_dir = ROOT / "versions" / args.node / "run" / args.dir
+    production = args.node.endswith("-fabric")
+    run_dir = ROOT / "versions" / args.node / "run" / (args.dir if production else "")
     rcon_port, password = prepare(run_dir, args.rcon_port, args.server_port, args.password)
     log = run_dir / "gradle-run.log"
     gradlew = ROOT / ("gradlew.bat" if os.name == "nt" else "gradlew")
-    command = [str(gradlew), f":{args.node}:prodServer", "-PstrictMixins", f"-PprodDir={args.dir}", "--console=plain"]
-    if args.jar:
-        command.append(f"-PprodJar={Path(args.jar).resolve()}")
+    env = dict(os.environ)
+    if production:
+        command = [str(gradlew), f":{args.node}:prodServer", "-PstrictMixins", f"-PprodDir={args.dir}", "--console=plain"]
+        if args.jar:
+            command.append(f"-PprodJar={Path(args.jar).resolve()}")
+    else:
+        command = [str(gradlew), f":{args.node}:runServer", "--args=nogui", "-PstrictMixins", "--console=plain"]
+        # The dev run has no task option for JVM flags; the JVM reads this one itself.
+        env["JAVA_TOOL_OPTIONS"] = (env.get("JAVA_TOOL_OPTIONS", "") + " -Dmobstacker.selftest=true").strip()
     print("$ " + " ".join(command))
     with open(log, "w", encoding="utf-8") as out:
-        process = subprocess.Popen(command, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(command, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, env=env)
 
     ok = wait_for_start(log, process, args.timeout)
     text = log.read_text(encoding="utf-8", errors="replace")

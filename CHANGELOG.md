@@ -12,6 +12,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.
+- **Minecraft 1.21 and 1.21.1 on NeoForge** - in progress, not released yet: its own jar
+  (NeoForge 21.0 or newer). Shears - a player's and a dispenser's - go through NeoForge's
+  `IShearable` there, and harvest every member as on the other loaders. Checked on a dev server: the
+  self-test, stacking, damage overflow and strict data matching; not yet the client or shearing in
+  game.
 
 ### Changed
 - **A stack keeps the gear in the body slot too** (from 1.20.5: horse and wolf armour): drop chances
