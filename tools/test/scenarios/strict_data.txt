@@ -4,6 +4,10 @@
 # mod's data and no two zombies would stack.
 mobstacker set stackMode everywhere
 difficulty easy
+# From 1.21.9 no chunk stays loaded without a player (no spawn chunks): load the one at spawn
+# first, or the summons below go nowhere. It loads a moment later.
+forceload add ~ ~
+sleep 3
 kill @e[type=zombie,distance=..16]
 summon zombie ~ ~ ~
 summon zombie ~ ~ ~
