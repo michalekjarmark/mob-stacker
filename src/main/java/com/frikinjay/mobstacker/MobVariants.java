@@ -204,6 +204,41 @@ public final class MobVariants {
     }
     //?}
 
+    /**
+     * Every id each rolled attribute has had, oldest first: 1.20.1 has {@code generic.max_health},
+     * {@code generic.movement_speed} and {@code horse.jump_strength}; 1.20.5 renamed the last one
+     * {@code generic.jump_strength}; 1.21.2 dropped the {@code generic.} prefix.
+     */
+    private static final List<List<String>> ROLL_KEY_ALIASES = List.of(
+            List.of("minecraft:generic.max_health", "minecraft:max_health"),
+            List.of("minecraft:generic.movement_speed", "minecraft:movement_speed"),
+            List.of("minecraft:horse.jump_strength", "minecraft:generic.jump_strength", "minecraft:jump_strength"));
+
+    /**
+     * One member's rolls, saved by an older game, keyed by this version's attribute ids: a roll stored
+     * under an id the attribute has since lost is moved to the current one (StackDataUpgrade).
+     */
+    public static void upgradeRolls(CompoundTag rolls) {
+        for (var attribute : ROLLED_HORSE_ATTRIBUTES) {
+            String key = attributeKey(attribute);
+            if (rolls.contains(key)) {
+                continue;
+            }
+            for (List<String> aliases : ROLL_KEY_ALIASES) {
+                if (!aliases.contains(key)) {
+                    continue;
+                }
+                for (String old : aliases) {
+                    if (Nbt.has(rolls, old, Tag.TAG_DOUBLE)) {
+                        rolls.putDouble(key, Nbt.getDouble(rolls, old));
+                        rolls.remove(old);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     /** The rolls stored on a stack, exactly as stored. A copy; never null. */
     private static ListTag storedRolls(Mob mob) {
         if (!(mob instanceof ICustomDataHolder holder)) {

@@ -16,6 +16,8 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 
 | Since | Symptom | Cause | Where the mod handles it |
 |---|---|---|---|
+| 1.20.5 | A world from an older version loses the **gear of every member under a stack's top mob** (`keepMemberEquipment`). | Items are saved as `{id, count, components}` from 1.20.5 (`{id, Count, tag}` before), and vanilla's data fixers upgrade only what they know: the mod's `StackData` rides along unchanged. | `StackDataUpgrade`: the save carries the data version (`StackData.DataVersion`, missing = 1.20.1's 3465), and a load runs every member's items through vanilla's `ITEM_STACK` fixer (`EntityDataMixin`). Anything new the stack data saves that vanilla may reshape (items, ids) needs a step there. |
+| 1.20.5, 1.21.2 | A horse coming out of a stack from an older world gets **default** speed/jump/health instead of its own. | Member rolls are keyed by attribute id: `horse.jump_strength` became `generic.jump_strength` (1.20.5), and the `generic.` prefix went (1.21.2). | `MobVariants.upgradeRolls` (`ROLL_KEY_ALIASES`), from `StackDataUpgrade`. |
 | 1.21.6 | Text drawn by a screen is **invisible**; a text box goes **blank** after `setTextColor` (typing still works). | A text colour is ARGB, and `0xFFFFFF` (what 1.20.1 code passes) has alpha 0. | Every colour through `client/Gfx` (`text`, `centered`, `textColor(box, rgb)`), which makes a colour without alpha opaque. Never call `drawString`/`setTextColor` directly. |
 | 26.1 (SDL) | **Right click does nothing** on a widget that accepts it; a left click may count as the right one. | Mouse buttons are numbered as SDL does: left **1**, middle 2, right **3** (GLFW: 0, 2, 1). | Use `InputConstants.MOUSE_BUTTON_LEFT/RIGHT` (the right value on every version, inlined at compile time), never literals (`client/StepButton`). |
 | 26.1 (SDL) | **Typing does nothing** until a text box is clicked ("type anywhere to search"). | Characters arrive only while something started text input (`Minecraft.textInputManager()`, one owner at a time); an `EditBox` does it when focused and stops when it loses focus. | A screen that takes typing with no box focused (`CompatScreen.typesAnywhere()`) claims it every frame and lets go in `removed()`, and answers `isInputCaptured()` true: otherwise the game's global keys (the friends list on **O**) take a letter before the screen sees it. |
@@ -78,6 +80,7 @@ including mixin descriptor strings) or by a helper in `compat/Compat.java`.
 |---|---|---|
 | 1.21 | `new ResourceLocation(ns, path)` | `ResourceLocation.fromNamespaceAndPath` (`Compat.id`) |
 | 1.21 | data folders `tags/entity_types` | `tags/entity_type` (renamed at build time) |
+| 1.21.6 (unconfirmed) | `getCurrentVersion().getDataVersion().getVersion()` | `dataVersion().version()` (`StackDataUpgrade.currentVersion`) |
 | 1.21.2 | `MobSpawnType`, `EntityType.create(level)` | `EntitySpawnReason`, `create(level, reason)` |
 | 1.21.2 | `spawnAtLocation(stack)`, `hurt(...)` | `spawnAtLocation(ServerLevel, stack)`, `hurtServer(ServerLevel, ...)` |
 | 1.21.2 | `registryOrThrow`, `getHolderOrThrow`, `Registry.get(id)` | `lookupOrThrow`, `getOrThrow`, `getValue(id)` |
@@ -114,6 +117,12 @@ panel, caught before any release). After such a replace, look at the helpers' `e
 
 - From **1.21.9 there are no always-loaded spawn chunks**: a scripted test that summons near spawn with
   no player finds nothing. `forceload add` the area first (`tools/test/scenarios/basic.txt` does).
+- **`NoAI` mobs never stack** (the mod leaves a frozen mob alone on purpose): keep a test mob still with
+  `NoGravity` and a force-loaded chunk instead, and at night (`time set midnight`, `gamerule
+  doDaylightCycle false`) so undead do not burn and wear their helmets.
+- **Moving a world to another version** (member gear, rolls): save it with one node's server
+  (`run_server.py <old node> --dir migrate`), copy `versions/<old>/run/migrate/world` to
+  `versions/<new>/run/migrate/`, and start the new node with `--dir migrate`.
 - The 1.20.1 round scenarios assume a **flat** world (`run_server.py --flat`), and their NBT is
   1.20.x's (`HandItems`, `Count`); 1.20.5 and 1.21.5 changed parts of it.
 - 26.3 rejects `gamerule doMobSpawning` (game rules were renamed somewhere after 1.21.1); the line

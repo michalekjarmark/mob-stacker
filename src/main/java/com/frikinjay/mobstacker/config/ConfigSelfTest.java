@@ -4,6 +4,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.StackDataUpgrade;
 import com.frikinjay.mobstacker.StackRefusal;
 import com.frikinjay.mobstacker.config.ConfigOption.Result.Status;
 import com.frikinjay.mobstacker.config.ConfigOption.Type;
@@ -828,11 +829,62 @@ public final class ConfigSelfTest {
                     "a lit creeper stack that left the world (unloaded, a portal, a merge) left a remainder too");
         }
 
-        // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread).
+        // The save holds a copy of the stack data, never the live compound (the disk writer runs on its own thread),
+        // with the data version it was written in, which the live data never carries.
         net.minecraft.nbt.CompoundTag saved = Compat.save(zombie);
-        check(report, Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY) != ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()
-                        && Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY).equals(((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData()),
-                "a mob's save holds its live stack data, or a copy that differs from it");
+        net.minecraft.nbt.CompoundTag live = ((com.frikinjay.mobstacker.ICustomDataHolder) zombie).mobstacker$getCustomData();
+        net.minecraft.nbt.CompoundTag savedData = Nbt.getCompound(saved, MobStacker.STACK_DATA_KEY);
+        check(report, savedData != live && Nbt.getInt(savedData, StackDataUpgrade.DATA_VERSION_KEY) == StackDataUpgrade.currentVersion()
+                        && !live.contains(StackDataUpgrade.DATA_VERSION_KEY),
+                "a mob's save holds its live stack data, or a copy without the data version, or the live data has one");
+        net.minecraft.nbt.CompoundTag unstamped = savedData.copy();
+        unstamped.remove(StackDataUpgrade.DATA_VERSION_KEY);
+        check(report, unstamped.equals(live), "a mob's saved stack data differs from its live stack data");
+
+        testOldStackData(report, level);
+    }
+
+    /**
+     * Stack data saved by 1.12.0 on 1.20.1 (no data version): a member's iron helmet in 1.20.1's item
+     * shape and a horse member's jump roll under 1.20.1's attribute id. Loaded by any version, the
+     * helmet is still an iron helmet with its damage, and the roll is under this version's id.
+     */
+    private static void testOldStackData(Report report, net.minecraft.server.level.ServerLevel level) {
+        net.minecraft.nbt.CompoundTag helmet = new net.minecraft.nbt.CompoundTag();
+        helmet.putString("id", "minecraft:iron_helmet");
+        helmet.putByte("Count", (byte) 1);
+        net.minecraft.nbt.CompoundTag itemTag = new net.minecraft.nbt.CompoundTag();
+        itemTag.putInt("Damage", 7);
+        helmet.put("tag", itemTag);
+        net.minecraft.nbt.CompoundTag loadout = new net.minecraft.nbt.CompoundTag();
+        loadout.put("head", helmet);
+        loadout.putFloat("headChance", 0.085F);
+        net.minecraft.nbt.ListTag loadouts = new net.minecraft.nbt.ListTag();
+        loadouts.add(loadout);
+        net.minecraft.nbt.CompoundTag roll = new net.minecraft.nbt.CompoundTag();
+        roll.putDouble("minecraft:horse.jump_strength", 0.9);
+        net.minecraft.nbt.ListTag rolls = new net.minecraft.nbt.ListTag();
+        rolls.add(roll);
+        net.minecraft.nbt.CompoundTag old = new net.minecraft.nbt.CompoundTag();
+        old.putInt(MobStacker.STACK_SIZE_KEY, 2);
+        old.put(MobStacker.MEMBER_EQUIPMENT_KEY, loadouts);
+        old.put(com.frikinjay.mobstacker.MobVariants.MEMBER_ROLLS_KEY, rolls);
+
+        StackDataUpgrade.upgrade(old);
+
+        net.minecraft.nbt.CompoundTag upgraded = Nbt.getCompound(Nbt.getList(old, MobStacker.MEMBER_EQUIPMENT_KEY, 10), 0);
+        net.minecraft.world.item.ItemStack back = Compat.loadItem(Nbt.getCompound(upgraded, "head"), level.registryAccess());
+        check(report, back.is(net.minecraft.world.item.Items.IRON_HELMET) && back.getDamageValue() == 7
+                        && Nbt.getFloat(upgraded, "headChance") == 0.085F,
+                "a member's helmet saved on 1.20.1 does not load as the same helmet (got " + back + ")");
+        net.minecraft.nbt.CompoundTag upgradedRoll = Nbt.getCompound(Nbt.getList(old, com.frikinjay.mobstacker.MobVariants.MEMBER_ROLLS_KEY, 10), 0);
+        String rollKey = Nbt.keys(upgradedRoll).stream().findFirst().orElse("");
+        String[] id = rollKey.split(":", 2);
+        check(report, Nbt.keys(upgradedRoll).size() == 1 && id.length == 2
+                        && net.minecraft.core.registries.BuiltInRegistries.ATTRIBUTE.containsKey(Compat.id(id[0], id[1]))
+                        && Nbt.getDouble(upgradedRoll, rollKey) == 0.9
+                        && Nbt.getInt(old, MobStacker.STACK_SIZE_KEY) == 2 && !old.contains(StackDataUpgrade.DATA_VERSION_KEY),
+                "a horse member's jump roll saved on 1.20.1 is not under this version's attribute id (" + upgradedRoll + ")");
     }
 
     private static int count(Iterable<?> items) {

@@ -2,6 +2,7 @@ package com.frikinjay.mobstacker.mixin;
 
 import com.frikinjay.mobstacker.compat.Nbt;
 import com.frikinjay.mobstacker.ICustomDataHolder;
+import com.frikinjay.mobstacker.StackDataUpgrade;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -31,27 +32,39 @@ public class EntityDataMixin implements ICustomDataHolder {
      * the writer could read it mid-change - a ConcurrentModificationException and a chunk that failed
      * to save. Forge copies its own ForgeData for the same reason. And a caller that edits the save,
      * as a merge does, no longer edits the mob behind its back.
+     *
+     * <p>The copy carries the data version it was written in, and a load upgrades older data to this
+     * game's (StackDataUpgrade): a world from an older Minecraft keeps its members' gear.
      */
     //? if >=1.21.6 {
     /*@Inject(method = "saveWithoutId", at = @At("RETURN"))
     private void mobstacker$onSaveWithoutId(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
-        output.store(STACK_DATA_KEY, CompoundTag.CODEC, this.mobstacker$stackData.copy());
+        CompoundTag saved = this.mobstacker$stackData.copy();
+        StackDataUpgrade.stamp(saved);
+        output.store(STACK_DATA_KEY, CompoundTag.CODEC, saved);
     }
 
     @Inject(method = "load", at = @At("RETURN"))
     private void mobstacker$onLoad(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
-        input.read(STACK_DATA_KEY, CompoundTag.CODEC).ifPresent(data -> this.mobstacker$stackData = data);
+        input.read(STACK_DATA_KEY, CompoundTag.CODEC).ifPresent(data -> {
+            StackDataUpgrade.upgrade(data);
+            this.mobstacker$stackData = data;
+        });
     }
     *///?} else {
     @Inject(method = "saveWithoutId", at = @At("RETURN"))
     private void mobstacker$onSaveWithoutId(CompoundTag compound, CallbackInfoReturnable<CompoundTag> cir) {
-        compound.put(STACK_DATA_KEY, this.mobstacker$stackData.copy());
+        CompoundTag saved = this.mobstacker$stackData.copy();
+        StackDataUpgrade.stamp(saved);
+        compound.put(STACK_DATA_KEY, saved);
     }
 
     @Inject(method = "load", at = @At("RETURN"))
     private void mobstacker$onLoad(CompoundTag compound, CallbackInfo ci) {
         if (Nbt.has(compound, STACK_DATA_KEY, 10)) {
-            this.mobstacker$stackData = Nbt.getCompound(compound, STACK_DATA_KEY);
+            CompoundTag data = Nbt.getCompound(compound, STACK_DATA_KEY);
+            StackDataUpgrade.upgrade(data);
+            this.mobstacker$stackData = data;
         }
     }
     //?}
