@@ -36,6 +36,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the other 26.x jars. Checked on a 26.1.2 server: the self-test, stacking, damage overflow, strict
   data matching, a dispenser shearing a stack, regions; the client started into a world. Not yet
   played, and not run on 26.1 or 26.1.1 themselves.
+- **Minecraft 26.1.2 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.1.2.71 or
+  newer, the first stable build; Java 25). NeoForge for 26.1 and 26.1.1 never left beta, so those two
+  are Fabric only. Checked on a dev server as the Fabric jar, and the client started into a world.
+  Not yet played.
 - **Minecraft 26.2 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5
   and Fabric API 0.161.0+26.2 or newer, Java 25), the same code as the 26.3 jars. 26.2 still has the
   game's old input (GLFW): the mouse buttons, keys and typing that changed in 26.3 work as on 1.21.

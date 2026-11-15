@@ -210,7 +210,12 @@ panel, caught before any release). After such a replace, look at the helpers' `e
 - `tools/test/mcclient.py` speaks the 1.20.1 protocol only: anything on a newer client needs a person.
 - The server scripts never build the mod's client side. **Start a new node's client once** before a
   jar goes to a person (`./gradlew :<node>:runClient`, up to the title screen): the NeoForge 26.3 jar
-  passed every server test and crashed the client at launch.
+  passed every server test and crashed the client at launch. With **`-PstrictMixins`** a client
+  mixin that finds nothing fails there too (without it, it does nothing, silently), and with
+  `--args="--quickPlaySingleplayer <world>"` it goes straight into `run/saves/<world>` (a copy of the
+  test server's world will do). A new run dir's first start **waits on the narrator screen**: put
+  `onboardAccessibility:false` in `versions/<node>/run/options.txt` first (and `soundCategory_master:0.0`
+  for a quiet one; the game rewrites the file when it closes).
 - A NeoForge node's **patched** jar (what the loader changed in vanilla's classes, and its own API) is
   the `neoforge-<version>-minecraft-merged-*` folder beside the vanilla ones; `checkMixins` writes the
   whole classpath to `versions/<node>/build/mixin-check-classpath.txt`.
