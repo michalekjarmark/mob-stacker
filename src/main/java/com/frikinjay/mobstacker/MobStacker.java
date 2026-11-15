@@ -772,7 +772,7 @@ public final class MobStacker {
             // What it remembers - a villager's bed and job site are claims on the world, released
             // when it dies (see shedClaims) - where it sleeps, and what it is tied to.
             "Brain", "SleepingX", "SleepingY", "SleepingZ",
-            //? if >=1.21 {
+            //? if >=1.20.5 {
             /*"leash",
             *///?} else {
             "Leash",

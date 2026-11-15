@@ -623,8 +623,11 @@ public final class ConfigSelfTest {
         }
         // What a stack has and every member has with it...
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR).addPermanentModifier(
-                //? if >=1.20.5 {
+                //? if >=1.21 {
                 /*new net.minecraft.world.entity.ai.attributes.AttributeModifier(com.frikinjay.mobstacker.compat.Compat.id("mobstacker", "selftest_bonus"), 3.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
+                *///?} else if >=1.20.5 {
+                /*new net.minecraft.world.entity.ai.attributes.AttributeModifier("selftest bonus", 3.0,
                         net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
                 *///?} else {
                 new net.minecraft.world.entity.ai.attributes.AttributeModifier("selftest bonus", 3.0,
@@ -638,8 +641,11 @@ public final class ConfigSelfTest {
         zombie.setCustomName(net.minecraft.network.chat.Component.literal("Zed"));
         // ...and what is the top zombie's own.
         zombie.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).addPermanentModifier(
-                //? if >=1.20.5 {
+                //? if >=1.21 {
                 /*new net.minecraft.world.entity.ai.attributes.AttributeModifier(net.minecraft.resources.ResourceLocation.parse(com.frikinjay.mobstacker.compat.Compat.LEADER_ZOMBIE_BONUS), 2.0,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                *///?} else if >=1.20.5 {
+                /*new net.minecraft.world.entity.ai.attributes.AttributeModifier(com.frikinjay.mobstacker.compat.Compat.LEADER_ZOMBIE_BONUS, 2.0,
                         net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
                 *///?} else {
                 new net.minecraft.world.entity.ai.attributes.AttributeModifier(com.frikinjay.mobstacker.compat.Compat.LEADER_ZOMBIE_BONUS, 2.0,

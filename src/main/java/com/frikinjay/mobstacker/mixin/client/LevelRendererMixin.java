@@ -58,6 +58,14 @@ public abstract class LevelRendererMixin {
         // matrix, which is still pushed here, and vanilla's debug renderer draws from a fresh stack.
         MobStackerRegionOverlay.render(new PoseStack(), camera);
     }
+    *///?} else if >=1.20.5 {
+    /*private void mobstacker$drawRegions(float partialTick, long finishNanoTime, boolean renderBlockOutline,
+                                        Camera camera, GameRenderer gameRenderer, LightTexture lightTexture,
+                                        Matrix4f frustumMatrix, Matrix4f projectionMatrix, CallbackInfo ci) {
+        // 1.20.5 took the pose stack away (the model-view matrix carries the camera, as from 1.21);
+        // the tick counter became a DeltaTracker only in 1.21.
+        MobStackerRegionOverlay.render(new PoseStack(), camera);
+    }
     *///?} else {
     private void mobstacker$drawRegions(PoseStack poseStack, float partialTick, long finishNanoTime,
                                         boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
