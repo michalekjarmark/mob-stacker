@@ -6,12 +6,13 @@ look before they start searching. How to add a node is in [`README.md`](README.m
 the traps.
 
 **Versions in brackets** are where the change is believed to have happened. Built so far: **1.20.1,
-1.20.2, 1.20.4, 1.20.6, 1.21.1, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
+1.20.2, 1.20.4, 1.20.6, 1.21.1, 26.1.2, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
 between 1.21.2 and 26.1 is *unconfirmed* until a node in between compiles and runs. The code's version
 conditions sit at those believed versions too; a new node moves them if `-PallErrors` or a test says
 otherwise (they are marked "unconfirmed" in the code). The nodes for 1.20.2-1.20.6 moved four of the
 guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below. The 26.2 node
-moved six guesses from 26.1 to **26.3**, the version that went from GLFW to SDL: see "26.2 and 26.3".
+moved six guesses from 26.1 to **26.3**, the version that went from GLFW to SDL, and the 26.1.2 node
+eight more to 26.2: see "26.1 to 26.3".
 
 The worst ones are first: **no crash, no log line, it just does not work**.
 
@@ -94,9 +95,24 @@ NeoForge 20.3 (1.20.3) and 20.5 (1.20.5) never left beta, so the NeoForge jars a
 and 1.20.6 only, and each asks for the first stable build of its line (20.2.86, 20.4.167, 20.6.115),
 which is what it was run on besides the newest.
 
-## 26.2 and 26.3
+## 26.1 to 26.3
 
-What the 26.2 node found. 26.2 still runs on **GLFW** (`InputConstants.KEY_A` is 65, the left mouse
+What the 26.1.2 and 26.2 nodes found. **26.1** (with its hotfixes 26.1.1 and 26.1.2) already has the
+new renderer, gizmos, render states, `GuiGraphicsExtractor`, the input events, `convertTo` and Fabric
+API's renames; much of the rest came with 26.2:
+
+| Since | What | Where |
+|---|---|---|
+| 26.2 | `EntityType.COW` -> `EntityTypes.COW` | `stonecutter.gradle.kts` |
+| 26.2 | `minecraft.setScreen(s)`, `minecraft.screen` -> `minecraft.gui.setScreen(s)`, `minecraft.gui.screen()` | `stonecutter.gradle.kts` |
+| 26.2 | `animal.Bucketable` -> `entity.Bucketable` (1.21.11 and 26.1.2 have the old one), `monster.Slime` -> `monster.cubemob.Slime` | `stonecutter.gradle.kts` |
+| 26.2 | `gameRenderer.getMainCamera()` -> `mainCamera()` | `Gfx.cameraPosition` |
+| 26.2 | `SubmitNodeCollector.submitNameTag` loses the camera distance (`state.distanceToCameraSq`) | `Gfx.submitNameTag` |
+| 26.2 | the dyes become one collection, `Items.DYE.pick(color)`; 26.1 has neither that nor `DyeItem.byColor` (the colour is a component) | `Compat.dye` (by id on 26.1) |
+| 26.2 | gizmos are finalized from `LevelRenderer.submitFeatures` (26.1: from a lambda of the main pass) | `client.LevelRendererGizmosMixin` hooks the start of `finalizeGizmoCollection` itself, the same on every 26.x |
+| 26.2 | saved keys: `age`, `age_locked`, `from_bucket`, `pickup_timer`, `sitting_damage_received` new, `HurtByTimestamp` not in the list (none new is top-only; `HurtByTimestamp` stays in `TOP_ONLY_KEYS` for 26.1) | `src/main/vanilla-keys/26.1.2.txt` |
+
+And what the 26.2 node found. 26.2 still runs on **GLFW** (`InputConstants.KEY_A` is 65, the left mouse
 button 0); **SDL came with 26.3**, and with it the changes below, which the code had at 26.1.
 
 | Since | What | Where |
@@ -108,9 +124,8 @@ button 0); **SDL came with 26.3**, and with it the changes below, which the code
 | 26.3 | `NaturalSpawner.createState` reads the level's entities | `NaturalSpawnerMixin` from 26.3, `ServerChunkCacheMixin` below it |
 | 26.3 | Saved keys: `DrownedConversionTime`, `StrayConversionTime`, `InWaterTime`, `AssignProfessionWhenSpawned` are not in 26.3's list, `can_break`, `color`, `invulnerable_time` are new; none is top-only | `src/main/vanilla-keys/26.2.txt` |
 
-Everything else the code has at 26.1 compiles on 26.2 and its mixins apply there (the renderer and
-gizmos, render states, `GuiGraphicsExtractor`, the input events, `EntityTypes`, `convertTo`, Fabric
-API's renames): those happened in 26.1 or 26.2, which a 26.1 node will tell.
+What the code still has at 26.1 compiles on 26.1.2 and its mixins apply there; whether a change came
+in 26.1 itself or between 1.21.11 and 26.1 is for a 1.21.11 node to tell.
 
 ## NeoForge between 1.21.1 and 26.3
 
@@ -160,9 +175,9 @@ including mixin descriptor strings) or by a helper in `compat/Compat.java`.
 | 1.21.11 | `ResourceLocation`, `ResourceKey.location()` | `Identifier`, `identifier()` |
 | 1.21.11 | entity packages (`animal.Cow`, `monster.Zombie`, `npc.Villager`, `animal.horse`) | `animal.cow`, `monster.zombie`, `npc.villager`, `animal.equine`, ... |
 | 1.21.11 | `hasPermissions(int)` | `permissions()` (`PermissionSet`) |
-| 26.1 | `EntityType.COW` (constants) | `EntityTypes.COW` |
+| 26.2 | `EntityType.COW` (constants) | `EntityTypes.COW` |
 | 26.1 | `GuiGraphics`, `drawString`, `drawCenteredString` | `GuiGraphicsExtractor`, `text`, `centeredText` |
-| 26.1 | `Minecraft.setScreen`, `.screen` | `minecraft.gui.setScreen`, `.gui.screen()` |
+| 26.2 | `Minecraft.setScreen`, `.screen` | `minecraft.gui.setScreen`, `.gui.screen()` |
 | 26.1 | `displayClientMessage(c, true)` | `sendOverlayMessage(c)` |
 | 26.1 | Fabric API `ClientCommandManager`, `KeyBindingHelper`, `HudRenderCallback`, `PayloadTypeRegistry.playC2S/playS2C` | `ClientCommands`, `KeyMappingHelper`, `HudElementRegistry`, `serverboundPlay/clientboundPlay` |
 | 26.1 | `KeyMapping` category string | `KeyMapping.Category.register(id)` |

@@ -488,10 +488,15 @@ public final class Compat {
         //?}
     }
 
-    /** One dye item (unconfirmed: 26.1, where the dyes became one collection). */
+    /**
+     * One dye item. The dyes are one collection from 26.2; 26.1 has no lookup by colour (the colour is a
+     * component of the item), so the item is found by its id there.
+     */
     public static Item dye(net.minecraft.world.item.DyeColor color) {
-        //? if >=26.1 {
+        //? if >=26.2 {
         /*return net.minecraft.world.item.Items.DYE.pick(color);
+        *///?} else if >=26.1 {
+        /*return item(id("minecraft", color.getName() + "_dye"));
         *///?} else {
         return net.minecraft.world.item.DyeItem.byColor(color);
         //?}

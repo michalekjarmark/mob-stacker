@@ -31,6 +31,11 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   that jumped along their box).
   Not on 26.3 yet: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
   stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x.
+- **Minecraft 26.1 to 26.1.2 on Fabric** - in progress, not released yet: one jar for the three
+  (built against 26.1.2; Fabric Loader 0.19.5 and Fabric API for 26.1, Java 25), the same code as
+  the other 26.x jars. Checked on a 26.1.2 server: the self-test, stacking, damage overflow, strict
+  data matching, a dispenser shearing a stack, regions; the client started into a world. Not yet
+  played, and not run on 26.1 or 26.1.1 themselves.
 - **Minecraft 26.2 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5
   and Fabric API 0.161.0+26.2 or newer, Java 25), the same code as the 26.3 jars. 26.2 still has the
   game's old input (GLFW): the mouse buttons, keys and typing that changed in 26.3 work as on 1.21.

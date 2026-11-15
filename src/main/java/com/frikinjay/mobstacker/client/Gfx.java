@@ -18,6 +18,37 @@ public final class Gfx {
     private Gfx() {
     }
 
+    /** Where this frame's camera is (the game renderer's main camera). */
+    public static net.minecraft.world.phys.Vec3 cameraPosition(net.minecraft.client.Minecraft minecraft) {
+        //? if >=26.2 {
+        /*return minecraft.gameRenderer.mainCamera().position();
+        *///?} else if >=26.1 {
+        /*return minecraft.gameRenderer.getMainCamera().position();
+        *///?} else {
+        return minecraft.gameRenderer.getMainCamera().getPosition();
+        //?}
+    }
+
+    //? if >=26.2 {
+    /*/^* A name tag line, submitted as vanilla submits its own. ^/
+    public static void submitNameTag(net.minecraft.client.renderer.SubmitNodeCollector collector,
+                                     com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.world.phys.Vec3 at,
+                                     Component text, boolean seeThrough,
+                                     net.minecraft.client.renderer.entity.state.EntityRenderState state,
+                                     net.minecraft.client.renderer.state.level.CameraRenderState camera) {
+        collector.submitNameTag(pose, at, 0, text, seeThrough, state.lightCoords, camera);
+    }
+    *///?} else if >=26.1 {
+    /*/^* A name tag line, submitted as vanilla submits its own (26.1 also passes the camera's distance). ^/
+    public static void submitNameTag(net.minecraft.client.renderer.SubmitNodeCollector collector,
+                                     com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.world.phys.Vec3 at,
+                                     Component text, boolean seeThrough,
+                                     net.minecraft.client.renderer.entity.state.EntityRenderState state,
+                                     net.minecraft.client.renderer.state.level.CameraRenderState camera) {
+        collector.submitNameTag(pose, at, 0, text, seeThrough, state.lightCoords, state.distanceToCameraSq, camera);
+    }
+    *///?}
+
     /** A colour as the version wants it: opaque when it says no alpha. */
     static int color(int rgb) {
         //? if >=1.21.6 {
