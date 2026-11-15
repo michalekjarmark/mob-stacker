@@ -70,6 +70,13 @@ public record RawPayload(ResourceLocation id, byte[] bytes) implements CustomPac
         return new RawPayload(channel, bytes);
     }
 
+    /^* Everything left in {@code buf}, taken out of it: how a payload is read off the wire. ^/
+    public static RawPayload read(ResourceLocation channel, FriendlyByteBuf buf) {
+        byte[] bytes = new byte[buf.readableBytes()];
+        buf.readBytes(bytes);
+        return new RawPayload(channel, bytes);
+    }
+
     @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeBytes(bytes);

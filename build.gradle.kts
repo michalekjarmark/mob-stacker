@@ -12,6 +12,9 @@ val javaVersion = (property("java_version") as String).toInt()
 val unobfuscated = stonecutter.current.parsed >= "26.1"
 val modImpl = if (unobfuscated) "implementation" else "modImplementation"
 val modJar = if (unobfuscated) "jar" else "remapJar"
+// NeoForge 20.2 to 20.4 (Minecraft 1.20.2 to 1.20.4) is still half Forge: META-INF/mods.toml and its
+// own entrypoint (the neoforge.legacy package).
+val legacyNeoForge = loader == "neoforge" && stonecutter.current.parsed < "1.20.5"
 
 group = property("maven_group") as String
 version = property("mod_version") as String
@@ -120,11 +123,20 @@ val otherLoaders = listOf("fabric", "forge", "neoforge") - loader
 sourceSets.main {
     java {
         otherLoaders.forEach { exclude("com/frikinjay/mobstacker/$it/**") }
+        // NeoForge has two entrypoints, one per era; the shearing and the mixins are shared.
+        if (legacyNeoForge) {
+            exclude("com/frikinjay/mobstacker/neoforge/MobStackerNeoForge.java", "com/frikinjay/mobstacker/neoforge/client/**")
+        } else {
+            exclude("com/frikinjay/mobstacker/neoforge/legacy/**")
+        }
     }
     resources {
         if (loader != "fabric") exclude("fabric.mod.json", "mobstacker-fabric.mixins.json")
-        if (loader != "forge") exclude("META-INF/mods.toml", "mobstacker-forge.mixins.json", "pack.mcmeta")
-        if (loader != "neoforge") exclude("META-INF/neoforge.mods.toml", "mobstacker-neoforge.mixins.json")
+        if (loader != "forge") exclude("META-INF/mods.toml", "mobstacker-forge.mixins.json")
+        if (loader != "forge" && !legacyNeoForge) exclude("pack.mcmeta")
+        if (loader != "neoforge") exclude("mobstacker-neoforge.mixins.json")
+        if (loader != "neoforge" || legacyNeoForge) exclude("META-INF/neoforge.mods.toml")
+        if (!legacyNeoForge) exclude("META-INF/neoforge-legacy.mods.toml")
     }
 }
 
@@ -150,7 +162,10 @@ tasks.withType<JavaCompile>().configureEach {
 // syntax), minecraft_range_maven and forge_loader_range (Forge/NeoForge), neoforge_range, pack_format.
 val metadata = mapOf("version" to project.version.toString(), "java_version" to javaVersion.toString()) +
     listOf("minecraft_range", "minecraft_range_maven", "forge_loader_range", "neoforge_range", "pack_format")
-        .mapNotNull { key -> findProperty(key)?.let { key to it.toString() } }
+        .mapNotNull { key -> findProperty(key)?.let { key to it.toString() } } +
+    // How neoforge-legacy.mods.toml says "required": FML 1 (NeoForge 20.2) knows only `mandatory`,
+    // and FML 2.0.17 (NeoForge 20.4) refuses a mod that still uses it.
+    mapOf("dependency_required" to if (stonecutter.current.parsed < "1.20.3") "mandatory = true" else "type = \"required\"")
 
 // The NBT keys vanilla writes on an entity in this Minecraft, for strict data matching (MobData).
 // Generated once per version by tools/VanillaKeys.java (see versions/README.md).
@@ -170,13 +185,21 @@ tasks.processResources {
     if (unobfuscated || droppedWidenerLines.isNotEmpty()) {
         filesMatching("mobstacker.accesswidener") { filter { line -> nodeAccessWidenerLine(line) } }
     }
-    filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml", "pack.mcmeta")) {
+    filesMatching(listOf("fabric.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml",
+            "META-INF/neoforge-legacy.mods.toml", "pack.mcmeta")) {
         expand(metadata)
+    }
+    // NeoForge 20.2 to 20.4 reads META-INF/mods.toml (Forge's own is left out of this node above).
+    if (legacyNeoForge) {
+        filesMatching("META-INF/neoforge-legacy.mods.toml") { name = "mods.toml" }
     }
     // Mixins whose target is gone from a version on: left out of the mixin config there (the class
     // still compiles - an accessor is only an annotation - but Mixin would fail on the missing field).
     val mixinsBefore = mapOf(
         "ParrotAccessor" to "1.20.5", // Parrot.TAME_FOOD became the item tag #parrot_food
+        // NeoForge 20.2 alone reads an unknown payload its own way (neoforge.legacy.LegacyChannels).
+        "ClientboundCustomPayloadPacketMixin" to "1.20.3",
+        "ServerboundCustomPayloadPacketMixin" to "1.20.3",
         // 26.1: the region boxes are gizmos (client.LevelRendererGizmosMixin), and the sheep's wool
         // reads its name from a render state.
         "client.LevelRendererMixin" to "26.1",

@@ -41,7 +41,7 @@ public abstract class ShearsDispenseItemBehaviorMixin {
             net.neoforged.neoforge.common.IShearable shearable, net.minecraft.world.entity.player.Player player,
             net.minecraft.world.item.ItemStack item, net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
         com.frikinjay.mobstacker.neoforge.NeoForgeShearing.Sheared sheared =
-                com.frikinjay.mobstacker.neoforge.NeoForgeShearing.shear(shearable, player, item, level, pos);
+                com.frikinjay.mobstacker.neoforge.NeoForgeShearing.shear(shearable, player, item, level, pos, 0);
         mobstacker$membersShorn = sheared.members();
         return sheared.drops();
     }

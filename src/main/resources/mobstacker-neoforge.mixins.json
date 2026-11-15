@@ -6,6 +6,8 @@
   "client": [
   ],
   "mixins": [
+    "ClientboundCustomPayloadPacketMixin",
+    "ServerboundCustomPayloadPacketMixin",
     "ShearsItemMixin"
   ]
 }

@@ -21,10 +21,21 @@ import java.util.List;
 @Mixin(ShearsItem.class)
 public abstract class ShearsItemMixin {
 
-    @Redirect(method = "interactLivingEntity", at = @At(value = "INVOKE",
+    //? if >=1.20.5 {
+    /*@Redirect(method = "interactLivingEntity", at = @At(value = "INVOKE",
             target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ljava/util/List;",
             remap = false))
     private List<ItemStack> mobstacker$shearTheStack(IShearable shearable, Player player, ItemStack item, Level level, BlockPos pos) {
-        return NeoForgeShearing.shear(shearable, player, item, level, pos).drops();
+        return NeoForgeShearing.shear(shearable, player, item, level, pos, 0).drops();
     }
+    *///?} else {
+    // Until NeoForge 20.5 onSheared is Forge's, with the shears' Fortune level.
+    @Redirect(method = "interactLivingEntity", at = @At(value = "INVOKE",
+            target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;I)Ljava/util/List;",
+            remap = false))
+    private List<ItemStack> mobstacker$shearTheStack(IShearable shearable, Player player, ItemStack item, Level level, BlockPos pos,
+                                                     int fortune) {
+        return NeoForgeShearing.shear(shearable, player, item, level, pos, fortune).drops();
+    }
+    //?}
 }
