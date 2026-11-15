@@ -51,8 +51,8 @@ import net.minecraft.world.phys.AABB;
  * needs one of them calls it here instead of carrying a version condition of its own; bigger
  * differences (rendering, screens, networking) live where they are used.
  *
- * <p>The version where each one changed is the best known one; the nodes between 1.20.1 and 1.21.1
- * (1.20.2-1.20.6) will confirm them when they are added.
+ * <p>The versions up to 1.21.1 are confirmed by a node each (1.20.2, 1.20.4, 1.20.6); see the note
+ * further down for the ones after it.
  */
 public final class Compat {
     private Compat() {
