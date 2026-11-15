@@ -178,9 +178,17 @@ panel, caught before any release). After such a replace, look at the helpers' `e
 - A NeoForge node's **patched** jar (what the loader changed in vanilla's classes, and its own API) is
   the `neoforge-<version>-minecraft-merged-*` folder beside the vanilla ones; `checkMixins` writes the
   whole classpath to `versions/<node>/build/mixin-check-classpath.txt`.
-- `Reset active project` rewrites three lines of `Compat.java` (`.getOrThrow()` becomes
-  `.getHolderOrThrow()` inside commented 1.21.6/26.1 branches: that replacement cannot tell the two
-  apart on the way back). Harmless for every node, but do not commit it.
+- **`Reset active project` leaves the `neoforge` package as it was**: the committed sources are the
+  `1.20.1-fabric` node's, which leaves that package out, so after `Set active project to <a NeoForge
+  node>` a reset brings back everything else and not those files. Check `git diff
+  src/main/java/com/frikinjay/mobstacker/neoforge/` before a commit, and restore with `git checkout`
+  what you did not mean to change (by hand what you did: committed code there is in the 1.20.1 form,
+  with `<1.20.5` branches live and `ResourceLocation`).
+- Write code inside a commented branch in **1.20.1's words** (`MobSpawnType`, `ResourceLocation`, in
+  mixin descriptors too): the replacements turn them into the newer ones for that node, and a reset
+  turns a newer word written there back. A reset that changes a committed file means one of the two.
+  (`.getHolderOrThrow(key)` -> `.getOrThrow(key)` from 1.21.2 is only the call with an argument, so
+  `DataResult.getOrThrow()` stays as written.)
 - Reading vanilla: `javap -p -c -cp <jar> <class>` on the node's jar in
   `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/<mc>*/` (JDK 25's `javap` reads
   every version); data files (loot tables, tags) are in the same jar.

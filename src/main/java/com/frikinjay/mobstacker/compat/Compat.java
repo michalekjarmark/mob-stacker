@@ -135,7 +135,7 @@ public final class Compat {
     /** {@code Mob.convertTo}: the overload every conversion ends in (two of them from 1.21.2). */
     //? if >=1.21.2 {
     /*public static final String CONVERT_TO =
-            "convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/EntitySpawnReason;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;";
+            "convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/MobSpawnType;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;";
     *///?} else {
     public static final String CONVERT_TO = "convertTo";
     //?}

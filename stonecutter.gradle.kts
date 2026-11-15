@@ -76,7 +76,11 @@ stonecutter parameters {
             "\\bnet\\.minecraft\\.world\\.entity\\.EntityTypes\\.([A-Z][A-Z0-9_]*)\\b", "EntityType.$1")
     }
     moved("1.21.2", "MobEffects.MOVEMENT_SLOWDOWN", "MobEffects.SLOWNESS")
-    replaceBothWays("1.21.2", ".getHolderOrThrow(", ".getOrThrow(", wholeWord = false)
+    // 1.21.2: a registry's holder for a key is getOrThrow(key). Only a call with an argument:
+    // DataResult's getOrThrow() takes none, and the way back must leave it alone.
+    replacements.regex(current.parsed >= "1.21.2") {
+        replace("\\.getHolderOrThrow\\((?!\\))", ".getOrThrow(", "\\.getOrThrow\\((?!\\))", ".getHolderOrThrow(")
+    }
     moved("1.21.11", "net.minecraft.world.entity.npc.VillagerDataHolder", "net.minecraft.world.entity.npc.villager.VillagerDataHolder")
     // Fabric API for 26.1 (unconfirmed) names the payload registries after Mojang's directions.
     replaceBothWays("26.1", "PayloadTypeRegistry.playC2S()", "PayloadTypeRegistry.serverboundPlay()", wholeWord = false)
