@@ -1,7 +1,8 @@
 package com.frikinjay.mobstacker.mixin;
 
-//? if <26.1 {
+//? if <26.3 {
 import com.frikinjay.mobstacker.MobStacker;
+import com.frikinjay.mobstacker.compat.Compat;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 @Mixin(ServerChunkCache.class)
 public abstract class ServerChunkCacheMixin {
 
-    @ModifyArg(method = "tickChunks",
+    @ModifyArg(method = Compat.TICK_CHUNKS,
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/world/level/NaturalSpawner;createState(ILjava/lang/Iterable;Lnet/minecraft/world/level/NaturalSpawner$ChunkGetter;Lnet/minecraft/world/level/LocalMobCapCalculator;)Lnet/minecraft/world/level/NaturalSpawner$SpawnState;"),
             index = 1)

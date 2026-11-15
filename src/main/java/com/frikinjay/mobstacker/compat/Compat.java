@@ -140,6 +140,17 @@ public final class Compat {
     public static final String CONVERT_TO = "convertTo";
     //?}
 
+    /**
+     * Where the chunk cache hands the spawner the level's entities, below 26.3. From 1.21.2
+     * (unconfirmed; 1.21.11 and 26.2 have it) {@code tickChunks} has an overload, and the call is in
+     * the one with a profiler: a bare name would select the other one (Mixin takes the first).
+     */
+    //? if >=1.21.2 {
+    /*public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;J)V";
+    *///?} else {
+    public static final String TICK_CHUNKS = "tickChunks";
+    //?}
+
     /** The dispenser's shears on an entity (26.1, unconfirmed: the method lost "Living"). */
     //? if >=26.1 {
     /*public static final String DISPENSER_SHEAR_ENTITY = "tryShearEntity";
@@ -512,7 +523,8 @@ public final class Compat {
 
     /** Puts an item into the player's inventory, or drops it at the player's feet when it is full. */
     public static void giveOrDrop(Player player, ItemStack stack) {
-        //? if >=26.1 {
+        // A prediction from 26.3 (26.2 has 1.20.1's call).
+        //? if >=26.3 {
         /*player.getInventory().placeItemBackInInventory(stack, net.minecraft.util.Prediction.SERVER_ONLY);
         *///?} else {
         player.getInventory().placeItemBackInInventory(stack);
@@ -697,9 +709,9 @@ public final class Compat {
         //?}
     }
 
-    /** Makes an entity immune to everything but /kill (unconfirmed: 26.1). */
+    /** Makes an entity immune to everything but /kill (26.3 split permanent from temporary). */
     public static void setInvulnerable(Entity entity) {
-        //? if >=26.1 {
+        //? if >=26.3 {
         /*entity.setPermanentlyInvulnerable(true);
         *///?} else {
         entity.setInvulnerable(true);

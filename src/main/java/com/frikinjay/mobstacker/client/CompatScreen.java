@@ -122,7 +122,7 @@ public abstract class CompatScreen extends Screen {
     //? if >=26.1 {
     /*@Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        return onKey(event.key(), event.keycode(), event.modifiers());
+        return onKey(event.key(), keyCodeOf(event), event.modifiers());
     }
 
     @Override
@@ -158,34 +158,6 @@ public abstract class CompatScreen extends Screen {
         return box.charTyped(new net.minecraft.client.input.CharacterEvent(typed));
     }
 
-    /^*
-     * Asks for typed characters while no text box takes them, on a screen that {@link #typesAnywhere}.
-     * From 26.1 the game (SDL) sends characters only while something asked for them, which a text box
-     * does when it gets the focus and stops when it loses it; so this asks again, once a frame,
-     * whenever no box has them.
-     ^/
-    private void wantTyping() {
-        if (this.minecraft != null && !(getFocused() instanceof EditBox box && box.canConsumeInput())) {
-            this.minecraft.textInputManager().startTextInput(this);
-        }
-    }
-
-    /^*
-     * A screen that takes typing anywhere keeps the keys to itself, as a focused text box does: the
-     * game's own global keys (the friends list, on O) would otherwise take a letter before the screen.
-     ^/
-    @Override
-    public boolean isInputCaptured() {
-        return typesAnywhere() || super.isInputCaptured();
-    }
-
-    @Override
-    public void removed() {
-        if (this.minecraft != null) {
-            this.minecraft.textInputManager().stopTextInput(this);
-        }
-        super.removed();
-    }
     *///?} else {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -224,6 +196,50 @@ public abstract class CompatScreen extends Screen {
         return box.charTyped(typed, modifiers);
     }
     //?}
+
+    //? if >=26.3 {
+    /*/^* A key event's second number: the key code from 26.3 (SDL), the scan code before. ^/
+    private static int keyCodeOf(net.minecraft.client.input.KeyEvent event) {
+        return event.keycode();
+    }
+
+    /^*
+     * Asks for typed characters while no text box takes them, on a screen that {@link #typesAnywhere}.
+     * From 26.3 the game (SDL) sends characters only while something asked for them, which a text box
+     * does when it gets the focus and stops when it loses it; so this asks again, once a frame,
+     * whenever no box has them.
+     ^/
+    private void wantTyping() {
+        if (this.minecraft != null && !(getFocused() instanceof EditBox box && box.canConsumeInput())) {
+            this.minecraft.textInputManager().startTextInput(this);
+        }
+    }
+
+    /^*
+     * A screen that takes typing anywhere keeps the keys to itself, as a focused text box does: the
+     * game's own global keys (the friends list, on O) would otherwise take a letter before the screen.
+     ^/
+    @Override
+    public boolean isInputCaptured() {
+        return typesAnywhere() || super.isInputCaptured();
+    }
+
+    @Override
+    public void removed() {
+        if (this.minecraft != null) {
+            this.minecraft.textInputManager().stopTextInput(this);
+        }
+        super.removed();
+    }
+    *///?} else if >=26.1 {
+    /*private static int keyCodeOf(net.minecraft.client.input.KeyEvent event) {
+        return event.scancode();
+    }
+
+    /^* Until 26.3 (GLFW) every typed character comes to the screen: nothing to ask for. ^/
+    private void wantTyping() {
+    }
+    *///?}
 
     // ---- the mouse wheel ----
 

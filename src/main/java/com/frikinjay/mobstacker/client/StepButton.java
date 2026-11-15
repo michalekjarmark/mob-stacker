@@ -18,7 +18,7 @@ import java.util.Locale;
  * stops was a long way round to go back one. The region screen's colour button got its own
  * right-click, and every other cycling button (the config screen's colours and modes) did not (the
  * Forge round). Every cycling button on the mod's screens is one of these now. Enter and Space step
- * forward, like a click. The buttons are {@link InputConstants}' numbers: 26.x counts them as SDL does
+ * forward, like a click. The buttons are {@link InputConstants}' numbers: 26.3 counts them as SDL does
  * (left 1, right 3), not as GLFW did (left 0, right 1).
  */
 //? if >=26.1 {

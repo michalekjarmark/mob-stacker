@@ -6,11 +6,12 @@ look before they start searching. How to add a node is in [`README.md`](README.m
 the traps.
 
 **Versions in brackets** are where the change is believed to have happened. Built so far: **1.20.1,
-1.20.2, 1.20.4, 1.20.6, 1.21.1 and 26.3**, so everything up to 1.21.1 is confirmed and anything
+1.20.2, 1.20.4, 1.20.6, 1.21.1, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
 between 1.21.2 and 26.1 is *unconfirmed* until a node in between compiles and runs. The code's version
 conditions sit at those believed versions too; a new node moves them if `-PallErrors` or a test says
 otherwise (they are marked "unconfirmed" in the code). The nodes for 1.20.2-1.20.6 moved four of the
-guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below.
+guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below. The 26.2 node
+moved six guesses from 26.1 to **26.3**, the version that went from GLFW to SDL: see "26.2 and 26.3".
 
 The worst ones are first: **no crash, no log line, it just does not work**.
 
@@ -23,9 +24,9 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | NeoForge 20.2 | A Fabric client's packets to a NeoForge 20.2 server arrive **garbled**, and the empty config request **fails to decode**. | NeoForge 20.2 reads a payload it does not know as its `SimplePayload`, which takes a VarInt off the front as a packet index (and writes one when sending). | `neoforge.mixin.Clientbound/ServerboundCustomPayloadPacketMixin` read the mod's channels as bare bytes (`LegacyPayload`), and the mod sends its own `RawPayload`; see `neoforge.legacy.LegacyChannels`. Not checked with a player yet. |
 | 1.20.5, 1.21.2 | A horse coming out of a stack from an older world gets **default** speed/jump/health instead of its own. | Member rolls are keyed by attribute id: `horse.jump_strength` became `generic.jump_strength` (1.20.5), and the `generic.` prefix went (1.21.2). | `MobVariants.upgradeRolls` (`ROLL_KEY_ALIASES`), from `StackDataUpgrade`. |
 | 1.21.6 | Text drawn by a screen is **invisible**; a text box goes **blank** after `setTextColor` (typing still works). | A text colour is ARGB, and `0xFFFFFF` (what 1.20.1 code passes) has alpha 0. | Every colour through `client/Gfx` (`text`, `centered`, `textColor(box, rgb)`), which makes a colour without alpha opaque. Never call `drawString`/`setTextColor` directly. |
-| 26.1 (SDL) | **Right click does nothing** on a widget that accepts it; a left click may count as the right one. | Mouse buttons are numbered as SDL does: left **1**, middle 2, right **3** (GLFW: 0, 2, 1). | Use `InputConstants.MOUSE_BUTTON_LEFT/RIGHT` (the right value on every version, inlined at compile time), never literals (`client/StepButton`). |
-| 26.1 (SDL) | **Typing does nothing** until a text box is clicked ("type anywhere to search"). | Characters arrive only while something started text input (`Minecraft.textInputManager()`, one owner at a time); an `EditBox` does it when focused and stops when it loses focus. | A screen that takes typing with no box focused (`CompatScreen.typesAnywhere()`) claims it every frame and lets go in `removed()`, and answers `isInputCaptured()` true: otherwise the game's global keys (the friends list on **O**) take a letter before the screen sees it. |
-| 26.1 | Key codes compared against GLFW constants never match. | GLFW is gone (SDL). | `InputConstants.KEY_*` (they exist on 1.20.1 too, with GLFW's values). |
+| 26.3 (SDL) | **Right click does nothing** on a widget that accepts it; a left click may count as the right one. | Mouse buttons are numbered as SDL does: left **1**, middle 2, right **3** (GLFW: 0, 2, 1). | Use `InputConstants.MOUSE_BUTTON_LEFT/RIGHT` (the right value on every version, inlined at compile time), never literals (`client/StepButton`). |
+| 26.3 (SDL) | **Typing does nothing** until a text box is clicked ("type anywhere to search"). | Characters arrive only while something started text input (`Minecraft.textInputManager()`, one owner at a time); an `EditBox` does it when focused and stops when it loses focus. | A screen that takes typing with no box focused (`CompatScreen.typesAnywhere()`) claims it every frame and lets go in `removed()`, and answers `isInputCaptured()` true: otherwise the game's global keys (the friends list on **O**) take a letter before the screen sees it. |
+| 26.3 | Key codes compared against GLFW constants never match. | GLFW is gone (SDL; 26.2 is still GLFW). | `InputConstants.KEY_*` (they exist on 1.20.1 too, with GLFW's values). |
 | 1.21.5 | NBT reads quietly return nothing; `set.contains(tag.getString(k))` is always false. | `CompoundTag` getters return `Optional`. | Every read through `compat/Nbt`, which keeps 1.20.1's answers (0, `""`, empty when missing). |
 | 1.21.5 | Shearing a stack gives the **top sheep's wool only**. | Wool comes from the `shearing/sheep` loot table, which requires `sheared: false`; the mod shears the same (top) sheep again for each member. | `SheepShearMixin.mobstacker$shearMembers` sets the sheep woolly before each shear. Any "repeat vanilla's harvest per member" must check the loot table's conditions. |
 | 1.21.5 | Every copy of a stack member gets the top's **saddle** (or body armour). | Saddles and body armour are equipment slots, saved with the rest of the equipment. | `MobStacker.memberOf` clears SADDLE and BODY; `TOP_ONLY_KEYS` has the new key names. Re-check `TOP_ONLY_KEYS` against `src/main/vanilla-keys/<mc>.txt` on every port. |
@@ -43,11 +44,12 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.1 | Loom fails; no `mappings`/`modImplementation`/`remapJar`/`neoForge` accessor. | Minecraft is not obfuscated from 26.1. | `stonecutter.gradle.kts` applies `dev.architectury.loom-no-remap` to non-`1.x` nodes; `build.gradle.kts` `unobfuscated`, configurations by string. |
 | 26.1 | `validateAccessWidener` fails / widener not applied. | The widener's namespace is `official`, not `named`. | `build.gradle.kts` writes an `official` copy for Loom and filters the jar's. Lines whose target is gone go in `widenerBefore` (`LivingEntity deathScore` from 1.21.2). |
 | 26.1 | NeoForge 26.x: no access transformer in the jar (fields the widener opens are private at run time). | `remapJar` converts the widener to an AT only while obfuscated, and 26.x has no remapping. | `build.gradle.kts` writes `META-INF/accesstransformer.cfg` from the node's widener lines (`accessTransformerOf`; Mojang's names are the run-time names there) and leaves the widener out of the jar. |
+| 1.21.2 (unconfirmed; 1.21.11 and 26.2 have it) | The server refuses to start: "Critical injection failure" in `ServerChunkCacheMixin`, "Scanned 0 target(s)". | `ServerChunkCache.tickChunks` has an overload (`tickChunks(ProfilerFiller, long)`), and **Mixin takes the first method of a bare name**: the call is in the other one. | `Compat.TICK_CHUNKS`, the full descriptor. `checkMixins` selects as Mixin does since (it used to look at every overload). Give a target with overloads its descriptor. |
 | 1.21.2 | Mixin apply error on a `@Redirect` that `checkMixins` passed. | A redirect that captures the target method's arguments (`LivingEntity.actuallyHurt` gained a `ServerLevel`). | Version-specific handler in `LivingEntityMixin`. |
 | ≤26.3 | Mixin apply error on an `@Invoker` that `checkMixins` passed. | The method moved to a superclass (`Animal.usePlayerItem` -> `Mob`). | `AnimalInvoker` targets `Mob` on 26.x. |
 | 1.21.6 | Entity save/load methods missing. | `ValueOutput`/`ValueInput` replace `CompoundTag` there. | `Compat.save`/`load` (`TagValueOutput`/`TagValueInput`, `ProblemReporter.DISCARDING`); `EntityDataMixin`. `tools/VanillaKeys.java` reads both shapes. |
 | 26.1 | Conversion mixins (pig/villager lightning, tadpole, zombie) find no target. | Conversions go through `Mob.convertTo(EntityType, ConversionParams, ...)`. | `MobMixin`'s `convertTo` carries the stack; the old ones are in `mixinsBefore`. |
-| 26.1 | Spawn cap mixin finds no target. | `NaturalSpawner.createState` reads the level's entities itself. | `NaturalSpawnerMixin` replaces `ServerChunkCacheMixin`. |
+| 26.3 | Spawn cap mixin finds no target. | `NaturalSpawner.createState` reads the level's entities itself (26.2 still has them handed over by `ServerChunkCache.tickChunks`). | `NaturalSpawnerMixin` replaces `ServerChunkCacheMixin`. |
 | 26.1 | Every drawing class fails to compile. | New renderer (`com.mojang.renderpearl`), GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`, entities through render states and `SubmitNodeCollector`. | Region boxes are **gizmos** (`emitGizmos`, `client.LevelRendererGizmosMixin`), stack labels a render-state name tag line (`EntityRendererMixin`, `client.EntityRenderStateMixin`), screens bridged by `client/CompatScreen` (drawing *and* input events). The old classes compile below 26.1 only. |
 | any | A mixin config with a dropped entry is invalid JSON. | Entries are dropped per node by `mixinsBefore`/`mixinsFrom`; a dropped last entry leaves a trailing comma. | Version-limited entries go at the **top** of their list in `mobstacker.mixins.json`. |
 | 1.20.1 node | `x instanceof Player p` does not compile where `x` is already a `Player`. | The 1.20.1 node compiles with Java 17 (21 allows it). | Write it the Java 17 way in shared code. |
@@ -91,6 +93,24 @@ Still half Forge, so it has an entrypoint of its own: the `neoforge.legacy` pack
 NeoForge 20.3 (1.20.3) and 20.5 (1.20.5) never left beta, so the NeoForge jars are for 1.20.2, 1.20.4
 and 1.20.6 only, and each asks for the first stable build of its line (20.2.86, 20.4.167, 20.6.115),
 which is what it was run on besides the newest.
+
+## 26.2 and 26.3
+
+What the 26.2 node found. 26.2 still runs on **GLFW** (`InputConstants.KEY_A` is 65, the left mouse
+button 0); **SDL came with 26.3**, and with it the changes below, which the code had at 26.1.
+
+| Since | What | Where |
+|---|---|---|
+| 26.3 | `KeyEvent(key, keycode, modifiers)` (26.2: `scancode`), `InputConstants.Type.KEYBOARD` (26.2: `KEYSYM`), `Screen.isInputCaptured()`, `TextInputManager.startTextInput(owner)` (26.2: no owner, and every typed character reaches the screen) | `CompatScreen` (`keyCodeOf`, `wantTyping`, `isInputCaptured`), `MobStackerClient.key` |
+| 26.3 | `EnderMan` -> `Enderman` | `stonecutter.gradle.kts` |
+| 26.3 | `Inventory.placeItemBackInInventory(stack, Prediction)` | `Compat.giveOrDrop` |
+| 26.3 | `Entity.setInvulnerable` -> `setPermanentlyInvulnerable` (`invulnerable_time` saved) | `Compat.setInvulnerable` |
+| 26.3 | `NaturalSpawner.createState` reads the level's entities | `NaturalSpawnerMixin` from 26.3, `ServerChunkCacheMixin` below it |
+| 26.3 | Saved keys: `DrownedConversionTime`, `StrayConversionTime`, `InWaterTime`, `AssignProfessionWhenSpawned` are not in 26.3's list, `can_break`, `color`, `invulnerable_time` are new; none is top-only | `src/main/vanilla-keys/26.2.txt` |
+
+Everything else the code has at 26.1 compiles on 26.2 and its mixins apply there (the renderer and
+gizmos, render states, `GuiGraphicsExtractor`, the input events, `EntityTypes`, `convertTo`, Fabric
+API's renames): those happened in 26.1 or 26.2, which a 26.1 node will tell.
 
 ## NeoForge between 1.21.1 and 26.3
 

@@ -101,7 +101,7 @@ stonecutter parameters {
     replaceBothWays("26.1", "KeyBindingHelper::registerKeyBinding", "KeyMappingHelper::registerKeyMapping", wholeWord = true)
     moved("26.1", "net.minecraft.client.renderer.entity.layers.SheepFurLayer", "net.minecraft.client.renderer.entity.layers.SheepWoolLayer")
     moved("26.1", "net.minecraft.world.entity.monster.Slime", "net.minecraft.world.entity.monster.cubemob.Slime")
-    moved("26.1", "EnderMan", "Enderman")
+    moved("26.3", "EnderMan", "Enderman") // 26.2 still has EnderMan
     moved("26.1", "net.minecraft.client.GuiMessage", "net.minecraft.client.multiplayer.chat.GuiMessage")
     moved("26.1", "net.minecraft.client.GuiMessageTag", "net.minecraft.client.multiplayer.chat.GuiMessageTag")
 }

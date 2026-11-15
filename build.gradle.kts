@@ -204,10 +204,10 @@ tasks.processResources {
         // reads its name from a render state.
         "client.LevelRendererMixin" to "26.1",
         "client.SheepFurLayerMixin" to "26.1",
-        // 26.1 (unconfirmed): these conversions are convertTo (MobMixin carries the stack), spawning
-        // reads the level's entities in NaturalSpawner, the easter-egg names are read off render
-        // states, and armour stands no longer tick on their own.
-        "ServerChunkCacheMixin" to "26.1",
+        // 26.3: spawning reads the level's entities in NaturalSpawner (26.2 still hands them over).
+        "ServerChunkCacheMixin" to "26.3",
+        // 26.1 (unconfirmed): these conversions are convertTo (MobMixin carries the stack), the
+        // easter-egg names are read off render states, and armour stands no longer tick on their own.
         "ArmorStandMixin" to "26.1",
         "mobs.PigMixin" to "26.1",
         "mobs.VillagerMixin" to "26.1",
@@ -220,7 +220,7 @@ tasks.processResources {
     val mixinsFrom = mapOf(
         "client.LevelRendererGizmosMixin" to "26.1",
         "client.EntityRenderStateMixin" to "26.1",
-        "NaturalSpawnerMixin" to "26.1",
+        "NaturalSpawnerMixin" to "26.3",
         // 1.21.6 (unconfirmed): a clicked command in a chat panel is a custom click action.
         "ServerCommonPacketListenerImplMixin" to "1.21.6",
     )
