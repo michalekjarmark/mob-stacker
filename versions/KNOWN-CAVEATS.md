@@ -5,10 +5,12 @@ mod deals with it. Written for whoever adds the next node (person or agent) so t
 look before they start searching. How to add a node is in [`README.md`](README.md); this file is only
 the traps.
 
-**Versions in brackets** are where the change is believed to have happened. Only **1.20.1, 1.21.1 and
-26.3** are built so far, so anything between 1.21.2 and 26.1 is *unconfirmed* until a node in between
-compiles and runs. The code's version conditions sit at those believed versions too; a new node moves
-them if `-PallErrors` or a test says otherwise (they are marked "unconfirmed" in the code).
+**Versions in brackets** are where the change is believed to have happened. Built so far: **1.20.1,
+1.20.2, 1.20.4, 1.20.6, 1.21.1 and 26.3**, so everything up to 1.21.1 is confirmed and anything
+between 1.21.2 and 26.1 is *unconfirmed* until a node in between compiles and runs. The code's version
+conditions sit at those believed versions too; a new node moves them if `-PallErrors` or a test says
+otherwise (they are marked "unconfirmed" in the code). The nodes for 1.20.2-1.20.6 moved four of the
+guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below.
 
 The worst ones are first: **no crash, no log line, it just does not work**.
 
@@ -17,6 +19,8 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | Since | Symptom | Cause | Where the mod handles it |
 |---|---|---|---|
 | 1.20.5 | A world from an older version loses the **gear of every member under a stack's top mob** (`keepMemberEquipment`). | Items are saved as `{id, count, components}` from 1.20.5 (`{id, Count, tag}` before), and vanilla's data fixers upgrade only what they know: the mod's `StackData` rides along unchanged. | `StackDataUpgrade`: the save carries the data version (`StackData.DataVersion`, missing = 1.20.1's 3465), and a load runs every member's items through vanilla's `ITEM_STACK` fixer (`EntityDataMixin`). Anything new the stack data saves that vanilla may reshape (items, ids) needs a step there. |
+| 1.20.5 | A member taken out of a **leashed** stack comes out leashed as well. | The leash is saved as `leash` from 1.20.5 (`Leash` before), and a copy leaves out only the keys it knows. | `TOP_ONLY_KEYS` (the condition sat at 1.21 until the 1.20.6 node). |
+| NeoForge 20.2 | A Fabric client's packets to a NeoForge 20.2 server arrive **garbled**, and the empty config request **fails to decode**. | NeoForge 20.2 reads a payload it does not know as its `SimplePayload`, which takes a VarInt off the front as a packet index (and writes one when sending). | `neoforge.mixin.Clientbound/ServerboundCustomPayloadPacketMixin` read the mod's channels as bare bytes (`LegacyPayload`), and the mod sends its own `RawPayload`; see `neoforge.legacy.LegacyChannels`. Not checked with a player yet. |
 | 1.20.5, 1.21.2 | A horse coming out of a stack from an older world gets **default** speed/jump/health instead of its own. | Member rolls are keyed by attribute id: `horse.jump_strength` became `generic.jump_strength` (1.20.5), and the `generic.` prefix went (1.21.2). | `MobVariants.upgradeRolls` (`ROLL_KEY_ALIASES`), from `StackDataUpgrade`. |
 | 1.21.6 | Text drawn by a screen is **invisible**; a text box goes **blank** after `setTextColor` (typing still works). | A text colour is ARGB, and `0xFFFFFF` (what 1.20.1 code passes) has alpha 0. | Every colour through `client/Gfx` (`text`, `centered`, `textColor(box, rgb)`), which makes a colour without alpha opaque. Never call `drawString`/`setTextColor` directly. |
 | 26.1 (SDL) | **Right click does nothing** on a widget that accepts it; a left click may count as the right one. | Mouse buttons are numbered as SDL does: left **1**, middle 2, right **3** (GLFW: 0, 2, 1). | Use `InputConstants.MOUSE_BUTTON_LEFT/RIGHT` (the right value on every version, inlined at compile time), never literals (`client/StepButton`). |
@@ -47,6 +51,46 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.1 | Every drawing class fails to compile. | New renderer (`com.mojang.renderpearl`), GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`, entities through render states and `SubmitNodeCollector`. | Region boxes are **gizmos** (`emitGizmos`, `client.LevelRendererGizmosMixin`), stack labels a render-state name tag line (`EntityRendererMixin`, `client.EntityRenderStateMixin`), screens bridged by `client/CompatScreen` (drawing *and* input events). The old classes compile below 26.1 only. |
 | any | A mixin config with a dropped entry is invalid JSON. | Entries are dropped per node by `mixinsBefore`/`mixinsFrom`; a dropped last entry leaves a trailing comma. | Version-limited entries go at the **top** of their list in `mobstacker.mixins.json`. |
 | 1.20.1 node | `x instanceof Player p` does not compile where `x` is already a `Player`. | The 1.20.1 node compiles with Java 17 (21 allows it). | Write it the Java 17 way in shared code. |
+
+## Between 1.20.1 and 1.21.1
+
+What the nodes for 1.20.2, 1.20.4 and 1.20.6 found. 1.20.3/1.20.4 changed nothing the mod touches.
+
+| Since | What | Where |
+|---|---|---|
+| 1.20.2 | `ClientboundCustomPayloadPacket(channel, buf)` is gone: the packet carries a `CustomPacketPayload` that writes itself (typed payloads with codecs only from 1.20.5). Fabric API's own send calls still take a channel and a buffer until 1.20.5. | `network/RawPayload` (three shapes), `StackLabels.labelPacket` |
+| 1.20.2 | Potion effect keys: `ActiveEffects` -> `active_effects` and so on. | `src/main/vanilla-keys/1.20.2.txt`; none is top-only |
+| 1.20.5 | `LevelRenderer.renderLevel` has no pose stack (the camera is on the model-view matrix), but still takes the tick as a float; `DeltaTracker` is 1.21. | `client.LevelRendererMixin` (three handlers) |
+| 1.20.5 | The dispenser wears its shears with `hurtAndBreak(int, RandomSource, ServerPlayer, Runnable)`: neither 1.20.1's `hurt` nor 1.21's. | `Compat.DISPENSER_SHEARS_WEAR` |
+| 1.20.5 | `AttributeModifier.Operation` names (`ADD_VALUE`, `ADD_MULTIPLIED_TOTAL`), the modifier still has a name and a UUID. | `ConfigSelfTest` |
+| **1.21, not 1.20.5** | Saved attributes: `Attributes`/`Modifiers`/`Name` -> `attributes`/`modifiers`/`id`, a modifier known by a resource id (`minecraft:leader_zombie_bonus`). | `Compat.ATTRIBUTES_KEY` and the three beside it |
+| **1.21, not 1.20.5** | `Saddleable.equipSaddle(ItemStack, SoundSource)`; 1.20.5 has 1.20.1's `equipSaddle(SoundSource)`. | `Compat.saddle` |
+
+Confirmed where they were: 1.20.2 (the shared packet listener, the mouse wheel, `EditBox`, the debug
+overlay); 1.20.5 (items as components, `generic.jump_strength`, the body armour slot, `Parrot.TAME_FOOD`
+gone, `EntityDataAccessor` a record, `finalizeSpawn` without the tag, `hurtAndBreak` with a slot, text
+JSON with registries, `TURTLE_SCUTE`); 1.21 (`tags/entity_type`, `dropAllDeathLoot` with the level,
+`ResourceLocation`'s private constructor).
+
+## NeoForge before 20.5 (Minecraft 1.20.2-1.20.4)
+
+Still half Forge, so it has an entrypoint of its own: the `neoforge.legacy` package, which
+`build.gradle.kts` (`legacyNeoForge`) compiles instead of `MobStackerNeoForge` and `neoforge/client`.
+`NeoForgeShearing` and the loader's mixins are shared by both.
+
+| | NeoForge 20.2 | NeoForge 20.4 | NeoForge 20.5+ |
+|---|---|---|---|
+| Mod file | `META-INF/mods.toml`, `mandatory = true` | `META-INF/mods.toml`, `type = "required"` (FML 2.0.17 **refuses to load** a mod that says `mandatory`) | `META-INF/neoforge.mods.toml` |
+| Mixin configs | `[[mixins]]` in the toml from FML 1.0.8 (every stable 20.2); the betas before read only the manifest | `[[mixins]]` | `[[mixins]]` |
+| Networking | Forge's event channels (`NetworkRegistry.newEventChannel`) | `RegisterPayloadHandlerEvent`, `IPayloadRegistrar.play(id, reader, handlers)`, `PacketDistributor.PLAYER.with(player).send`, `isConnected(id)` | `RegisterPayloadHandlersEvent`, `PayloadRegistrar`, stream codecs |
+| Client events | `TickEvent.ClientTickEvent` with a phase, `RegisterGuiOverlaysEvent` | the same | `ClientTickEvent.Post`, `RegisterGuiLayersEvent` |
+| `IShearable.onSheared` | `(player, item, level, pos, fortune)`; the mobs override it | the same shape; the default calls `Shearable.shear` | `(player, item, level, pos)` |
+| Dispenser's shears | vanilla's `Shearable.shear` | vanilla's | vanilla's on 20.6, `IShearable.onSheared` from 21.0 (`ShearsDispenseItemBehaviorMixin`) |
+| `ServerEntity.sendPairingData` | vanilla's `Consumer` | `PacketAndPayloadAcceptor` | `PacketAndPayloadAcceptor` (until 26.1) |
+
+NeoForge 20.3 (1.20.3) and 20.5 (1.20.5) never left beta, so the NeoForge jars are for 1.20.2, 1.20.4
+and 1.20.6 only, and each asks for the first stable build of its line (20.2.86, 20.4.167, 20.6.115),
+which is what it was run on besides the newest.
 
 ## NeoForge between 1.21.1 and 26.3
 
@@ -131,6 +175,12 @@ panel, caught before any release). After such a replace, look at the helpers' `e
 - The server scripts never build the mod's client side. **Start a new node's client once** before a
   jar goes to a person (`./gradlew :<node>:runClient`, up to the title screen): the NeoForge 26.3 jar
   passed every server test and crashed the client at launch.
+- A NeoForge node's **patched** jar (what the loader changed in vanilla's classes, and its own API) is
+  the `neoforge-<version>-minecraft-merged-*` folder beside the vanilla ones; `checkMixins` writes the
+  whole classpath to `versions/<node>/build/mixin-check-classpath.txt`.
+- `Reset active project` rewrites three lines of `Compat.java` (`.getOrThrow()` becomes
+  `.getHolderOrThrow()` inside commented 1.21.6/26.1 branches: that replacement cannot tell the two
+  apart on the way back). Harmless for every node, but do not commit it.
 - Reading vanilla: `javap -p -c -cp <jar> <class>` on the node's jar in
   `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-*/<mc>*/` (JDK 25's `javap` reads
   every version); data files (loot tables, tags) are in the same jar.

@@ -13,7 +13,7 @@ refuses to load, and where the code handles it.
 ## Build
 
 Gradle runs on **JDK 25** (Stonecutter 0.10 needs it); each node compiles with the JDK its Minecraft
-ships with (17 for 1.20.1, 21 from 1.20.5), through Gradle toolchains. If Gradle cannot find one, list
+ships with (17 up to 1.20.4, 21 from 1.20.5), through Gradle toolchains. If Gradle cannot find one, list
 the JDKs in `~/.gradle/gradle.properties`:
 
 ```properties
@@ -43,6 +43,8 @@ Loaders are constants: `//? if fabric {`, `//? if forge {`, `//? if neoforge {` 
 `stonecutter.gradle.kts`). A loader's own classes do not need them: they live in their own package
 (`com.frikinjay.mobstacker.fabric`, `.forge`, `.neoforge`), and `build.gradle.kts` leaves the other
 loaders' packages and resource files (`fabric.mod.json`, `META-INF/mods.toml`, ...) out of each node.
+NeoForge has two entrypoints: `neoforge.legacy` for NeoForge 20.2-20.4 (Minecraft 1.20.2-1.20.4, with
+`META-INF/neoforge-legacy.mods.toml` packed as `mods.toml`) and `MobStackerNeoForge` from 20.5.
 Where an API changed completely (rendering, the GUI), prefer a separate class per version over long
 `if` blocks.
 

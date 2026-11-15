@@ -1,0 +1,43 @@
+# NeoForge 20.2 to 20.4 (Minecraft 1.20.2 to 1.20.4), which still read META-INF/mods.toml: the build
+# packs this file under that name there. From NeoForge 20.5 it is neoforge.mods.toml.
+modLoader = "javafml"
+loaderVersion = "${forge_loader_range}"
+license = "LGPL-3.0"
+issueTrackerURL = "https://github.com/michalekjarmark/mob-stacker/issues"
+
+[[mods]]
+modId = "mobstacker"
+version = "${version}"
+displayName = "MobStacker: Restacked"
+authors = "michalekjarmark, davidex"
+credits = "frikinjay (original author)"
+displayURL = "https://github.com/michalekjarmark/mob-stacker"
+logoFile = "assets/mobstacker/icon.png"
+description = '''
+Greatly increases performance by stacking mobs together. An actively-developed fork of frikinjay's MobStacker, with region stacking, combat overflow, kill feedback, per-world config and an in-game config GUI.
+'''
+# Stacking is the server's business: a client without the mod joins a server with it, and a client
+# with it joins any server; the mod's channels are optional (MobStackerNeoForgeLegacy), which is what
+# lets either side in without the other.
+
+# Read from here by FML 1.0.8 and newer (every stable NeoForge 20.2 and 20.4). The access transformer
+# is found at META-INF/accesstransformer.cfg without being named.
+[[mixins]]
+config = "mobstacker.mixins.json"
+
+[[mixins]]
+config = "mobstacker-neoforge.mixins.json"
+
+[[dependencies.mobstacker]]
+modId = "neoforge"
+${dependency_required}
+versionRange = "${neoforge_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mobstacker]]
+modId = "minecraft"
+${dependency_required}
+versionRange = "${minecraft_range_maven}"
+ordering = "NONE"
+side = "BOTH"

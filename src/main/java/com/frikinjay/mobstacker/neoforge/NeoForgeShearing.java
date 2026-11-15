@@ -35,21 +35,22 @@ public final class NeoForgeShearing {
      * Shears {@code shearable} as NeoForge would, but as a stack: with {@code stackedHarvest} off one
      * mob comes out and only that one is sheared; otherwise the top is sheared and every member under it
      * gives its harvest too, and a player's shears wear once for each of them (the caller wears them for
-     * the top). A dispenser ({@code player} null) wears its shears itself.
+     * the top). A dispenser ({@code player} null) wears its shears itself. {@code fortune} is the
+     * shears' Fortune level, which only NeoForge before 20.5 passes on (0 otherwise).
      */
-    public static Sheared shear(IShearable shearable, Player player, ItemStack item, Level level, BlockPos pos) {
+    public static Sheared shear(IShearable shearable, Player player, ItemStack item, Level level, BlockPos pos, int fortune) {
         if (!(shearable instanceof Mob mob) || level.isClientSide() || MobStacker.getStackSize(mob) <= 1) {
-            return new Sheared(shearable.onSheared(player, item, level, pos), 0);
+            return new Sheared(onSheared(shearable, player, item, level, pos, fortune), 0);
         }
         if (!MobStacker.getStackedHarvest(mob)) {
             Mob one = MobStacker.separateOne(mob, false);
-            if (one instanceof IShearable single && single.isShearable(player, item, level, pos)) {
-                return new Sheared(single.onSheared(player, item, level, pos), 0);
+            if (one instanceof IShearable single && isShearable(single, player, item, level, pos)) {
+                return new Sheared(onSheared(single, player, item, level, pos, fortune), 0);
             }
         }
         // Counted before the top one is sheared: a mooshroom stops being one the moment it is.
         int members = MobStacker.extraHarvests(mob);
-        List<ItemStack> drops = shearable.onSheared(player, item, level, pos);
+        List<ItemStack> drops = onSheared(shearable, player, item, level, pos, fortune);
         if (members > 0 && mob instanceof StackShearable stack) {
             stack.mobstacker$shearMembers(player == null ? SoundSource.BLOCKS : SoundSource.PLAYERS, members);
             if (player != null) {
@@ -61,5 +62,24 @@ public final class NeoForgeShearing {
             }
         }
         return new Sheared(drops, members);
+    }
+
+    // IShearable is Forge's until NeoForge 20.5: the shears' Fortune level goes in, the player does
+    // not ask whether the mob can be sheared.
+    private static List<ItemStack> onSheared(IShearable shearable, Player player, ItemStack item, Level level,
+                                             BlockPos pos, int fortune) {
+        //? if >=1.20.5 {
+        /*return shearable.onSheared(player, item, level, pos);
+        *///?} else {
+        return shearable.onSheared(player, item, level, pos, fortune);
+        //?}
+    }
+
+    private static boolean isShearable(IShearable shearable, Player player, ItemStack item, Level level, BlockPos pos) {
+        //? if >=1.20.5 {
+        /*return shearable.isShearable(player, item, level, pos);
+        *///?} else {
+        return shearable.isShearable(item, level, pos);
+        //?}
     }
 }

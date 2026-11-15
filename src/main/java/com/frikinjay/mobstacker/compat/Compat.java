@@ -51,16 +51,16 @@ import net.minecraft.world.phys.AABB;
  * needs one of them calls it here instead of carrying a version condition of its own; bigger
  * differences (rendering, screens, networking) live where they are used.
  *
- * <p>The version where each one changed is the best known one; the nodes between 1.20.1 and 1.21.1
- * (1.20.2-1.20.6) will confirm them when they are added.
+ * <p>The versions up to 1.21.1 are confirmed by a node each (1.20.2, 1.20.4, 1.20.6); see the note
+ * further down for the ones after it.
  */
 public final class Compat {
     private Compat() {
     }
 
-    // How an entity's saved attributes look. From 1.20.5 the keys are lower case and a modifier is
-    // known by a resource id instead of a UUID and a name.
-    //? if >=1.20.5 {
+    // How an entity's saved attributes look. From 1.21 the keys are lower case and a modifier is
+    // known by a resource id instead of a UUID and a name (1.20.5 and 1.20.6 still save 1.20.1's).
+    //? if >=1.21 {
     /*public static final String ATTRIBUTES_KEY = "attributes";
     public static final String MODIFIERS_KEY = "modifiers";
     public static final String MODIFIER_ID_KEY = "id";
@@ -92,6 +92,9 @@ public final class Compat {
     //? if >=1.21 {
     /*public static final String DISPENSER_SHEARS_WEAR =
             "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/server/level/ServerLevel;Lnet/minecraft/server/level/ServerPlayer;Ljava/util/function/Consumer;)V";
+    *///?} else if >=1.20.5 {
+    /*public static final String DISPENSER_SHEARS_WEAR =
+            "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/util/RandomSource;Lnet/minecraft/server/level/ServerPlayer;Ljava/lang/Runnable;)V";
     *///?} else {
     public static final String DISPENSER_SHEARS_WEAR =
             "Lnet/minecraft/world/item/ItemStack;hurt(ILnet/minecraft/util/RandomSource;Lnet/minecraft/server/level/ServerPlayer;)Z";
@@ -467,7 +470,7 @@ public final class Compat {
         ItemStack saddle = new ItemStack(net.minecraft.world.item.Items.SADDLE);
         //? if >=1.21.5 {
         /*mob.setItemSlot(EquipmentSlot.SADDLE, saddle);
-        *///?} else if >=1.20.5 {
+        *///?} else if >=1.21 {
         /*((net.minecraft.world.entity.Saddleable) mob).equipSaddle(saddle, null);
         *///?} else {
         ((net.minecraft.world.entity.Saddleable) mob).equipSaddle(null);
