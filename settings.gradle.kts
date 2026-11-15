@@ -24,6 +24,7 @@ stonecutter {
             loaders.forEach { version("$minecraft-$it", minecraft) }
 
         mc("1.20.1", "fabric", "forge")
+        mc("1.20.2", "fabric")
         mc("1.21.1", "fabric", "neoforge")
         mc("26.3", "fabric", "neoforge")
 

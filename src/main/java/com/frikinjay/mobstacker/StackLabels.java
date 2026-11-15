@@ -119,7 +119,7 @@ public final class StackLabels {
         buf.writeUtf(MobStacker.getStackLabelFormat(mob));
         buf.writeVarInt(Compat.formatId(MobStacker.stackNameColor(mob, count)));
         buf.writeBoolean(MobStacker.getAlwaysShowStackLabels(mob));
-        //? if >=1.20.5 {
+        //? if >=1.20.2 {
         /*// A custom payload is a packet every protocol phase shares; in the play phase it is a game packet.
         @SuppressWarnings("unchecked")
         Packet<ClientGamePacketListener> packet = (Packet<ClientGamePacketListener>) (Packet<?>)
