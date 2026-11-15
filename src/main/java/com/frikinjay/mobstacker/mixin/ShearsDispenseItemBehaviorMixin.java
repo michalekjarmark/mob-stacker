@@ -32,8 +32,9 @@ public abstract class ShearsDispenseItemBehaviorMixin {
     @Unique
     private static int mobstacker$membersShorn;
 
-    //? if neoforge {
-    /*/^* NeoForge's dispenser shears through IShearable.onSheared; NeoForgeShearing does the stack's part. ^/
+    //? if neoforge && >=1.21 {
+    /*/^* NeoForge's dispenser shears through IShearable.onSheared from 1.21 (NeoForgeShearing does the
+     * stack's part); until then it calls vanilla's Shearable.shear, as on the other loaders. ^/
     @Redirect(method = Compat.DISPENSER_SHEAR_ENTITY, at = @At(value = "INVOKE",
             target = "Lnet/neoforged/neoforge/common/IShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Ljava/util/List;"))
     private static java.util.List<net.minecraft.world.item.ItemStack> mobstacker$shearWithTheStack(

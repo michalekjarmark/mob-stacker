@@ -13,6 +13,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   three more jars (built against 1.20.2, 1.20.4 and 1.20.6; Java 17, and 21 from 1.20.5), the same
   features as on 1.20.1 from the same code. Checked on a server each: the self-test, stacking,
   damage overflow, strict data matching and a dispenser shearing a stack; not yet the client.
+- **Minecraft 1.20.5 and 1.20.6 on NeoForge** - in progress, not released yet: its own jar
+  (NeoForge 20.5 or newer). Checked on a dev server: the self-test, stacking, damage overflow,
+  strict data matching and a dispenser shearing a stack; not yet the client or shears in a
+  player's hand.
 - **Minecraft 26.3 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5 and
   Fabric API 0.160.5+26.3 or newer, Java 25), the same features as on 1.20.1 from the same code. On
   26.x the region boxes are drawn as the game's own gizmos (with X-ray as "always on top") and stack
