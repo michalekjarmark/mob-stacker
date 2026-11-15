@@ -36,6 +36,9 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   game's old input (GLFW): the mouse buttons, keys and typing that changed in 26.3 work as on 1.21.
   Checked on a server: the self-test, stacking, damage overflow, strict data matching, a dispenser
   shearing a stack, regions; the client started into a world. Not yet played.
+- **Minecraft 26.2 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.2.0.57 or
+  newer, the first stable build; Java 25), the same code as the other 26.x jars. Checked on a dev
+  server as the Fabric jar, and the client started into a world. Not yet played.
 - **Minecraft 26.3 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.3 or
   newer, Java 25), the same code as the Fabric jar for 26.3, with the access transformer written from
   the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert

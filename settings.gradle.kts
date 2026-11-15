@@ -28,7 +28,7 @@ stonecutter {
         mc("1.20.4", "fabric", "neoforge")
         mc("1.20.6", "fabric", "neoforge")
         mc("1.21.1", "fabric", "neoforge")
-        mc("26.2", "fabric")
+        mc("26.2", "fabric", "neoforge")
         mc("26.3", "fabric", "neoforge")
 
         // The version the sources are committed in. Switch back to it before every commit.

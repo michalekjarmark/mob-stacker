@@ -115,7 +115,8 @@ API's renames): those happened in 26.1 or 26.2, which a 26.1 node will tell.
 ## NeoForge between 1.21.1 and 26.3
 
 Found porting the NeoForge module (davidex's, for 1.21.1) to 26.3; where each changed in between is
-unknown (conditions at 26.1).
+unknown (conditions at 26.1). NeoForge 26.2 (FML 11) has every one of them already: its node needed
+no change of its own, and registers key categories as 26.3 does.
 
 | 1.21.1 | 26.3 | Where |
 |---|---|---|
