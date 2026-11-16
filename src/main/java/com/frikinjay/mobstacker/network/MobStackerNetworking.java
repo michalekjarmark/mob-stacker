@@ -10,6 +10,8 @@ import com.frikinjay.mobstacker.config.StackColor;
 import com.frikinjay.mobstacker.config.StackRegion;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -108,6 +110,16 @@ public final class MobStackerNetworking {
         boolean canSend(ServerPlayer player, ResourceLocation channel);
 
         void send(ServerPlayer player, ResourceLocation channel, FriendlyByteBuf buf);
+
+        /**
+         * A packet that carries {@code buf} on {@code channel}, for code that hands packets on instead of
+         * sending them (the stack labels, in bundles and entity-data replies). An integrated server gives
+         * its own client the payload object as it is, never written out, so it has to be one that
+         * client's loader takes: on Fabric 1.20.2-1.20.4 and NeoForge 20.2 only the loader's own.
+         */
+        default Packet<ClientGamePacketListener> packet(ResourceLocation channel, FriendlyByteBuf buf) {
+            return rawPacket(channel, buf);
+        }
     }
 
     /** Nothing is sent until the loader has said how; a server without one is a server without the GUI. */
@@ -119,6 +131,26 @@ public final class MobStackerNetworking {
     /** Whether this player's game listens on the channel - has the mod, in short. */
     public static boolean canSend(ServerPlayer player, ResourceLocation channel) {
         return transport != null && transport.canSend(player, channel);
+    }
+
+    /** {@code buf} on {@code channel} as a packet for a player's game, the loader's way (see {@link Transport#packet}). */
+    public static Packet<ClientGamePacketListener> packet(ResourceLocation channel, FriendlyByteBuf buf) {
+        return transport != null ? transport.packet(channel, buf) : rawPacket(channel, buf);
+    }
+
+    /** {@code buf} on {@code channel} as vanilla's custom payload packet. */
+    public static Packet<ClientGamePacketListener> rawPacket(ResourceLocation channel, FriendlyByteBuf buf) {
+        //? if >=1.20.2 {
+        /*return gamePacket(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(RawPayload.of(channel, buf)));
+        *///?} else {
+        return new net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket(channel, buf);
+        //?}
+    }
+
+    /** A packet of every protocol phase (a custom payload, from 1.20.2) as the game packet it is in the play phase. */
+    @SuppressWarnings("unchecked")
+    public static Packet<ClientGamePacketListener> gamePacket(Packet<?> packet) {
+        return (Packet<ClientGamePacketListener>) packet;
     }
 
     /** Called once by the loader's entrypoint, before any player can connect. */

@@ -48,9 +48,18 @@ public final class MobStackerNeoForgeLegacy {
                 /*net.neoforged.neoforge.network.PacketDistributor.PLAYER.with(player).send(RawPayload.of(channel, buf));
                 *///?} else {
                 player.connection.send(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
-                        RawPayload.of(channel, buf)));
+                        LegacyPayload.of(channel, buf)));
                 //?}
             }
+            //? if <1.20.3 {
+
+            @Override
+            public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> packet(
+                    ResourceLocation channel, FriendlyByteBuf buf) {
+                return MobStackerNetworking.gamePacket(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
+                        LegacyPayload.of(channel, buf)));
+            }
+            //?}
         });
         //? if >=1.20.3 {
         /*modBus.addListener(MobStackerNeoForgeLegacy::registerPayloads);

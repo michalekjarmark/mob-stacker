@@ -6,11 +6,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
-//? if >=1.20.2 {
-/*import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
-*///?} else {
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
-//?}
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
@@ -119,15 +114,7 @@ public final class StackLabels {
         buf.writeUtf(MobStacker.getStackLabelFormat(mob));
         buf.writeVarInt(Compat.formatId(MobStacker.stackNameColor(mob, count)));
         buf.writeBoolean(MobStacker.getAlwaysShowStackLabels(mob));
-        //? if >=1.20.2 {
-        /*// A custom payload is a packet every protocol phase shares; in the play phase it is a game packet.
-        @SuppressWarnings("unchecked")
-        Packet<ClientGamePacketListener> packet = (Packet<ClientGamePacketListener>) (Packet<?>)
-                new ClientboundCustomPayloadPacket(com.frikinjay.mobstacker.network.RawPayload.of(CHANNEL, buf));
-        return packet;
-        *///?} else {
-        return new ClientboundCustomPayloadPacket(CHANNEL, buf);
-        //?}
+        return MobStackerNetworking.packet(CHANNEL, buf);
     }
 
     private static boolean carriesName(ClientboundSetEntityDataPacket packet) {

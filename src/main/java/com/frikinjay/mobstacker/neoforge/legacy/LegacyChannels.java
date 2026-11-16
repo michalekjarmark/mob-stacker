@@ -23,8 +23,9 @@ import java.util.function.Consumer;
  * <p>NeoForge 20.2 reads a payload it does not know as its own {@code SimplePayload}, which takes a
  * leading VarInt off it as a packet index: that would garble what a Fabric peer sends and fail on an
  * empty payload (the config request). The two {@code CustomPayloadPacket} mixins of this loader read
- * the mod's channels as {@link LegacyPayload} instead, which NeoForge then hands to these channels with
- * its bytes untouched.
+ * the mod's channels as {@link LegacyPayload} instead, with its bytes untouched, and the mod sends that
+ * too. NeoForge hands its channels only its own {@code SimplePayload}, so {@code LegacyServerPayloadMixin}
+ * and {@code client.LegacyClientPayloadMixin} hand them a {@link LegacyPayload}.
  */
 public final class LegacyChannels {
 
