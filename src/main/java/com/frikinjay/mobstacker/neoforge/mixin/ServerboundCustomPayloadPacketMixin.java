@@ -2,7 +2,6 @@ package com.frikinjay.mobstacker.neoforge.mixin;
 
 //? if <1.20.3 {
 import com.frikinjay.mobstacker.neoforge.legacy.LegacyChannels;
-import com.frikinjay.mobstacker.neoforge.legacy.LegacyPayload;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -13,7 +12,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * NeoForge 20.2 only: a payload on one of the mod's channels is read as its bare bytes, before
+ * NeoForge 20.2 only: a payload on one of the mod's channels, or a peer's list of its channels
+ * ({@code minecraft:register}), is read as its bare bytes, before
  * NeoForge reads it as a {@code SimplePayload} and takes a packet index off its front (see
  * {@link LegacyChannels}). What a client sends the server.
  */
@@ -23,8 +23,8 @@ public abstract class ServerboundCustomPayloadPacketMixin {
     @Inject(method = "readPayload", at = @At("HEAD"), cancellable = true)
     private static void mobstacker$readBareBytes(ResourceLocation id, FriendlyByteBuf buf,
                                                  CallbackInfoReturnable<CustomPacketPayload> cir) {
-        if (LegacyChannels.isOurs(id)) {
-            cir.setReturnValue(LegacyPayload.read(id, buf));
+        if (LegacyChannels.readsBare(id)) {
+            cir.setReturnValue(LegacyChannels.read(id, buf));
         }
     }
 }

@@ -25,7 +25,8 @@ import java.util.function.Consumer;
  * empty payload (the config request). The two {@code CustomPayloadPacket} mixins of this loader read
  * the mod's channels as {@link LegacyPayload} instead, with its bytes untouched, and the mod sends that
  * too. NeoForge hands its channels only its own {@code SimplePayload}, so {@code LegacyServerPayloadMixin}
- * and {@code client.LegacyClientPayloadMixin} hand them a {@link LegacyPayload}.
+ * and {@code client.LegacyClientPayloadMixin} hand them a {@link LegacyPayload}. The same goes for
+ * {@code minecraft:register}, where a Fabric peer names the mod's channels ({@link #readsBare}).
  */
 public final class LegacyChannels {
 
@@ -38,9 +39,34 @@ public final class LegacyChannels {
     private LegacyChannels() {
     }
 
+    /**
+     * The vanilla channels a peer names its own channels on. A Fabric peer writes them as bare names,
+     * so read as a {@code SimplePayload} the first name lost its first byte and the mod's channels were
+     * never seen; read bare, a NeoForge peer's leading packet index only adds an empty name. NeoForge
+     * also keeps only names that end in a zero byte, and Fabric leaves it off the last one
+     * ({@link #read}).
+     */
+    private static final java.util.Set<ResourceLocation> REGISTRATION = java.util.Set.of(
+            new ResourceLocation("minecraft", "register"), new ResourceLocation("minecraft", "unregister"));
+
+    /** A payload on a channel that {@link #readsBare}: its bytes, with a registration list's last name ended. */
+    public static LegacyPayload read(ResourceLocation name, FriendlyByteBuf buf) {
+        LegacyPayload payload = LegacyPayload.read(name, buf);
+        byte[] bytes = payload.bytes();
+        if (!REGISTRATION.contains(name) || bytes.length == 0 || bytes[bytes.length - 1] == 0) {
+            return payload;
+        }
+        return new LegacyPayload(name, java.util.Arrays.copyOf(bytes, bytes.length + 1));
+    }
+
     /** Whether {@code name} is one of the mod's channels (the mixins ask before they read a payload). */
     public static boolean isOurs(ResourceLocation name) {
         return ALL.containsKey(name);
+    }
+
+    /** Whether a payload on {@code name} is read as its bare bytes: the mod's channels and the registration ones. */
+    public static boolean readsBare(ResourceLocation name) {
+        return ALL.containsKey(name) || REGISTRATION.contains(name);
     }
 
     /** Whether the other end of {@code connection} listens on {@code name}. */

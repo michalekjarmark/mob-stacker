@@ -65,6 +65,16 @@ public final class MobStackerNeoForgeLegacy {
         /*modBus.addListener(MobStackerNeoForgeLegacy::registerPayloads);
         // A Fabric game's channels do not pass NeoForge 20.4's bundle filter; see StackLabels.labelOutsideBundle.
         com.frikinjay.mobstacker.StackLabels.labelOutsideBundle = true;
+        // NeoForge 20.4 names its channels to a Fabric game only as neoforge:register, which Fabric does
+        // not read: the game never knew the server has the mod. They are named the vanilla way here.
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                (net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player
+                    && player.connection.getConnectionType() != net.neoforged.neoforge.network.connection.ConnectionType.NEOFORGE) {
+                player.connection.send(new net.neoforged.neoforge.network.payload.MinecraftRegisterPayload(
+                        java.util.Set.of(MobStackerNetworking.REQUEST, MobStackerNetworking.EDIT)));
+            }
+        });
         *///?} else {
         LegacyChannels.onServer(MobStackerNetworking.REQUEST, (player, buf) ->
                 MobStackerNetworking.onRequest(player.getServer(), player));

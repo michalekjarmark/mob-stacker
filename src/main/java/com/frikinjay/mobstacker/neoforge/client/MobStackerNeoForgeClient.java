@@ -62,6 +62,7 @@ public final class MobStackerNeoForgeClient {
 
         IEventBus gameBus = NeoForge.EVENT_BUS;
         gameBus.addListener((ClientTickEvent.Post event) -> MobStackerClient.onEndClientTick(Minecraft.getInstance()));
+        gameBus.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> nameChannels(event.getPlayer().connection));
         gameBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
             MobStackerClientNetworking.onDisconnect();
             MobStackerClientLabels.clear();
@@ -72,6 +73,18 @@ public final class MobStackerNeoForgeClient {
         // events come too late for that: by the time one is cancelled the game has already told the
         // server to use the block, and the corner would get a torch put on it (as on Forge).
         gameBus.addListener(MobStackerNeoForgeClient::onUseKey);
+    }
+
+    /**
+     * Tells a server that is not NeoForge (Fabric) which of the mod's channels this game listens on.
+     * NeoForge names them only in its own negotiation, so a Fabric server never saw them and treated
+     * the game as one without the mod: labels in the name, no config, no region boxes.
+     */
+    public static void nameChannels(ClientPacketListener connection) {
+        if (connection.getConnectionType() != net.neoforged.neoforge.network.connection.ConnectionType.NEOFORGE) {
+            connection.send(new net.neoforged.neoforge.network.payload.MinecraftRegisterPayload(java.util.Set.of(
+                    com.frikinjay.mobstacker.network.MobStackerNetworking.SYNC, com.frikinjay.mobstacker.StackLabels.CHANNEL)));
+        }
     }
 
     /** The server's config snapshot (MobStackerNeoForge registers the channel). */
