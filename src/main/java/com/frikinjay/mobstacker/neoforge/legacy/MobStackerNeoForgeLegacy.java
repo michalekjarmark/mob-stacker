@@ -63,6 +63,8 @@ public final class MobStackerNeoForgeLegacy {
         });
         //? if >=1.20.3 {
         /*modBus.addListener(MobStackerNeoForgeLegacy::registerPayloads);
+        // A Fabric game's channels do not pass NeoForge 20.4's bundle filter; see StackLabels.labelOutsideBundle.
+        com.frikinjay.mobstacker.StackLabels.labelOutsideBundle = true;
         *///?} else {
         LegacyChannels.onServer(MobStackerNetworking.REQUEST, (player, buf) ->
                 MobStackerNetworking.onRequest(player.getServer(), player));
