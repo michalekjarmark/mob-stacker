@@ -92,6 +92,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **The Fabric jar claimed to run on Minecraft 1.20.2-1.20.6** (`~1.20.1` in `fabric.mod.json`),
   loaded there and crashed. It now asks for 1.20.1 exactly, as the Forge jar already did. Every jar
   takes its Minecraft range, Java version and pack format from its own version's settings.
+- **26.x: water and clouds covered the region boxes** (X-ray off). The game draws its see-through
+  gizmos, the boxes among them, before the water and the clouds, and a box writes no depth, so what
+  came after painted over it. They are now drawn after the water, the clouds and the weather, as on
+  1.20.1. In the classic transparency (Improved Transparency off) the water still hides the part of a
+  box below its surface when seen from above. The game's own see-through debug shapes move with them.
+- **NeoForge 26.x: shears on a stack of mooshrooms turned the whole stack into cows and gave mushrooms
+  for one**, and with `stackedHarvest` off no mooshroom stepped out. NeoForge 26.x leaves the
+  mooshroom's and the copper golem's shears in their own interaction, as vanilla has them; the mod
+  took every shears interaction on NeoForge for its shears item. Now these two go the way they go on
+  Fabric.
+- **NeoForge 1.20.2-1.21.1: a sheared stack of mooshrooms became a single cow** (the stack was lost),
+  by a player's shears and by a dispenser's. The cow now takes the stack along, as on Fabric and
+  Forge.
 
 ## [1.12.0] - 2026-11-07
 ### Added

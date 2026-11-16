@@ -37,6 +37,9 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.x | `ChatFormatting.getColor()` is gone / colour of a format is unknown. | `ChatFormatting` carries no colour. | `Compat.rgb(ChatFormatting)`. |
 | 26.1 | A per-frame world label **jumps** instead of sliding. | Easy to place by `entity.getEyePosition()` (moves once a tick) when rewriting rendering. | Use the frame's camera: `minecraft.gameRenderer.mainCamera().position()` (`MobStackerRegionOverlay.emitGizmos`). |
 | 26.1 | Screens show a blurred world, no dark backdrop. | Vanilla's own background. | Not a bug: `CompatScreen.drawBackground` calls vanilla's. |
+| 26.1 | **Water and clouds cover a region box** (X-ray off; found in round 26.x-1, unseen on 26.3 Fabric because that instance ran Improved Transparency). | The game draws its see-through gizmos before the translucent terrain (26.1: in the main pass; 26.2: `PreparedFrame.executeTranslucent`'s `gizmos` phase; 26.3: its `translucentGizmos` phase), clouds and weather come after, and a gizmo writes no depth. | Drawn late instead, per version (`client.LevelRendererGizmosMixin`, `client.FeatureFrameGizmosMixin`, `client/LateGizmos`): 26.1 in the late debug pass, 26.2 at the start of the always-on-top pass (**which the game adds only when there are always-on-top gizmos**: added for these too, and it clears the depth only for its own), 26.3 at the end of `executeClassicTransparency`. 26.3's Improved Transparency (order-independent) is left alone. In the classic mode the water hides the part of a box below its surface from above (1.20.1 showed it). |
+| NeoForge 26.1 (unconfirmed; 21.1 did not) | Shears on a **mooshroom** stack turn the whole stack into cows and give mushrooms for one; with `stackedHarvest` off nothing steps out. | NeoForge 26.x moves only the sheep's, snow golem's and bogged's shears into `IShearable`; the mooshroom and the copper golem keep vanilla's in `mobInteract`. The mod assumed every shears interaction on NeoForge was outside `mobInteract`. | `MobStacker.shearingOutsideMobInteract` is a predicate per mob (`MobStackerNeoForge`); `MushroomCowShearMixin` harvests the members in `mobInteract` on Fabric and on 26.1+. Check the list again at the 1.21.2-1.21.11 NeoForge nodes. |
+| NeoForge 20.2-21.1 | A sheared **mooshroom** stack becomes **one cow** (the stack is lost), by hand or dispenser. | The cow is made by `create` + `addFreshEntity` (`shear`, or Forge's `shearInternal` on 20.2); only Fabric and Forge had the mixin that carries the stack. | `MushroomCowShearMixin` (`neoforge && <26.1`); from 26.1 it is `convertTo`, which `MobMixin` handles. Scenario: `tools/test/scenarios/shear_dispenser_mooshroom.txt`. |
 
 ## Refuses to load or crashes
 
@@ -216,6 +219,15 @@ panel, caught before any release). After such a replace, look at the helpers' `e
   test server's world will do). A new run dir's first start **waits on the narrator screen**: put
   `onboardAccessibility:false` in `versions/<node>/run/options.txt` first (and `soundCategory_master:0.0`
   for a quiet one; the game rewrites the file when it closes).
+- **Seeing what a client draws without a person**: build a test world on the node's server (a scenario
+  can `setworldspawn x y z <yaw> <pitch>` to aim the camera; creative via `defaultgamemode creative`),
+  copy it to `run/saves/<world>`, write `run/config/mobstacker-overlay.json` to show its regions
+  (`{"worlds":{"world:<world>":{"showAll":true}}}`), start the strict client with quickPlay and
+  capture **the game window only** with Win32 `PrintWindow(hwnd, hdc, 2)` (PW_RENDERFULLCONTENT).
+  Never `CopyFromScreen`: Windows refuses to bring the window forward and it copies whatever else is
+  on the person's screen.
+- Two scenarios that share a pen leave mobs for each other: `shear_dispenser.txt` uses 300 300,
+  `shear_dispenser_mooshroom.txt` 320 320 and empties it afterwards.
 - A NeoForge node's **patched** jar (what the loader changed in vanilla's classes, and its own API) is
   the `neoforge-<version>-minecraft-merged-*` folder beside the vanilla ones; `checkMixins` writes the
   whole classpath to `versions/<node>/build/mixin-check-classpath.txt`.

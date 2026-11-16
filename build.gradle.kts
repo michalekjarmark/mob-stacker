@@ -219,6 +219,9 @@ tasks.processResources {
     // And the other way round: mixins for a target that only exists from a version on.
     val mixinsFrom = mapOf(
         "client.LevelRendererGizmosMixin" to "26.1",
+        // 26.2: the gizmos drawn after the weather (the frame's features got phases there; 26.1 draws
+        // them itself, in LevelRendererGizmosMixin).
+        "client.FeatureFrameGizmosMixin" to "26.2",
         "client.EntityRenderStateMixin" to "26.1",
         "NaturalSpawnerMixin" to "26.3",
         // 1.21.6 (unconfirmed): a clicked command in a chat panel is a custom click action.

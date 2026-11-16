@@ -30,7 +30,7 @@ public final class MobStackerNeoForgeLegacy {
     public MobStackerNeoForgeLegacy(IEventBus modBus) {
         MobStacker.init();
         // NeoForge's shears shear through IShearable.onSheared, not in mobInteract; see NeoForgeShearing.
-        MobStacker.shearingOutsideMobInteract = true;
+        MobStacker.shearingOutsideMobInteract = mob -> true;
 
         MobStackerNetworking.init(new MobStackerNetworking.Transport() {
             @Override

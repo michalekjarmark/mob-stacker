@@ -1,0 +1,45 @@
+# A dispenser's shears on a stack of 5 mooshrooms. stackedHarvest on: one stack of 5 cows and 25 red
+# mushrooms. Off: one mooshroom steps out and is sheared (a cow and 5 mushrooms), 4 mooshrooms stay.
+# (The 26.x round found a player's shears on NeoForge turning the whole stack, with 5 mushrooms: NeoForge
+# 26.x leaves the mooshroom's shears in its mobInteract. The dispenser is IShearable on NeoForge.)
+# Its own pen at 320 320, emptied again at the end: shear_dispenser.txt's dispenser at 300 300 shears
+# whatever stands in its pen.
+mobstacker set stackMode everywhere
+mobstacker set stackedHarvest true
+forceload add 320 320
+sleep 3
+kill @e[type=mooshroom,x=320,y=100,z=320,distance=..16]
+kill @e[type=cow,x=320,y=100,z=320,distance=..16]
+kill @e[type=item,x=320,y=100,z=320,distance=..16]
+fill 318 99 317 322 99 322 minecraft:stone
+fill 319 100 319 321 101 321 minecraft:glass
+fill 320 100 320 320 101 320 minecraft:air
+setblock 320 100 319 minecraft:dispenser[facing=south]
+item replace block 320 100 319 container.0 with minecraft:shears
+summon mooshroom 320.5 100 320.5
+sleep 2
+mobstacker stacksize @e[type=mooshroom,limit=1,x=320,y=100,z=320,distance=..2] 5
+sleep 1
+execute positioned 320 100 320 run mobstacker stats 4
+setblock 320 100 318 minecraft:redstone_block
+sleep 3
+execute positioned 320 100 320 run mobstacker stats 4
+execute as @e[type=item,x=320,y=100,z=320,distance=..4] run data get entity @s Item
+setblock 320 100 318 minecraft:air
+# --- stackedHarvest off ---
+kill @e[type=cow,x=320,y=100,z=320,distance=..16]
+kill @e[type=item,x=320,y=100,z=320,distance=..16]
+mobstacker set stackedHarvest false
+summon mooshroom 320.5 100 320.5
+sleep 2
+mobstacker stacksize @e[type=mooshroom,limit=1,x=320,y=100,z=320,distance=..2] 5
+sleep 1
+setblock 320 100 318 minecraft:redstone_block
+sleep 3
+execute positioned 320 100 320 run mobstacker stats 4
+execute as @e[type=item,x=320,y=100,z=320,distance=..4] run data get entity @s Item
+setblock 320 100 318 minecraft:air
+mobstacker set stackedHarvest true
+kill @e[type=mooshroom,x=320,y=100,z=320,distance=..16]
+kill @e[type=cow,x=320,y=100,z=320,distance=..16]
+kill @e[type=item,x=320,y=100,z=320,distance=..16]
