@@ -50,6 +50,16 @@ public final class MobStackerFabric implements ModInitializer {
                 ServerPlayNetworking.send(player, channel, buf);
                 //?}
             }
+            //? if >=1.20.2 && <1.20.5 {
+            /*
+            // Fabric API's own payload: the only kind its client takes from an integrated server, which
+            // hands the payload object across without writing it out.
+            @Override
+            public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> packet(
+                    ResourceLocation channel, FriendlyByteBuf buf) {
+                return MobStackerNetworking.gamePacket(ServerPlayNetworking.createS2CPacket(channel, buf));
+            }
+            *///?}
         });
         //? if >=1.20.5 {
         /*ServerPlayNetworking.registerGlobalReceiver(RawPayload.type(MobStackerNetworking.REQUEST),

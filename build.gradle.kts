@@ -200,6 +200,8 @@ tasks.processResources {
         // NeoForge 20.2 alone reads an unknown payload its own way (neoforge.legacy.LegacyChannels).
         "ClientboundCustomPayloadPacketMixin" to "1.20.3",
         "ServerboundCustomPayloadPacketMixin" to "1.20.3",
+        "LegacyServerPayloadMixin" to "1.20.3",
+        "client.LegacyClientPayloadMixin" to "1.20.3",
         // 26.1: the region boxes are gizmos (client.LevelRendererGizmosMixin), and the sheep's wool
         // reads its name from a render state.
         "client.LevelRendererMixin" to "26.1",

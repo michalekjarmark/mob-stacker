@@ -55,7 +55,7 @@ public final class MobStackerNeoForgeLegacyClient {
                     /*net.neoforged.neoforge.network.PacketDistributor.SERVER.noArg().send(RawPayload.of(channel, buf));
                     *///?} else {
                     connection.send(new net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket(
-                            RawPayload.of(channel, buf)));
+                            com.frikinjay.mobstacker.neoforge.legacy.LegacyPayload.of(channel, buf)));
                     //?}
                 }
             }
