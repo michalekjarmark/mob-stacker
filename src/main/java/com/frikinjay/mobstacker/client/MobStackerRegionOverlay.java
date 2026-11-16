@@ -603,7 +603,7 @@ public final class MobStackerRegionOverlay {
         }
         // The camera of this frame, as below 26.1: the entity's eyes move only once a tick, and a name
         // placed by them jumped along the box instead of sliding.
-        Vec3 eye = minecraft.gameRenderer.mainCamera().position();
+        Vec3 eye = Gfx.cameraPosition(minecraft);
         for (MobStackerClientRegions.View view : regions) {
             if (!isShown(view.name()) || !view.hasBox()) {
                 continue;

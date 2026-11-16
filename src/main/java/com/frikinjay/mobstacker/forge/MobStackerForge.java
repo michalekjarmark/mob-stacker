@@ -26,7 +26,7 @@ public final class MobStackerForge {
     public MobStackerForge() {
         MobStacker.init();
         // Forge's shears shear in IForgeShearable.onSheared, not in mobInteract; see ForgeShearing.
-        MobStacker.shearingOutsideMobInteract = true;
+        MobStacker.shearingOutsideMobInteract = mob -> true;
 
         Map<ResourceLocation, EventNetworkChannel> channels = MobStackerForgeChannels.all();
         MobStackerNetworking.init(new MobStackerNetworking.Transport() {

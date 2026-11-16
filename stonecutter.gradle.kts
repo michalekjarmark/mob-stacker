@@ -58,7 +58,7 @@ stonecutter parameters {
     moved("1.21.11", "net.minecraft.world.entity.animal.TropicalFish", "net.minecraft.world.entity.animal.fish.TropicalFish")
     moved("1.21.11", "net.minecraft.world.entity.animal.Turtle", "net.minecraft.world.entity.animal.turtle.Turtle")
     moved("1.21.11", "net.minecraft.world.entity.animal.Wolf", "net.minecraft.world.entity.animal.wolf.Wolf")
-    moved("1.21.11", "net.minecraft.world.entity.animal.Bucketable", "net.minecraft.world.entity.Bucketable")
+    moved("26.2", "net.minecraft.world.entity.animal.Bucketable", "net.minecraft.world.entity.Bucketable") // 1.21.11 and 26.1.2 have animal.Bucketable
     moved("1.21.11", "net.minecraft.world.entity.monster.Zombie", "net.minecraft.world.entity.monster.zombie.Zombie")
     moved("1.21.11", "net.minecraft.world.entity.monster.ZombieVillager", "net.minecraft.world.entity.monster.zombie.ZombieVillager")
     moved("1.21.11", "net.minecraft.world.entity.monster.ZombifiedPiglin", "net.minecraft.world.entity.monster.zombie.ZombifiedPiglin")
@@ -70,34 +70,38 @@ stonecutter parameters {
     replaceBothWays("1.21.2", ".registryOrThrow(", ".lookupOrThrow(", wholeWord = false)
     // 1.21.5: placing an entity is "snapTo" (every overload).
     replaceBothWays("1.21.5", ".moveTo(", ".snapTo(", wholeWord = false)
-    // 26.1 (unconfirmed): the entity type constants moved to EntityTypes.
-    replacements.regex(current.parsed >= "26.1") {
+    // 26.2: the entity type constants moved to EntityTypes (26.1.2 has EntityType.COW).
+    replacements.regex(current.parsed >= "26.2") {
         replace("\\bEntityType\\.([A-Z][A-Z0-9_]*)\\b", "net.minecraft.world.entity.EntityTypes.$1",
             "\\bnet\\.minecraft\\.world\\.entity\\.EntityTypes\\.([A-Z][A-Z0-9_]*)\\b", "EntityType.$1")
     }
     moved("1.21.2", "MobEffects.MOVEMENT_SLOWDOWN", "MobEffects.SLOWNESS")
-    replaceBothWays("1.21.2", ".getHolderOrThrow(", ".getOrThrow(", wholeWord = false)
+    // 1.21.2: a registry's holder for a key is getOrThrow(key). Only a call with an argument:
+    // DataResult's getOrThrow() takes none, and the way back must leave it alone.
+    replacements.regex(current.parsed >= "1.21.2") {
+        replace("\\.getHolderOrThrow\\((?!\\))", ".getOrThrow(", "\\.getOrThrow\\((?!\\))", ".getHolderOrThrow(")
+    }
     moved("1.21.11", "net.minecraft.world.entity.npc.VillagerDataHolder", "net.minecraft.world.entity.npc.villager.VillagerDataHolder")
     // Fabric API for 26.1 (unconfirmed) names the payload registries after Mojang's directions.
     replaceBothWays("26.1", "PayloadTypeRegistry.playC2S()", "PayloadTypeRegistry.serverboundPlay()", wholeWord = false)
     replaceBothWays("26.1", "PayloadTypeRegistry.playS2C()", "PayloadTypeRegistry.clientboundPlay()", wholeWord = false)
     // 1.21.2: a registry is looked up.
     replaceBothWays("1.21.2", ".registry(Registries.", ".lookup(Registries.", wholeWord = false)
-    // 26.1 (unconfirmed): the GUI is extracted, screens are set on the Gui, and Fabric API follows the
-    // names (client commands, key mappings).
+    // 26.1 (unconfirmed): the GUI is extracted, and Fabric API follows the names (client commands, key
+    // mappings). 26.2: screens are set on the Gui (26.1.2 still has Minecraft.setScreen and .screen).
     moved("26.1", "GuiGraphics", "GuiGraphicsExtractor")
-    replacements.regex(current.parsed >= "26.1") {
+    replacements.regex(current.parsed >= "26.2") {
         replace("\\b(minecraft|client)\\.setScreen\\(", "$1.gui.setScreen(", "\\b(minecraft|client)\\.gui\\.setScreen\\(", "$1.setScreen(")
     }
-    replacements.regex(current.parsed >= "26.1") {
+    replacements.regex(current.parsed >= "26.2") {
         replace("\\b(minecraft|client)\\.screen\\b(?!\\()", "$1.gui.screen()", "\\b(minecraft|client)\\.gui\\.screen\\(\\)", "$1.screen")
     }
     moved("26.1", "ClientCommandManager", "ClientCommands")
     moved("26.1", "net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper", "net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper")
     replaceBothWays("26.1", "KeyBindingHelper::registerKeyBinding", "KeyMappingHelper::registerKeyMapping", wholeWord = true)
     moved("26.1", "net.minecraft.client.renderer.entity.layers.SheepFurLayer", "net.minecraft.client.renderer.entity.layers.SheepWoolLayer")
-    moved("26.1", "net.minecraft.world.entity.monster.Slime", "net.minecraft.world.entity.monster.cubemob.Slime")
-    moved("26.1", "EnderMan", "Enderman")
+    moved("26.2", "net.minecraft.world.entity.monster.Slime", "net.minecraft.world.entity.monster.cubemob.Slime")
+    moved("26.3", "EnderMan", "Enderman") // 26.2 still has EnderMan
     moved("26.1", "net.minecraft.client.GuiMessage", "net.minecraft.client.multiplayer.chat.GuiMessage")
     moved("26.1", "net.minecraft.client.GuiMessageTag", "net.minecraft.client.multiplayer.chat.GuiMessageTag")
 }

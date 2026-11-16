@@ -135,9 +135,20 @@ public final class Compat {
     /** {@code Mob.convertTo}: the overload every conversion ends in (two of them from 1.21.2). */
     //? if >=1.21.2 {
     /*public static final String CONVERT_TO =
-            "convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/EntitySpawnReason;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;";
+            "convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/MobSpawnType;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;";
     *///?} else {
     public static final String CONVERT_TO = "convertTo";
+    //?}
+
+    /**
+     * Where the chunk cache hands the spawner the level's entities, below 26.3. From 1.21.2
+     * (unconfirmed; 1.21.11 and 26.2 have it) {@code tickChunks} has an overload, and the call is in
+     * the one with a profiler: a bare name would select the other one (Mixin takes the first).
+     */
+    //? if >=1.21.2 {
+    /*public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;J)V";
+    *///?} else {
+    public static final String TICK_CHUNKS = "tickChunks";
     //?}
 
     /** The dispenser's shears on an entity (26.1, unconfirmed: the method lost "Living"). */
@@ -477,10 +488,15 @@ public final class Compat {
         //?}
     }
 
-    /** One dye item (unconfirmed: 26.1, where the dyes became one collection). */
+    /**
+     * One dye item. The dyes are one collection from 26.2; 26.1 has no lookup by colour (the colour is a
+     * component of the item), so the item is found by its id there.
+     */
     public static Item dye(net.minecraft.world.item.DyeColor color) {
-        //? if >=26.1 {
+        //? if >=26.2 {
         /*return net.minecraft.world.item.Items.DYE.pick(color);
+        *///?} else if >=26.1 {
+        /*return item(id("minecraft", color.getName() + "_dye"));
         *///?} else {
         return net.minecraft.world.item.DyeItem.byColor(color);
         //?}
@@ -512,7 +528,8 @@ public final class Compat {
 
     /** Puts an item into the player's inventory, or drops it at the player's feet when it is full. */
     public static void giveOrDrop(Player player, ItemStack stack) {
-        //? if >=26.1 {
+        // A prediction from 26.3 (26.2 has 1.20.1's call).
+        //? if >=26.3 {
         /*player.getInventory().placeItemBackInInventory(stack, net.minecraft.util.Prediction.SERVER_ONLY);
         *///?} else {
         player.getInventory().placeItemBackInInventory(stack);
@@ -697,9 +714,9 @@ public final class Compat {
         //?}
     }
 
-    /** Makes an entity immune to everything but /kill (unconfirmed: 26.1). */
+    /** Makes an entity immune to everything but /kill (26.3 split permanent from temporary). */
     public static void setInvulnerable(Entity entity) {
-        //? if >=26.1 {
+        //? if >=26.3 {
         /*entity.setPermanentlyInvulnerable(true);
         *///?} else {
         entity.setInvulnerable(true);

@@ -31,6 +31,23 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   that jumped along their box).
   Not on 26.3 yet: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
   stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x.
+- **Minecraft 26.1 to 26.1.2 on Fabric** - in progress, not released yet: one jar for the three
+  (built against 26.1.2; Fabric Loader 0.19.5 and Fabric API for 26.1, Java 25), the same code as
+  the other 26.x jars. Checked on a 26.1.2 server: the self-test, stacking, damage overflow, strict
+  data matching, a dispenser shearing a stack, regions; the client started into a world. Not yet
+  played, and not run on 26.1 or 26.1.1 themselves.
+- **Minecraft 26.1.2 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.1.2.71 or
+  newer, the first stable build; Java 25). NeoForge for 26.1 and 26.1.1 never left beta, so those two
+  are Fabric only. Checked on a dev server as the Fabric jar, and the client started into a world.
+  Not yet played.
+- **Minecraft 26.2 on Fabric** - in progress, not released yet: its own jar (Fabric Loader 0.19.5
+  and Fabric API 0.161.0+26.2 or newer, Java 25), the same code as the 26.3 jars. 26.2 still has the
+  game's old input (GLFW): the mouse buttons, keys and typing that changed in 26.3 work as on 1.21.
+  Checked on a server: the self-test, stacking, damage overflow, strict data matching, a dispenser
+  shearing a stack, regions; the client started into a world. Not yet played.
+- **Minecraft 26.2 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.2.0.57 or
+  newer, the first stable build; Java 25), the same code as the other 26.x jars. Checked on a dev
+  server as the Fabric jar, and the client started into a world. Not yet played.
 - **Minecraft 26.3 on NeoForge** - in progress, not released yet: its own jar (NeoForge 26.3 or
   newer, Java 25), the same code as the Fabric jar for 26.3, with the access transformer written from
   the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert
@@ -75,6 +92,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **The Fabric jar claimed to run on Minecraft 1.20.2-1.20.6** (`~1.20.1` in `fabric.mod.json`),
   loaded there and crashed. It now asks for 1.20.1 exactly, as the Forge jar already did. Every jar
   takes its Minecraft range, Java version and pack format from its own version's settings.
+- **26.x: water and clouds covered the region boxes** (X-ray off). The game draws its see-through
+  gizmos, the boxes among them, before the water and the clouds, and a box writes no depth, so what
+  came after painted over it. They are now drawn after the water, the clouds and the weather, as on
+  1.20.1. In the classic transparency (Improved Transparency off) the water still hides the part of a
+  box below its surface when seen from above. The game's own see-through debug shapes move with them.
+- **NeoForge 26.x: shears on a stack of mooshrooms turned the whole stack into cows and gave mushrooms
+  for one**, and with `stackedHarvest` off no mooshroom stepped out. NeoForge 26.x leaves the
+  mooshroom's and the copper golem's shears in their own interaction, as vanilla has them; the mod
+  took every shears interaction on NeoForge for its shears item. Now these two go the way they go on
+  Fabric.
+- **NeoForge 1.20.2-1.21.1: a sheared stack of mooshrooms became a single cow** (the stack was lost),
+  by a player's shears and by a dispenser's. The cow now takes the stack along, as on Fabric and
+  Forge.
 
 ## [1.12.0] - 2026-11-07
 ### Added

@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
-//? if >=26.1 {
+//? if >=26.3 {
 /*import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;

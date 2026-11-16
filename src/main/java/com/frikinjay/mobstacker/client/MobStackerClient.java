@@ -22,8 +22,11 @@ public final class MobStackerClient {
 
     /** An unbound key of the mod's own category in Controls. */
     private static KeyMapping key(String name) {
-        //? if >=26.1 {
+        // The keyboard is SDL's from 26.3 (InputConstants.Type.KEYBOARD); GLFW's key symbols before.
+        //? if >=26.3 {
         /*return new KeyMapping(name, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
+        *///?} else if >=26.1 {
+        /*return new KeyMapping(name, InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
         *///?} else {
         return new KeyMapping(name, InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.mobstacker");
         //?}

@@ -128,7 +128,8 @@ public abstract class EntityRendererMixin<T extends Entity, S extends EntityRend
         if (state.nameTag != null) {
             pose.translate(0.0F, MOBSTACKER$LINE, 0.0F);
         }
-        collector.submitNameTag(pose, at, 0, holder.mobstacker$label(), !state.isDiscrete, state.lightCoords, camera);
+        com.frikinjay.mobstacker.client.Gfx.submitNameTag(collector, pose, at, holder.mobstacker$label(), !state.isDiscrete,
+                state, camera);
         pose.popPose();
     }
 }

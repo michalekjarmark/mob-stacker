@@ -325,10 +325,20 @@ public final class MixinCheck {
             desc = name.substring(paren);
             name = name.substring(0, paren);
         }
+        // As Mixin selects: a bare name takes the first method of that name in the class, overloads
+        // or not ("name*" takes them all). A 26.2 server failed on "tickChunks" this way, the call
+        // being in the second overload, while this check had looked at both.
+        boolean every = name.equals("*") || name.endsWith("*") || desc != null;
+        if (name.endsWith("*") && !name.equals("*")) {
+            name = name.substring(0, name.length() - 1);
+        }
         List<MethodNode> found = new ArrayList<>();
         for (MethodNode method : target.methods) {
             if ((name.equals("*") || method.name.equals(name)) && (desc == null || method.desc.equals(desc))) {
                 found.add(method);
+                if (!every) {
+                    break;
+                }
             }
         }
         return found;

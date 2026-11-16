@@ -9,6 +9,7 @@
     "client.LivingEntityRendererMixin",
     "client.RabbitRendererMixin",
     "client.LevelRendererGizmosMixin",
+    "client.FeatureFrameGizmosMixin",
     "client.EntityRenderStateMixin",
     "client.ChatComponentMixin",
     "client.ClientLevelMixin",
