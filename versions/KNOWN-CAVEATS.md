@@ -198,27 +198,30 @@ panel, caught before any release). After such a replace, look at the helpers' `e
   `Toast` and `jeb_` lose their easter egg: 26.x reads those names off render states.
 - Kill holograms left in a world by 1.5.x are no longer cleaned up: armour stands do not tick on their own.
 
-## Fabric and NeoForge on one server (not fixed)
+## Fabric and NeoForge on one server
 
-A client of the other loader joins and plays; the question is whether the mod's channels work between
-them, or the client is treated as one without the mod (labels in the mob's name, no config screen, no
-region boxes). Checked 2026-11-16 with a dedicated server and a client of the same Minecraft, the
+Fabric knows a peer's channels only from `minecraft:register`, and each side asks before it sends
+anything, so where the NeoForge side named its channels only in NeoForge's own negotiation, a game of
+the other loader was treated as one **without the mod**: the count in the mob's name, no config screen,
+no region boxes, no error. (The labels look the same either way: the region box is what shows the
+channels work.) Checked 2026-11-16 with a dedicated server and a client of the same Minecraft, the
 player an operator:
 
 | Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 |
 |---|---|---|---|---|
-| Fabric → NeoForge | as without the mod | as without the mod | as without the mod | as without the mod |
-| NeoForge → Fabric | as without the mod | as without the mod | **works** | **works** |
+| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) |
+| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works |
 | the same loader | works | works | works | works |
 
-- **Fabric server, NeoForge client:** the NeoForge client never names its channels to a server that is
-  not NeoForge (Fabric's `ServerPlayNetworking.getSendable` stays empty for good), so the server never
-  sends it anything. The client does see the server's channels: its config request arrives.
-- **NeoForge 20.2/20.4 server, Fabric client:** 20.4 never tells the client its channels in a way
-  Fabric reads (only `neoforge:register`), so the client never asks; 20.2 gets the client's request but
-  does not see the client's channels.
-- A fix would have the NeoForge side send `minecraft:register` with the mod's channels itself, in
-  each NeoForge line's own way; not tried.
+| Where | What went wrong | What the mod does |
+|---|---|---|
+| NeoForge client, 20.4 and newer | Names its channels to a server that is not NeoForge nowhere Fabric reads them (`ServerPlayNetworking.getSendable` stayed empty). | On `ClientPlayerNetworkEvent.LoggingIn`, a connection whose type is not `NEOFORGE` is sent `MinecraftRegisterPayload` with the channels the client listens on (`MobStackerNeoForgeClient.nameChannels`; the same in `MobStackerNeoForgeLegacyClient` on 20.4). |
+| NeoForge 20.4 server | Names its channels to a Fabric game only as `neoforge:register`, which Fabric does not read. | On `PlayerLoggedInEvent`, the same with the channels the server listens on (`MobStackerNeoForgeLegacy`). 20.6 and newer already do it. |
+| NeoForge 20.2, both sides | Reads a Fabric peer's `minecraft:register` as a `SimplePayload`: the first name lost a byte, and NeoForge drops a last name with no zero byte after it, which Fabric never writes. | `LegacyChannels.readsBare` / `read`: the list is read bare and its last name ended; NeoForge's own list then only gains an empty name. |
+
+The 26.x NeoForge nodes share `MobStackerNeoForgeClient` and build; not run against a Fabric server.
+
+## Testing traps
 
 - From **1.21.9 there are no always-loaded spawn chunks**: a scripted test that summons near spawn with
   no player finds nothing. `forceload add` the area first (`tools/test/scenarios/basic.txt` does).

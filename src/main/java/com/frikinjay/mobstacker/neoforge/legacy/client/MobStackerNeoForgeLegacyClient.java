@@ -77,6 +77,16 @@ public final class MobStackerNeoForgeLegacyClient {
                 MobStackerClient.onEndClientTick(Minecraft.getInstance());
             }
         });
+        //? if >=1.20.3 {
+        /*// A Fabric server sees the mod's channels only when they are named to it; see MobStackerNeoForgeClient.nameChannels.
+        gameBus.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
+            ClientPacketListener connection = event.getPlayer().connection;
+            if (connection.getConnectionType() != net.neoforged.neoforge.network.connection.ConnectionType.NEOFORGE) {
+                connection.send(new net.neoforged.neoforge.network.payload.MinecraftRegisterPayload(java.util.Set.of(
+                        com.frikinjay.mobstacker.network.MobStackerNetworking.SYNC, com.frikinjay.mobstacker.StackLabels.CHANNEL)));
+            }
+        });
+        *///?}
         gameBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> {
             MobStackerClientNetworking.onDisconnect();
             MobStackerClientLabels.clear();
