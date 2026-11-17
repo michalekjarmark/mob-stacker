@@ -62,6 +62,13 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   box over water and clouds. Not yet played. As on 26.x: with
   `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in
   its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.11 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.11.42
+  or newer, the first stable build; Java 21), the same code as the Fabric jar. NeoForge 21.11 leaves a
+  player's shears on a mooshroom or a copper golem where vanilla has them, as NeoForge 26.x does, so
+  those take the same path as on Fabric. Checked on a dev server with the same scenarios as the
+  Fabric jar (the same answers), the client started into a world and drew a region box, and a
+  Fabric 1.21.11 server with a NeoForge client and the other way round both had the mod's channels
+  working (config and region boxes). Not yet played.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.

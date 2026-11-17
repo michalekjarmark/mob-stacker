@@ -46,7 +46,7 @@ public final class MobStackerNeoForgeClient {
             @Override
             public void send(ResourceLocation channel, FriendlyByteBuf buf) {
                 if (Minecraft.getInstance().getConnection() != null) {
-                    //? if >=26.1 {
+                    //? if >=1.21.11 {
                     /*net.neoforged.neoforge.client.network.ClientPacketDistributor.sendToServer(RawPayload.of(channel, buf));
                     *///?} else {
                     PacketDistributor.sendToServer(RawPayload.of(channel, buf));

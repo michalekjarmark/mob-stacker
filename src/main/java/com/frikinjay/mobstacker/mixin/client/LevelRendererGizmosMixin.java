@@ -178,7 +178,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
   *
  * <p>1.21.11, where the gizmos came: the same as 26.1. Fabric's mappings give the two lambdas no name of
  * their own: {@code method_62214} is the main pass's, {@code method_75413} the late debug pass's
- * (NeoForge will call them {@code lambda$...}).
+ * (Loom writes Mojang's names into the NeoForge jar: {@code lambda$addMainPass$1},
+ * {@code lambda$addLateDebugPass$5}).
 ^/
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererGizmosMixin {

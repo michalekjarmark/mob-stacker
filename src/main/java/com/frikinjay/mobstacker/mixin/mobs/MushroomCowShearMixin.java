@@ -44,10 +44,10 @@ public class MushroomCowShearMixin implements StackShearable {
         }
     }
 
-    //? if fabric || >=26.1 {
+    //? if fabric || >=1.21.11 {
     /**
      * A player's shears harvesting the members of a mooshroom stack, where they shear in the
-     * mooshroom's own {@code mobInteract}: on Fabric, and on NeoForge from 26.1, which leaves vanilla's
+     * mooshroom's own {@code mobInteract}: on Fabric, and on NeoForge by 1.21.11 (21.1 did not), which leaves vanilla's
      * shears there for the mooshroom alone (its sheep and snow golems shear through
      * {@code IShearable}, see {@code NeoForgeShearing}). With {@code stackedHarvest} off a stack hands
      * one mooshroom over first ({@code MobStacker.isShearingOneInteraction}), so this sees a single mob.

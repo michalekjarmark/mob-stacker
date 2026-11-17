@@ -158,8 +158,11 @@ public final class Compat {
     public static final String DISPENSER_SHEAR_ENTITY = "tryShearLivingEntity";
     //?}
 
-    /** Where the server hands a custom click action on (NeoForge adds the player and the profile). */
-    //? if neoforge {
+    /**
+     * Where the server hands a custom click action on (NeoForge 26.x adds the player and the profile;
+     * NeoForge 21.11 still calls vanilla's).
+     */
+    //? if neoforge && >=26.1 {
     /*public static final String HANDLE_CUSTOM_CLICK_ACTION = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;Lnet/minecraft/server/level/ServerPlayer;Lcom/mojang/authlib/GameProfile;)V";
     *///?} else {
     public static final String HANDLE_CUSTOM_CLICK_ACTION = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;)V";
