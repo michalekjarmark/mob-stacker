@@ -22,7 +22,9 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 |---|---|---|---|
 | 1.20.5 | A world from an older version loses the **gear of every member under a stack's top mob** (`keepMemberEquipment`). | Items are saved as `{id, count, components}` from 1.20.5 (`{id, Count, tag}` before), and vanilla's data fixers upgrade only what they know: the mod's `StackData` rides along unchanged. | `StackDataUpgrade`: the save carries the data version (`StackData.DataVersion`, missing = 1.20.1's 3465), and a load runs every member's items through vanilla's `ITEM_STACK` fixer (`EntityDataMixin`). Anything new the stack data saves that vanilla may reshape (items, ids) needs a step there. |
 | 1.20.5 | A member taken out of a **leashed** stack comes out leashed as well. | The leash is saved as `leash` from 1.20.5 (`Leash` before), and a copy leaves out only the keys it knows. | `TOP_ONLY_KEYS` (the condition sat at 1.21 until the 1.20.6 node). |
-| NeoForge 20.2 | A Fabric client's packets to a NeoForge 20.2 server arrive **garbled**, and the empty config request **fails to decode**. | NeoForge 20.2 reads a payload it does not know as its `SimplePayload`, which takes a VarInt off the front as a packet index (and writes one when sending). | `neoforge.mixin.Clientbound/ServerboundCustomPayloadPacketMixin` read the mod's channels as bare bytes (`LegacyPayload`), and the mod sends its own `RawPayload`; see `neoforge.legacy.LegacyChannels`. Not checked with a player yet. |
+| NeoForge 20.2 | A Fabric client's packets to a NeoForge 20.2 server arrive **garbled**, and the empty config request **fails to decode**. | NeoForge 20.2 reads a payload it does not know as its `SimplePayload`, which takes a VarInt off the front as a packet index (and writes one when sending). | `neoforge.mixin.Clientbound/ServerboundCustomPayloadPacketMixin` read the mod's channels as bare bytes (`LegacyPayload`), and the mod sends them as `LegacyPayload`; see `neoforge.legacy.LegacyChannels`. NeoForge passes only its own `SimplePayload` on to event channels, so `neoforge.mixin.LegacyServerPayloadMixin` and `client.LegacyClientPayloadMixin` hand ours over themselves. Checked with a player: a NeoForge 20.2 server with a NeoForge client (labels, config, region boxes), and a Fabric client's config request arriving whole. |
+| 1.20.2-1.20.4 | **Singleplayer and LAN** (integrated server): no stack labels and no config sync, with no error. | The integrated server hands its client the packet's payload object as it is, never written and read back. Fabric API before 1.20.5 takes only its own payload (`ServerPlayNetworking.createS2CPacket`), NeoForge 20.2 only its `SimplePayload`; the mod's `RawPayload` went to neither. NeoForge 20.4 and everything from 1.20.5 match the payload by id or type, so they took it. | Every packet the server builds for a channel comes from `MobStackerNetworking.packet`, which asks the loader's `Transport.packet`: Fabric below 1.20.5 makes Fabric API's packet, NeoForge 20.2 a `LegacyPayload` one. |
+| NeoForge 20.4 | A **Fabric** client with the mod sees **no stack labels** on a NeoForge 20.4 server. | NeoForge 20.4 filters a mod's payloads out of a bundle unless the channel went through NeoForge's own negotiation (`NetworkRegistry.filterGameBundlePackets`, logged at TRACE only); a Fabric client names its channels with `minecraft:register`, which only the packets sent on their own are checked against. The label rides in the pairing bundle. | `StackLabels.labelOutsideBundle` (set by `MobStackerNeoForgeLegacy` on 20.4): the label goes on its own at the end of the tick. Not before the bundle: `ClientLevel.addEntity` removes whatever had the id first, and the label with it. |
 | 1.20.5, 1.21.2 | A horse coming out of a stack from an older world gets **default** speed/jump/health instead of its own. | Member rolls are keyed by attribute id: `horse.jump_strength` became `generic.jump_strength` (1.20.5), and the `generic.` prefix went (1.21.2). | `MobVariants.upgradeRolls` (`ROLL_KEY_ALIASES`), from `StackDataUpgrade`. |
 | 1.21.6 | Text drawn by a screen is **invisible**; a text box goes **blank** after `setTextColor` (typing still works). | A text colour is ARGB, and `0xFFFFFF` (what 1.20.1 code passes) has alpha 0. | Every colour through `client/Gfx` (`text`, `centered`, `textColor(box, rgb)`), which makes a colour without alpha opaque. Never call `drawString`/`setTextColor` directly. |
 | 26.3 (SDL) | **Right click does nothing** on a widget that accepts it; a left click may count as the right one. | Mouse buttons are numbered as SDL does: left **1**, middle 2, right **3** (GLFW: 0, 2, 1). | Use `InputConstants.MOUSE_BUTTON_LEFT/RIGHT` (the right value on every version, inlined at compile time), never literals (`client/StepButton`). |
@@ -64,7 +66,7 @@ What the nodes for 1.20.2, 1.20.4 and 1.20.6 found. 1.20.3/1.20.4 changed nothin
 
 | Since | What | Where |
 |---|---|---|
-| 1.20.2 | `ClientboundCustomPayloadPacket(channel, buf)` is gone: the packet carries a `CustomPacketPayload` that writes itself (typed payloads with codecs only from 1.20.5). Fabric API's own send calls still take a channel and a buffer until 1.20.5. | `network/RawPayload` (three shapes), `StackLabels.labelPacket` |
+| 1.20.2 | `ClientboundCustomPayloadPacket(channel, buf)` is gone: the packet carries a `CustomPacketPayload` that writes itself (typed payloads with codecs only from 1.20.5). Fabric API's own send calls still take a channel and a buffer until 1.20.5. | `network/RawPayload` (three shapes), `MobStackerNetworking.packet` / `Transport.packet` |
 | 1.20.2 | Potion effect keys: `ActiveEffects` -> `active_effects` and so on. | `src/main/vanilla-keys/1.20.2.txt`; none is top-only |
 | 1.20.5 | `LevelRenderer.renderLevel` has no pose stack (the camera is on the model-view matrix), but still takes the tick as a float; `DeltaTracker` is 1.21. | `client.LevelRendererMixin` (three handlers) |
 | 1.20.5 | The dispenser wears its shears with `hurtAndBreak(int, RandomSource, ServerPlayer, Runnable)`: neither 1.20.1's `hurt` nor 1.21's. | `Compat.DISPENSER_SHEARS_WEAR` |
@@ -196,6 +198,29 @@ panel, caught before any release). After such a replace, look at the helpers' `e
   `Toast` and `jeb_` lose their easter egg: 26.x reads those names off render states.
 - Kill holograms left in a world by 1.5.x are no longer cleaned up: armour stands do not tick on their own.
 
+## Fabric and NeoForge on one server
+
+Fabric knows a peer's channels only from `minecraft:register`, and each side asks before it sends
+anything, so where the NeoForge side named its channels only in NeoForge's own negotiation, a game of
+the other loader was treated as one **without the mod**: the count in the mob's name, no config screen,
+no region boxes, no error. (The labels look the same either way: the region box is what shows the
+channels work.) Checked 2026-11-16 with a dedicated server and a client of the same Minecraft, the
+player an operator:
+
+| Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 |
+|---|---|---|---|---|
+| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) |
+| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works |
+| the same loader | works | works | works | works |
+
+| Where | What went wrong | What the mod does |
+|---|---|---|
+| NeoForge client, 20.4 and newer | Names its channels to a server that is not NeoForge nowhere Fabric reads them (`ServerPlayNetworking.getSendable` stayed empty). | On `ClientPlayerNetworkEvent.LoggingIn`, a connection whose type is not `NEOFORGE` is sent `MinecraftRegisterPayload` with the channels the client listens on (`MobStackerNeoForgeClient.nameChannels`; the same in `MobStackerNeoForgeLegacyClient` on 20.4). |
+| NeoForge 20.4 server | Names its channels to a Fabric game only as `neoforge:register`, which Fabric does not read. | On `PlayerLoggedInEvent`, the same with the channels the server listens on (`MobStackerNeoForgeLegacy`). 20.6 and newer already do it. |
+| NeoForge 20.2, both sides | Reads a Fabric peer's `minecraft:register` as a `SimplePayload`: the first name lost a byte, and NeoForge drops a last name with no zero byte after it, which Fabric never writes. | `LegacyChannels.readsBare` / `read`: the list is read bare and its last name ended; NeoForge's own list then only gains an empty name. |
+
+The 26.x NeoForge nodes share `MobStackerNeoForgeClient` and build; not run against a Fabric server.
+
 ## Testing traps
 
 - From **1.21.9 there are no always-loaded spawn chunks**: a scripted test that summons near spawn with
@@ -226,6 +251,14 @@ panel, caught before any release). After such a replace, look at the helpers' `e
   capture **the game window only** with Win32 `PrintWindow(hwnd, hdc, 2)` (PW_RENDERFULLCONTENT).
   Never `CopyFromScreen`: Windows refuses to bring the window forward and it copies whatever else is
   on the person's screen.
+- **A dedicated server with a client of another node** (other loader, same Minecraft): start the server
+  with `run_server.py <node> --keep` and a scenario that builds the scene, then
+  `./gradlew :<node>:runClient --args="--quickPlayMultiplayer localhost:25599"`. Started from a script,
+  give Gradle `stdin=DEVNULL`: with the parent's input it sat for 15 minutes without a line. The overlay
+  key of a server is `server:<address>` (`server:localhost:25599`), and a player sees other people's
+  regions only as an operator (`op @a` over RCON; the Fabric dev client is `PlayerNNN`, not `Dev`).
+  The labels prove nothing on their own: a game the server thinks has no mod gets them in the mob's
+  name, and they look the same. The region box (from the config snapshot) is what shows the channels work.
 - Two scenarios that share a pen leave mobs for each other: `shear_dispenser.txt` uses 300 300,
   `shear_dispenser_mooshroom.txt` 320 320 and empties it afterwards.
 - A NeoForge node's **patched** jar (what the loader changed in vanilla's classes, and its own API) is

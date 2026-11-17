@@ -48,12 +48,33 @@ public final class MobStackerNeoForgeLegacy {
                 /*net.neoforged.neoforge.network.PacketDistributor.PLAYER.with(player).send(RawPayload.of(channel, buf));
                 *///?} else {
                 player.connection.send(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
-                        RawPayload.of(channel, buf)));
+                        LegacyPayload.of(channel, buf)));
                 //?}
             }
+            //? if <1.20.3 {
+
+            @Override
+            public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> packet(
+                    ResourceLocation channel, FriendlyByteBuf buf) {
+                return MobStackerNetworking.gamePacket(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
+                        LegacyPayload.of(channel, buf)));
+            }
+            //?}
         });
         //? if >=1.20.3 {
         /*modBus.addListener(MobStackerNeoForgeLegacy::registerPayloads);
+        // A Fabric game's channels do not pass NeoForge 20.4's bundle filter; see StackLabels.labelOutsideBundle.
+        com.frikinjay.mobstacker.StackLabels.labelOutsideBundle = true;
+        // NeoForge 20.4 names its channels to a Fabric game only as neoforge:register, which Fabric does
+        // not read: the game never knew the server has the mod. They are named the vanilla way here.
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                (net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer player
+                    && player.connection.getConnectionType() != net.neoforged.neoforge.network.connection.ConnectionType.NEOFORGE) {
+                player.connection.send(new net.neoforged.neoforge.network.payload.MinecraftRegisterPayload(
+                        java.util.Set.of(MobStackerNetworking.REQUEST, MobStackerNetworking.EDIT)));
+            }
+        });
         *///?} else {
         LegacyChannels.onServer(MobStackerNetworking.REQUEST, (player, buf) ->
                 MobStackerNetworking.onRequest(player.getServer(), player));

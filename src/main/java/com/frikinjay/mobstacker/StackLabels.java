@@ -6,11 +6,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
-//? if >=1.20.2 {
-/*import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
-*///?} else {
-import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
-//?}
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
@@ -54,6 +49,19 @@ public final class StackLabels {
 
     /** How long after joining a game may still say it speaks the label channel; after that it does not. */
     private static final int JOIN_WATCH = 200;
+
+    /**
+     * Whether a label goes to the player on its own rather than in the pairing bundle. Set by NeoForge
+     * 20.4, which drops a mod's payload from a bundle unless its channel went through NeoForge's own
+     * negotiation: a Fabric game with the mod names its channels with {@code minecraft:register} only,
+     * so it would never get a label for a mob coming into view. Sent on its own, the payload is checked
+     * against those channels too. It goes at the end of the tick ({@link #PENDING}), after the bundle:
+     * the game forgets a label when a mob with its id is added, so one sent before its mob would be lost.
+     */
+    public static boolean labelOutsideBundle;
+
+    /** Labels held back until the end of the tick, after the bundles that bring their mobs into view. */
+    private static final List<Map.Entry<ServerPlayer, Packet<ClientGamePacketListener>>> PENDING = new ArrayList<>();
 
     /** What each mob's label was last sent as, so the periodic display update sends nothing new. */
     private static final Map<Mob, String> LAST = new WeakHashMap<>();
@@ -119,15 +127,7 @@ public final class StackLabels {
         buf.writeUtf(MobStacker.getStackLabelFormat(mob));
         buf.writeVarInt(Compat.formatId(MobStacker.stackNameColor(mob, count)));
         buf.writeBoolean(MobStacker.getAlwaysShowStackLabels(mob));
-        //? if >=1.20.2 {
-        /*// A custom payload is a packet every protocol phase shares; in the play phase it is a game packet.
-        @SuppressWarnings("unchecked")
-        Packet<ClientGamePacketListener> packet = (Packet<ClientGamePacketListener>) (Packet<?>)
-                new ClientboundCustomPayloadPacket(com.frikinjay.mobstacker.network.RawPayload.of(CHANNEL, buf));
-        return packet;
-        *///?} else {
-        return new ClientboundCustomPayloadPacket(CHANNEL, buf);
-        //?}
+        return MobStackerNetworking.packet(CHANNEL, buf);
     }
 
     private static boolean carriesName(ClientboundSetEntityDataPacket packet) {
@@ -196,7 +196,11 @@ public final class StackLabels {
             return;
         }
         if (drawsOwn(player, mob)) {
-            out.accept(labelPacket(mob, true));
+            if (labelOutsideBundle) {
+                PENDING.add(Map.entry(player, labelPacket(mob, true)));
+            } else {
+                out.accept(labelPacket(mob, true));
+            }
         } else {
             out.accept(new ClientboundSetEntityDataPacket(mob.getId(), labelNameValues(mob)));
         }
@@ -231,6 +235,12 @@ public final class StackLabels {
      * mod would show twice. On Forge it is known at login, and this sends the same labels once more.
      */
     public static void tick(MinecraftServer server) {
+        for (Map.Entry<ServerPlayer, Packet<ClientGamePacketListener>> label : PENDING) {
+            if (!label.getKey().hasDisconnected()) {
+                label.getKey().connection.send(label.getValue());
+            }
+        }
+        PENDING.clear();
         int now = server.getTickCount();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             JOINED.putIfAbsent(player.getUUID(), now + JOIN_WATCH);
