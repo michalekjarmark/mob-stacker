@@ -159,6 +159,10 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   however far away the stack was.** A name is drawn up to 64 blocks away, and on 1.20.1 the label too;
   newer versions check the distance where they decide on the name, which the label does not go through.
   The label now stops at 64 blocks on every version.
+- **1.21 to 1.21.10: the region boxes had no names.** Minecraft 1.21 turned the camera half a turn, and
+  the name was drawn facing away from it, so the game did not draw it at all. Found on 1.21.1, 1.21.8 and
+  1.21.10 by comparing a picture with 1.20.1's. From 1.21.11 the names are drawn another way and were not
+  affected.
 
 ## [1.12.0] - 2026-11-07
 ### Added

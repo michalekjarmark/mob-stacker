@@ -565,7 +565,14 @@ public final class MobStackerRegionOverlay {
             pose.pushPose();
             pose.translate(x, y + 0.5, z);
             pose.mulPose(camera.rotation());
+            // 1.21 turned the camera's rotation half a turn (180 - yaw), and vanilla's name tags scale x by
+            // +0.025 from then on: with 1.20.1's -x the text faced away from the camera and was culled, so
+            // no region had a name on 1.21-1.21.10 (seen 2026-11-17; from 1.21.11 the names are gizmos).
+            //? if >=1.21 {
+            /*pose.scale(scale, -scale, scale);
+            *///?} else {
             pose.scale(-scale, -scale, scale);
+            //?}
             Matrix4f matrix = pose.last().pose();
             float left = -font.width(name) / 2.0F;
             if (xray) {
