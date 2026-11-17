@@ -358,29 +358,49 @@ public final class MobStackerRegionOverlay {
             return;
         }
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        solidDepth = sizedLike(main, solidDepth);
+        solidDepth = sizedLike(main, solidDepth, "MobStacker solid depth");
         solidDepth.copyDepthFrom(main);
-        // copyDepthFrom leaves no framebuffer bound; the main one was, and the game carries on
-        // drawing without binding it again.
-        main.bindWrite(false);
+        rebindMain(main);
         solidDepthKept = true;
     }
 
     /** {@code target}, created or resized to match {@code main} when it does not already. */
-    private static TextureTarget sizedLike(RenderTarget main, TextureTarget target) {
+    private static TextureTarget sizedLike(RenderTarget main, TextureTarget target, String label) {
+        //? if >=1.21.9 {
+        /*// By 1.21.9 (unconfirmed when) a target is textures with a name; nothing to bind.
+        if (target == null) {
+            return new TextureTarget(label, main.width, main.height, true);
+        }
+        if (target.width != main.width || target.height != main.height) {
+            target.resize(main.width, main.height);
+        }
+        *///?} else {
         if (target == null) {
             return new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
         }
         if (target.width != main.width || target.height != main.height) {
             target.resize(main.width, main.height, Minecraft.ON_OSX);
         }
+        //?}
         return target;
+    }
+
+    /**
+     * Below 1.21.9: {@code copyDepthFrom} leaves no framebuffer bound; the main one was, and the game
+     * carries on drawing without binding it again. From 1.21.9 (unconfirmed when) a copy is a command
+     * and nothing is bound, so there is nothing to put back.
+     */
+    private static void rebindMain(RenderTarget main) {
+        //? if <1.21.9 {
+        main.bindWrite(false);
+        //?}
     }
 
     /**
      * Draws every showing box, its name and the picker's preview. Called just before the world
      * renderer's debug pass, after everything else in the world (Fabric's {@code LAST}), with the
-     * world's own pose stack and camera.
+     * world's own pose stack and camera. On 1.21.9 and 1.21.10 that is the late debug pass, which
+     * comes after the clouds, the weather and the transparency's post chain, as {@code renderDebug} did.
      */
     public static void render(PoseStack pose, Camera camera) {
         boolean depthKept = solidDepthKept;
@@ -405,10 +425,10 @@ public final class MobStackerRegionOverlay {
             // Test against the solid world only: terrain and mobs hide a box, water and clouds do
             // not, the same in every graphics mode. The frame's own depth goes back once the boxes
             // are drawn; the hand is drawn after a depth clear of its own either way.
-            frameDepth = sizedLike(main, frameDepth);
+            frameDepth = sizedLike(main, frameDepth, "MobStacker frame depth");
             frameDepth.copyDepthFrom(main);
             main.copyDepthFrom(solidDepth);
-            main.bindWrite(false);
+            rebindMain(main);
         }
 
         Vec3 eye = camera.getPosition();
@@ -435,11 +455,8 @@ public final class MobStackerRegionOverlay {
                 if (!isShown(view.name()) || !view.hasBox()) {
                     continue;
                 }
-                AABB box = boxOf(view);
                 float[] rgb = rgbOf(view);
-                LevelRenderer.addChainedFilledBoxVertices(pose, faces,
-                        box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
-                        rgb[0], rgb[1], rgb[2], FACE_ALPHA);
+                filledBox(pose, faces, boxOf(view), rgb[0], rgb[1], rgb[2], FACE_ALPHA);
             }
             draw(faceType, faces);
         }
@@ -451,7 +468,7 @@ public final class MobStackerRegionOverlay {
                     continue;
                 }
                 float[] rgb = rgbOf(view);
-                LevelRenderer.renderLineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
+                lineBox(pose, edges, boxOf(view), rgb[0], rgb[1], rgb[2], EDGE_ALPHA);
             }
             draw(edgeType, edges);
         }
@@ -462,14 +479,11 @@ public final class MobStackerRegionOverlay {
             // follow "through walls", which is at its most useful exactly while a corner is being
             // looked for on the far side of a hill.
             BufferBuilder faces = begin(faceType);
-            LevelRenderer.addChainedFilledBoxVertices(pose, faces,
-                    preview.minX, preview.minY, preview.minZ,
-                    preview.maxX, preview.maxY, preview.maxZ,
-                    1.0F, 1.0F, 1.0F, FACE_ALPHA);
+            filledBox(pose, faces, preview, 1.0F, 1.0F, 1.0F, FACE_ALPHA);
             draw(faceType, faces);
 
             BufferBuilder edges = begin(edgeType);
-            LevelRenderer.renderLineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
+            lineBox(pose, edges, preview, 1.0F, 1.0F, 1.0F, EDGE_ALPHA);
             draw(edgeType, edges);
         }
 
@@ -479,8 +493,28 @@ public final class MobStackerRegionOverlay {
 
         if (depthKept) {
             main.copyDepthFrom(frameDepth);
-            main.bindWrite(false);
+            rebindMain(main);
         }
+    }
+
+    /** A box's six faces, as vanilla's debug filled box (by 1.21.9, unconfirmed when, in ShapeRenderer). */
+    private static void filledBox(PoseStack pose, BufferBuilder faces, AABB box, float r, float g, float b, float a) {
+        //? if >=1.21.9 {
+        /*net.minecraft.client.renderer.ShapeRenderer.addChainedFilledBoxVertices(pose, faces,
+                box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, g, b, a);
+        *///?} else {
+        LevelRenderer.addChainedFilledBoxVertices(pose, faces,
+                box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, g, b, a);
+        //?}
+    }
+
+    /** A box's twelve edges (by 1.21.9, unconfirmed when, in ShapeRenderer and from the pose alone). */
+    private static void lineBox(PoseStack pose, BufferBuilder edges, AABB box, float r, float g, float b, float a) {
+        //? if >=1.21.9 {
+        /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), edges, box, r, g, b, a);
+        *///?} else {
+        LevelRenderer.renderLineBox(pose, edges, box, r, g, b, a);
+        //?}
     }
 
     /**
@@ -560,7 +594,16 @@ public final class MobStackerRegionOverlay {
 
     /** Draws a batch {@link #begin} started, as the game's own buffer source would: sorted if the type asks. */
     private static void draw(RenderType type, BufferBuilder builder) {
-        //? if >=1.21 {
+        //? if >=1.21.9 {
+        /*// By 1.21.9 (unconfirmed when) the sorting is the projection's.
+        com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
+        if (mesh != null) {
+            if (type.sortOnUpload()) {
+                mesh.sortQuads(BYTES, RenderSystem.getProjectionType().vertexSorting());
+            }
+            type.draw(mesh);
+        }
+        *///?} else if >=1.21 {
         /*com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
         if (mesh != null) {
             if (type.sortOnUpload()) {

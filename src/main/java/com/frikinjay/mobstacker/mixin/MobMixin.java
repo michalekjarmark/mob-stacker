@@ -42,8 +42,8 @@ public abstract class MobMixin extends LivingEntity {
     @Shadow
     private boolean persistenceRequired;
 
-    // By 1.21.11 (unconfirmed when) the entity type says whether it stays in peaceful.
-    //? if <1.21.11 {
+    // By 1.21.9 (unconfirmed when) the entity type says whether it stays in peaceful.
+    //? if <1.21.9 {
     @Shadow
     protected abstract boolean shouldDespawnInPeaceful();
     //?}
@@ -90,7 +90,7 @@ public abstract class MobMixin extends LivingEntity {
         if (level().isClientSide() || !MobStacker.keepsFromDespawning((Mob) (Object) this)) {
             return;
         }
-        //? if >=1.21.11 {
+        //? if >=1.21.9 {
         /*boolean leavesInPeaceful = !getType().isAllowedInPeaceful();
         *///?} else {
         boolean leavesInPeaceful = shouldDespawnInPeaceful();

@@ -69,6 +69,23 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   Fabric jar (the same answers), the client started into a world and drew a region box, and a
   Fabric 1.21.11 server with a NeoForge client and the other way round both had the mod's channels
   working (config and region boxes). Not yet played.
+- **Minecraft 1.21.9 and 1.21.10 on Fabric** - in progress, not released yet: one jar for both (Fabric
+  API for your 1.21.9 or 1.21.10, Java 21), the same code as the other jars. These versions have no
+  gizmos yet, so the mod draws the region boxes itself as on 1.21.1 (through the game's newer
+  renderer): what is under water shows through it, as on 1.20.1. The stack labels are name tags as on
+  1.21.11. Checked on a 1.21.10 server: the self-test, stacking, damage overflow, strict data matching,
+  regions and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.11; the client
+  started into a world and drew a region box over water and clouds, and through the water below its
+  surface. 1.21.9 itself not run. Not yet
+  played. As on 1.21.11: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
+  stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.10 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.10.63
+  or newer, the first stable build; Java 21), the same code as the Fabric jar. NeoForge for 1.21.9 never
+  left beta, so this jar is for 1.21.10 only. Its shears are as on NeoForge 1.21.11 (a player's shears
+  on a mooshroom or a copper golem take the same path as on Fabric). Checked on a dev server with the
+  same scenarios as the Fabric jar (the same answers); the client started into a world and drew a
+  region box, and a Fabric 1.21.10 server with a NeoForge client and the other way round both had the
+  mod's channels working. Not yet played.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.

@@ -21,7 +21,8 @@ import java.util.Locale;
  * forward, like a click. The buttons are {@link InputConstants}' numbers: 26.3 counts them as SDL does
  * (left 1, right 3), not as GLFW did (left 0, right 1).
  */
-//? if >=1.21.9 {
+// 1.21.11: Button is abstract, Plain is the one that runs its OnPress (1.21.10 has neither).
+//? if >=1.21.11 {
 /*public final class StepButton extends Button.Plain {
 *///?} else {
 public final class StepButton extends Button {

@@ -12,10 +12,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Turtle.class)
 public abstract class TurtleMixin {
 
-    //? if >=1.21.5 {
+    // The owner in the descriptor is the class where it lives: its own package from 1.21.11.
+    //? if >=1.21.11 {
     /*@org.spongepowered.asm.mixin.injection.Redirect(method = "ageBoundaryReached", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/animal/turtle/Turtle;dropFromGiftLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/resources/ResourceKey;Ljava/util/function/BiConsumer;)Z"))
-    private boolean mobstacker$scuteForEveryMember(Turtle self, net.minecraft.server.level.ServerLevel level,
+    *///?} else if >=1.21.5 {
+    /*@org.spongepowered.asm.mixin.injection.Redirect(method = "ageBoundaryReached", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/animal/Turtle;dropFromGiftLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/resources/ResourceKey;Ljava/util/function/BiConsumer;)Z"))
+    *///?}
+    //? if >=1.21.5 {
+    /*private boolean mobstacker$scuteForEveryMember(Turtle self, net.minecraft.server.level.ServerLevel level,
             net.minecraft.resources.ResourceKey<net.minecraft.world.level.storage.loot.LootTable> table,
             java.util.function.BiConsumer<net.minecraft.server.level.ServerLevel, net.minecraft.world.item.ItemStack> drop) {
         // From 1.21.5 (unconfirmed) the gift is a loot table (a cold chicken lays a blue egg): it is rolled once more

@@ -182,8 +182,12 @@ public final class MixinCheck {
             checked++;
             List<MethodNode> found = select(target, (String) selector);
             if (found.isEmpty()) {
+                String problem = mixin + "." + handler.name + ": @" + kind + " method \"" + selector + "\" not in " + target.name;
                 if (require != 0) {
-                    problems.add(mixin + "." + handler.name + ": @" + kind + " method \"" + selector + "\" not in " + target.name);
+                    problems.add(problem);
+                } else {
+                    // As a missed @At below: allowed, but on plain Minecraft the feature is silently off.
+                    System.out.println("warning (require = 0): " + problem);
                 }
             }
             methods.addAll(found);

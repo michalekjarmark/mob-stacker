@@ -16,8 +16,8 @@ import java.util.UUID;
 @Mixin(Fox.class)
 public interface FoxAccessor {
 
-    // By 1.21.11 (unconfirmed when) the trusted are entity references.
-    //? if >=1.21.11 {
+    // By 1.21.9 (unconfirmed when) the trusted are entity references.
+    //? if >=1.21.9 {
     /*@Invoker("getTrustedEntities")
     java.util.stream.Stream<?> mobstacker$trustedEntities();
     *///?} else {

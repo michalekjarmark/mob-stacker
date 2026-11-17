@@ -151,11 +151,22 @@ public final class Compat {
     public static final String TICK_CHUNKS = "tickChunks";
     //?}
 
-    /** The dispenser's shears on an entity (by 1.21.11, unconfirmed when: the method lost "Living"). */
-    //? if >=1.21.11 {
+    /** The dispenser's shears on an entity (by 1.21.9, unconfirmed when: the method lost "Living"). */
+    //? if >=1.21.9 {
     /*public static final String DISPENSER_SHEAR_ENTITY = "tryShearEntity";
     *///?} else {
     public static final String DISPENSER_SHEAR_ENTITY = "tryShearLivingEntity";
+    //?}
+
+    /**
+     * The late debug pass's lambda on 1.21.9-1.21.10, where the region boxes are drawn
+     * ({@code client.LevelRendererMixin}). Fabric's dev name; NeoForge 21.10 recompiles the lambda with
+     * its captures in another order, so no mapping reaches it and Mojang's name is the one to give.
+     */
+    //? if neoforge {
+    /*public static final String LATE_DEBUG_PASS = "lambda$addLateDebugPass$5";
+    *///?} else {
+    public static final String LATE_DEBUG_PASS = "method_72915";
     //?}
 
     /**
@@ -168,8 +179,8 @@ public final class Compat {
     public static final String HANDLE_CUSTOM_CLICK_ACTION = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;)V";
     //?}
 
-    /** A packet sent with a listener (by 1.21.11, unconfirmed when: Netty's listener). */
-    //? if >=1.21.11 {
+    /** A packet sent with a listener (by 1.21.9, unconfirmed when: Netty's listener). */
+    //? if >=1.21.9 {
     /*public static final String SEND_WITH_LISTENER =
             "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V";
     *///?} else {
@@ -200,10 +211,10 @@ public final class Compat {
 
     /**
      * A text component as JSON. From 1.20.5 it needs the registries (item and other components in it);
-     * by 1.21.11 (unconfirmed when) {@code Component.Serializer} is gone and the codec does it.
+     * by 1.21.9 (unconfirmed when) {@code Component.Serializer} is gone and the codec does it.
      */
     public static String toJson(Component component, RegistryAccess registries) {
-        //? if >=1.21.11 {
+        //? if >=1.21.9 {
         /*return net.minecraft.network.chat.ComponentSerialization.CODEC
                 .encodeStart(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), component)
                 .getOrThrow().toString();
@@ -216,7 +227,7 @@ public final class Compat {
 
     /** The other way; null when the text is not a component. */
     public static Component fromJson(String json, RegistryAccess registries) {
-        //? if >=1.21.11 {
+        //? if >=1.21.9 {
         /*try {
             return net.minecraft.network.chat.ComponentSerialization.CODEC
                     .parse(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE),
@@ -524,11 +535,11 @@ public final class Compat {
     }
 
     /**
-     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.11
+     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.9
      * (unconfirmed when) an entity is no longer a command source itself.
      */
     public static boolean acceptsSuccess(ServerPlayer player) {
-        //? if >=1.21.11 {
+        //? if >=1.21.9 {
         /*return player.commandSource().acceptsSuccess();
         *///?} else {
         return player.acceptsSuccess();
@@ -676,9 +687,9 @@ public final class Compat {
         if (overHotbar) {
             actionBar(player, message);
         } else {
-            // 1.21.11 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
+            // By 1.21.9 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
             // no command source; displayClientMessage(c, false) is what it calls. 26.1 gives Player one.
-            //? if >=1.21.11 && <26.1 {
+            //? if >=1.21.9 && <26.1 {
             /*player.displayClientMessage(message, false);
             *///?} else {
             player.sendSystemMessage(message);
