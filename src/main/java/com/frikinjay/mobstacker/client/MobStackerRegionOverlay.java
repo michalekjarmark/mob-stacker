@@ -2,7 +2,7 @@ package com.frikinjay.mobstacker.client;
 
 import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
-//? if <26.1 {
+//? if <1.21.11 {
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -123,7 +123,7 @@ public final class MobStackerRegionOverlay {
     private static WeakReference<IntegratedServer> keyedServer = new WeakReference<>(null);
     private static String keyedFolder;
 
-    //? if <26.1 {
+    //? if <1.21.11 {
     /**
      * The solid world's depth, which is what the boxes and their names are tested against: terrain
      * and mobs hide them, nothing see-through does. Kept just before the translucent terrain is drawn
@@ -342,7 +342,7 @@ public final class MobStackerRegionOverlay {
         return view.showAll || !view.shown.isEmpty();
     }
 
-    //? if <26.1 {
+    //? if <1.21.11 {
     // ------------------------------------------------------------------ drawing
 
     /**
@@ -575,8 +575,8 @@ public final class MobStackerRegionOverlay {
 
     //?} else {
     /*/^*
-     * Hands this frame's boxes and names to the game's gizmos (from 26.1 the way debug shapes are drawn
-     * in the world): the same regions, colours, style and names as below 26.1, through walls when the
+     * Hands this frame's boxes and names to the game's gizmos (from 1.21.11 the way debug shapes are drawn
+     * in the world): the same regions, colours, style and names as below 1.21.11, through walls when the
      * server allows it and the player has it on. Called while the game collects the frame's gizmos
      * ({@code LevelRendererGizmosMixin}).
      ^/
@@ -598,10 +598,10 @@ public final class MobStackerRegionOverlay {
             box(boxOf(view), argbOf(view), style, xray);
         }
         if (preview != null) {
-            // Always faces and edges, in white (see the drawing below 26.1).
+            // Always faces and edges, in white (see the drawing below 1.21.11).
             box(preview, 0xFFFFFF, Style.BOTH, xray);
         }
-        // The camera of this frame, as below 26.1: the entity's eyes move only once a tick, and a name
+        // The camera of this frame, as below 1.21.11: the entity's eyes move only once a tick, and a name
         // placed by them jumped along the box instead of sliding.
         Vec3 eye = Gfx.cameraPosition(minecraft);
         for (MobStackerClientRegions.View view : regions) {

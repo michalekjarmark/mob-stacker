@@ -22,7 +22,7 @@ public final class Gfx {
     public static net.minecraft.world.phys.Vec3 cameraPosition(net.minecraft.client.Minecraft minecraft) {
         //? if >=26.2 {
         /*return minecraft.gameRenderer.mainCamera().position();
-        *///?} else if >=26.1 {
+        *///?} else if >=1.21.11 {
         /*return minecraft.gameRenderer.getMainCamera().position();
         *///?} else {
         return minecraft.gameRenderer.getMainCamera().getPosition();
@@ -45,6 +45,15 @@ public final class Gfx {
                                      Component text, boolean seeThrough,
                                      net.minecraft.client.renderer.entity.state.EntityRenderState state,
                                      net.minecraft.client.renderer.state.level.CameraRenderState camera) {
+        collector.submitNameTag(pose, at, 0, text, seeThrough, state.lightCoords, state.distanceToCameraSq, camera);
+    }
+    *///?} else if >=1.21.9 {
+    /*/^* A name tag line, submitted as vanilla submits its own (the camera's state is not under level yet). ^/
+    public static void submitNameTag(net.minecraft.client.renderer.SubmitNodeCollector collector,
+                                     com.mojang.blaze3d.vertex.PoseStack pose, net.minecraft.world.phys.Vec3 at,
+                                     Component text, boolean seeThrough,
+                                     net.minecraft.client.renderer.entity.state.EntityRenderState state,
+                                     net.minecraft.client.renderer.state.CameraRenderState camera) {
         collector.submitNameTag(pose, at, 0, text, seeThrough, state.lightCoords, state.distanceToCameraSq, camera);
     }
     *///?}

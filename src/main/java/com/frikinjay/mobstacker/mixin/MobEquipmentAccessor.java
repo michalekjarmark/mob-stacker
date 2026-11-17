@@ -19,7 +19,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  */
 @Mixin(Mob.class)
 public interface MobEquipmentAccessor {
-    //? if <26.1 {
+    // 1.21.5: Mob.getDropChances() instead.
+    //? if <1.21.5 {
     @Invoker("getEquipmentDropChance")
     float mobstacker$dropChance(EquipmentSlot slot);
     //?}

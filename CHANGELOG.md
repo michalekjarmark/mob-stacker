@@ -53,6 +53,15 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert
   it). Checked on a dev server: the self-test, stacking, damage overflow, strict data matching and a
   dispenser shearing a stack; not yet the client.
+- **Minecraft 1.21.11 on Fabric** - in progress, not released yet: its own jar (Fabric API for
+  1.21.11, Java 21), the same code as the other jars. 1.21.11 already draws the
+  region boxes as the game's own gizmos and the stack labels as name tags, as 26.x does; its screens
+  are drawn as on 1.21. Checked on a server: the self-test, stacking, damage overflow, strict data
+  matching, a dispenser shearing stacks of sheep and mooshrooms, regions and the scenarios from the
+  1.20.1 rounds, with the same answers as 26.1.2; the client started into a world and drew a region
+  box over water and clouds. Not yet played. As on 26.x: with
+  `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in
+  its name, and the clean-up of kill holograms left by 1.5.x, are not there.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.

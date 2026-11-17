@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin.client;
 
-//? if <26.1 {
+//? if <1.21.2 {
 
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.client.renderer.entity.layers.SheepFurLayer;

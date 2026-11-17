@@ -14,8 +14,9 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * fish and hands the water bucket back ({@code Axolotl.usePlayerItem}), and simply shrinking the food
  * ate the bucket with it (see {@code MobStacker.takeFood}).
  */
-// usePlayerItem moved up to Mob in 26.1 (unconfirmed); an invoker has to target the class that declares it.
-//? if >=26.1 {
+// usePlayerItem moved up to Mob by 1.21.11 (unconfirmed when); an invoker has to target the class that
+// declares it (checkMixins finds it in the superclass and passes: only a server run catches this).
+//? if >=1.21.11 {
 /*@Mixin(net.minecraft.world.entity.Mob.class)
 *///?} else {
 @Mixin(Animal.class)

@@ -25,14 +25,14 @@ public final class MobStackerClient {
         // The keyboard is SDL's from 26.3 (InputConstants.Type.KEYBOARD); GLFW's key symbols before.
         //? if >=26.3 {
         /*return new KeyMapping(name, InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), CATEGORY);
-        *///?} else if >=26.1 {
+        *///?} else if >=1.21.9 {
         /*return new KeyMapping(name, InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), CATEGORY);
         *///?} else {
         return new KeyMapping(name, InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.mobstacker");
         //?}
     }
 
-    //? if >=26.1 {
+    //? if >=1.21.9 {
     /*/^* The keys' heading in Controls: key.category.mobstacker.mobstacker in the language file. ^/
     private static final KeyMapping.Category CATEGORY =
             KeyMapping.Category.register(com.frikinjay.mobstacker.compat.Compat.id("mobstacker", "mobstacker"));

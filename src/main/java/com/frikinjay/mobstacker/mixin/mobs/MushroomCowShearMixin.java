@@ -75,7 +75,7 @@ public class MushroomCowShearMixin implements StackShearable {
     // (Fabric's MushroomCowMixin and Forge's do the same; from 26.1 the conversion is convertTo, which
     // MobMixin handles). Without it a stack of mooshrooms sheared on NeoForge became one cow. Caught on
     // its way into the world, after vanilla has copied the mooshroom's name ("Mooshroom x10") onto it.
-    //? if neoforge && >=1.20.3 && <26.1 {
+    //? if neoforge && >=1.20.3 && <1.21.11 {
     /*@ModifyArg(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
     private Entity mobstacker$carryStackIntoCow(Entity entity) {
         if (entity instanceof Cow cow && !(entity instanceof MushroomCow)) {

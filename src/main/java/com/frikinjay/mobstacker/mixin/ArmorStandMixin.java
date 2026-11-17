@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin;
 
-//? if <26.1 {
+//? if <1.21.11 {
 import com.frikinjay.mobstacker.compat.Compat;
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.decoration.ArmorStand;

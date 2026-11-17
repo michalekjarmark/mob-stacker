@@ -6,13 +6,13 @@ look before they start searching. How to add a node is in [`README.md`](README.m
 the traps.
 
 **Versions in brackets** are where the change is believed to have happened. Built so far: **1.20.1,
-1.20.2, 1.20.4, 1.20.6, 1.21.1, 26.1.2, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
-between 1.21.2 and 26.1 is *unconfirmed* until a node in between compiles and runs. The code's version
+1.20.2, 1.20.4, 1.20.6, 1.21.1, 1.21.11 (Fabric), 26.1.2, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
+between 1.21.2 and 1.21.11 is *unconfirmed* until a node in between compiles and runs. The code's version
 conditions sit at those believed versions too; a new node moves them if `-PallErrors` or a test says
 otherwise (they are marked "unconfirmed" in the code). The nodes for 1.20.2-1.20.6 moved four of the
 guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below. The 26.2 node
 moved six guesses from 26.1 to **26.3**, the version that went from GLFW to SDL, and the 26.1.2 node
-eight more to 26.2: see "26.1 to 26.3".
+eight more to 26.2: see "26.1 to 26.3". The 1.21.11 node moved some forty from 26.1 down: see "1.21.11".
 
 The worst ones are first: **no crash, no log line, it just does not work**.
 
@@ -37,11 +37,11 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 1.21.6 | A command clicked in chat opens a **"Run command" confirmation** every time. | The client asks before running a clicked command that needs a permission. | `Compat.runCommand` sends a *custom click action* instead (`mobstacker:command`), handled by `ServerCommonPacketListenerImplMixin` -> `MobStackerCommands.runClicked`: runs as the player who clicked, with their permissions, `/mobstacker` commands only. No client mod needed. |
 | 1.21.2 | Sweeping Edge sweeps in other situations than on 1.20.1. | Vanilla's sweep condition changed (horizontal known movement, `#swords`). | The mod follows that version's vanilla: `Compat.stillEnoughToSweep`, `Compat.isSword`. |
 | 26.x | `ChatFormatting.getColor()` is gone / colour of a format is unknown. | `ChatFormatting` carries no colour. | `Compat.rgb(ChatFormatting)`. |
-| 26.1 | A per-frame world label **jumps** instead of sliding. | Easy to place by `entity.getEyePosition()` (moves once a tick) when rewriting rendering. | Use the frame's camera: `minecraft.gameRenderer.mainCamera().position()` (`MobStackerRegionOverlay.emitGizmos`). |
+| 1.21.11 | A per-frame world label **jumps** instead of sliding. | Easy to place by `entity.getEyePosition()` (moves once a tick) when rewriting rendering. | Use the frame's camera: `minecraft.gameRenderer.mainCamera().position()` (`MobStackerRegionOverlay.emitGizmos`). |
 | 26.1 | Screens show a blurred world, no dark backdrop. | Vanilla's own background. | Not a bug: `CompatScreen.drawBackground` calls vanilla's. |
-| 26.1 | **Water and clouds cover a region box** (X-ray off; found in round 26.x-1, unseen on 26.3 Fabric because that instance ran Improved Transparency). | The game draws its see-through gizmos before the translucent terrain (26.1: in the main pass; 26.2: `PreparedFrame.executeTranslucent`'s `gizmos` phase; 26.3: its `translucentGizmos` phase), clouds and weather come after, and a gizmo writes no depth. | Drawn late instead, per version (`client.LevelRendererGizmosMixin`, `client.FeatureFrameGizmosMixin`, `client/LateGizmos`): 26.1 in the late debug pass, 26.2 at the start of the always-on-top pass (**which the game adds only when there are always-on-top gizmos**: added for these too, and it clears the depth only for its own), 26.3 at the end of `executeClassicTransparency`. 26.3's Improved Transparency (order-independent) is left alone. In the classic mode the water hides the part of a box below its surface from above (1.20.1 showed it). |
+| 1.21.11 | **Water and clouds cover a region box** (X-ray off; found in round 26.x-1, unseen on 26.3 Fabric because that instance ran Improved Transparency). | The game draws its see-through gizmos before the translucent terrain (1.21.11 and 26.1: in the main pass; 26.2: `PreparedFrame.executeTranslucent`'s `gizmos` phase; 26.3: its `translucentGizmos` phase), clouds and weather come after, and a gizmo writes no depth. | Drawn late instead, per version (`client.LevelRendererGizmosMixin`, `client.FeatureFrameGizmosMixin`, `client/LateGizmos`): 1.21.11 and 26.1 in the late debug pass, 26.2 at the start of the always-on-top pass (**which the game adds only when there are always-on-top gizmos**: added for these too, and it clears the depth only for its own), 26.3 at the end of `executeClassicTransparency`. 26.3's Improved Transparency (order-independent) is left alone. In the classic mode the water hides the part of a box below its surface from above (1.20.1 showed it). |
 | NeoForge 26.1 (unconfirmed; 21.1 did not) | Shears on a **mooshroom** stack turn the whole stack into cows and give mushrooms for one; with `stackedHarvest` off nothing steps out. | NeoForge 26.x moves only the sheep's, snow golem's and bogged's shears into `IShearable`; the mooshroom and the copper golem keep vanilla's in `mobInteract`. The mod assumed every shears interaction on NeoForge was outside `mobInteract`. | `MobStacker.shearingOutsideMobInteract` is a predicate per mob (`MobStackerNeoForge`); `MushroomCowShearMixin` harvests the members in `mobInteract` on Fabric and on 26.1+. Check the list again at the 1.21.2-1.21.11 NeoForge nodes. |
-| NeoForge 20.2-21.1 | A sheared **mooshroom** stack becomes **one cow** (the stack is lost), by hand or dispenser. | The cow is made by `create` + `addFreshEntity` (`shear`, or Forge's `shearInternal` on 20.2); only Fabric and Forge had the mixin that carries the stack. | `MushroomCowShearMixin` (`neoforge && <26.1`); from 26.1 it is `convertTo`, which `MobMixin` handles. Scenario: `tools/test/scenarios/shear_dispenser_mooshroom.txt`. |
+| NeoForge 20.2-21.1 | A sheared **mooshroom** stack becomes **one cow** (the stack is lost), by hand or dispenser. | The cow is made by `create` + `addFreshEntity` (`shear`, or Forge's `shearInternal` on 20.2); only Fabric and Forge had the mixin that carries the stack. | `MushroomCowShearMixin` (`neoforge && <1.21.11`); by 1.21.11 it is `convertTo`, which `MobMixin` handles. Scenario: `tools/test/scenarios/shear_dispenser_mooshroom.txt`. |
 
 ## Refuses to load or crashes
 
@@ -52,11 +52,11 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.1 | NeoForge 26.x: no access transformer in the jar (fields the widener opens are private at run time). | `remapJar` converts the widener to an AT only while obfuscated, and 26.x has no remapping. | `build.gradle.kts` writes `META-INF/accesstransformer.cfg` from the node's widener lines (`accessTransformerOf`; Mojang's names are the run-time names there) and leaves the widener out of the jar. |
 | 1.21.2 (unconfirmed; 1.21.11 and 26.2 have it) | The server refuses to start: "Critical injection failure" in `ServerChunkCacheMixin`, "Scanned 0 target(s)". | `ServerChunkCache.tickChunks` has an overload (`tickChunks(ProfilerFiller, long)`), and **Mixin takes the first method of a bare name**: the call is in the other one. | `Compat.TICK_CHUNKS`, the full descriptor. `checkMixins` selects as Mixin does since (it used to look at every overload). Give a target with overloads its descriptor. |
 | 1.21.2 | Mixin apply error on a `@Redirect` that `checkMixins` passed. | A redirect that captures the target method's arguments (`LivingEntity.actuallyHurt` gained a `ServerLevel`). | Version-specific handler in `LivingEntityMixin`. |
-| ≤26.3 | Mixin apply error on an `@Invoker` that `checkMixins` passed. | The method moved to a superclass (`Animal.usePlayerItem` -> `Mob`). | `AnimalInvoker` targets `Mob` on 26.x. |
+| by 1.21.11 | Mixin apply error on an `@Invoker` that `checkMixins` passed. | The method moved to a superclass (`Animal.usePlayerItem` -> `Mob`). | `AnimalInvoker` targets `Mob` from 1.21.11 (found again on the 1.21.11 server: `checkMixins` sees the method in the superclass). |
 | 1.21.6 | Entity save/load methods missing. | `ValueOutput`/`ValueInput` replace `CompoundTag` there. | `Compat.save`/`load` (`TagValueOutput`/`TagValueInput`, `ProblemReporter.DISCARDING`); `EntityDataMixin`. `tools/VanillaKeys.java` reads both shapes. |
-| 26.1 | Conversion mixins (pig/villager lightning, tadpole, zombie) find no target. | Conversions go through `Mob.convertTo(EntityType, ConversionParams, ...)`. | `MobMixin`'s `convertTo` carries the stack; the old ones are in `mixinsBefore`. |
+| by 1.21.11 | Conversion mixins (pig/villager lightning, tadpole, zombie, the mooshroom's shears) find no target. | Conversions go through `Mob.convertTo(EntityType, ConversionParams, ...)` (the overload exists from 1.21.2). | `MobMixin`'s `convertTo` carries the stack; the old ones are in `mixinsBefore`. |
 | 26.3 | Spawn cap mixin finds no target. | `NaturalSpawner.createState` reads the level's entities itself (26.2 still has them handed over by `ServerChunkCache.tickChunks`). | `NaturalSpawnerMixin` replaces `ServerChunkCacheMixin`. |
-| 26.1 | Every drawing class fails to compile. | New renderer (`com.mojang.renderpearl`), GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`, entities through render states and `SubmitNodeCollector`. | Region boxes are **gizmos** (`emitGizmos`, `client.LevelRendererGizmosMixin`), stack labels a render-state name tag line (`EntityRendererMixin`, `client.EntityRenderStateMixin`), screens bridged by `client/CompatScreen` (drawing *and* input events). The old classes compile below 26.1 only. |
+| 1.21.9-26.1 | Every drawing class fails to compile. | Entities drawn through render states (1.21.2) and `SubmitNodeCollector` (1.21.9, unconfirmed), input events (1.21.9), gizmos (1.21.11), then 26.1's new renderer (`com.mojang.renderpearl`) and GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`. | Region boxes are **gizmos** from 1.21.11 (`emitGizmos`, `client.LevelRendererGizmosMixin`), stack labels a render-state name tag line from 1.21.9 (`EntityRendererMixin`, `client.EntityRenderStateMixin`), screens bridged by `client/CompatScreen` (drawing from 26.1, input events from 1.21.9). The old box drawing compiles below 1.21.11 only. |
 | any | A mixin config with a dropped entry is invalid JSON. | Entries are dropped per node by `mixinsBefore`/`mixinsFrom`; a dropped last entry leaves a trailing comma. | Version-limited entries go at the **top** of their list in `mobstacker.mixins.json`. |
 | 1.20.1 node | `x instanceof Player p` does not compile where `x` is already a `Player`. | The 1.20.1 node compiles with Java 17 (21 allows it). | Write it the Java 17 way in shared code. |
 
@@ -103,8 +103,8 @@ which is what it was run on besides the newest.
 ## 26.1 to 26.3
 
 What the 26.1.2 and 26.2 nodes found. **26.1** (with its hotfixes 26.1.1 and 26.1.2) already has the
-new renderer, gizmos, render states, `GuiGraphicsExtractor`, the input events, `convertTo` and Fabric
-API's renames; much of the rest came with 26.2:
+new renderer, `GuiGraphicsExtractor` and Fabric API's renames (the gizmos, render states, input events
+and `convertTo` are older: see "1.21.11"); much of the rest came with 26.2:
 
 | Since | What | Where |
 |---|---|---|
@@ -129,8 +129,30 @@ button 0); **SDL came with 26.3**, and with it the changes below, which the code
 | 26.3 | `NaturalSpawner.createState` reads the level's entities | `NaturalSpawnerMixin` from 26.3, `ServerChunkCacheMixin` below it |
 | 26.3 | Saved keys: `DrownedConversionTime`, `StrayConversionTime`, `InWaterTime`, `AssignProfessionWhenSpawned` are not in 26.3's list, `can_break`, `color`, `invulnerable_time` are new; none is top-only | `src/main/vanilla-keys/26.2.txt` |
 
-What the code still has at 26.1 compiles on 26.1.2 and its mixins apply there; whether a change came
-in 26.1 itself or between 1.21.11 and 26.1 is for a 1.21.11 node to tell.
+What the code still has at 26.1 compiles on 26.1.2 and its mixins apply there; the 1.21.11 node (below)
+moved what 1.21.11 already has.
+
+## 1.21.11
+
+What the 1.21.11 node (Fabric) found. Of what the code had at 26.1, 1.21.11 **already has** most of
+the world drawing and the server side; the GUI is still `GuiGraphics` with `render()`. Where the real
+version is known it is the condition (1.21.5, 1.21.9); the rest sits at 1.21.11, "unconfirmed when",
+so a node in between fails loudly (compile or `checkMixins`) if the guess is wrong.
+
+| Since | What | Where |
+|---|---|---|
+| 1.21.11 | gizmos: the region boxes, drawn late (as on 26.1: the main pass's lambda, the late debug pass's). On Fabric the lambdas are `method_62214` and `method_75413` (no Mojang name; NeoForge's will be `lambda$...`). `CameraRenderState` and `Matrix4f` (26.1: `state.level.CameraRenderState`, `Matrix4fc`) | `client.LevelRendererGizmosMixin`, `MobStackerRegionOverlay`, `mixinsFrom`/`mixinsBefore` |
+| 1.21.9 (unconfirmed) | name tags submitted from a render state: `EntityRenderer.submitNameTag(state, pose, collector, camera)`, called for every entity (26.1: `submitNameDisplay`) | `EntityRendererMixin` (three branches), `Gfx.submitNameTag` |
+| 1.21.9 | `KeyEvent`, `CharacterEvent(codepoint, modifiers)` (26.1 drops the modifiers), `MouseButtonEvent`, `Button.Plain` with `renderContents`, `KeyMapping.Category` | `CompatScreen` (`charEvent`, `modifiersOf`), `StepButton`, `MobStackerClient` |
+| 1.21.11 | `Camera.getPosition()` -> `position()` | `Gfx.cameraPosition` |
+| 1.21.11 | `Component.Serializer` gone (the codec only); an entity is no command source (`ServerPlayer.commandSource()`), and `Player` has no `sendSystemMessage` (26.1 gives it back) | `Compat.toJson/fromJson`, `acceptsSuccess`, `tell` |
+| 1.21.11 | `Mob.usePlayerItem`, `EntityType.isAllowedInPeaceful`, `ItemStack.postHurtEnemy(LivingEntity, LivingEntity)`, `MobBucketItem` creates the mob and adds it itself, `Fox.getTrustedEntities`, dispenser `tryShearEntity`, `send(Packet, ChannelFutureListener)`, armour stands without `tick`, every conversion through `convertTo` | `AnimalInvoker`, `MobMixin`, `ItemStackMixin`, `MobBucketItemMixin`, `FoxAccessor`, `Compat`, `mixinsBefore` |
+| 1.21.5 | `AbstractCow` (the milk), `Mob.getDropChances()`, gifts from loot tables (`dropFromGiftLootTable`: the chicken's egg, the turtle's scute), `Sheep.shear(ServerLevel, SoundSource, ItemStack)` with the level's `playSound(Entity, ...)` (unconfirmed) | `MilkableMixin`, `MobEquipmentAccessor`, `ChickenMixin`, `TurtleMixin`, `SheepShearMixin`, `ShearsDispenseItemBehaviorMixin` |
+| 26.1, not 1.21.5 | `Entity.getTags()` -> `entityTags()` (the 1.21.5 guess was wrong) | `Compat.tags` |
+| 1.21.11 | saved keys: as 26.1.2 without `AgeLocked`, `VillagerDataFinalized`; `ignore_fall_damage_from_current_explosion` (a player's) still there; none is top-only | `src/main/vanilla-keys/1.21.11.txt` |
+
+Still at 26.1, and right there: `GuiGraphicsExtractor`, `text`/`centeredText`, `sendOverlayMessage`,
+`interact(player, hand, location)`, the dyes as a component, `ChatFormatting` without ids.
 
 ## NeoForge between 1.21.1 and 26.3
 
@@ -185,18 +207,19 @@ including mixin descriptor strings) or by a helper in `compat/Compat.java`.
 | 26.2 | `Minecraft.setScreen`, `.screen` | `minecraft.gui.setScreen`, `.gui.screen()` |
 | 26.1 | `displayClientMessage(c, true)` | `sendOverlayMessage(c)` |
 | 26.1 | Fabric API `ClientCommandManager`, `KeyBindingHelper`, `HudRenderCallback`, `PayloadTypeRegistry.playC2S/playS2C` | `ClientCommands`, `KeyMappingHelper`, `HudElementRegistry`, `serverboundPlay/clientboundPlay` |
-| 26.1 | `KeyMapping` category string | `KeyMapping.Category.register(id)` |
+| 1.21.9 (unconfirmed; 1.21.11 has it) | `KeyMapping` category string | `KeyMapping.Category.register(id)` |
 
 A trap of the tooling itself: a **mass search-and-replace** that turns an old constructor into a call
 to a `Compat` helper also rewrites the helper's own old-version branch into a call to itself
 (`Compat.runCommand` called `Compat.runCommand` on 1.20.1: a stack overflow on the first clickable
 panel, caught before any release). After such a replace, look at the helpers' `else` branches.
 
-## Known gaps on 26.x (not fixed)
+## Known gaps on 1.21.2+ and 26.x (not fixed)
 
 - With `separateStackLabel` off (the count written into the name), stacks named `Dinnerbone`/`Grumm`,
-  `Toast` and `jeb_` lose their easter egg: 26.x reads those names off render states.
-- Kill holograms left in a world by 1.5.x are no longer cleaned up: armour stands do not tick on their own.
+  `Toast` and `jeb_` lose their easter egg from 1.21.2: the game reads those names off render states
+  (the three mixins are in `mixinsBefore` at 1.21.2).
+- Kill holograms left in a world by 1.5.x are no longer cleaned up (by 1.21.11): armour stands do not tick on their own.
 
 ## Fabric and NeoForge on one server
 

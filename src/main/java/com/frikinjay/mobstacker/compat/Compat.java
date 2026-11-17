@@ -151,8 +151,8 @@ public final class Compat {
     public static final String TICK_CHUNKS = "tickChunks";
     //?}
 
-    /** The dispenser's shears on an entity (26.1, unconfirmed: the method lost "Living"). */
-    //? if >=26.1 {
+    /** The dispenser's shears on an entity (by 1.21.11, unconfirmed when: the method lost "Living"). */
+    //? if >=1.21.11 {
     /*public static final String DISPENSER_SHEAR_ENTITY = "tryShearEntity";
     *///?} else {
     public static final String DISPENSER_SHEAR_ENTITY = "tryShearLivingEntity";
@@ -165,8 +165,8 @@ public final class Compat {
     public static final String HANDLE_CUSTOM_CLICK_ACTION = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;)V";
     //?}
 
-    /** A packet sent with a listener (unconfirmed: 26.1 takes Netty's listener). */
-    //? if >=26.1 {
+    /** A packet sent with a listener (by 1.21.11, unconfirmed when: Netty's listener). */
+    //? if >=1.21.11 {
     /*public static final String SEND_WITH_LISTENER =
             "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V";
     *///?} else {
@@ -195,9 +195,12 @@ public final class Compat {
         //?}
     }
 
-    /** A text component as JSON. From 1.20.5 it needs the registries (item and other components in it). */
+    /**
+     * A text component as JSON. From 1.20.5 it needs the registries (item and other components in it);
+     * by 1.21.11 (unconfirmed when) {@code Component.Serializer} is gone and the codec does it.
+     */
     public static String toJson(Component component, RegistryAccess registries) {
-        //? if >=26.1 {
+        //? if >=1.21.11 {
         /*return net.minecraft.network.chat.ComponentSerialization.CODEC
                 .encodeStart(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), component)
                 .getOrThrow().toString();
@@ -210,7 +213,7 @@ public final class Compat {
 
     /** The other way; null when the text is not a component. */
     public static Component fromJson(String json, RegistryAccess registries) {
-        //? if >=26.1 {
+        //? if >=1.21.11 {
         /*try {
             return net.minecraft.network.chat.ComponentSerialization.CODEC
                     .parse(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE),
@@ -517,9 +520,12 @@ public final class Compat {
         return entity instanceof Player player && hasPermission(player, level);
     }
 
-    /** Whether a player sees the answers to its commands ({@code sendCommandFeedback}). */
+    /**
+     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.11
+     * (unconfirmed when) an entity is no longer a command source itself.
+     */
     public static boolean acceptsSuccess(ServerPlayer player) {
-        //? if >=26.1 {
+        //? if >=1.21.11 {
         /*return player.commandSource().acceptsSuccess();
         *///?} else {
         return player.acceptsSuccess();
@@ -667,7 +673,13 @@ public final class Compat {
         if (overHotbar) {
             actionBar(player, message);
         } else {
+            // 1.21.11 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
+            // no command source; displayClientMessage(c, false) is what it calls. 26.1 gives Player one.
+            //? if >=1.21.11 && <26.1 {
+            /*player.displayClientMessage(message, false);
+            *///?} else {
             player.sendSystemMessage(message);
+            //?}
         }
     }
 
@@ -705,9 +717,9 @@ public final class Compat {
         //?}
     }
 
-    /** The entity's scoreboard tags ({@code /tag}). */
+    /** The entity's scoreboard tags ({@code /tag}); {@code entityTags()} from 26.1 (1.21.11 still has getTags). */
     public static Set<String> tags(Entity entity) {
-        //? if >=1.21.5 {
+        //? if >=26.1 {
         /*return entity.entityTags();
         *///?} else {
         return entity.getTags();

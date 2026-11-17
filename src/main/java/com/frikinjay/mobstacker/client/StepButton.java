@@ -21,7 +21,7 @@ import java.util.Locale;
  * forward, like a click. The buttons are {@link InputConstants}' numbers: 26.3 counts them as SDL does
  * (left 1, right 3), not as GLFW did (left 0, right 1).
  */
-//? if >=26.1 {
+//? if >=1.21.9 {
 /*public final class StepButton extends Button.Plain {
 *///?} else {
 public final class StepButton extends Button {
@@ -48,7 +48,7 @@ public final class StepButton extends Button {
         this.step = step;
     }
 
-    //? if >=26.1 {
+    //? if >=1.21.9 {
     /*@Override
     protected boolean isValidClickButton(net.minecraft.client.input.MouseButtonInfo info) {
         return info.button() == InputConstants.MOUSE_BUTTON_LEFT || info.button() == InputConstants.MOUSE_BUTTON_RIGHT;

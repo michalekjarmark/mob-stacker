@@ -119,7 +119,8 @@ public abstract class CompatScreen extends Screen {
         return superClick(mouseX, mouseY, button);
     }
 
-    //? if >=26.1 {
+    // From 1.21.9 keys, characters and clicks come as events.
+    //? if >=1.21.9 {
     /*@Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
         return onKey(event.key(), keyCodeOf(event), event.modifiers());
@@ -127,7 +128,7 @@ public abstract class CompatScreen extends Screen {
 
     @Override
     public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
-        return onChar((char) event.codepoint(), 0);
+        return onChar((char) event.codepoint(), modifiersOf(event));
     }
 
     @Override
@@ -140,7 +141,7 @@ public abstract class CompatScreen extends Screen {
     }
 
     protected boolean superChar(char typed, int modifiers) {
-        return super.charTyped(new net.minecraft.client.input.CharacterEvent(typed));
+        return super.charTyped(charEvent(typed, modifiers));
     }
 
     protected boolean superClick(double mouseX, double mouseY, int button) {
@@ -155,7 +156,7 @@ public abstract class CompatScreen extends Screen {
 
     /^* Types a character into a text box, as the screen would. ^/
     protected static boolean typeInto(EditBox box, char typed, int modifiers) {
-        return box.charTyped(new net.minecraft.client.input.CharacterEvent(typed));
+        return box.charTyped(charEvent(typed, modifiers));
     }
 
     *///?} else {
@@ -231,13 +232,33 @@ public abstract class CompatScreen extends Screen {
         }
         super.removed();
     }
-    *///?} else if >=26.1 {
+    *///?} else if >=1.21.9 {
     /*private static int keyCodeOf(net.minecraft.client.input.KeyEvent event) {
         return event.scancode();
     }
 
     /^* Until 26.3 (GLFW) every typed character comes to the screen: nothing to ask for. ^/
     private void wantTyping() {
+    }
+    *///?}
+
+    //? if >=26.1 {
+    /*/^* A typed character as the screens take it (26.1 dropped its modifiers). ^/
+    private static net.minecraft.client.input.CharacterEvent charEvent(char typed, int modifiers) {
+        return new net.minecraft.client.input.CharacterEvent(typed);
+    }
+
+    private static int modifiersOf(net.minecraft.client.input.CharacterEvent event) {
+        return 0;
+    }
+    *///?} else if >=1.21.9 {
+    /*/^* A typed character as the screens take it (until 26.1 with the modifiers held). ^/
+    private static net.minecraft.client.input.CharacterEvent charEvent(char typed, int modifiers) {
+        return new net.minecraft.client.input.CharacterEvent(typed, modifiers);
+    }
+
+    private static int modifiersOf(net.minecraft.client.input.CharacterEvent event) {
+        return event.modifiers();
     }
     *///?}
 

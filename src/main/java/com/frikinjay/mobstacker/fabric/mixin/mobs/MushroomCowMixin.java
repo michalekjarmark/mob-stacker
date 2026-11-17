@@ -22,7 +22,7 @@ public class MushroomCowMixin {
      * "Mooshroom x10" label, and left there it named a stack of cows that then took no other cow.
      * Every entity {@code shear} adds comes through here; only the cow is touched.
      */
-    //? if <26.1 {
+    //? if <1.21.11 {
     @ModifyArg(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
     private Entity mobstacker$carryStackIntoCow(Entity entity) {
         if (entity instanceof Cow cow && !(entity instanceof MushroomCow)) {
