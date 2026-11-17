@@ -2,7 +2,7 @@ package com.frikinjay.mobstacker.client;
 
 //? if <1.21.11 {
 
-//? if >=1.21.9 {
+//? if >=1.21.6 {
 /*import com.frikinjay.mobstacker.compat.Compat;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
@@ -28,17 +28,17 @@ import java.util.OptionalDouble;
  */
 final class MobStackerRenderTypes extends RenderStateShard {
 
-    //? if >=1.21.9 {
-    /*// By 1.21.9 (unconfirmed when; 1.21.5 brought the pipelines) a type is a render pipeline - the
+    //? if >=1.21.6 {
+    /*// By 1.21.6 (unconfirmed when; 1.21.5 brought the pipelines) a type is a render pipeline - the
     // shader, blending, depth test and depth write - plus a composite state for the rest, and the
     // depth test is the pipeline's own: there is no global one left to get wrong, so no shard to
     // switch it off. The same four types as below, with what they say below.
 
-    /^* {@link #REGION_FACES} below 1.21.9: vanilla's debug filled box writing no depth. ^/
+    /^* {@link #REGION_FACES} below 1.21.6: vanilla's debug filled box writing no depth. ^/
     static final RenderType REGION_FACES = RenderType.create("mobstacker_region_faces", RenderType.SMALL_BUFFER_SIZE,
             false, true, faces("region_faces", DepthTestFunction.LEQUAL_DEPTH_TEST), state(false));
 
-    /^* {@link #REGION_EDGES} below 1.21.9: vanilla's lines writing no depth, into the main buffer. ^/
+    /^* {@link #REGION_EDGES} below 1.21.6: vanilla's lines writing no depth, into the main buffer. ^/
     static final RenderType REGION_EDGES = RenderType.create("mobstacker_region_edges", RenderType.SMALL_BUFFER_SIZE,
             false, false, edges("region_edges", DepthTestFunction.LEQUAL_DEPTH_TEST), state(true));
 

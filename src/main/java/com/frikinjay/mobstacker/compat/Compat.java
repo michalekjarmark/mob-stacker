@@ -151,22 +151,45 @@ public final class Compat {
     public static final String TICK_CHUNKS = "tickChunks";
     //?}
 
-    /** The dispenser's shears on an entity (by 1.21.9, unconfirmed when: the method lost "Living"). */
-    //? if >=1.21.9 {
+    /** The dispenser's shears on an entity (by 1.21.6, unconfirmed when: the method lost "Living"). */
+    //? if >=1.21.6 {
     /*public static final String DISPENSER_SHEAR_ENTITY = "tryShearEntity";
     *///?} else {
     public static final String DISPENSER_SHEAR_ENTITY = "tryShearLivingEntity";
     //?}
 
     /**
-     * The late debug pass's lambda on 1.21.9-1.21.10, where the region boxes are drawn
-     * ({@code client.LevelRendererMixin}). Fabric's dev name; NeoForge 21.10 recompiles the lambda with
-     * its captures in another order, so no mapping reaches it and Mojang's name is the one to give.
+     * The frame graph's main pass and late debug pass, two lambdas, on 1.21.6-1.21.10: the solid
+     * world's depth is kept in the first and the region boxes are drawn in the second
+     * ({@code client.LevelRendererMixin}). Fabric's dev names; Loom writes the runtime ones into the
+     * jar. NeoForge compiles {@code LevelRenderer} itself, and a lambda whose captures come out in
+     * another order than in vanilla has no mapping that reaches it, so those are given as NeoForge
+     * names them (the main pass on NeoForge 21.8, the late one on 21.10).
      */
-    //? if neoforge {
-    /*public static final String LATE_DEBUG_PASS = "lambda$addLateDebugPass$5";
-    *///?} else {
+    //? if >=1.21.9 && neoforge {
+    /*public static final String MAIN_PASS = "method_62214";
+    public static final String LATE_DEBUG_PASS = "lambda$addLateDebugPass$5";
+    *///?} else if >=1.21.9 {
+    /*public static final String MAIN_PASS = "method_62214";
     public static final String LATE_DEBUG_PASS = "method_72915";
+    *///?} else if neoforge {
+    /*public static final String MAIN_PASS = "lambda$addMainPass$3";
+    public static final String LATE_DEBUG_PASS = "lambda$addLateDebugPass$9";
+    *///?} else {
+    public static final String MAIN_PASS = "method_62214";
+    public static final String LATE_DEBUG_PASS = "method_62212";
+    //?}
+
+    /**
+     * The debug renderer's calls in those two passes: the main pass's {@code render} and the late
+     * pass's {@code renderAfterTranslucents}; from 1.21.9 both are one {@code render} with a flag.
+     */
+    //? if >=1.21.9 {
+    /*public static final String DEBUG_RENDER = "Lnet/minecraft/client/renderer/debug/DebugRenderer;render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/culling/Frustum;Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;DDDZ)V";
+    public static final String LATE_DEBUG_RENDER = DEBUG_RENDER;
+    *///?} else {
+    public static final String DEBUG_RENDER = "Lnet/minecraft/client/renderer/debug/DebugRenderer;render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/culling/Frustum;Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;DDD)V";
+    public static final String LATE_DEBUG_RENDER = "Lnet/minecraft/client/renderer/debug/DebugRenderer;renderAfterTranslucents(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;DDD)V";
     //?}
 
     /**
@@ -179,8 +202,8 @@ public final class Compat {
     public static final String HANDLE_CUSTOM_CLICK_ACTION = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/ResourceLocation;Ljava/util/Optional;)V";
     //?}
 
-    /** A packet sent with a listener (by 1.21.9, unconfirmed when: Netty's listener). */
-    //? if >=1.21.9 {
+    /** A packet sent with a listener (by 1.21.6, unconfirmed when: Netty's listener). */
+    //? if >=1.21.6 {
     /*public static final String SEND_WITH_LISTENER =
             "send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V";
     *///?} else {
@@ -211,10 +234,10 @@ public final class Compat {
 
     /**
      * A text component as JSON. From 1.20.5 it needs the registries (item and other components in it);
-     * by 1.21.9 (unconfirmed when) {@code Component.Serializer} is gone and the codec does it.
+     * by 1.21.6 (unconfirmed when) {@code Component.Serializer} is gone and the codec does it.
      */
     public static String toJson(Component component, RegistryAccess registries) {
-        //? if >=1.21.9 {
+        //? if >=1.21.6 {
         /*return net.minecraft.network.chat.ComponentSerialization.CODEC
                 .encodeStart(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), component)
                 .getOrThrow().toString();
@@ -227,7 +250,7 @@ public final class Compat {
 
     /** The other way; null when the text is not a component. */
     public static Component fromJson(String json, RegistryAccess registries) {
-        //? if >=1.21.9 {
+        //? if >=1.21.6 {
         /*try {
             return net.minecraft.network.chat.ComponentSerialization.CODEC
                     .parse(registries.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE),
@@ -535,11 +558,11 @@ public final class Compat {
     }
 
     /**
-     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.9
+     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.6
      * (unconfirmed when) an entity is no longer a command source itself.
      */
     public static boolean acceptsSuccess(ServerPlayer player) {
-        //? if >=1.21.9 {
+        //? if >=1.21.6 {
         /*return player.commandSource().acceptsSuccess();
         *///?} else {
         return player.acceptsSuccess();
@@ -687,9 +710,9 @@ public final class Compat {
         if (overHotbar) {
             actionBar(player, message);
         } else {
-            // By 1.21.9 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
+            // By 1.21.6 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
             // no command source; displayClientMessage(c, false) is what it calls. 26.1 gives Player one.
-            //? if >=1.21.9 && <26.1 {
+            //? if >=1.21.6 && <26.1 {
             /*player.displayClientMessage(message, false);
             *///?} else {
             player.sendSystemMessage(message);
@@ -791,9 +814,9 @@ public final class Compat {
         //?}
     }
 
-    /** Sends a packet to every player who sees the entity (unconfirmed: 1.21.2). */
+    /** Sends a packet to every player who sees the entity (1.21.9 renamed broadcast). */
     public static void sendToTracking(ServerLevel level, Entity entity, Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener> packet) {
-        //? if >=1.21.2 {
+        //? if >=1.21.9 {
         /*level.getChunkSource().sendToTrackingPlayers(entity, packet);
         *///?} else {
         level.getChunkSource().broadcast(entity, packet);

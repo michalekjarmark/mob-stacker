@@ -366,8 +366,8 @@ public final class MobStackerRegionOverlay {
 
     /** {@code target}, created or resized to match {@code main} when it does not already. */
     private static TextureTarget sizedLike(RenderTarget main, TextureTarget target, String label) {
-        //? if >=1.21.9 {
-        /*// By 1.21.9 (unconfirmed when) a target is textures with a name; nothing to bind.
+        //? if >=1.21.6 {
+        /*// By 1.21.6 (unconfirmed when) a target is textures with a name; nothing to bind.
         if (target == null) {
             return new TextureTarget(label, main.width, main.height, true);
         }
@@ -386,12 +386,12 @@ public final class MobStackerRegionOverlay {
     }
 
     /**
-     * Below 1.21.9: {@code copyDepthFrom} leaves no framebuffer bound; the main one was, and the game
-     * carries on drawing without binding it again. From 1.21.9 (unconfirmed when) a copy is a command
+     * Below 1.21.6: {@code copyDepthFrom} leaves no framebuffer bound; the main one was, and the game
+     * carries on drawing without binding it again. From 1.21.6 (unconfirmed when) a copy is a command
      * and nothing is bound, so there is nothing to put back.
      */
     private static void rebindMain(RenderTarget main) {
-        //? if <1.21.9 {
+        //? if <1.21.6 {
         main.bindWrite(false);
         //?}
     }
@@ -399,7 +399,7 @@ public final class MobStackerRegionOverlay {
     /**
      * Draws every showing box, its name and the picker's preview. Called just before the world
      * renderer's debug pass, after everything else in the world (Fabric's {@code LAST}), with the
-     * world's own pose stack and camera. On 1.21.9 and 1.21.10 that is the late debug pass, which
+     * world's own pose stack and camera. On 1.21.6 to 1.21.10 that is the late debug pass, which
      * comes after the clouds, the weather and the transparency's post chain, as {@code renderDebug} did.
      */
     public static void render(PoseStack pose, Camera camera) {
@@ -497,9 +497,9 @@ public final class MobStackerRegionOverlay {
         }
     }
 
-    /** A box's six faces, as vanilla's debug filled box (by 1.21.9, unconfirmed when, in ShapeRenderer). */
+    /** A box's six faces, as vanilla's debug filled box (by 1.21.6, unconfirmed when, in ShapeRenderer). */
     private static void filledBox(PoseStack pose, BufferBuilder faces, AABB box, float r, float g, float b, float a) {
-        //? if >=1.21.9 {
+        //? if >=1.21.6 {
         /*net.minecraft.client.renderer.ShapeRenderer.addChainedFilledBoxVertices(pose, faces,
                 box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, g, b, a);
         *///?} else {
@@ -508,10 +508,15 @@ public final class MobStackerRegionOverlay {
         //?}
     }
 
-    /** A box's twelve edges (by 1.21.9, unconfirmed when, in ShapeRenderer and from the pose alone). */
+    /**
+     * A box's twelve edges: by 1.21.6 (unconfirmed when) in ShapeRenderer, by 1.21.9 (unconfirmed when)
+     * from the pose alone.
+     */
     private static void lineBox(PoseStack pose, BufferBuilder edges, AABB box, float r, float g, float b, float a) {
         //? if >=1.21.9 {
         /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), edges, box, r, g, b, a);
+        *///?} else if >=1.21.6 {
+        /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, edges, box, r, g, b, a);
         *///?} else {
         LevelRenderer.renderLineBox(pose, edges, box, r, g, b, a);
         //?}
@@ -594,8 +599,8 @@ public final class MobStackerRegionOverlay {
 
     /** Draws a batch {@link #begin} started, as the game's own buffer source would: sorted if the type asks. */
     private static void draw(RenderType type, BufferBuilder builder) {
-        //? if >=1.21.9 {
-        /*// By 1.21.9 (unconfirmed when) the sorting is the projection's.
+        //? if >=1.21.6 {
+        /*// By 1.21.6 (unconfirmed when) the sorting is the projection's.
         com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
         if (mesh != null) {
             if (type.sortOnUpload()) {

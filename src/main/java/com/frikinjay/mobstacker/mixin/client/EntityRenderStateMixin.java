@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin.client;
 
-//? if >=1.21.9 {
+//? if >=1.21.2 {
 /*import com.frikinjay.mobstacker.client.StackLabelState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.network.chat.Component;

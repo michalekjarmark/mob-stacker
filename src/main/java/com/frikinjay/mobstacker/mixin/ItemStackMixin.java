@@ -25,8 +25,8 @@ public abstract class ItemStackMixin {
     private int mobstacker$damageBeforeHit = -1;
 
     @Inject(method = Compat.WEAPON_HIT_METHOD, at = @At("HEAD"))
-    // By 1.21.9 (unconfirmed when) the attacker is any living entity.
-    //? if >=1.21.9 {
+    // By 1.21.6 (unconfirmed when) the attacker is any living entity.
+    //? if >=1.21.6 {
     /*private void mobstacker$beforeHit(LivingEntity target, LivingEntity attacker, CallbackInfo ci) {
     *///?} else {
     private void mobstacker$beforeHit(LivingEntity target, Player attacker, CallbackInfo ci) {
@@ -35,7 +35,7 @@ public abstract class ItemStackMixin {
     }
 
     @Inject(method = Compat.WEAPON_HIT_METHOD, at = @At("RETURN"))
-    //? if >=1.21.9 {
+    //? if >=1.21.6 {
     /*private void mobstacker$afterHit(LivingEntity target, LivingEntity attacker, CallbackInfo ci) {
     *///?} else {
     private void mobstacker$afterHit(LivingEntity target, Player attacker, CallbackInfo ci) {

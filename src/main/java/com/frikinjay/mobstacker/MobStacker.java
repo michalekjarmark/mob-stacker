@@ -495,7 +495,7 @@ public final class MobStacker {
         if (entity instanceof Ocelot ocelot) {
             return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
         }
-        //? if >=1.21.9 {
+        //? if >=1.21.6 {
         /*return entity instanceof Fox fox && ((FoxAccessor) fox).mobstacker$trustedEntities().findAny().isPresent();
         *///?} else {
         return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();

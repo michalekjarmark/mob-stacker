@@ -211,13 +211,13 @@ tasks.processResources {
         "client.RabbitRendererMixin" to "1.21.2",
         // 26.3: spawning reads the level's entities in NaturalSpawner (26.2 still hands them over).
         "ServerChunkCacheMixin" to "26.3",
-        // By 1.21.9 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
+        // By 1.21.6 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
         // are convertTo (MobMixin carries the stack), and armour stands no longer tick on their own.
-        "ArmorStandMixin" to "1.21.9",
-        "mobs.PigMixin" to "1.21.9",
-        "mobs.VillagerMixin" to "1.21.9",
-        "mobs.TadpoleMixin" to "1.21.9",
-        "mobs.ZombieMixin" to "1.21.9",
+        "ArmorStandMixin" to "1.21.6",
+        "mobs.PigMixin" to "1.21.6",
+        "mobs.VillagerMixin" to "1.21.6",
+        "mobs.TadpoleMixin" to "1.21.6",
+        "mobs.ZombieMixin" to "1.21.6",
     )
     // And the other way round: mixins for a target that only exists from a version on.
     val mixinsFrom = mapOf(
@@ -225,8 +225,8 @@ tasks.processResources {
         // 26.2: the gizmos drawn after the weather (the frame's features got phases there; 26.1 draws
         // them itself, in LevelRendererGizmosMixin).
         "client.FeatureFrameGizmosMixin" to "26.2",
-        // 1.21.9 (unconfirmed): name tags are submitted from a render state (client.EntityRendererMixin).
-        "client.EntityRenderStateMixin" to "1.21.9",
+        // 1.21.2: entities are drawn from render states, which carry the stack label (client.EntityRendererMixin).
+        "client.EntityRenderStateMixin" to "1.21.2",
         "NaturalSpawnerMixin" to "26.3",
         // 1.21.6 (unconfirmed): a clicked command in a chat panel is a custom click action.
         "ServerCommonPacketListenerImplMixin" to "1.21.6",

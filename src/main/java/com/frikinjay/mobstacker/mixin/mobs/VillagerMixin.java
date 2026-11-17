@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
-//? if <1.21.9 {
+//? if <1.21.6 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LightningBolt;
