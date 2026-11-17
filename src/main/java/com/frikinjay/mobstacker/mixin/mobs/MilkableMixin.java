@@ -23,8 +23,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>Targets {@link Cow} and {@link Goat}, which covers mooshrooms too — their own
  * {@code mobInteract} hands a bucket straight to {@code Cow.mobInteract}.
  */
-//? if >=26.1 {
+// 1.21.5: the cow's milk is AbstractCow's (cow variants); 1.21.11 moved the cows to a package of their own.
+//? if >=1.21.11 {
 /*@Mixin({net.minecraft.world.entity.animal.cow.AbstractCow.class, Goat.class})
+*///?} else if >=1.21.5 {
+/*@Mixin({net.minecraft.world.entity.animal.AbstractCow.class, Goat.class})
 *///?} else {
 @Mixin({Cow.class, Goat.class})
 //?}

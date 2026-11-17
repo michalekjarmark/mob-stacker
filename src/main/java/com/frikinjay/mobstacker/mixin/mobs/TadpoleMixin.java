@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin.mobs;
 
-//? if <26.1 {
+//? if <1.21.6 {
 import com.frikinjay.mobstacker.MobStacker;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;

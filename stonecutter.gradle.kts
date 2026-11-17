@@ -54,10 +54,12 @@ stonecutter parameters {
     moved("1.21.11", "net.minecraft.world.entity.animal.Parrot", "net.minecraft.world.entity.animal.parrot.Parrot")
     moved("1.21.11", "net.minecraft.world.entity.animal.Pig", "net.minecraft.world.entity.animal.pig.Pig")
     moved("1.21.11", "net.minecraft.world.entity.animal.Rabbit", "net.minecraft.world.entity.animal.rabbit.Rabbit")
-    moved("1.21.11", "net.minecraft.world.entity.animal.Sheep", "net.minecraft.world.entity.animal.sheep.Sheep")
+    // Sheep and wolves have their own packages by 1.21.9 (1.21.10 has them; 1.21.5, where their variants
+    // came, unconfirmed): a node below says.
+    moved("1.21.5", "net.minecraft.world.entity.animal.Sheep", "net.minecraft.world.entity.animal.sheep.Sheep")
     moved("1.21.11", "net.minecraft.world.entity.animal.TropicalFish", "net.minecraft.world.entity.animal.fish.TropicalFish")
     moved("1.21.11", "net.minecraft.world.entity.animal.Turtle", "net.minecraft.world.entity.animal.turtle.Turtle")
-    moved("1.21.11", "net.minecraft.world.entity.animal.Wolf", "net.minecraft.world.entity.animal.wolf.Wolf")
+    moved("1.21.5", "net.minecraft.world.entity.animal.Wolf", "net.minecraft.world.entity.animal.wolf.Wolf")
     moved("26.2", "net.minecraft.world.entity.animal.Bucketable", "net.minecraft.world.entity.Bucketable") // 1.21.11 and 26.1.2 have animal.Bucketable
     moved("1.21.11", "net.minecraft.world.entity.monster.Zombie", "net.minecraft.world.entity.monster.zombie.Zombie")
     moved("1.21.11", "net.minecraft.world.entity.monster.ZombieVillager", "net.minecraft.world.entity.monster.zombie.ZombieVillager")

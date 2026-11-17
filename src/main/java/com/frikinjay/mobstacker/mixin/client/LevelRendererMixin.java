@@ -1,6 +1,46 @@
 package com.frikinjay.mobstacker.mixin.client;
 
-//? if <26.1 {
+//? if >=1.21.6 && <1.21.11 {
+/*import com.frikinjay.mobstacker.client.MobStackerRegionOverlay;
+import com.frikinjay.mobstacker.compat.Compat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/^*
+ * The same three points as below 1.21.6 (see there), where the frame graph put them. By 1.21.6
+ * (unconfirmed when; the frame graph came in 1.21.2) the world is drawn in passes, each a lambda: the
+ * solid world, the debug renderer and the translucent terrain in the main pass ({@link Compat#MAIN_PASS}),
+ * and a late debug pass ({@link Compat#LATE_DEBUG_PASS}), added every frame after the clouds, the weather
+ * and the transparency's post chain - where {@code renderDebug} was, and where the boxes are drawn.
+ * Fabric's mappings give the lambdas no names of their own; Loom writes the runtime names into each jar,
+ * but not for a lambda NeoForge recompiled: so the names are per loader, and the debug renderer's calls
+ * per version ({@link Compat#DEBUG_RENDER}, {@link Compat#LATE_DEBUG_RENDER}).
+ ^/
+@Mixin(LevelRenderer.class)
+public abstract class LevelRendererMixin {
+
+    @Inject(method = Compat.MAIN_PASS, require = 0, at = @At(value = "INVOKE", ordinal = 0, target = Compat.DEBUG_RENDER))
+    private void mobstacker$keepDepthBeforeDebug(CallbackInfo ci) {
+        MobStackerRegionOverlay.keepSolidDepth("before debug renderer");
+    }
+
+    @Inject(method = Compat.MAIN_PASS, require = 0, at = @At(value = "CONSTANT", args = "stringValue=translucent"))
+    private void mobstacker$keepDepthBeforeTranslucent(CallbackInfo ci) {
+        MobStackerRegionOverlay.keepSolidDepth("before translucent");
+    }
+
+    @Inject(method = Compat.LATE_DEBUG_PASS, require = 0, at = @At(value = "INVOKE", target = Compat.LATE_DEBUG_RENDER))
+    private void mobstacker$drawRegions(CallbackInfo ci) {
+        // A fresh stack, as the debug renderer's own: the camera's rotation is on the model-view matrix.
+        MobStackerRegionOverlay.render(new PoseStack(), Minecraft.getInstance().gameRenderer.getMainCamera());
+    }
+}
+*///?} else if <1.21.6 {
 
 import com.frikinjay.mobstacker.client.MobStackerRegionOverlay;
 import com.mojang.blaze3d.vertex.PoseStack;

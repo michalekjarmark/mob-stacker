@@ -20,9 +20,10 @@ public class MushroomCowMixin {
      * The cow a sheared mooshroom turns into takes the whole stack with it. Caught on its way into the
      * world, which is after vanilla has copied the mooshroom's name onto it: that name is the stack's
      * "Mooshroom x10" label, and left there it named a stack of cows that then took no other cow.
-     * Every entity {@code shear} adds comes through here; only the cow is touched.
+     * Every entity {@code shear} adds comes through here; only the cow is touched. By 1.21.6
+     * (unconfirmed when) the cow is a {@code convertTo}, which MobMixin carries the stack through.
      */
-    //? if <26.1 {
+    //? if <1.21.6 {
     @ModifyArg(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
     private Entity mobstacker$carryStackIntoCow(Entity entity) {
         if (entity instanceof Cow cow && !(entity instanceof MushroomCow)) {

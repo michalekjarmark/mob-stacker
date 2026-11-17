@@ -31,7 +31,9 @@ import rcon  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# white-list=false: 26.x turns the whitelist on in a new server.properties, and a test client could not join.
 PROPERTIES = """online-mode=false
+white-list=false
 enable-rcon=true
 rcon.port={rcon}
 rcon.password={password}

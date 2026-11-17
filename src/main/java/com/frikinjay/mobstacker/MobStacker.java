@@ -495,7 +495,7 @@ public final class MobStacker {
         if (entity instanceof Ocelot ocelot) {
             return ((OcelotAccessor) ocelot).mobstacker$isTrusting();
         }
-        //? if >=26.1 {
+        //? if >=1.21.6 {
         /*return entity instanceof Fox fox && ((FoxAccessor) fox).mobstacker$trustedEntities().findAny().isPresent();
         *///?} else {
         return entity instanceof Fox fox && !((FoxAccessor) fox).mobstacker$trustedUUIDs().isEmpty();
@@ -1629,7 +1629,7 @@ public final class MobStacker {
     }
 
     private static float dropChance(Mob mob, EquipmentSlot slot) {
-        //? if >=26.1 {
+        //? if >=1.21.5 {
         /*return mob.getDropChances().byEquipment(slot);
         *///?} else {
         return ((MobEquipmentAccessor) mob).mobstacker$dropChance(slot);

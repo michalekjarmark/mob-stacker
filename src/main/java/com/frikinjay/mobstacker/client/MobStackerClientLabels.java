@@ -79,6 +79,12 @@ public final class MobStackerClientLabels {
                 || (minecraft.player != null && entity.isInvisibleTo(minecraft.player))) {
             return null;
         }
+        // No farther than vanilla draws a name: 64 blocks from the camera. 1.20.1's renderNameTag checks
+        // that itself; from 1.21.2 the check is in extractRenderState, before the name, and the label is
+        // drawn past it (seen porting 1.21.8: an always-shown label had no limit there, nor on 26.x).
+        if (Gfx.cameraPosition(minecraft).distanceToSqr(entity.position()) > 4096.0) {
+            return null;
+        }
         return StackLabelFormat.build(label.format(), entity.getType().getDescription(), label.count())
                 .withStyle(label.color());
     }

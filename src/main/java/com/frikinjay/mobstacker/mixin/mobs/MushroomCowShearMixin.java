@@ -44,10 +44,10 @@ public class MushroomCowShearMixin implements StackShearable {
         }
     }
 
-    //? if fabric || >=26.1 {
+    //? if fabric || >=1.21.6 {
     /**
      * A player's shears harvesting the members of a mooshroom stack, where they shear in the
-     * mooshroom's own {@code mobInteract}: on Fabric, and on NeoForge from 26.1, which leaves vanilla's
+     * mooshroom's own {@code mobInteract}: on Fabric, and on NeoForge by 21.8 (21.1 did not), which leaves vanilla's
      * shears there for the mooshroom alone (its sheep and snow golems shear through
      * {@code IShearable}, see {@code NeoForgeShearing}). With {@code stackedHarvest} off a stack hands
      * one mooshroom over first ({@code MobStacker.isShearingOneInteraction}), so this sees a single mob.
@@ -75,7 +75,7 @@ public class MushroomCowShearMixin implements StackShearable {
     // (Fabric's MushroomCowMixin and Forge's do the same; from 26.1 the conversion is convertTo, which
     // MobMixin handles). Without it a stack of mooshrooms sheared on NeoForge became one cow. Caught on
     // its way into the world, after vanilla has copied the mooshroom's name ("Mooshroom x10") onto it.
-    //? if neoforge && >=1.20.3 && <26.1 {
+    //? if neoforge && >=1.20.3 && <1.21.6 {
     /*@ModifyArg(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
     private Entity mobstacker$carryStackIntoCow(Entity entity) {
         if (entity instanceof Cow cow && !(entity instanceof MushroomCow)) {

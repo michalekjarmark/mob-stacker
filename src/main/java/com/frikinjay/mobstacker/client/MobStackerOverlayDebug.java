@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.client;
 
-//? if <26.1 {
+//? if <1.21.11 {
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
@@ -90,7 +90,12 @@ final class MobStackerOverlayDebug {
     }
 
     private static String id(RenderTarget target) {
+        //? if >=1.21.6 {
+        /*// No framebuffer of its own any more (by 1.21.6, unconfirmed when): which target it is, then.
+        return target == null ? "-" : Integer.toHexString(System.identityHashCode(target));
+        *///?} else {
         return target == null ? "-" : String.valueOf(target.frameBufferId);
+        //?}
     }
 }
 //?}

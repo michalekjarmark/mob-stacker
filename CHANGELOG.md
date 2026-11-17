@@ -53,6 +53,56 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   the access widener at build time (26.x is not obfuscated, so there is no remapping step to convert
   it). Checked on a dev server: the self-test, stacking, damage overflow, strict data matching and a
   dispenser shearing a stack; not yet the client.
+- **Minecraft 1.21.11 on Fabric** - in progress, not released yet: its own jar (Fabric API for
+  1.21.11, Java 21), the same code as the other jars. 1.21.11 already draws the
+  region boxes as the game's own gizmos and the stack labels as name tags, as 26.x does; its screens
+  are drawn as on 1.21. Checked on a server: the self-test, stacking, damage overflow, strict data
+  matching, a dispenser shearing stacks of sheep and mooshrooms, regions and the scenarios from the
+  1.20.1 rounds, with the same answers as 26.1.2; the client started into a world and drew a region
+  box over water and clouds. Not yet played. As on 26.x: with
+  `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in
+  its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.11 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.11.42
+  or newer, the first stable build; Java 21), the same code as the Fabric jar. NeoForge 21.11 leaves a
+  player's shears on a mooshroom or a copper golem where vanilla has them, as NeoForge 26.x does, so
+  those take the same path as on Fabric. Checked on a dev server with the same scenarios as the
+  Fabric jar (the same answers), the client started into a world and drew a region box, and a
+  Fabric 1.21.11 server with a NeoForge client and the other way round both had the mod's channels
+  working (config and region boxes). Not yet played.
+- **Minecraft 1.21.9 and 1.21.10 on Fabric** - in progress, not released yet: one jar for both (Fabric
+  API for your 1.21.9 or 1.21.10, Java 21), the same code as the other jars. These versions have no
+  gizmos yet, so the mod draws the region boxes itself as on 1.21.1 (through the game's newer
+  renderer): what is under water shows through it, as on 1.20.1. The stack labels are name tags as on
+  1.21.11. Checked on a 1.21.10 server: the self-test, stacking, damage overflow, strict data matching,
+  regions and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.11; the client
+  started into a world and drew a region box over water and clouds, and through the water below its
+  surface. 1.21.9 itself not run. Not yet
+  played. As on 1.21.11: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a
+  stack whose count is in its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.10 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.10.63
+  or newer, the first stable build; Java 21), the same code as the Fabric jar. NeoForge for 1.21.9 never
+  left beta, so this jar is for 1.21.10 only. Its shears are as on NeoForge 1.21.11 (a player's shears
+  on a mooshroom or a copper golem take the same path as on Fabric). Checked on a dev server with the
+  same scenarios as the Fabric jar (the same answers); the client started into a world and drew a
+  region box, and a Fabric 1.21.10 server with a NeoForge client and the other way round both had the
+  mod's channels working. Not yet played.
+- **Minecraft 1.21.6, 1.21.7 and 1.21.8 on Fabric** - in progress, not released yet: one jar for all three
+  (Fabric API for your version, Java 21), the same code as the other jars. The region boxes are drawn as
+  on 1.21.10 (what is under water shows through it, as on 1.20.1), and the stack labels are name tags.
+  Checked on a 1.21.8 server: the self-test, stacking, damage overflow, strict data matching, regions
+  and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.10, and the same jar on a
+  1.21.6 server with the same answers; the client started into a world and drew a region box over water
+  and clouds and through the water below its surface, and the stack labels (alone, and above a mob's
+  name). 1.21.7 not run. Not yet played. As on 1.21.10: with `separateStackLabel` off, the
+  `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in its name, and the clean-up of kill
+  holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.8 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.8.9 or
+  newer, the first stable build; Java 21), the same code as the Fabric jar. NeoForge for 1.21.6 and 1.21.7
+  never left beta, so this jar is for 1.21.8 only. Its shears are as on NeoForge 1.21.10 (a player's
+  shears on a mooshroom take the same path as on Fabric). Checked on a dev server with the same scenarios
+  as the Fabric jar (the same answers); the client started into a world and drew a region box and the
+  stack labels, and a Fabric 1.21.8 server with a NeoForge client and the other way round both had the
+  mod's channels working. Not yet played.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.
@@ -105,6 +155,14 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
 - **NeoForge 1.20.2-1.21.1: a sheared stack of mooshrooms became a single cow** (the stack was lost),
   by a player's shears and by a dispenser's. The cow now takes the stack along, as on Fabric and
   Forge.
+- **1.21.2 and newer (1.21.8, 1.21.10, 1.21.11, 26.x): with `alwaysShowStackLabels` on, stack labels showed
+  however far away the stack was.** A name is drawn up to 64 blocks away, and on 1.20.1 the label too;
+  newer versions check the distance where they decide on the name, which the label does not go through.
+  The label now stops at 64 blocks on every version.
+- **1.21 to 1.21.10: the region boxes had no names.** Minecraft 1.21 turned the camera half a turn, and
+  the name was drawn facing away from it, so the game did not draw it at all. Found on 1.21.1, 1.21.8 and
+  1.21.10 by comparing a picture with 1.20.1's. From 1.21.11 the names are drawn another way and were not
+  affected.
 
 ## [1.12.0] - 2026-11-07
 ### Added
