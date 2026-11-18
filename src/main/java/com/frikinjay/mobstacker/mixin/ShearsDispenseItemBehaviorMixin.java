@@ -46,9 +46,8 @@ public abstract class ShearsDispenseItemBehaviorMixin {
         return sheared.drops();
     }
     *///?} else {
-    // By 1.21.4 (unconfirmed when) shearing takes the level and the shears (from 1.21.2 the level: a
-    // branch of its own if 1.21.2 or 1.21.3 has only that).
-    //? if >=1.21.4 {
+    // From 1.21.2 shearing takes the level and the shears.
+    //? if >=1.21.2 {
     /*@Redirect(method = Compat.DISPENSER_SHEAR_ENTITY, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/Shearable;shear(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/sounds/SoundSource;Lnet/minecraft/world/item/ItemStack;)V"))
     private static void mobstacker$shearWithTheStack(Shearable shearable, net.minecraft.server.level.ServerLevel level,

@@ -864,7 +864,7 @@ public final class MobStacker {
             }
         }
         //? if >=1.21.5 {
-        /*// A saddle and body armour are equipment slots from 1.21.5 (unconfirmed), not keys of their own
+        /*// A saddle and body armour are equipment slots from 1.21.5, not keys of their own
         // that TOP_ONLY_KEYS leaves out: they belong to the top mob alone, as they did before.
         member.setItemSlot(EquipmentSlot.SADDLE, ItemStack.EMPTY);
         member.setItemSlot(EquipmentSlot.BODY, ItemStack.EMPTY);

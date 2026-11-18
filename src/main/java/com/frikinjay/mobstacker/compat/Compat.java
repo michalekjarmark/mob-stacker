@@ -112,8 +112,8 @@ public final class Compat {
             "Lnet/minecraft/world/item/ItemStack;hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V";
     //?}
 
-    /** {@code LivingEntity.die}'s kill score call: the score itself is gone from 1.21.2. */
-    //? if >=1.21.2 {
+    /** {@code LivingEntity.die}'s kill score call: the score itself is gone from 1.21.4 (1.21.3 still has it). */
+    //? if >=1.21.4 {
     /*public static final String AWARD_KILL_SCORE =
             "Lnet/minecraft/world/entity/LivingEntity;awardKillScore(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;)V";
     *///?} else {
@@ -148,7 +148,7 @@ public final class Compat {
     //? if >=1.21.5 {
     /*public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;J)V";
     *///?} else if >=1.21.2 {
-    /*// 1.21.4 (from 1.21.2, unconfirmed): the chunks to tick are handed over as well.
+    /*// 1.21.2 to 1.21.4: the chunks to tick are handed over as well.
     public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;JLjava/util/List;)V";
     *///?} else {
     public static final String TICK_CHUNKS = "tickChunks";
@@ -565,11 +565,11 @@ public final class Compat {
     }
 
     /**
-     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.4
+     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). From 1.21.2
      * (unconfirmed when) an entity is no longer a command source itself.
      */
     public static boolean acceptsSuccess(ServerPlayer player) {
-        //? if >=1.21.4 {
+        //? if >=1.21.2 {
         /*return player.commandSource().acceptsSuccess();
         *///?} else {
         return player.acceptsSuccess();
@@ -644,17 +644,12 @@ public final class Compat {
     }
 
     /**
-     * Shears a mob. From 1.21.2 vanilla wants the level, by 1.21.4 (unconfirmed when) the shears too (for the loot
-     * table); a plain pair stands in for them here, as the shears' own wear is counted elsewhere.
+     * Shears a mob. From 1.21.2 vanilla wants the level and the shears (for the loot table); a plain pair stands in for them here, as the shears' own wear is counted elsewhere.
      */
     public static void shear(net.minecraft.world.entity.Shearable target, net.minecraft.sounds.SoundSource source) {
-        //? if >=1.21.4 {
+        //? if >=1.21.2 {
         /*if (target instanceof Entity entity && entity.level() instanceof ServerLevel level) {
             target.shear(level, source, new ItemStack(net.minecraft.world.item.Items.SHEARS));
-        }
-        *///?} else if >=1.21.2 {
-        /*if (target instanceof Entity entity && entity.level() instanceof ServerLevel level) {
-            target.shear(level, source);
         }
         *///?} else {
         target.shear(source);
@@ -717,9 +712,9 @@ public final class Compat {
         if (overHotbar) {
             actionBar(player, message);
         } else {
-            // By 1.21.4 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
+            // From 1.21.2: only a ServerPlayer has sendSystemMessage, the entity is
             // no command source; displayClientMessage(c, false) is what it calls. 26.1 gives Player one.
-            //? if >=1.21.4 && <26.1 {
+            //? if >=1.21.2 && <26.1 {
             /*player.displayClientMessage(message, false);
             *///?} else {
             player.sendSystemMessage(message);
@@ -781,8 +776,8 @@ public final class Compat {
 
     /** Whether an armor stand shows no base plate. */
     public static boolean hasNoBasePlate(ArmorStand stand) {
-        // By 1.21.4 (unconfirmed when): showBasePlate.
-        //? if >=1.21.4 {
+        // From 1.21.2: showBasePlate.
+        //? if >=1.21.2 {
         /*return !stand.showBasePlate();
         *///?} else {
         return stand.isNoBasePlate();
@@ -800,7 +795,7 @@ public final class Compat {
 
     /**
      * Vanilla's "standing still enough to sweep": how far the player walked this tick against its speed,
-     * and from 1.21.2 (unconfirmed) its known movement against 2.5 times its speed.
+     * and from 1.21.2 its known movement against 2.5 times its speed.
      */
     public static boolean stillEnoughToSweep(Player player) {
         //? if >=1.21.2 {
@@ -813,7 +808,7 @@ public final class Compat {
 
     /** Gives the killer the kill score for one more of this mob. */
     public static void awardKillScore(LivingEntity killer, LivingEntity killed, DamageSource source) {
-        //? if >=1.21.2 {
+        //? if >=1.21.4 {
         /*killer.awardKillScore(killed, source);
         *///?} else {
         if (killed.deathScore >= 0) {

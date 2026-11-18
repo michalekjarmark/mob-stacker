@@ -103,6 +103,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   as the Fabric jar (the same answers); the client started into a world and drew a region box and the
   stack labels, and a Fabric 1.21.8 server with a NeoForge client and the other way round both had the
   mod's channels working. Not yet played.
+- **Minecraft 1.21.2 and 1.21.3 on Fabric** - in progress, not released yet: one jar for both (built
+  against 1.21.3; Fabric API for your version, Java 21), the same code as the other jars. The region boxes
+  are drawn as on 1.21.4. Checked on a 1.21.3 server: the self-test, stacking, damage overflow, strict data
+  matching, regions and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.4, and the same
+  jar on a 1.21.2 server; a client joined a server and drew a region box with its name and the stack labels.
+  Not yet played. As on 1.21.4: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs
+  of a stack whose count is in its name are not there.
+- **Minecraft 1.21.3 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.3.56 or newer,
+  the first stable build; Java 21), the same code as the Fabric jar, its shears as on NeoForge 1.21.4.
+  NeoForge for 1.21.2 never left beta, so this jar is for 1.21.3 only. Checked on a dev server with the
+  same scenarios as the Fabric jar (the same answers); a client joined a server and drew a region box and
+  the stack labels, and a Fabric 1.21.3 server with a NeoForge client and the other way round both had the
+  mod's channels working. Not yet played.
 - **Minecraft 1.21.4 on Fabric** - in progress, not released yet: its own jar (Fabric API for 1.21.4,
   Java 21), the same code as the other jars. The region boxes are drawn by the mod as on 1.21.5, with
   the render types of 1.21.1 (1.21.4 has no render pipelines yet). Checked on a server: the self-test,
