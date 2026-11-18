@@ -145,8 +145,11 @@ public final class Compat {
      * (unconfirmed; 1.21.11 and 26.2 have it) {@code tickChunks} has an overload, and the call is in
      * the one with a profiler: a bare name would select the other one (Mixin takes the first).
      */
-    //? if >=1.21.2 {
+    //? if >=1.21.5 {
     /*public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;J)V";
+    *///?} else if >=1.21.2 {
+    /*// 1.21.4 (from 1.21.2, unconfirmed): the chunks to tick are handed over as well.
+    public static final String TICK_CHUNKS = "tickChunks(Lnet/minecraft/util/profiling/ProfilerFiller;JLjava/util/List;)V";
     *///?} else {
     public static final String TICK_CHUNKS = "tickChunks";
     //?}
@@ -562,11 +565,11 @@ public final class Compat {
     }
 
     /**
-     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.5
+     * Whether a player sees the answers to its commands ({@code sendCommandFeedback}). By 1.21.4
      * (unconfirmed when) an entity is no longer a command source itself.
      */
     public static boolean acceptsSuccess(ServerPlayer player) {
-        //? if >=1.21.5 {
+        //? if >=1.21.4 {
         /*return player.commandSource().acceptsSuccess();
         *///?} else {
         return player.acceptsSuccess();
@@ -641,11 +644,11 @@ public final class Compat {
     }
 
     /**
-     * Shears a mob. From 1.21.2 vanilla wants the level, from 1.21.5 the shears too (for the loot
+     * Shears a mob. From 1.21.2 vanilla wants the level, by 1.21.4 (unconfirmed when) the shears too (for the loot
      * table); a plain pair stands in for them here, as the shears' own wear is counted elsewhere.
      */
     public static void shear(net.minecraft.world.entity.Shearable target, net.minecraft.sounds.SoundSource source) {
-        //? if >=1.21.5 {
+        //? if >=1.21.4 {
         /*if (target instanceof Entity entity && entity.level() instanceof ServerLevel level) {
             target.shear(level, source, new ItemStack(net.minecraft.world.item.Items.SHEARS));
         }
@@ -714,9 +717,9 @@ public final class Compat {
         if (overHotbar) {
             actionBar(player, message);
         } else {
-            // By 1.21.5 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
+            // By 1.21.4 (unconfirmed since when): only a ServerPlayer has sendSystemMessage, the entity is
             // no command source; displayClientMessage(c, false) is what it calls. 26.1 gives Player one.
-            //? if >=1.21.5 && <26.1 {
+            //? if >=1.21.4 && <26.1 {
             /*player.displayClientMessage(message, false);
             *///?} else {
             player.sendSystemMessage(message);
@@ -778,7 +781,8 @@ public final class Compat {
 
     /** Whether an armor stand shows no base plate. */
     public static boolean hasNoBasePlate(ArmorStand stand) {
-        //? if >=1.21.5 {
+        // By 1.21.4 (unconfirmed when): showBasePlate.
+        //? if >=1.21.4 {
         /*return !stand.showBasePlate();
         *///?} else {
         return stand.isNoBasePlate();

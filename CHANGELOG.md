@@ -103,13 +103,26 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   as the Fabric jar (the same answers); the client started into a world and drew a region box and the
   stack labels, and a Fabric 1.21.8 server with a NeoForge client and the other way round both had the
   mod's channels working. Not yet played.
+- **Minecraft 1.21.4 on Fabric** - in progress, not released yet: its own jar (Fabric API for 1.21.4,
+  Java 21), the same code as the other jars. The region boxes are drawn by the mod as on 1.21.5, with
+  the render types of 1.21.1 (1.21.4 has no render pipelines yet). Checked on a server: the self-test,
+  stacking, damage overflow, strict data matching, regions and the scenarios from the 1.20.1 rounds, with
+  the same answers as 1.21.5; a client joined a server and drew a region box with its name and the stack
+  labels. Not yet played. As on 1.21.5: with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_`
+  easter eggs of a stack whose count is in its name are not there.
+- **Minecraft 1.21.4 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.4.121 or
+  newer, the first stable build; Java 21), the same code as the Fabric jar, its shears as on NeoForge
+  1.21.5. Checked on a dev server with the same scenarios as the Fabric jar (the same answers); a client
+  joined a server and drew a region box and the stack labels, and a Fabric 1.21.4 server with a NeoForge
+  client and the other way round both had the mod's channels working. Not yet played.
 - **Minecraft 1.21.5 on Fabric** - in progress, not released yet: its own jar (Fabric API for 1.21.5,
   Java 21), the same code as the other jars. The region boxes are drawn as on 1.21.8, and the stack
   labels are name tags. Checked on a server: the self-test, stacking, damage overflow, strict data
   matching, regions and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.8; a client
   joined a server and drew a region box with its name and the stack labels. Not yet played. As on 1.21.8:
   with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in
-  its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+  its name are not there (the clean-up of kill holograms left by 1.5.x is: armour stands still tick on
+  1.21.5).
 - **Minecraft 1.21.5 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.5.74 or
   newer, the first stable build; Java 21), the same code as the Fabric jar. Its shears are as on NeoForge
   1.21.8 (a player's shears on a mooshroom take the same path as on Fabric). Checked on a dev server with

@@ -213,12 +213,12 @@ tasks.processResources {
         "ServerChunkCacheMixin" to "26.3",
         // 1.21.6 (1.21.5 still has ArmorStand.tick): armour stands no longer tick on their own.
         "ArmorStandMixin" to "1.21.6",
-        // By 1.21.5 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
+        // By 1.21.4 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
         // are convertTo (MobMixin carries the stack).
-        "mobs.PigMixin" to "1.21.5",
-        "mobs.VillagerMixin" to "1.21.5",
-        "mobs.TadpoleMixin" to "1.21.5",
-        "mobs.ZombieMixin" to "1.21.5",
+        "mobs.PigMixin" to "1.21.4",
+        "mobs.VillagerMixin" to "1.21.4",
+        "mobs.TadpoleMixin" to "1.21.4",
+        "mobs.ZombieMixin" to "1.21.4",
     )
     // And the other way round: mixins for a target that only exists from a version on.
     val mixinsFrom = mapOf(

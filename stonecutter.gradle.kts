@@ -77,7 +77,7 @@ stonecutter parameters {
         replace("\\bEntityType\\.([A-Z][A-Z0-9_]*)\\b", "net.minecraft.world.entity.EntityTypes.$1",
             "\\bnet\\.minecraft\\.world\\.entity\\.EntityTypes\\.([A-Z][A-Z0-9_]*)\\b", "EntityType.$1")
     }
-    moved("1.21.2", "MobEffects.MOVEMENT_SLOWDOWN", "MobEffects.SLOWNESS")
+    moved("1.21.5", "MobEffects.MOVEMENT_SLOWDOWN", "MobEffects.SLOWNESS")
     // 1.21.2: a registry's holder for a key is getOrThrow(key). Only a call with an argument:
     // DataResult's getOrThrow() takes none, and the way back must leave it alone.
     replacements.regex(current.parsed >= "1.21.2") {
