@@ -223,7 +223,7 @@ node's range.
 |---|---|---|
 | 1.21.2 | all the "by 1.21.4" rows of "1.21.4": the frame-graph passes and their lambdas (NeoForge 21.3 names them as 21.4 and 21.5: `lambda$addMainPass$2`, `lambda$addLateDebugPass$8`), `ShapeRenderer`, `TextureTarget(w, h, depth)`, the projection's sorting; `commandSource()`, `Player` without `sendSystemMessage`, `shear(ServerLevel, SoundSource, ItemStack)` and the shearing loot table, `showBasePlate`, `postHurtEnemy(LivingEntity, LivingEntity)`, `MobBucketItem`, the chicken's gift loot table, `convertTo`, the sheep's `ServerLevel.playSound(Player, ...)`, `tickChunks(ProfilerFiller, long, List)` | as there, the conditions at 1.21.2 (`Compat.shear` lost its level-only branch: no version has it) |
 | 1.21.4, not 1.21.2 (a wrong guess) | the kill score: 1.21.2 and 1.21.3 still call `awardKillScore(Entity, int, DamageSource)` and have `LivingEntity.deathScore` | `Compat.AWARD_KILL_SCORE`, `Compat.awardKillScore`, `widenerBefore` (`LivingEntity deathScore` at 1.21.4) |
-| NeoForge 21.3 | shears as on 21.4 (javap), the old networking and pairing; 21.3.56 is the first stable build (FML 5) | `versions/1.21.3-neoforge/gradle.properties` |
+| NeoForge 21.3 | shears as on 21.4 (javap), the old networking and pairing; 21.3.56 is the first stable build (FML 5): on it too `checkMixins` is clean, the pass lambdas are named the same, and a strict client drew the box and the labels (2026-11-18) | `versions/1.21.3-neoforge/gradle.properties` |
 | 1.21.3 | saved keys: as 1.21.4 with `TNTFuse`, without `explosion_speed_factor` and `home_pos`; 1.21.2 the same; none is top-only | `src/main/vanilla-keys/1.21.3.txt` |
 
 Checked as 1.21.4: the server scenarios with the same answers as 1.21.4 (and on a 1.21.2 server with the
@@ -246,7 +246,7 @@ checked with `javap`.
 | 1.21.4 | `ServerChunkCache.tickChunks(ProfilerFiller, long, List)`: the overload with the profiler also takes the chunks to tick (1.21.5 drops the list) | `Compat.TICK_CHUNKS` (a branch for `>=1.21.2 && <1.21.5`) |
 | 1.21.5, not 1.21.2 (a wrong guess) | `MobEffects.MOVEMENT_SLOWDOWN` -> `SLOWNESS` | `stonecutter.gradle.kts` |
 | 1.21.5, not 1.21.4 | `Fox.getTrustedEntities` (1.21.4: `getTrustedUUIDs`), items through the codec only (1.21.4 still has `ItemStack.parseOptional`), saved keys in snake_case | those conditions stay at 1.21.5 |
-| NeoForge 21.4 | shears as on 21.5 (javap), the old networking and pairing; 21.4.121 is the first stable build (FML 6) | `MobStackerNeoForge`, `versions/1.21.4-neoforge/gradle.properties` |
+| NeoForge 21.4 | shears as on 21.5 (javap), the old networking and pairing; 21.4.121 is the first stable build (FML 6): checked on it as 21.3.56 | `MobStackerNeoForge`, `versions/1.21.4-neoforge/gradle.properties` |
 | 1.21.4 | saved keys: as 1.21.1 plus `FlippedRotation`, `HasTicked`, `explosion_power`, `explosion_speed_factor`, `home_pos`, `type`, without `TNTFuse`; none is top-only | `src/main/vanilla-keys/1.21.4.txt` |
 
 Checked as 1.21.5: the server scenarios with the same answers as 1.21.5 (bar what the scenarios ask for by
@@ -268,7 +268,7 @@ where the old and the new code both compile, only the bytecode says which one th
 | NeoForge 21.5 | shears as on 21.8: the mooshroom keeps them in `mobInteract`, the sheep, snow golem and bogged do not (javap) | `MobStackerNeoForge`, `MushroomCowShearMixin` (`fabric \|\| >=1.21.5`, the carry `<1.21.5`) |
 | 1.21.6, not 1.21.5 | armour stands still `tick` (`ArmorStandMixin` stays on 1.21.5; it left `mixinsBefore`'s conversions group), the dispenser's `tryShearLivingEntity`, `send(Packet, PacketSendListener)`, `Component.Serializer`, `getDataVersion()`, no custom click actions, the GUI's `PoseStack`; NeoForge 21.5: `PacketDistributor.sendToServer`, `PacketAndPayloadAcceptor` | those conditions stay at 1.21.6 |
 | 1.21.5 | saved keys: as 1.21.8, plus what 1.21.6 moved into codecs (the armour stand's pose parts, a player's abilities, an attribute's `base`/`modifiers`, the cloud's `Particle`, `Slot`), without `custom_particle`, `home_radius`, `locator_bar_icon`, `owner`, `still_timeout`; none is top-only | `src/main/vanilla-keys/1.21.5.txt` |
-| NeoForge 21.5 | 21.5.74 is the first stable build (FML 7): the jar asks for it | `versions/1.21.5-neoforge/gradle.properties` |
+| NeoForge 21.5 | 21.5.74 is the first stable build (FML 7): the jar asks for it; checked on it as 21.3.56 | `versions/1.21.5-neoforge/gradle.properties` |
 
 Checked with a dedicated server and a client (each loader, and each with the other): the region box with
 its name, the stack labels, the HUD line.
@@ -354,28 +354,33 @@ Fabric knows a peer's channels only from `minecraft:register`, and each side ask
 anything, so where the NeoForge side named its channels only in NeoForge's own negotiation, a game of
 the other loader was treated as one **without the mod**: the count in the mob's name, no config screen,
 no region boxes, no error. (The labels look the same either way: the region box is what shows the
-channels work.) Checked 2026-11-16 (1.21.8, 1.21.10 and 1.21.11: 2026-11-17; 1.21.3, 1.21.4 and 1.21.5: 2026-11-18) with a dedicated server and a client of the
+channels work.) Checked 2026-11-16 (1.21.8, 1.21.10, 1.21.11 and 26.x Fabric -> NeoForge: 2026-11-17; 1.21.3, 1.21.4, 1.21.5, and NeoForge -> Fabric from 1.21.8 to 26.3: 2026-11-18) with a dedicated server and a client of the
 same Minecraft, the player an operator:
 
-| Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 | 1.21.3 | 1.21.4 | 1.21.5 | 1.21.8 | 1.21.10 | 1.21.11 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) | works | works | works | works | works | works |
-| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works (labels of mobs coming into view: was none) | works | works | works (labels: was none) | works | works | works |
-| the same loader | works | works | works | works | works | works | works | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) |
+| Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 | 1.21.3 | 1.21.4 | 1.21.5 | 1.21.8 | 1.21.10 | 1.21.11 | 26.1.2 | 26.2 | 26.3 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) | works | works | works | works | works | works | works | works | works |
+| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works (labels of mobs coming into view: was none) | works | works | works (labels: was none) | works (labels after away and back too) | works (the same) | works (the same) | works (the same) | works (the same) | works (the same; without `labelOutsideBundle` no label at all) | |
+| the same loader | works | works | works | works | works | works | works | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) |
 
 | Where | What went wrong | What the mod does |
 |---|---|---|
 | NeoForge client, 20.4 and newer | Names its channels to a server that is not NeoForge nowhere Fabric reads them (`ServerPlayNetworking.getSendable` stayed empty). | On `ClientPlayerNetworkEvent.LoggingIn`, a connection whose type is not `NEOFORGE` is sent `MinecraftRegisterPayload` with the channels the client listens on (`MobStackerNeoForgeClient.nameChannels`; the same in `MobStackerNeoForgeLegacyClient` on 20.4). |
-| NeoForge server, 20.4 and newer | Drops the label of a mob coming into view from the pairing bundle (the channel did not go through NeoForge's negotiation). | `StackLabels.labelOutsideBundle` on every NeoForge (see "Silent"). Found on 1.21.5 and checked on 1.21.1: away and back, the labels were gone without it. |
+| NeoForge server, 20.4 and newer | Drops the label of a mob coming into view from the pairing bundle (the channel did not go through NeoForge's negotiation). | `StackLabels.labelOutsideBundle` on every NeoForge (see "Silent"). Found on 1.21.5 and checked on 1.21.1: away and back, the labels were gone without it. With it on 1.21.8, 1.21.10, 1.21.11, 26.1.2, 26.2 and 26.3, three trips away and back: every label each time; on 26.3 without it, none at all, not even at joining. |
 | NeoForge 20.4 server | Names its channels to a Fabric game only as `neoforge:register`, which Fabric does not read. | On `PlayerLoggedInEvent`, the same with the channels the server listens on (`MobStackerNeoForgeLegacy`). 20.6 and newer already do it. |
 | NeoForge 20.2, both sides | Reads a Fabric peer's `minecraft:register` as a `SimplePayload`: the first name lost a byte, and NeoForge drops a last name with no zero byte after it, which Fabric never writes. | `LegacyChannels.readsBare` / `read`: the list is read bare and its last name ended; NeoForge's own list then only gains an empty name. |
 
-The 26.x NeoForge nodes share `MobStackerNeoForgeClient` and build; not run against a Fabric server.
+The 26.x NeoForge nodes share `MobStackerNeoForgeClient`: a NeoForge 26.x client on a Fabric server (2026-11-17) and a Fabric client on a NeoForge 26.x server (2026-11-18) both work.
 
 ## Testing traps
 
 - From **1.21.9 there are no always-loaded spawn chunks**: a scripted test that summons near spawn with
   no player finds nothing. `forceload add` the area first (`tools/test/scenarios/basic.txt` does).
+- From **1.21.2 a server with no player pauses after 60 s** (`pause-when-empty-seconds=60` in a new
+  `server.properties`, "Server empty for 60 seconds, pausing" in the log): commands still run, but nothing
+  ticks, so a longer scenario sees no mob grow up, convert or get sheared by a dispenser. `run_server.py` sets
+  it to 0 (also in an existing file, since 2026-11-18); a result from before that which says "nothing happened" on 1.21.2+
+  may be this.
 - **`setworldspawn` takes one angle below 1.21.9** (1.21.9 added the pitch), so a client scene cannot
   point the camera with it: pin the player with a repeating command block instead (`tp @a x y z yaw pitch`
   every tick), which works on every version.
@@ -405,6 +410,8 @@ The 26.x NeoForge nodes share `MobStackerNeoForgeClient` and build; not run agai
   capture **the game window only** with Win32 `PrintWindow(hwnd, hdc, 2)` (PW_RENDERFULLCONTENT).
   Never `CopyFromScreen`: Windows refuses to bring the window forward and it copies whatever else is
   on the person's screen.
+  Put `tutorialStep:none` and `pauseOnLostFocus:false` in `run/options.txt` first: a new run dir shows the
+  movement tutorial in the top right corner (it hid a stack label there), and a game in the background pauses.
 - **A dedicated server with a client of another node** (other loader, same Minecraft): start the server
   with `run_server.py <node> --keep` and a scenario that builds the scene, then
   `./gradlew :<node>:runClient --args="--quickPlayMultiplayer localhost:25599"`. Started from a script,

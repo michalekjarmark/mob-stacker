@@ -32,8 +32,11 @@ import rcon  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 
 # white-list=false: 26.x turns the whitelist on in a new server.properties, and a test client could not join.
+# pause-when-empty-seconds=0: from 1.21.2 a server with no player stops ticking after 60 s (only commands
+# run), so a scenario longer than that saw nothing grow up, convert or fire.
 PROPERTIES = """online-mode=false
 white-list=false
+pause-when-empty-seconds=0
 enable-rcon=true
 rcon.port={rcon}
 rcon.password={password}
@@ -54,6 +57,14 @@ def prepare(run_dir, rcon_port, server_port, password, flat=False):
             # normal world that is solid stone and they suffocate.
             text += "level-type=minecraft\\:flat\ndifficulty=easy\n"
         props.write_text(text, encoding="utf-8")
+    else:
+        # A file from before (a NeoForge node's run dir, a server's own defaults): the server must not pause.
+        text = props.read_text(encoding="utf-8")
+        fixed = re.sub(r"(?m)^pause-when-empty-seconds=.*$", "pause-when-empty-seconds=0", text)
+        if "pause-when-empty-seconds=" not in fixed:
+            fixed = fixed.rstrip("\n") + "\npause-when-empty-seconds=0\n"
+        if fixed != text:
+            props.write_text(fixed, encoding="utf-8")
     eula = run_dir / "eula.txt"
     if not eula.exists():
         eula.write_text("eula=true\n", encoding="utf-8")
