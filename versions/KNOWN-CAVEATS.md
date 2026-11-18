@@ -6,8 +6,8 @@ look before they start searching. How to add a node is in [`README.md`](README.m
 the traps.
 
 **Versions in brackets** are where the change is believed to have happened. Built so far: **1.20.1,
-1.20.2, 1.20.4, 1.20.6, 1.21.1, 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1.2, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
-between 1.21.2 and 1.21.4 is *unconfirmed* until a node in between compiles and runs. The code's version
+1.20.2, 1.20.4, 1.20.6, 1.21.1, 1.21.4, 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1.2, 26.2 and 26.3**, so everything up to 1.21.1 is confirmed and anything
+between 1.21.2 and 1.21.3 is *unconfirmed* until a node in between compiles and runs. The code's version
 conditions sit at those believed versions too; a new node moves them if `-PallErrors` or a test says
 otherwise (they are marked "unconfirmed" in the code). The nodes for 1.20.2-1.20.6 moved four of the
 guesses made from 1.20.1 and 1.21.1 alone: see "Between 1.20.1 and 1.21.1" below. The 26.2 node
@@ -15,7 +15,8 @@ moved six guesses from 26.1 to **26.3**, the version that went from GLFW to SDL,
 eight more to 26.2: see "26.1 to 26.3". The 1.21.11 node moved some forty from 26.1 down: see "1.21.11";
 the 1.21.10 node (1.21.9 and 1.21.10) half of those again: see "1.21.9 and 1.21.10"; the 1.21.8 node
 (1.21.6 to 1.21.8) most of what then sat at 1.21.9, and three guesses the other way: see "1.21.6 to 1.21.8";
-the 1.21.5 node the box drawing and half the server side of what then sat at 1.21.6: see "1.21.5".
+the 1.21.5 node the box drawing and half the server side of what then sat at 1.21.6: see "1.21.5";
+the 1.21.4 node most of that server side and the boxes' frame-graph hooks: see "1.21.4".
 
 The worst ones are first: **no crash, no log line, it just does not work**.
 
@@ -35,7 +36,7 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.3 (SDL) | **Typing does nothing** until a text box is clicked ("type anywhere to search"). | Characters arrive only while something started text input (`Minecraft.textInputManager()`, one owner at a time); an `EditBox` does it when focused and stops when it loses focus. | A screen that takes typing with no box focused (`CompatScreen.typesAnywhere()`) claims it every frame and lets go in `removed()`, and answers `isInputCaptured()` true: otherwise the game's global keys (the friends list on **O**) take a letter before the screen sees it. |
 | 26.3 | Key codes compared against GLFW constants never match. | GLFW is gone (SDL; 26.2 is still GLFW). | `InputConstants.KEY_*` (they exist on 1.20.1 too, with GLFW's values). |
 | 1.21.5 | NBT reads quietly return nothing; `set.contains(tag.getString(k))` is always false. | `CompoundTag` getters return `Optional`. | Every read through `compat/Nbt`, which keeps 1.20.1's answers (0, `""`, empty when missing). |
-| 1.21.5 | Shearing a stack gives the **top sheep's wool only**. | Wool comes from the `shearing/sheep` loot table, which requires `sheared: false`; the mod shears the same (top) sheep again for each member. | `SheepShearMixin.mobstacker$shearMembers` sets the sheep woolly before each shear. Any "repeat vanilla's harvest per member" must check the loot table's conditions. |
+| by 1.21.4 | Shearing a stack gives the **top sheep's wool only**. | Wool comes from the `shearing/sheep` loot table, which requires `sheared: false`; the mod shears the same (top) sheep again for each member. | `SheepShearMixin.mobstacker$shearMembers` sets the sheep woolly before each shear. Any "repeat vanilla's harvest per member" must check the loot table's conditions. |
 | 1.21.5 | Every copy of a stack member gets the top's **saddle** (or body armour). | Saddles and body armour are equipment slots, saved with the rest of the equipment. | `MobStacker.memberOf` clears SADDLE and BODY; `TOP_ONLY_KEYS` has the new key names. Re-check `TOP_ONLY_KEYS` against `src/main/vanilla-keys/<mc>.txt` on every port. |
 | 1.21.5 | Saved key names changed (turtle `HomePosX` -> `home_pos` int array, `has_egg`, `sleeping_pos`, `last_hurt_by_*`). | Data rewrite to snake_case. | `TOP_ONLY_KEYS`, `ConfigSelfTest` (version branches). |
 | 1.21.6 | A command clicked in chat opens a **"Run command" confirmation** every time. | The client asks before running a clicked command that needs a permission. | `Compat.runCommand` sends a *custom click action* instead (`mobstacker:command`), handled by `ServerCommonPacketListenerImplMixin` -> `MobStackerCommands.runClicked`: runs as the player who clicked, with their permissions, `/mobstacker` commands only. No client mod needed. |
@@ -44,8 +45,8 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 1.21.11 | A per-frame world label **jumps** instead of sliding. | Easy to place by `entity.getEyePosition()` (moves once a tick) when rewriting rendering. | Use the frame's camera: `minecraft.gameRenderer.mainCamera().position()` (`MobStackerRegionOverlay.emitGizmos`). |
 | 26.1 | Screens show a blurred world, no dark backdrop. | Vanilla's own background. | Not a bug: `CompatScreen.drawBackground` calls vanilla's. |
 | 1.21.11 | **Water and clouds cover a region box** (X-ray off; found in round 26.x-1, unseen on 26.3 Fabric because that instance ran Improved Transparency). | The game draws its see-through gizmos before the translucent terrain (1.21.11 and 26.1: in the main pass; 26.2: `PreparedFrame.executeTranslucent`'s `gizmos` phase; 26.3: its `translucentGizmos` phase), clouds and weather come after, and a gizmo writes no depth. | Drawn late instead, per version (`client.LevelRendererGizmosMixin`, `client.FeatureFrameGizmosMixin`, `client/LateGizmos`): 1.21.11 and 26.1 in the late debug pass, 26.2 at the start of the always-on-top pass (**which the game adds only when there are always-on-top gizmos**: added for these too, and it clears the depth only for its own), 26.3 at the end of `executeClassicTransparency`. 26.3's Improved Transparency (order-independent) is left alone. In the classic mode the water hides the part of a box below its surface from above (1.20.1 showed it). |
-| NeoForge 21.5 (unconfirmed when; 21.1 did not) | Shears on a **mooshroom** stack turn the whole stack into cows and give mushrooms for one; with `stackedHarvest` off nothing steps out. | NeoForge 26.x moves only the sheep's, snow golem's and bogged's shears into `IShearable`; the mooshroom and the copper golem keep vanilla's in `mobInteract`. The mod assumed every shears interaction on NeoForge was outside `mobInteract`. | `MobStacker.shearingOutsideMobInteract` is a predicate per mob (`MobStackerNeoForge`); `MushroomCowShearMixin` harvests the members in `mobInteract` on Fabric and on NeoForge 1.21.5+ (21.5, 21.8 and 21.10 have the same list as 21.11, without the copper golem below 1.21.9, where it comes). Check the list again at the 1.21.3 and 1.21.4 NeoForge nodes. |
-| NeoForge 20.2-21.1 | A sheared **mooshroom** stack becomes **one cow** (the stack is lost), by hand or dispenser. | The cow is made by `create` + `addFreshEntity` (`shear`, or Forge's `shearInternal` on 20.2); only Fabric and Forge had the mixin that carries the stack. | `MushroomCowShearMixin` (`neoforge && <1.21.5`); by 1.21.5 it is `convertTo`, which `MobMixin` handles. Scenario: `tools/test/scenarios/shear_dispenser_mooshroom.txt`. |
+| NeoForge 21.4 (unconfirmed when; 21.1 did not) | Shears on a **mooshroom** stack turn the whole stack into cows and give mushrooms for one; with `stackedHarvest` off nothing steps out. | NeoForge 26.x moves only the sheep's, snow golem's and bogged's shears into `IShearable`; the mooshroom and the copper golem keep vanilla's in `mobInteract`. The mod assumed every shears interaction on NeoForge was outside `mobInteract`. | `MobStacker.shearingOutsideMobInteract` is a predicate per mob (`MobStackerNeoForge`); `MushroomCowShearMixin` harvests the members in `mobInteract` on Fabric and on NeoForge 1.21.4+ (21.4, 21.5, 21.8 and 21.10 have the same list as 21.11, without the copper golem below 1.21.9, where it comes). Check the list again at the 1.21.3 NeoForge node. |
+| NeoForge 20.2-21.1 | A sheared **mooshroom** stack becomes **one cow** (the stack is lost), by hand or dispenser. | The cow is made by `create` + `addFreshEntity` (`shear`, or Forge's `shearInternal` on 20.2); only Fabric and Forge had the mixin that carries the stack. | `MushroomCowShearMixin` (`neoforge && <1.21.4`); by 1.21.4 it is `convertTo`, which `MobMixin` handles. Scenario: `tools/test/scenarios/shear_dispenser_mooshroom.txt`. |
 
 ## Refuses to load or crashes
 
@@ -54,13 +55,13 @@ The worst ones are first: **no crash, no log line, it just does not work**.
 | 26.1 | Loom fails; no `mappings`/`modImplementation`/`remapJar`/`neoForge` accessor. | Minecraft is not obfuscated from 26.1. | `stonecutter.gradle.kts` applies `dev.architectury.loom-no-remap` to non-`1.x` nodes; `build.gradle.kts` `unobfuscated`, configurations by string. |
 | 26.1 | `validateAccessWidener` fails / widener not applied. | The widener's namespace is `official`, not `named`. | `build.gradle.kts` writes an `official` copy for Loom and filters the jar's. Lines whose target is gone go in `widenerBefore` (`LivingEntity deathScore` from 1.21.2). |
 | 26.1 | NeoForge 26.x: no access transformer in the jar (fields the widener opens are private at run time). | `remapJar` converts the widener to an AT only while obfuscated, and 26.x has no remapping. | `build.gradle.kts` writes `META-INF/accesstransformer.cfg` from the node's widener lines (`accessTransformerOf`; Mojang's names are the run-time names there) and leaves the widener out of the jar. |
-| 1.21.2 (unconfirmed; 1.21.11 and 26.2 have it) | The server refuses to start: "Critical injection failure" in `ServerChunkCacheMixin`, "Scanned 0 target(s)". | `ServerChunkCache.tickChunks` has an overload (`tickChunks(ProfilerFiller, long)`), and **Mixin takes the first method of a bare name**: the call is in the other one. | `Compat.TICK_CHUNKS`, the full descriptor. `checkMixins` selects as Mixin does since (it used to look at every overload). Give a target with overloads its descriptor. |
+| 1.21.2 (unconfirmed; 1.21.4, 1.21.11 and 26.2 have it) | The server refuses to start: "Critical injection failure" in `ServerChunkCacheMixin`, "Scanned 0 target(s)". | `ServerChunkCache.tickChunks` has an overload (`tickChunks(ProfilerFiller, long)`), and **Mixin takes the first method of a bare name**: the call is in the other one. | `Compat.TICK_CHUNKS`, the full descriptor (1.21.4's takes a `List` as well). `checkMixins` selects as Mixin does since (it used to look at every overload). Give a target with overloads its descriptor. |
 | 1.21.2 | Mixin apply error on a `@Redirect` that `checkMixins` passed. | A redirect that captures the target method's arguments (`LivingEntity.actuallyHurt` gained a `ServerLevel`). | Version-specific handler in `LivingEntityMixin`. |
 | 1.21.9 | Mixin apply error on an `@Invoker` that `checkMixins` passed. | The method moved to a superclass (`Animal.usePlayerItem` -> `Mob`). | `AnimalInvoker` targets `Mob` from 1.21.9 (found again on the 1.21.11 server: `checkMixins` sees the method in the superclass; 1.21.10 has it in `Mob` too, 1.21.8 still in `Animal`). |
 | 1.21.6 | Entity save/load methods missing. | `ValueOutput`/`ValueInput` replace `CompoundTag` there. | `Compat.save`/`load` (`TagValueOutput`/`TagValueInput`, `ProblemReporter.DISCARDING`); `EntityDataMixin`. `tools/VanillaKeys.java` reads both shapes. |
-| by 1.21.5 | Conversion mixins (pig/villager lightning, tadpole, zombie, the mooshroom's shears) find no target. | Conversions go through `Mob.convertTo(EntityType, ConversionParams, ...)` (the overload exists from 1.21.2). | `MobMixin`'s `convertTo` carries the stack; the old ones are in `mixinsBefore`. |
+| by 1.21.4 | Conversion mixins (pig/villager lightning, tadpole, zombie, the mooshroom's shears) find no target. | Conversions go through `Mob.convertTo(EntityType, ConversionParams, ...)` (the overload exists from 1.21.2). | `MobMixin`'s `convertTo` carries the stack; the old ones are in `mixinsBefore`. |
 | 26.3 | Spawn cap mixin finds no target. | `NaturalSpawner.createState` reads the level's entities itself (26.2 still has them handed over by `ServerChunkCache.tickChunks`). | `NaturalSpawnerMixin` replaces `ServerChunkCacheMixin`. |
-| 1.21.2-26.1 | Every drawing class fails to compile. | Entities drawn through render states (1.21.2) and `SubmitNodeCollector` (1.21.9), render pipelines (1.21.5), input events (1.21.9), gizmos (1.21.11), then 26.1's new renderer (`com.mojang.renderpearl`) and GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`. | Region boxes are **gizmos** from 1.21.11 (`emitGizmos`, `client.LevelRendererGizmosMixin`); on 1.21.5-1.21.10 the mod draws them itself as below, with render pipelines, in the late debug pass (see "1.21.5", "1.21.6 to 1.21.8" and "1.21.9 and 1.21.10"); the stack label rides on the entity's render state from 1.21.2 (`client.EntityRenderStateMixin`), drawn at `render`'s return below 1.21.9 and submitted as a name tag line from 1.21.9 (`EntityRendererMixin`); screens bridged by `client/CompatScreen` (drawing from 26.1, input events from 1.21.9). The old box drawing compiles below 1.21.11 only. |
+| 1.21.2-26.1 | Every drawing class fails to compile. | Entities drawn through render states (1.21.2) and `SubmitNodeCollector` (1.21.9), render pipelines (1.21.5), input events (1.21.9), gizmos (1.21.11), then 26.1's new renderer (`com.mojang.renderpearl`) and GUI drawn through `GuiGraphicsExtractor`/`extractRenderState`. | Region boxes are **gizmos** from 1.21.11 (`emitGizmos`, `client.LevelRendererGizmosMixin`); on 1.21.4-1.21.10 the mod draws them itself as below, in the late debug pass, with render pipelines from 1.21.5 (see "1.21.4", "1.21.5", "1.21.6 to 1.21.8" and "1.21.9 and 1.21.10"); the stack label rides on the entity's render state from 1.21.2 (`client.EntityRenderStateMixin`), drawn at `render`'s return below 1.21.9 and submitted as a name tag line from 1.21.9 (`EntityRendererMixin`); screens bridged by `client/CompatScreen` (drawing from 26.1, input events from 1.21.9). The old box drawing compiles below 1.21.11 only. |
 | any | A mixin config with a dropped entry is invalid JSON. | Entries are dropped per node by `mixinsBefore`/`mixinsFrom`; a dropped last entry leaves a trailing comma. | Version-limited entries go at the **top** of their list in `mobstacker.mixins.json`. |
 | 1.20.1 node | `x instanceof Player p` does not compile where `x` is already a `Player`. | The 1.20.1 node compiles with Java 17 (21 allows it). | Write it the Java 17 way in shared code. |
 
@@ -208,6 +209,28 @@ Checked with pictures of both clients: the box over the water and the clouds in 
 part under the surface through the water, and the stack labels (`Cow x5` alone, `Cow x3` one line above
 a shown name).
 
+## 1.21.4
+
+What the 1.21.4 node found (Fabric and NeoForge; 1.21.4 alone). 1.21.4 has the frame graph, `ShapeRenderer`
+and most of the server side the 1.21.5 node had found, but **no render pipelines**: the region boxes are a
+branch of their own, the frame-graph hooks of 1.21.5 with the render types of 1.21.1. What 1.21.4 has sits
+at 1.21.4 now, "unconfirmed when" (no node for 1.21.2-1.21.3 yet); each was checked with `javap`.
+
+| Since | What | Where |
+|---|---|---|
+| by 1.21.4 | the frame-graph passes as on 1.21.5 (`method_62214`, `method_62212`, the same debug renderer calls; NeoForge 21.4 names the lambdas as 21.5: `lambda$addMainPass$2`, `lambda$addLateDebugPass$8`), `ShapeRenderer.addChainedFilledBoxVertices`/`renderLineBox(PoseStack, ...)`, `TextureTarget(w, h, depth)` and `resize(w, h)` (still a framebuffer, bound again after a copy), the projection's vertex sorting | `client.LevelRendererMixin` (`>=1.21.4 && <1.21.11`), `MobStackerRegionOverlay` (`sizedLike` has a 1.21.4 branch) |
+| 1.21.5, not 1.21.4 | render pipelines: 1.21.4's render types are shards (`RenderType(name, format, mode, size, crumbling, sort, setup, clear)`), as on 1.21.1 | `MobStackerRenderTypes` (`>=1.21.5`) |
+| by 1.21.4 | `ServerPlayer.commandSource()` (no `acceptsSuccess` of its own), `Player` without `sendSystemMessage`, `Shearable.shear(ServerLevel, SoundSource, ItemStack)` with the wool from the shearing loot table, `ArmorStand.showBasePlate`, `ItemStack.postHurtEnemy(LivingEntity, LivingEntity)`, `MobBucketItem` creates the mob itself, the chicken's egg from its gift loot table, the conversions through `convertTo` (the mooshroom's too) | `Compat`, `ItemStackMixin`, `MobBucketItemMixin`, `ChickenMixin`, `ShearsDispenseItemBehaviorMixin`, `MushroomCowMixin`, `MushroomCowShearMixin`, `mixinsBefore` |
+| 1.21.4 (by 1.21.2, unconfirmed) | `Sheep.shear` plays its snip through `ServerLevel.playSound(Player, ...)`: the level's own class, but still for a player (1.21.5: for any entity) | `SheepShearMixin` (a branch for `>=1.21.2 && <1.21.5`) |
+| 1.21.4 | `ServerChunkCache.tickChunks(ProfilerFiller, long, List)`: the overload with the profiler also takes the chunks to tick (1.21.5 drops the list) | `Compat.TICK_CHUNKS` (a branch for `>=1.21.2 && <1.21.5`) |
+| 1.21.5, not 1.21.2 (a wrong guess) | `MobEffects.MOVEMENT_SLOWDOWN` -> `SLOWNESS` | `stonecutter.gradle.kts` |
+| 1.21.5, not 1.21.4 | `Fox.getTrustedEntities` (1.21.4: `getTrustedUUIDs`), items through the codec only (1.21.4 still has `ItemStack.parseOptional`), saved keys in snake_case | those conditions stay at 1.21.5 |
+| NeoForge 21.4 | shears as on 21.5 (javap), the old networking and pairing; 21.4.121 is the first stable build (FML 6) | `MobStackerNeoForge`, `versions/1.21.4-neoforge/gradle.properties` |
+| 1.21.4 | saved keys: as 1.21.1 plus `FlippedRotation`, `HasTicked`, `explosion_power`, `explosion_speed_factor`, `home_pos`, `type`, without `TNTFuse`; none is top-only | `src/main/vanilla-keys/1.21.4.txt` |
+
+Checked as 1.21.5: the server scenarios with the same answers as 1.21.5 (bar what the scenarios ask for by
+the 1.21.5 key names), and a client of each loader on a server of each.
+
 ## 1.21.5
 
 What the 1.21.5 node found (Fabric and NeoForge; 1.21.5 alone, as 1.21.6 changed the GUI and the entity
@@ -236,20 +259,20 @@ Found porting the NeoForge module (davidex's, for 1.21.1) to 26.3, then placed b
 node (NeoForge 21.10, FML 10) found the same as 21.11, and the 1.21.8 node (NeoForge 21.8, FML 9) the
 same again but for `FMLEnvironment.getDist()`, so those conditions sat at 1.21.6. The 1.21.5 node (NeoForge 21.5,
 FML 7) has the old networking and pairing, but the new shears and `convertTo`: the networking stays at 1.21.6,
-"unconfirmed when" between 21.5 and 21.8, the shears are at 1.21.5, "unconfirmed when" between 21.1 and 21.5
-(`getDist` at 1.21.9). NeoForge 26.2 (FML 11) has every
+"unconfirmed when" between 21.5 and 21.8, the shears are at 1.21.4 since the 1.21.4 node (NeoForge 21.4, FML 6, the same as 21.5), "unconfirmed when"
+between 21.1 and 21.4 (`getDist` at 1.21.9). NeoForge 26.2 (FML 11) has every
 one of them: its node needed no change of its own, and registers key categories as 26.3 does.
 
-| 1.21.1 | 26.3 | 21.11 (1.21.11) | 21.10 (1.21.10) | 21.8 (1.21.8) | 21.5 (1.21.5) | Where |
-|---|---|---|---|---|---|---|
-| `FMLEnvironment.dist` | `FMLEnvironment.getDist()` | new (FML 10 has it) | new (FML 10) | **old** (FML 9) | old (FML 7) | `MobStackerNeoForge` |
-| `PacketDistributor.sendToServer` | `client.network.ClientPacketDistributor.sendToServer` | new | new | new | **old** | `MobStackerNeoForgeClient` |
-| `ServerEntity.sendPairingData(player, PacketAndPayloadAcceptor)` | vanilla's `Consumer<Packet<...>>` (the acceptor is gone) | new | new | new | **old** | `ServerEntityMixin` (`neoforge && <1.21.6`) |
-| `ServerPlayer.getServer()` | gone: `player.level().getServer()` (works on every version) | gone | gone | gone | gone | `MobStackerNeoForge` |
-| `MinecraftServer.handleCustomClickAction(id, payload)` (vanilla) | NeoForge adds the player and the profile to the call | **vanilla's** | **vanilla's** | **vanilla's** | none (custom click actions are 1.21.6) | `Compat.HANDLE_CUSTOM_CLICK_ACTION` (`neoforge && >=26.1`) |
-| dispenser `tryShearLivingEntity` | `tryShearEntity` (as vanilla) | new (vanilla's too) | new (vanilla's too) | new (vanilla's too) | **old** (vanilla's too) | `Compat.DISPENSER_SHEAR_ENTITY` |
-| every shears interaction through `IShearable` | only the sheep's, snow golem's and bogged's; the mooshroom and copper golem keep vanilla's in `mobInteract` | as 26.3 | as 26.3 (the bogged still `monster.Bogged`) | as 21.10 (no copper golem yet) | as 21.8 (checked with javap) | `MobStackerNeoForge` (`shearingOutsideMobInteract`), `MushroomCowShearMixin` |
-| mods are built inside `Minecraft`'s constructor (`Minecraft.getInstance()` is set) | mods are built from `Main.main` **before** `Minecraft` exists: `Minecraft.getInstance()` is **null** in the mod's constructor - the client crashes at launch ("Cannot read field gameDirectory"), a server never shows it | not checked (the mod asks the game for nothing there any more) | not checked | not checked | not checked | Nothing called from a mod constructor asks the game for anything: `MobStackerClient.init(transport, gameDirectory)`, NeoForge passes `FMLPaths.GAMEDIR.get()` |
+| 1.21.1 | 26.3 | 21.11 (1.21.11) | 21.10 (1.21.10) | 21.8 (1.21.8) | 21.5 (1.21.5) | 21.4 (1.21.4) | Where |
+|---|---|---|---|---|---|---|---|
+| `FMLEnvironment.dist` | `FMLEnvironment.getDist()` | new (FML 10 has it) | new (FML 10) | **old** (FML 9) | old (FML 7) | old (FML 6) | `MobStackerNeoForge` |
+| `PacketDistributor.sendToServer` | `client.network.ClientPacketDistributor.sendToServer` | new | new | new | **old** | **old** | `MobStackerNeoForgeClient` |
+| `ServerEntity.sendPairingData(player, PacketAndPayloadAcceptor)` | vanilla's `Consumer<Packet<...>>` (the acceptor is gone) | new | new | new | **old** | **old** | `ServerEntityMixin` (`neoforge && <1.21.6`) |
+| `ServerPlayer.getServer()` | gone: `player.level().getServer()` (works on every version) | gone | gone | gone | gone | gone | `MobStackerNeoForge` |
+| `MinecraftServer.handleCustomClickAction(id, payload)` (vanilla) | NeoForge adds the player and the profile to the call | **vanilla's** | **vanilla's** | **vanilla's** | none (custom click actions are 1.21.6) | none | `Compat.HANDLE_CUSTOM_CLICK_ACTION` (`neoforge && >=26.1`) |
+| dispenser `tryShearLivingEntity` | `tryShearEntity` (as vanilla) | new (vanilla's too) | new (vanilla's too) | new (vanilla's too) | **old** (vanilla's too) | **old** (vanilla's too) | `Compat.DISPENSER_SHEAR_ENTITY` |
+| every shears interaction through `IShearable` | only the sheep's, snow golem's and bogged's; the mooshroom and copper golem keep vanilla's in `mobInteract` | as 26.3 | as 26.3 (the bogged still `monster.Bogged`) | as 21.10 (no copper golem yet) | as 21.8 (checked with javap) | as 21.5 (javap) | `MobStackerNeoForge` (`shearingOutsideMobInteract`), `MushroomCowShearMixin` |
+| mods are built inside `Minecraft`'s constructor (`Minecraft.getInstance()` is set) | mods are built from `Main.main` **before** `Minecraft` exists: `Minecraft.getInstance()` is **null** in the mod's constructor - the client crashes at launch ("Cannot read field gameDirectory"), a server never shows it | not checked (the mod asks the game for nothing there any more) | not checked | not checked | not checked | not checked | Nothing called from a mod constructor asks the game for anything: `MobStackerClient.init(transport, gameDirectory)`, NeoForge passes `FMLPaths.GAMEDIR.get()` |
 
 Key categories: vanilla's `KeyMapping.Category.register` is enough on NeoForge too (its
 `ClientHooks.onRegisterKeyMappings` only appends the categories registered through the event to the
@@ -272,7 +295,7 @@ including mixin descriptor strings) or by a helper in `compat/Compat.java`.
 | 1.21.2 | `MobSpawnType`, `EntityType.create(level)` | `EntitySpawnReason`, `create(level, reason)` |
 | 1.21.2 | `spawnAtLocation(stack)`, `hurt(...)` | `spawnAtLocation(ServerLevel, stack)`, `hurtServer(ServerLevel, ...)` |
 | 1.21.2 | `registryOrThrow`, `getHolderOrThrow`, `Registry.get(id)` | `lookupOrThrow`, `getOrThrow`, `getValue(id)` |
-| 1.21.2 | `MobEffects.MOVEMENT_SLOWDOWN` | `SLOWNESS` |
+| 1.21.5 (not 1.21.2: the 1.21.4 node) | `MobEffects.MOVEMENT_SLOWDOWN` | `SLOWNESS` |
 | 1.21.5 | `moveTo(...)` | `snapTo(...)` |
 | 1.21.5 | `new ClickEvent(Action.X, v)`, `new HoverEvent(...)` | records: `ClickEvent.RunCommand`, `SuggestCommand`, `HoverEvent.ShowText` |
 | 1.21.5 | `getOwnerUUID()`, `Saddleable`, `SwordItem`, `Inventory.items/offhand` | `getOwnerReference()`, `Mob.isSaddled()`, `#swords`, `getNonEquipmentItems()` |
@@ -310,14 +333,14 @@ Fabric knows a peer's channels only from `minecraft:register`, and each side ask
 anything, so where the NeoForge side named its channels only in NeoForge's own negotiation, a game of
 the other loader was treated as one **without the mod**: the count in the mob's name, no config screen,
 no region boxes, no error. (The labels look the same either way: the region box is what shows the
-channels work.) Checked 2026-11-16 (1.21.8, 1.21.10 and 1.21.11: 2026-11-17; 1.21.5: 2026-11-18) with a dedicated server and a client of the
+channels work.) Checked 2026-11-16 (1.21.8, 1.21.10 and 1.21.11: 2026-11-17; 1.21.4 and 1.21.5: 2026-11-18) with a dedicated server and a client of the
 same Minecraft, the player an operator:
 
-| Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 | 1.21.5 | 1.21.8 | 1.21.10 | 1.21.11 |
-|---|---|---|---|---|---|---|---|---|
-| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) | works | works | works | works |
-| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works (labels of mobs coming into view: was none) | works (labels: was none) | works | works | works |
-| the same loader | works | works | works | works | works | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) |
+| Server → client | 1.20.2 | 1.20.4 | 1.20.6 | 1.21.1 | 1.21.4 | 1.21.5 | 1.21.8 | 1.21.10 | 1.21.11 |
+|---|---|---|---|---|---|---|---|---|---|
+| Fabric → NeoForge | works (was: as without the mod) | works (was: as without) | works (was: as without) | works (was: as without) | works | works | works | works | works |
+| NeoForge → Fabric | works (was: as without) | works (was: as without) | works | works (labels of mobs coming into view: was none) | works | works (labels: was none) | works | works | works |
+| the same loader | works | works | works | works | works | works | works (each loader in singleplayer) | works (each loader in singleplayer) | works (each loader in singleplayer) |
 
 | Where | What went wrong | What the mod does |
 |---|---|---|

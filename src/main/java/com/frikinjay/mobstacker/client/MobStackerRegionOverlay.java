@@ -374,6 +374,14 @@ public final class MobStackerRegionOverlay {
         if (target.width != main.width || target.height != main.height) {
             target.resize(main.width, main.height);
         }
+        *///?} else if >=1.21.4 {
+        /*// By 1.21.4 (unconfirmed when) the size is all; still a framebuffer, bound after a copy.
+        if (target == null) {
+            return new TextureTarget(main.width, main.height, true);
+        }
+        if (target.width != main.width || target.height != main.height) {
+            target.resize(main.width, main.height);
+        }
         *///?} else {
         if (target == null) {
             return new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
@@ -497,9 +505,9 @@ public final class MobStackerRegionOverlay {
         }
     }
 
-    /** A box's six faces, as vanilla's debug filled box (by 1.21.5, unconfirmed when, in ShapeRenderer). */
+    /** A box's six faces, as vanilla's debug filled box (by 1.21.4, unconfirmed when, in ShapeRenderer). */
     private static void filledBox(PoseStack pose, BufferBuilder faces, AABB box, float r, float g, float b, float a) {
-        //? if >=1.21.5 {
+        //? if >=1.21.4 {
         /*net.minecraft.client.renderer.ShapeRenderer.addChainedFilledBoxVertices(pose, faces,
                 box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, g, b, a);
         *///?} else {
@@ -509,13 +517,13 @@ public final class MobStackerRegionOverlay {
     }
 
     /**
-     * A box's twelve edges: by 1.21.5 (unconfirmed when) in ShapeRenderer, by 1.21.9 (unconfirmed when)
+     * A box's twelve edges: by 1.21.4 (unconfirmed when) in ShapeRenderer, by 1.21.9 (unconfirmed when)
      * from the pose alone.
      */
     private static void lineBox(PoseStack pose, BufferBuilder edges, AABB box, float r, float g, float b, float a) {
         //? if >=1.21.9 {
         /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), edges, box, r, g, b, a);
-        *///?} else if >=1.21.5 {
+        *///?} else if >=1.21.4 {
         /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, edges, box, r, g, b, a);
         *///?} else {
         LevelRenderer.renderLineBox(pose, edges, box, r, g, b, a);
@@ -606,8 +614,8 @@ public final class MobStackerRegionOverlay {
 
     /** Draws a batch {@link #begin} started, as the game's own buffer source would: sorted if the type asks. */
     private static void draw(RenderType type, BufferBuilder builder) {
-        //? if >=1.21.5 {
-        /*// By 1.21.5 (unconfirmed when) the sorting is the projection's.
+        //? if >=1.21.4 {
+        /*// By 1.21.4 (unconfirmed when) the sorting is the projection's.
         com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
         if (mesh != null) {
             if (type.sortOnUpload()) {
