@@ -211,13 +211,14 @@ tasks.processResources {
         "client.RabbitRendererMixin" to "1.21.2",
         // 26.3: spawning reads the level's entities in NaturalSpawner (26.2 still hands them over).
         "ServerChunkCacheMixin" to "26.3",
-        // By 1.21.6 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
-        // are convertTo (MobMixin carries the stack), and armour stands no longer tick on their own.
+        // 1.21.6 (1.21.5 still has ArmorStand.tick): armour stands no longer tick on their own.
         "ArmorStandMixin" to "1.21.6",
-        "mobs.PigMixin" to "1.21.6",
-        "mobs.VillagerMixin" to "1.21.6",
-        "mobs.TadpoleMixin" to "1.21.6",
-        "mobs.ZombieMixin" to "1.21.6",
+        // By 1.21.5 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
+        // are convertTo (MobMixin carries the stack).
+        "mobs.PigMixin" to "1.21.5",
+        "mobs.VillagerMixin" to "1.21.5",
+        "mobs.TadpoleMixin" to "1.21.5",
+        "mobs.ZombieMixin" to "1.21.5",
     )
     // And the other way round: mixins for a target that only exists from a version on.
     val mixinsFrom = mapOf(

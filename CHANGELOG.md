@@ -103,6 +103,19 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   as the Fabric jar (the same answers); the client started into a world and drew a region box and the
   stack labels, and a Fabric 1.21.8 server with a NeoForge client and the other way round both had the
   mod's channels working. Not yet played.
+- **Minecraft 1.21.5 on Fabric** - in progress, not released yet: its own jar (Fabric API for 1.21.5,
+  Java 21), the same code as the other jars. The region boxes are drawn as on 1.21.8, and the stack
+  labels are name tags. Checked on a server: the self-test, stacking, damage overflow, strict data
+  matching, regions and the scenarios from the 1.20.1 rounds, with the same answers as 1.21.8; a client
+  joined a server and drew a region box with its name and the stack labels. Not yet played. As on 1.21.8:
+  with `separateStackLabel` off, the `Dinnerbone`/`Toast`/`jeb_` easter eggs of a stack whose count is in
+  its name, and the clean-up of kill holograms left by 1.5.x, are not there.
+- **Minecraft 1.21.5 on NeoForge** - in progress, not released yet: its own jar (NeoForge 21.5.74 or
+  newer, the first stable build; Java 21), the same code as the Fabric jar. Its shears are as on NeoForge
+  1.21.8 (a player's shears on a mooshroom take the same path as on Fabric). Checked on a dev server with
+  the same scenarios as the Fabric jar (the same answers); a client joined a server and drew a region
+  box and the stack labels, and a Fabric 1.21.5 server with a NeoForge client and the other way round
+  both had the mod's channels working. Not yet played.
 - **Minecraft 1.21.1 (and 1.21) on Fabric** - in progress, not released yet. The same features as
   on 1.20.1, from the same code. Checked so far on a server: the self-test, stacking and damage
   overflow; not yet the client (screens, region boxes, labels), NeoForge or Forge.
@@ -132,6 +145,12 @@ via the `mod_version` in `gradle.properties`. This is an independently-developed
   game.
 
 ### Fixed
+- **NeoForge server, Fabric player with the mod: a stack that came into view had no label.** NeoForge
+  (from 20.4) drops a mod's packet from the batch that brings a mob into view unless the channel went
+  through NeoForge's own handshake, which a Fabric game never does; the stacks around the player when
+  they joined were shown anyway (sent again once the game had named its channels), so it showed only
+  after walking away and back. The label is now sent on its own, right after the mob, on every NeoForge
+  version, as it already was on 20.4. Found on 1.21.5, checked on 1.21.1 and 1.21.5.
 - **A world moved to a newer Minecraft version keeps the gear of the mobs under a stack's top one**
   (`keepMemberEquipment`), and a horse stack its members' own speed, jump and health. Both are kept
   in the stack's own data, which Minecraft does not convert when it upgrades a world: from 1.20.5
