@@ -51,11 +51,12 @@ public final class StackLabels {
     private static final int JOIN_WATCH = 200;
 
     /**
-     * Whether a label goes to the player on its own rather than in the pairing bundle. Set by NeoForge
-     * 20.4, which drops a mod's payload from a bundle unless its channel went through NeoForge's own
-     * negotiation: a Fabric game with the mod names its channels with {@code minecraft:register} only,
-     * so it would never get a label for a mob coming into view. Sent on its own, the payload is checked
-     * against those channels too. It goes at the end of the tick ({@link #PENDING}), after the bundle:
+     * Whether a label goes to the player on its own rather than in the pairing bundle. Set on NeoForge
+     * (from 20.4), which drops a mod's payload from a bundle unless its channel went through NeoForge's
+     * own negotiation: a Fabric game with the mod names its channels with {@code minecraft:register}
+     * only, so it would never get a label for a mob coming into view (the labels around it when it
+     * joined came anyway, sent again on their own once it named its channels: {@link #tick}). Sent on
+     * its own, the payload is checked against those channels too. It goes at the end of the tick ({@link #PENDING}), after the bundle:
      * the game forgets a label when a mob with its id is added, so one sent before its mob would be lost.
      */
     public static boolean labelOutsideBundle;

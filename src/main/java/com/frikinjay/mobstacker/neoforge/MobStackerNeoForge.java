@@ -29,6 +29,9 @@ public final class MobStackerNeoForge {
 
     public MobStackerNeoForge(IEventBus modBus) {
         MobStacker.init();
+        // A Fabric game's channels do not pass NeoForge's bundle filter (every NeoForge from 20.4);
+        // see StackLabels.labelOutsideBundle.
+        StackLabels.labelOutsideBundle = true;
         // NeoForge's shears shear through IShearable.onSheared (the shears item and the dispenser),
         // not in mobInteract; see NeoForgeShearing. By 21.5 (21.1 still moved them all; seen on 21.5, 21.8,
         // 21.10, 21.11 and 26.x) NeoForge moves only the sheep's, the snow golem's and the bogged's there: the mooshroom and
