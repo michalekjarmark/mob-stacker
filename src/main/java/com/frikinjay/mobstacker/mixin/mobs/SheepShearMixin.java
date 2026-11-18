@@ -50,7 +50,7 @@ public class SheepShearMixin implements StackShearable {
         }
     }
 
-    // 1.21.5 (unconfirmed; with shear(ServerLevel, SoundSource, ItemStack)): the level's playSound for any entity.
+    // From 1.21.5: the level's playSound for any entity.
     //? if >=1.21.5 {
     /*@Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;playSound(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
     private void mobstacker$oneSnipPerClick(net.minecraft.server.level.ServerLevel level, Entity player, Entity entity, SoundEvent sound,
@@ -60,7 +60,7 @@ public class SheepShearMixin implements StackShearable {
         }
     }
     *///?} else if >=1.21.2 {
-    /*// From 1.21.2 (unconfirmed when) a sheep sheared on a ServerLevel calls its playSound, still for a player.
+    /*// From 1.21.2 a sheep sheared on a ServerLevel calls its playSound, still for a player.
     @Redirect(method = "shear", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;playSound(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/sounds/SoundEvent;Lnet/minecraft/sounds/SoundSource;FF)V"))
     private void mobstacker$oneSnipPerClick(net.minecraft.server.level.ServerLevel level, Player player, Entity entity, SoundEvent sound,
                                             SoundSource source, float volume, float pitch) {

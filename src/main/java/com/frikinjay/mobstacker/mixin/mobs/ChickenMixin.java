@@ -16,15 +16,15 @@ public abstract class ChickenMixin {
     //? if >=1.21.11 {
     /*@org.spongepowered.asm.mixin.injection.Redirect(method = "aiStep", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/animal/chicken/Chicken;dropFromGiftLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/resources/ResourceKey;Ljava/util/function/BiConsumer;)Z"))
-    *///?} else if >=1.21.4 {
+    *///?} else if >=1.21.2 {
     /*@org.spongepowered.asm.mixin.injection.Redirect(method = "aiStep", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/world/entity/animal/Chicken;dropFromGiftLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/resources/ResourceKey;Ljava/util/function/BiConsumer;)Z"))
     *///?}
-    //? if >=1.21.4 {
+    //? if >=1.21.2 {
     /*private boolean mobstacker$eggForEveryMember(Chicken self, net.minecraft.server.level.ServerLevel level,
             net.minecraft.resources.ResourceKey<net.minecraft.world.level.storage.loot.LootTable> table,
             java.util.function.BiConsumer<net.minecraft.server.level.ServerLevel, net.minecraft.world.item.ItemStack> drop) {
-        // By 1.21.4 (unconfirmed when) the gift is a loot table (a cold chicken lays a blue egg): it is rolled once more
+        // From 1.21.2 the gift is a loot table (a cold chicken lays a blue egg): it is rolled once more
         // for every member, so each gets its own, as one item per member did before.
         boolean dropped = self.dropFromGiftLootTable(level, table, drop);
         for (int i = MobStacker.giftMembers(self); dropped && i > 0; i--) {

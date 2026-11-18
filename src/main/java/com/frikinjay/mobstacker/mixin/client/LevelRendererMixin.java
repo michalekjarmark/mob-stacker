@@ -1,6 +1,6 @@
 package com.frikinjay.mobstacker.mixin.client;
 
-//? if >=1.21.4 && <1.21.11 {
+//? if >=1.21.2 && <1.21.11 {
 /*import com.frikinjay.mobstacker.client.MobStackerRegionOverlay;
 import com.frikinjay.mobstacker.compat.Compat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /^*
- * The same three points as below 1.21.4 (see there), where the frame graph put them. By 1.21.4
- * (unconfirmed when; the frame graph came in 1.21.2) the world is drawn in passes, each a lambda: the
+ * The same three points as below 1.21.2 (see there), where the frame graph put them. From 1.21.2
+ * (the frame graph) the world is drawn in passes, each a lambda: the
  * solid world, the debug renderer and the translucent terrain in the main pass ({@link Compat#MAIN_PASS}),
  * and a late debug pass ({@link Compat#LATE_DEBUG_PASS}), added every frame after the clouds, the weather
  * and the transparency's post chain - where {@code renderDebug} was, and where the boxes are drawn.
@@ -40,7 +40,7 @@ public abstract class LevelRendererMixin {
         MobStackerRegionOverlay.render(new PoseStack(), Minecraft.getInstance().gameRenderer.getMainCamera());
     }
 }
-*///?} else if <1.21.4 {
+*///?} else if <1.21.2 {
 
 import com.frikinjay.mobstacker.client.MobStackerRegionOverlay;
 import com.mojang.blaze3d.vertex.PoseStack;

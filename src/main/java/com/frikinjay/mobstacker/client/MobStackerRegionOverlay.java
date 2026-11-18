@@ -367,15 +367,15 @@ public final class MobStackerRegionOverlay {
     /** {@code target}, created or resized to match {@code main} when it does not already. */
     private static TextureTarget sizedLike(RenderTarget main, TextureTarget target, String label) {
         //? if >=1.21.5 {
-        /*// By 1.21.5 (unconfirmed when) a target is textures with a name; nothing to bind.
+        /*// From 1.21.5 a target is textures with a name; nothing to bind.
         if (target == null) {
             return new TextureTarget(label, main.width, main.height, true);
         }
         if (target.width != main.width || target.height != main.height) {
             target.resize(main.width, main.height);
         }
-        *///?} else if >=1.21.4 {
-        /*// By 1.21.4 (unconfirmed when) the size is all; still a framebuffer, bound after a copy.
+        *///?} else if >=1.21.2 {
+        /*// From 1.21.2 the size is all; still a framebuffer, bound after a copy.
         if (target == null) {
             return new TextureTarget(main.width, main.height, true);
         }
@@ -395,7 +395,7 @@ public final class MobStackerRegionOverlay {
 
     /**
      * Below 1.21.5: {@code copyDepthFrom} leaves no framebuffer bound; the main one was, and the game
-     * carries on drawing without binding it again. From 1.21.5 (unconfirmed when) a copy is a command
+     * carries on drawing without binding it again. From 1.21.5 a copy is a command
      * and nothing is bound, so there is nothing to put back.
      */
     private static void rebindMain(RenderTarget main) {
@@ -505,9 +505,9 @@ public final class MobStackerRegionOverlay {
         }
     }
 
-    /** A box's six faces, as vanilla's debug filled box (by 1.21.4, unconfirmed when, in ShapeRenderer). */
+    /** A box's six faces, as vanilla's debug filled box (from 1.21.2 in ShapeRenderer). */
     private static void filledBox(PoseStack pose, BufferBuilder faces, AABB box, float r, float g, float b, float a) {
-        //? if >=1.21.4 {
+        //? if >=1.21.2 {
         /*net.minecraft.client.renderer.ShapeRenderer.addChainedFilledBoxVertices(pose, faces,
                 box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, g, b, a);
         *///?} else {
@@ -517,13 +517,13 @@ public final class MobStackerRegionOverlay {
     }
 
     /**
-     * A box's twelve edges: by 1.21.4 (unconfirmed when) in ShapeRenderer, by 1.21.9 (unconfirmed when)
+     * A box's twelve edges: from 1.21.2 in ShapeRenderer, by 1.21.9 (unconfirmed when)
      * from the pose alone.
      */
     private static void lineBox(PoseStack pose, BufferBuilder edges, AABB box, float r, float g, float b, float a) {
         //? if >=1.21.9 {
         /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose.last(), edges, box, r, g, b, a);
-        *///?} else if >=1.21.4 {
+        *///?} else if >=1.21.2 {
         /*net.minecraft.client.renderer.ShapeRenderer.renderLineBox(pose, edges, box, r, g, b, a);
         *///?} else {
         LevelRenderer.renderLineBox(pose, edges, box, r, g, b, a);
@@ -614,8 +614,8 @@ public final class MobStackerRegionOverlay {
 
     /** Draws a batch {@link #begin} started, as the game's own buffer source would: sorted if the type asks. */
     private static void draw(RenderType type, BufferBuilder builder) {
-        //? if >=1.21.4 {
-        /*// By 1.21.4 (unconfirmed when) the sorting is the projection's.
+        //? if >=1.21.2 {
+        /*// From 1.21.2 the sorting is the projection's.
         com.mojang.blaze3d.vertex.MeshData mesh = builder.build();
         if (mesh != null) {
             if (type.sortOnUpload()) {

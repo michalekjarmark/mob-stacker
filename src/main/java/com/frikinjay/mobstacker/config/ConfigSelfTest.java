@@ -705,7 +705,7 @@ public final class ConfigSelfTest {
         net.minecraft.world.entity.animal.Turtle turtle = Compat.create(EntityType.TURTLE, level, MobSpawnType.COMMAND);
         if (turtle != null) {
             turtle.setHomePos(new net.minecraft.core.BlockPos(1234, 64, -987));
-            // The keys vanilla saves a turtle's egg and home under: renamed in 1.21.5 (unconfirmed).
+            // The keys vanilla saves a turtle's egg and home under: renamed in 1.21.5.
             //? if >=1.21.5 {
             /*String eggKey = "has_egg";
             *///?} else {

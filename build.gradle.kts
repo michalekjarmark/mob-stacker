@@ -52,7 +52,7 @@ val accessWidenerSource = rootProject.file("src/main/resources/mobstacker.access
 // Widener lines for members a version no longer has (Loom refuses a line it cannot find), by the
 // "Class member" text in the line and the version they are gone from.
 val widenerBefore = mapOf(
-    "LivingEntity deathScore" to "1.21.2", // the kill score is no longer a field
+    "LivingEntity deathScore" to "1.21.4", // the kill score is no longer a field (1.21.3 still has it)
 )
 val droppedWidenerLines = widenerBefore.filter { (_, version) -> stonecutter.current.parsed >= version }.keys
 fun nodeAccessWidenerLine(line: String) =
@@ -213,12 +213,12 @@ tasks.processResources {
         "ServerChunkCacheMixin" to "26.3",
         // 1.21.6 (1.21.5 still has ArmorStand.tick): armour stands no longer tick on their own.
         "ArmorStandMixin" to "1.21.6",
-        // By 1.21.4 (unconfirmed when; convertTo takes ConversionParams from 1.21.2): these conversions
+        // 1.21.2 (with ConversionParams): these conversions
         // are convertTo (MobMixin carries the stack).
-        "mobs.PigMixin" to "1.21.4",
-        "mobs.VillagerMixin" to "1.21.4",
-        "mobs.TadpoleMixin" to "1.21.4",
-        "mobs.ZombieMixin" to "1.21.4",
+        "mobs.PigMixin" to "1.21.2",
+        "mobs.VillagerMixin" to "1.21.2",
+        "mobs.TadpoleMixin" to "1.21.2",
+        "mobs.ZombieMixin" to "1.21.2",
     )
     // And the other way round: mixins for a target that only exists from a version on.
     val mixinsFrom = mapOf(

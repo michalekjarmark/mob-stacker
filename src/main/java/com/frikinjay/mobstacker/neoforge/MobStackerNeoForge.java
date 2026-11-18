@@ -33,7 +33,7 @@ public final class MobStackerNeoForge {
         // see StackLabels.labelOutsideBundle.
         StackLabels.labelOutsideBundle = true;
         // NeoForge's shears shear through IShearable.onSheared (the shears item and the dispenser),
-        // not in mobInteract; see NeoForgeShearing. By 21.4 (21.1 still moved them all; seen on 21.4, 21.5, 21.8,
+        // not in mobInteract; see NeoForgeShearing. From 21.3 (21.1 still moved them all, 21.2 never left beta; seen on 21.3, 21.4, 21.5, 21.8,
         // 21.10, 21.11 and 26.x) NeoForge moves only the sheep's, the snow golem's and the bogged's there: the mooshroom and
         // the copper golem keep vanilla's shears in their mobInteract, so a player's shears on them
         // take the same path as on Fabric (common MushroomCowShearMixin). The bogged is a skeleton's from 1.21.11.
@@ -41,7 +41,7 @@ public final class MobStackerNeoForge {
         /*MobStacker.shearingOutsideMobInteract = mob -> mob instanceof net.minecraft.world.entity.animal.Sheep
                 || mob instanceof net.minecraft.world.entity.animal.SnowGolem
                 || mob instanceof net.minecraft.world.entity.monster.skeleton.Bogged;
-        *///?} else if >=1.21.4 {
+        *///?} else if >=1.21.2 {
         /*MobStacker.shearingOutsideMobInteract = mob -> mob instanceof net.minecraft.world.entity.animal.Sheep
                 || mob instanceof net.minecraft.world.entity.animal.SnowGolem
                 || mob instanceof net.minecraft.world.entity.monster.Bogged;
